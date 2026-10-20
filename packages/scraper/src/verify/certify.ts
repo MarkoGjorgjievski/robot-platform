@@ -1,8 +1,8 @@
 import type { PageCapture } from '@robot/browser';
-import { MAX_CERTIFIED_PATHS } from './constants.js';
+import { MAX_CERTIFIED_PATHS, MAX_PATHS_PER_SOURCE } from './constants.js';
 import { afterLabel, labelled, normalize, valuesEqual } from './normalize.js';
 import { applyTransform } from './transforms.js';
-import { resolveStructured, searchStructured } from './search-structured.js';
+import { apiResponseOf, resolveStructured, searchStructured } from './search-structured.js';
 import { isVolatileXPath, xpathContainsValue, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { isWeakField, normalizeForWeak, pathFitsConcept } from './field-fit.js';
 import { displayValue } from './structured-value.js';
@@ -80,6 +80,76 @@ function pathId(p: CandidatePath): string {
 function dedupe(candidates: CandidatePath[]): CandidatePath[] {
   const seen = new Set<string>();
   return candidates.filter((c) => { const id = pathId(c); if (seen.has(id)) return false; seen.add(id); return true; });
+}
+
+/** Spec 2026-10-20 one-source §3.1: one API response (by `container`; none recorded reads as one shared response), the page's JSON-LD, its meta tags, or its HTML. */
+export function sourceKey(p: Pick<CertifiedPath, 'source' | 'container'>): string {
+  return p.source === 'api' ? `api ${p.container ?? ''}` : p.source;
+}
+
+/**
+ * Controller ruling 2026-10-20 (overrides spec §3.2/§4): the page's HTML is exempt from the
+ * per-source cap — XPath backups keep today's places — so it never counts as "one source" either.
+ */
+const isUncappedSource = (key: string) => key === 'xpath';
+
+/** Two or more paths, all from one capped source (spec 2026-10-20 one-source §3.2, §3.4). All-XPath fields are exempt (controller ruling). */
+export function readsOneSource(paths: ReadonlyArray<Pick<CertifiedPath, 'source' | 'container'>>): boolean {
+  const keys = new Set(paths.map(sourceKey));
+  return paths.length >= 2 && keys.size === 1 && !isUncappedSource([...keys][0]!);
+}
+
+/**
+ * Spec 2026-10-20 one-source §3.2: from a ranked list, the pinned (confirmed) paths first, in their
+ * order and never capped; then round 1 takes the best remaining path of every source holding fewer
+ * than one, round 2 the next of every source holding fewer than two — sources in the order of their
+ * best path in `ranked` — then every remaining path of an `uncapped` source, in rank order; and the
+ * first MAX_CERTIFIED_PATHS are kept. So the first path is always `ranked[0]`, and no capped source
+ * holds more than MAX_PATHS_PER_SOURCE unpinned places.
+ */
+export function spreadAcrossSources<T>(ranked: T[], keyOf: (c: T) => string, pinned: (c: T) => boolean, uncapped: (key: string) => boolean = () => false): T[] {
+  const out = ranked.filter(pinned);
+  const queues = new Map<string, T[]>();
+  for (const c of ranked) {
+    const k = keyOf(c);
+    if (!queues.has(k)) queues.set(k, []);
+    if (!pinned(c)) queues.get(k)!.push(c);
+  }
+  const held = (k: string) => out.filter((c) => keyOf(c) === k).length;
+  for (let round = 1; round <= MAX_PATHS_PER_SOURCE; round++) {
+    for (const [k, queue] of queues) {
+      if (queue.length > 0 && held(k) < round) out.push(queue.shift()!);
+    }
+  }
+  const rest = new Set([...queues].filter(([k]) => uncapped(k)).flatMap(([, q]) => q));
+  out.push(...ranked.filter((c) => rest.has(c)));
+  return out.slice(0, MAX_CERTIFIED_PATHS);
+}
+
+/**
+ * Spec 2026-10-20 one-source §3.1: each API path's source name. On every page a path reads, the
+ * response it reads (`apiResponseOf`); two paths reading the same response on the same page are one
+ * source — so siblings group even when a product id sits in the response's path — and a source is
+ * named by the response its best-ranked member reads on the first page it reads. A path that reads
+ * nothing anywhere gets no name.
+ */
+function responseLabels(ranked: CandidatePath[], urls: string[], captures: Record<string, CaptureLike | null>): Map<string, string> {
+  const reads = new Map<string, Array<[string, string]>>(); // pathId → [page url, response] per page it reads
+  for (const c of ranked) {
+    if (c.source !== 'api' || reads.has(pathId(c))) continue;
+    reads.set(pathId(c), urls.flatMap((u): Array<[string, string]> => {
+      const cap = captures[u];
+      const r = cap ? apiResponseOf(cap, c.path) : null;
+      return r ? [[u, r]] : [];
+    }));
+  }
+  const labels = new Map<string, string>();
+  for (const [id, mine] of reads) {
+    const peer = [...labels.keys()].find((q) => reads.get(q)!.some(([u, r]) => mine.some(([u2, r2]) => u === u2 && r === r2)));
+    const label = peer !== undefined ? labels.get(peer) : mine[0]?.[1];
+    if (label !== undefined) labels.set(id, label);
+  }
+  return labels;
 }
 
 /** Spec 2026-10-17 §6: the XPaths a mark is read through. An image mark reads its src, a link mark its href; a mark stored before this change gets the suffix here. */
@@ -316,19 +386,31 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   // A path that resolves to a WRONG value anywhere is never certified: at
   // scale paths are tried in order and the first value wins.
   const safe = candidates.filter((c) => readsSomething(c) && capturedUrls.length > 0 && capturedUrls.every((u) => { const e = evals.get(pathId(c))?.[u]; return !!e && (e.correct || e.empty); }));
+  // Spec 2026-10-20 one-source §3.1: which source each safe path reads — API paths by the response they share on a page.
+  const labels = responseLabels(rank(safe), capturedUrls, captures);
+  const keyOf = (c: CandidatePath) => sourceKey({ source: c.source, container: labels.get(pathId(c)) });
+  const pinned = (c: CandidatePath) => isConfirmedPath(c, input.confirmed);
   const correctOnAllCaptured = safe.filter((c) => capturedUrls.every((u) => isCorrect(c, u)));
   // With a default an empty read is correct on a default cell, so a path that reads a value on
   // one page only is "correct on every page" without proving a layout: it may not certify as one
   // layout (alone or riding along); it goes to the cover, which wants one path proven on two pages.
   const provenCount = (c: CandidatePath) => capturedUrls.filter((u) => !absentSet.has(u) && isProven(c, u)).length;
   const oneLayoutPool = defaultValue === undefined ? correctOnAllCaptured : correctOnAllCaptured.filter((c) => provenCount(c) >= 2);
-  const oneLayout = complete ? rank(oneLayoutPool).slice(0, MAX_CERTIFIED_PATHS) : [];
+  // Spec 2026-10-20 one-source §3.2: backups spread across sources, at most two from any one but the
+  // page's HTML (controller ruling: XPaths uncapped); the first path is today's.
+  const oneLayout = complete ? spreadAcrossSources(rank(oneLayoutPool), keyOf, pinned, isUncappedSource) : [];
   // One layout: exactly today's result, no provenOn. Otherwise a cover, each path stamped with its pages.
   const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, absentSet, isCorrect, isProven, rank, defaultValue === undefined ? undefined : defaultCells) : [];
   // provenOn (and so thinEvidence) counts the pages with a value only: an absent page proves nothing about a path.
-  const certified: CertifiedPath[] = oneLayout.length > 0
+  // Spec 2026-10-20 one-source §3.5: every certified API path names its source; a container a candidate brought along is replaced or dropped.
+  const stamp = (p: CandidatePath): CertifiedPath => {
+    const base: CertifiedPath = { source: p.source, path: p.path, transform: p.transform, ...(p.provenOn ? { provenOn: p.provenOn } : {}) };
+    const label = p.source === 'api' ? labels.get(pathId(p)) : undefined;
+    return label !== undefined ? { ...base, container: label } : base;
+  };
+  const certified: CertifiedPath[] = (oneLayout.length > 0
     ? oneLayout
-    : cover.map((c) => ({ ...c, provenOn: capturedUrls.filter((u) => !absentSet.has(u) && isProven(c, u)) }));
+    : cover.map((c) => ({ ...c, provenOn: capturedUrls.filter((u) => !absentSet.has(u) && isProven(c, u)) }))).map(stamp);
   if (certified.length === 0 && allDefault) return defaultOnlyResult();
   const thinEvidence = cover.length > 0 && certified.some((p) => p.provenOn?.length === 1);
   const rankedCorrectOnAllCaptured = rankCertified(correctOnAllCaptured);

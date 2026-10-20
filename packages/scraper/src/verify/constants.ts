@@ -1,6 +1,12 @@
 export const VERIFY_URL_MIN = 3;
 export const VERIFY_URL_MAX = 6;
 export const MAX_CERTIFIED_PATHS = 5;
+/**
+ * Spec 2026-10-20 one-source §3: a one-layout field keeps at most this many certified paths from any one
+ * source (confirmed paths excepted). The page's HTML (XPath paths) is exempt by controller ruling
+ * (2026-10-20): XPath backups keep today's places, capped only by MAX_CERTIFIED_PATHS.
+ */
+export const MAX_PATHS_PER_SOURCE = 2;
 export const CAPTURE_REUSE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /**
  * Spec 2026-10-17 §8: one AI call reads every checked proof page's capture, so its cost grows with

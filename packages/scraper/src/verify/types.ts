@@ -52,8 +52,11 @@ export type VerificationSet = {
 
 export type Transform = 'identity' | 'cents_to_units' | 'first_of_list' | 'after_label';
 export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
-/** `provenOn` is set only when a field needed more than one layout (spec 2026-09-17 §3): the proof pages this path was correct on. Absent on a one-layout result, so those stay byte-for-byte what they were. Ignored by extraction and by path identity. */
-export type CertifiedPath = { source: CertifiedSource; path: string; transform: Transform; provenOn?: string[] };
+/**
+ * `provenOn` is set only when a field needed more than one layout (spec 2026-09-17 §3): the proof pages this path was correct on. Absent on a one-layout result, so those stay byte-for-byte what they were. Ignored by extraction and by path identity.
+ * `container` (spec 2026-10-20 one-source §3.5) is set on a certified API path only: the name (origin + path) of the response it reads on the proof pages, shared by every API path that reads the same response. Ignored by extraction, by path identity and by the domain store; absent on results certified before it existed.
+ */
+export type CertifiedPath = { source: CertifiedSource; path: string; transform: Transform; provenOn?: string[]; container?: string };
 
 /** `elsewhere` (spec 2026-10-20 §3.4): the path right on every other page reads nothing here, but another candidate reads the right value on this page — the value is on this product, in another place. */
 export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path' | 'found_unexpected' | 'elsewhere';
