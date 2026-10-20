@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Shape } from '@robot/scraper';
-import { summariseCoverage, stageLine, COVERAGE_STALLED, type CoverageResults } from './coverage-summary.js';
+import { summariseCoverage, stageLine, COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, type CoverageResults } from './coverage-summary.js';
 
 const single: Shape = { jsonLdTypes: ['Product'], offers: 'top-level', rating: true, address: '/p/n' };
 const multi: Shape = { jsonLdTypes: ['ProductGroup'], offers: 'in-variants', rating: true, address: '/p/n' };
@@ -47,6 +47,17 @@ describe('summariseCoverage (spec 2026-10-10 §A5)', () => {
     const r = summariseCoverage(results([page(10, ['price'], noRating), page(11, ['price'], multi), page(12, ['price'], multi)]), ['price']);
     expect(r[0].representative).toBe('https://s.example/p/11');
   });
+  it('a shape a proof page answered "Not on this product" is not offered again (spec 2026-10-20 §3.8)', () => {
+    const r = summariseCoverage(results([page(10, ['price'], multi), page(11, ['price'], multi)]), ['price'], { price: ['s.example/p/*'] });
+    expect(r[0]).toMatchObject({ key: 'price', empty: ['https://s.example/p/10', 'https://s.example/p/11'], representative: null, answered: true });
+  });
+  it('an empty page of another shape is still offered; an answer on another field changes nothing', () => {
+    const sampled = [page(10, ['price'], multi), { url: 'https://s.example/item/x-1', empty: ['price'], shape: multi }];
+    const r = summariseCoverage(results(sampled), ['price'], { price: ['s.example/p/*'], rating: ['s.example/item/*'] });
+    expect(r[0]!.representative).toBe('https://s.example/item/x-1');
+    expect(r[0]!.answered).toBeUndefined();
+    expect(summariseCoverage(results([page(10, ['price'])]), ['price'], { rating: ['s.example/p/*'] })[0]).not.toHaveProperty('answered');
+  });
 });
 
 describe('stageLine (spec §5)', () => {
@@ -74,6 +85,10 @@ describe('stageLine (spec §5)', () => {
   it('one field, one product', () => expect(stageLine('done', results([page(10, ['price'])]), 1, null)).toBe('1 field was empty on some of the 1 sampled product — see the row.'));
   it('failed reads the error', () => expect(stageLine('failed', null, 0, 'shop.example refused the browser (HTTP 403).')).toBe('shop.example refused the browser (HTTP 403).'));
   it('nothing sampled says nothing', () => expect(stageLine('done', results([]), 0, null)).toBeNull());
+  it('a listing with no products says so (spec 2026-10-20 §3.6)', () => {
+    expect(NO_PRODUCTS_ON_LISTING).toBe('No products found on the listing page, so no more products were checked.');
+    expect(stageLine('done', { listingUrl: 'x', sampled: [], proofShapes: {}, planned: 0, noProducts: true }, 0, null)).toBe(NO_PRODUCTS_ON_LISTING);
+  });
 });
 
 describe('COVERAGE_STALLED (spec 2026-10-20 §3.5.5)', () => {

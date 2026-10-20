@@ -2,9 +2,12 @@
 // listing's product group minus the proof pages, twenty of them spread evenly
 // over the listing's order so the top of the page (colourways, sponsored
 // strips) does not fill the sample.
+import { productKey } from '@robot/scraper';
+
 export const COVERAGE_SAMPLE_SIZE = 20;
 
-const key = (u: string) => u.replace(/#.*$/, '').replace(/\/+$/, '');
+/** Spec 2026-10-20 §3.4, §5.5: one product is one key (`productKey`) — a query (other than an id-like one on a literal path), a fragment, `www.` or a trailing slash never makes another, so a proof page is never sampled under any of them. */
+const key = (u: string) => productKey(u) ?? u.replace(/#.*$/, '').replace(/\/+$/, '');
 
 export function sampleListing(productUrls: string[], proofUrls: string[], max = COVERAGE_SAMPLE_SIZE): string[] {
   const proof = new Set(proofUrls.map(key));
