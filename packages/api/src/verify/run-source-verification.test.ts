@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
+import { BROWSER_UNAVAILABLE } from '@robot/browser';
 import { db, sources, sourceVerifications, captures, jevReadings } from '@robot/db';
 import type { JevAgreement } from './jev-agreement.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
@@ -354,6 +355,26 @@ describe('runSourceVerification', () => {
       if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = savedKey;
       await cleanup();
     }
+  });
+
+  it("one field's AI failure completes the run: its ai_unavailable result and the calls are stored, and a page with no reason reads the browser sentence (spec 2026-10-20 §3.3, §3.5.2)", async () => {
+    const { sourceId, urls, cleanup } = await makeSchemaSource('aiunavailable');
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+      const price = { key: 'price', cells: { [urls[0]!]: { status: 'fail', reason: 'not_found' } }, certified: [], weakEvidence: false, aiCalled: true, incomplete: true, failReason: 'ai_unavailable' };
+      runVerificationMock.mockResolvedValue({
+        outcome: { fields: { price }, allPassed: false, aiCalls: 1 },
+        captures: { [urls[0]!]: fakeCapture(urls[0]!, '<html>1</html>'), [urls[1]!]: fakeCapture(urls[1]!, '<html>2</html>'), [urls[2]!]: null },
+        captureErrors: {},
+      });
+      await runSourceVerification(sourceId, verificationId, { startCoverage });
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
+      expect(row!.completedAt).not.toBeNull();
+      expect(row!.errorMessage).toBeNull();
+      expect(row!.aiCalls).toBe(1);
+      expect(row!.results).toEqual({ price });
+      expect((row!.captures as Record<string, { blockedReason?: string }>)[urls[2]!]!.blockedReason).toBe(BROWSER_UNAVAILABLE);
+    } finally { await cleanup(); }
   });
 });
 

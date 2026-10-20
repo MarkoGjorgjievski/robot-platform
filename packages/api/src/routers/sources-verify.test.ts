@@ -529,3 +529,66 @@ describe('sources.verifyEstimate re-verify pricing', () => {
     expect(estAiCostPerFieldUsd(3)).toBeGreaterThanOrEqual(0.1521); // skims, campaign 2: one AI call on three pages
   });
 });
+
+describe('sources.verificationStatus — a run that failed never replaces the last results (spec 2026-10-20 §3.3)', () => {
+  const RAW = 'page.goto: Timeout 60000ms exceeded. Request timed out.';
+  const results = { price: { key: 'price', cells: {}, certified: [{ source: 'json-ld', path: 'offers.price', transform: 'identity' }], weakEvidence: false, aiCalled: false, incomplete: false } };
+  const insert = async (values: Partial<typeof sourceVerifications.$inferInsert> & { sourceId: string }) =>
+    (await db.insert(sourceVerifications).values({ definitionHash: 'x', ...values }).returning({ id: sourceVerifications.id }))[0]!.id;
+
+  it('a failed newest run: the last completed result, the failure beside it, no raw text', async () => {
+    const { sourceId, cleanup } = await makeSchemaSource('failedkeeps');
+    try {
+      const now = Date.now();
+      const done = await insert({ sourceId, startedAt: new Date(now - 120_000), completedAt: new Date(now - 110_000), allPassed: true, results });
+      const failed = await insert({ sourceId, startedAt: new Date(now - 60_000), completedAt: new Date(now - 50_000), errorMessage: RAW });
+      const status = (await caller.sources.verificationStatus({ sourceId }))!;
+      expect(status.id).toBe(done);
+      expect(status.results).toEqual(results);
+      expect(status.allPassed).toBe(true);
+      expect(status.failedRun).toMatchObject({ id: failed, stalled: false });
+      expect('errorMessage' in status).toBe(false);
+      expect(JSON.stringify(status)).not.toContain('Timeout');
+    } finally { await cleanup(); }
+  });
+
+  it('a stalled in-flight newest run is a failure too', async () => {
+    const { sourceId, cleanup } = await makeSchemaSource('stalledkeeps');
+    try {
+      const now = Date.now();
+      const done = await insert({ sourceId, startedAt: new Date(now - VERIFY_STALL_MS - 120_000), completedAt: new Date(now - VERIFY_STALL_MS - 110_000), allPassed: true, results });
+      const stalled = await insert({ sourceId, startedAt: new Date(now - VERIFY_STALL_MS - 1000), captures: { _stage: 'searching' } });
+      const status = (await caller.sources.verificationStatus({ sourceId }))!;
+      expect(status.id).toBe(done);
+      expect(status.stage).toBeNull();
+      expect(status.failedRun).toMatchObject({ id: stalled, stalled: true });
+    } finally { await cleanup(); }
+  });
+
+  it('a failed run with nothing completed before it: no results, the failure, no raw text', async () => {
+    const { sourceId, cleanup } = await makeSchemaSource('failedalone');
+    try {
+      const failed = await insert({ sourceId, completedAt: new Date(), errorMessage: RAW });
+      const status = (await caller.sources.verificationStatus({ sourceId }))!;
+      expect(status.id).toBe(failed);
+      expect(status.results).toEqual({});
+      expect(status.failedRun).toMatchObject({ id: failed, stalled: false });
+      expect(JSON.stringify(status)).not.toContain('Timeout');
+    } finally { await cleanup(); }
+  });
+
+  it('a young in-flight run after a failed one carries no failedRun', async () => {
+    const { sourceId, cleanup } = await makeSchemaSource('retryafterfail');
+    try {
+      const now = Date.now();
+      await insert({ sourceId, startedAt: new Date(now - 120_000), completedAt: new Date(now - 110_000), allPassed: true, results });
+      await insert({ sourceId, startedAt: new Date(now - 60_000), completedAt: new Date(now - 50_000), errorMessage: RAW });
+      const running = await insert({ sourceId, startedAt: new Date(now - 1000), captures: { _stage: 'searching' } });
+      const status = (await caller.sources.verificationStatus({ sourceId }))!;
+      expect(status.id).toBe(running);
+      expect(status.completedAt).toBeNull();
+      expect(status.stage).toBe('searching');
+      expect(status.failedRun).toBeNull();
+    } finally { await cleanup(); }
+  });
+});

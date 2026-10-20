@@ -31,6 +31,7 @@ import { runSourceVerification } from '../verify/run-source-verification.js';
 import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
+import { runFailure } from '../verify/run-failure.js';
 import type { JevAnswers } from '../verify/jev-reading.js';
 
 /**
@@ -1168,16 +1169,32 @@ export const sourcesRouter = router({
    * reserved key inside the `captures` jsonb column, not a real capture
    * ref — surfaced here as `stage` and stripped from the `captures` map so
    * callers never mistake it for one.
+   *
+   * A newest run that failed or stalled (spec 2026-10-20 §3.3) is not handed
+   * back: the newest completed, error-free run is, with `failedRun` naming
+   * the failure. `errorMessage` is never in this answer; ops reads it from
+   * the row.
    */
   verificationStatus: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
-      const row = await ctx.db.query.sourceVerifications.findFirst({
+      const newest = await ctx.db.query.sourceVerifications.findFirst({
         where: eq(sourceVerifications.sourceId, input.sourceId),
         orderBy: [desc(sourceVerifications.startedAt)],
       });
-      if (!row) return null;
+      if (!newest) return null;
+      // Spec 2026-10-20 §3.3, §5.3: a run that failed or stalled never replaces the last completed
+      // results on screen. The tab gets the newest completed, error-free run and, beside it, the
+      // failure; the raw error stays on the row, for ops, and is never in this answer.
+      const failure = runFailure(newest);
+      const lastGood = failure
+        ? await ctx.db.query.sourceVerifications.findFirst({
+            where: and(eq(sourceVerifications.sourceId, input.sourceId), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)),
+            orderBy: [desc(sourceVerifications.startedAt)],
+          })
+        : undefined;
+      const row = lastGood ?? newest;
 
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
@@ -1205,7 +1222,8 @@ export const sourcesRouter = router({
         stage,
         aiCalls: row.aiCalls,
         costUsd: row.costUsd,
-        errorMessage: row.errorMessage,
+        // The newest run, when it failed or stalled (spec 2026-10-20 §3.3): the app says so in the Verify bar.
+        failedRun: failure ? { id: newest.id, startedAt: newest.startedAt, stalled: failure === 'stalled' } : null,
         currentKeys,
         // Fields whose latest result still matches them, passed or failed: a failure there is real, not stale.
         unchangedKeys,

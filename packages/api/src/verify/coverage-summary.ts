@@ -66,6 +66,9 @@ export function summariseCoverage(results: CoverageResults, fieldKeys: string[])
   return out;
 }
 
+/** A coverage check that ran past its window (spec 2026-10-20 §3.5.5); a superseded one says nothing (a newer check replaced it). */
+export const COVERAGE_STALLED = 'The check took too long and stopped. It runs again after your next Verify.';
+
 export function stageLine(status: 'running' | 'done' | 'failed', results: CoverageResults | null, fieldsWithEmpties: number, error: string | null): string | null {
   if (status === 'failed') return error;
   if (status === 'running') {

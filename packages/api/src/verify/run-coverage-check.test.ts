@@ -9,7 +9,7 @@ import { db, captures, coverageChecks, domainIntelligence, sources, sourceVerifi
 import { _resetBackoffForTests, fieldHash, reportVerdict, type CertifiedPath, type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import type { CoverageResults } from './coverage-summary.js';
+import { COVERAGE_STALLED, type CoverageResults } from './coverage-summary.js';
 
 // No agent, ever: constructing one fails the file.
 const { agentCtor } = vi.hoisted(() => ({ agentCtor: vi.fn() }));
@@ -352,10 +352,19 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
       expect(old).toMatchObject({ status: 'failed', error: 'stalled' });
       expect(old.completedAt).not.toBeNull();
 
-      // Read on its own, a stalled row is closed on the way and says nothing to the customer.
+      // Read on its own, a stalled row is closed on the way and says so in customer words (spec 2026-10-20 §3.5.5).
       await db.update(coverageChecks).set({ createdAt: new Date(Date.now() - COVERAGE_CHECK_STALL_MS - 1) }).where(eq(coverageChecks.id, second.checkId));
-      expect(await latestCoverageCheck(f.sourceId)).toMatchObject({ id: second.checkId, status: 'failed', error: 'stalled', stage: null, fields: [] });
+      expect(await latestCoverageCheck(f.sourceId)).toMatchObject({ id: second.checkId, status: 'failed', error: 'stalled', stage: COVERAGE_STALLED, fields: [] });
       expect(await checkRow(second.checkId)).toMatchObject({ status: 'failed', error: 'stalled' });
+    } finally { await f.cleanup(); }
+  });
+
+  it('a superseded check has no stage line (spec 2026-10-20 §3.5.5)', async () => {
+    const f = await certifiedWebsite('cov-superseded');
+    try {
+      const first = await startCoverageCheck(f.sourceId, null, { fire: false });
+      await db.update(coverageChecks).set({ status: 'failed', error: 'superseded', completedAt: new Date() }).where(eq(coverageChecks.id, first.checkId));
+      expect(await latestCoverageCheck(f.sourceId)).toMatchObject({ id: first.checkId, status: 'failed', stage: null });
     } finally { await f.cleanup(); }
   });
 

@@ -6,6 +6,7 @@
 
 import { and, eq, isNull } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
+import { BROWSER_UNAVAILABLE } from '@robot/browser';
 import { SchemaAgent, snapshotUsage, diffUsage, estimateCostUsd } from '@robot/agent';
 import {
   runVerification,
@@ -164,7 +165,7 @@ export async function runSourceVerification(
       const reused = reusedRefs.get(url);
       if (c && reused) captureRefs[url] = reused;                       // no new captures row for a reused page
       else if (c) captureRefs[url] = await storeCapture(sourceId, url, c);
-      else captureRefs[url] = { captureId: '', capturedAt: new Date().toISOString(), blockedReason: run.captureErrors[url] ?? 'not captured' };
+      else captureRefs[url] = { captureId: '', capturedAt: new Date().toISOString(), blockedReason: run.captureErrors[url] ?? BROWSER_UNAVAILABLE };
     }
 
     await db.update(sourceVerifications).set({

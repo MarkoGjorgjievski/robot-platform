@@ -18,7 +18,7 @@ import { safeErrorMessage } from '../crawl/plan-source.js';
 import { loadCurrentCertification } from './current-certification.js';
 import { captureSlots, loadProofPageCaptures } from './proof-page-capture.js';
 import { sampleListing } from './coverage-sampler.js';
-import { summariseCoverage, stageLine, type CoverageResults, type SampledPage, type FieldCoverage } from './coverage-summary.js';
+import { summariseCoverage, stageLine, COVERAGE_STALLED, type CoverageResults, type SampledPage, type FieldCoverage } from './coverage-summary.js';
 
 /** A check is twenty page loads, three at a time at most — well inside ten minutes; an older `running` row is a crash leftover (the drift check's rule). */
 export const COVERAGE_CHECK_STALL_MS = 10 * 60 * 1000;
@@ -226,8 +226,8 @@ export type LatestCoverageCheck = {
 /**
  * The newest check with its per-field summary and stage line. A stalled
  * `running` row is closed `failed` / `'stalled'` on the way (the drift
- * check's rule); a stalled check has no customer sentence, so its stage is
- * null and the next Verify tries again.
+ * check's rule) and the next Verify tries again. A stalled check's stage is
+ * `COVERAGE_STALLED` (spec 2026-10-20 §3.5.5); a superseded one's is null.
  */
 export async function latestCoverageCheck(sourceId: string): Promise<LatestCoverageCheck | null> {
   let row = await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.sourceId, sourceId), orderBy: [desc(coverageChecks.createdAt)] });
@@ -246,6 +246,6 @@ export async function latestCoverageCheck(sourceId: string): Promise<LatestCover
   const fields: FieldCoverage[] = status === 'done' && results ? summariseCoverage(results, keys) : [];
   return {
     id: row.id, status, results, error: row.error, createdAt: row.createdAt, fields,
-    stage: stageLine(status, results, fields.length, row.error === 'stalled' || row.error === 'superseded' ? null : row.error),
+    stage: stageLine(status, results, fields.length, row.error === 'superseded' ? null : row.error === 'stalled' ? COVERAGE_STALLED : row.error),
   };
 }
