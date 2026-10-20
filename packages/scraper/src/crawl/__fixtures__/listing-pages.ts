@@ -8,12 +8,12 @@ const FILLER = '<p>Free delivery on every order over a modest amount, easy retur
 const page = (body: string, head = '') => `<!doctype html><html><head><title>Listing</title>${head}</head><body>${body}${FILLER}</body></html>`;
 const img = (name: string) => `<img src="/img/${encodeURIComponent(name)}.png" alt="">`;
 /**
- * A product card: the photo and name in one link, the price on its own line below it. A block, as on
- * most cards: an inline price glued to the name reads "sierra rugRM810.00" in `innerText`, and a
- * currency code touching a letter is not a price (`PRICE_PATTERN`).
+ * A product card: the photo and name in one link, the price in an inline span right after it. Its
+ * `innerText` glues the two ("sierra rugRM810.00"): an uppercase code right after a lowercase letter
+ * is still a price (`PRICE_PATTERN`, the camel boundary).
  */
 export const productCard = (href: string, title: string, price: string, extra = '', cls = 'product-card') =>
-  `<li class="${cls}"><a href="${href}">${img(title)}<span>${title}</span></a><div class="price">${price}</div>${extra}</li>`;
+  `<li class="${cls}"><a href="${href}">${img(title)}<span>${title}</span></a><span class="price">${price}</span>${extra}</li>`;
 /** An image tile: a photo and a name in one link, no price (a category tile, or a price-less product card). */
 const imageTile = (href: string, name: string) => `<div class="tile"><a href="${href}">${img(name)}<span>${name}</span></a></div>`;
 const grid = (cards: string[]) => `<ul class="grid">${cards.join('')}</ul>`;
