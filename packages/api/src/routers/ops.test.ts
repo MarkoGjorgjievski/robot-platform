@@ -291,7 +291,7 @@ describe('ops.website', () => {
     await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true, results });
   }
 
-  it("gets its fields' certified paths in try order, named with the contract's own field names, with real run stats, 0/0 for a path the domain store never recorded, and no container even where the domain store has a lastUrl (final review I2: that's the product page, not the request)", async () => {
+  it("gets its fields' certified paths in try order, named with the contract's own field names, with real run stats, 0/0 for a path the domain store never recorded, and the response a certified API path reads (its container), never the domain store's lastUrl", async () => {
     const tag = Date.now();
     const op = await signIn(`ops-site-op-${tag}@example.com`);
     process.env.OPS_EMAILS = op.user.email;
@@ -314,7 +314,7 @@ describe('ops.website', () => {
       const nameKey = built.keys.Name!;
       const priceConcept = fields.find((f) => f.key === priceKey)!.concept;
 
-      const pricePrimary: CertifiedPath = { source: 'api', path: 'product.price', transform: 'identity' };
+      const pricePrimary: CertifiedPath = { source: 'api', path: 'product.price', transform: 'identity', container: `https://${host}/api/product` };
       const priceBackup: CertifiedPath = { source: 'json-ld', path: 'offers.price', transform: 'identity', provenOn: [urls[0]!, urls[2]!] };
       const namePath: CertifiedPath = { source: 'json-ld', path: 'name', transform: 'identity' };
       await certifyPaths(built.sourceId, { [priceKey]: [pricePrimary, priceBackup], [nameKey]: [namePath] });
@@ -327,7 +327,7 @@ describe('ops.website', () => {
             paths: [{
               path: 'product.price', source: 'verified', origin: 'api', transform: 'identity',
               confidence: 1, hits: 5, misses: 1, lastValue: '9.99', lastUsedAt: new Date().toISOString(),
-              lastUrl: `https://${host}/api/product`,
+              lastUrl: `https://${host}/p/1`,
             }],
             conflictCount: 0,
           },
@@ -346,7 +346,7 @@ describe('ops.website', () => {
       expect(priceField.name).toBe('Price');
       expect(priceField.state).toBe('current');
       expect(priceField.paths).toEqual([
-        { source: 'api', path: 'product.price', uses: 6, hits: 5 },
+        { source: 'api', path: 'product.price', container: `https://${host}/api/product`, uses: 6, hits: 5 },
         { source: 'json-ld', path: 'offers.price', provenOn: [urls[0], urls[2]], uses: 0, hits: 0 },
       ]);
 
