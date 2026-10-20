@@ -10,7 +10,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db, coverageChecks, sources } from '@robot/db';
 import { CaptureError, verdictSentence } from '@robot/browser';
 import {
-  backoffAnswer, CaptureProblemError, findProductGroup, readListingPage, reportVerdict, runVerifiedExtraction, shapeOf,
+  backoffAnswer, CaptureProblemError, findProductGroup, readListingPage, reportVerdict, runVerifiedExtraction, shapeOf, urlShape,
   type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField,
 } from '@robot/scraper';
 import { withBrowserSession } from '../browser-session.js';
@@ -154,6 +154,8 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
 
     const { productUrls, verdictMessage } = await listing(listingUrl);
     if (verdictMessage) throw new Error(verdictMessage);
+    // Spec 2026-10-20 §3.6: a listing with no products is an answer — nothing is sampled, and the tab says so.
+    if (productUrls.length === 0) { await done({ listingUrl, sampled: [], proofShapes: {}, planned: 0, noProducts: true }); return; }
     const urls = sampleListing(productUrls, set.urls);
     // The planned size, so the tab's running line can count before any page is read.
     await db.update(coverageChecks).set({ results: { listingUrl, sampled: [], proofShapes: {}, planned: urls.length } satisfies CoverageResults })
@@ -238,11 +240,15 @@ export async function latestCoverageCheck(sourceId: string): Promise<LatestCover
       .returning();
     row = closed ?? (await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.id, row.id) })) ?? row;
   }
-  const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true } });
+  const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, verificationSet: true } });
   const keys = ((Array.isArray(source?.schemaDefinition) ? source!.schemaDefinition : []) as SchemaDefinitionField[]).map((f) => f.key);
+  // Spec 2026-10-20 §3.8: per field, the address shapes of the proof pages answered "Not on this product" — read now, so an answer given after the check counts.
+  const absent = ((source?.verificationSet ?? null) as VerificationSet | null)?.absent ?? {};
+  const absentShapes = Object.fromEntries(Object.entries(absent).map(([key, cells]) => [key,
+    Object.entries(cells).filter(([, on]) => on === true).map(([url]) => urlShape(url)).filter((s): s is string => s !== null)]));
   const results = (row.results as CoverageResults | null) ?? null;
   const status = row.status as 'running' | 'done' | 'failed';
-  const fields: FieldCoverage[] = status === 'done' && results ? summariseCoverage(results, keys) : [];
+  const fields: FieldCoverage[] = status === 'done' && results ? summariseCoverage(results, keys, absentShapes) : [];
   return {
     id: row.id, status, results, error: row.error, createdAt: row.createdAt, fields,
     stage: stageLine(status, results, fields.length, row.error === 'superseded' ? null : row.error === 'stalled' ? COVERAGE_STALLED : row.error),

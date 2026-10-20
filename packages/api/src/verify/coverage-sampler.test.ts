@@ -30,4 +30,11 @@ describe('sampleListing (spec 2026-10-10 §A2, D1)', () => {
   it('nothing to sample is an empty list, not an error', () => {
     expect(sampleListing([], [])).toEqual([]);
   });
+  it('never samples a proof page under any query, fragment or www (spec 2026-10-20 §5.5)', () => {
+    const listed = ['https://www.s.example/p/1?variant=rouge', 'https://s.example/p/2?type=category#reviews', 'https://s.example/p/3'];
+    expect(sampleListing(listed, ['https://s.example/p/1', 'https://www.s.example/p/2/'])).toEqual(['https://s.example/p/3']);
+  });
+  it('two addresses of one product are one sample, the first kept', () => {
+    expect(sampleListing(['https://s.example/p/1?color=red', 'https://s.example/p/1?color=blue', 'https://s.example/p/2'], [])).toEqual(['https://s.example/p/1?color=red', 'https://s.example/p/2']);
+  });
 });

@@ -3,11 +3,13 @@
 // explanation from a fixed vocabulary when at least four of five of them share
 // a shape feature none of the proof pages has, and the page to offer as the
 // next proof page. Pure: the row in, strings out.
-import type { Shape } from '@robot/scraper';
+import { urlShape, type Shape } from '@robot/scraper';
 
 export type SampledPage = { url: string; empty: string[]; shape: Shape } | { url: string; unread: string };
-export type CoverageResults = { listingUrl: string; sampled: SampledPage[]; proofShapes: Record<string, Shape>; planned?: number };
-export type FieldCoverage = { key: string; empty: string[]; sampled: number; unread: number; explanation: string | null; representative: string | null };
+/** `noProducts`: the listing had no products at all (spec 2026-10-20 §3.6), so nothing was sampled. */
+export type CoverageResults = { listingUrl: string; sampled: SampledPage[]; proofShapes: Record<string, Shape>; planned?: number; noProducts?: true };
+/** `answered`: every empty page's address shape has a proof page marked "Not on this product" for this field (spec 2026-10-20 §3.8) — nothing to offer, `representative` is null. */
+export type FieldCoverage = { key: string; empty: string[]; sampled: number; unread: number; explanation: string | null; representative: string | null; answered?: true };
 
 type Read = Extract<SampledPage, { shape: Shape }>;
 const isRead = (p: SampledPage): p is Read => 'shape' in p;
@@ -53,7 +55,13 @@ function representative(empties: Read[]): string | null {
   return best[0]!.url;
 }
 
-export function summariseCoverage(results: CoverageResults, fieldKeys: string[]): FieldCoverage[] {
+/**
+ * Per field, the sampled pages it was empty on. `absentShapes`: field key → the address shapes
+ * (`urlShape`) of the proof pages marked "Not on this product" for it. An empty page of such a
+ * shape is already answered (spec 2026-10-20 §3.8): it is never the page offered as the next
+ * proof page; when every empty page is, the field is `answered` and nothing is offered.
+ */
+export function summariseCoverage(results: CoverageResults, fieldKeys: string[], absentShapes: Record<string, string[]> = {}): FieldCoverage[] {
   const read = results.sampled.filter(isRead);
   const unread = results.sampled.length - read.length;
   const proof = Object.values(results.proofShapes);
@@ -61,13 +69,21 @@ export function summariseCoverage(results: CoverageResults, fieldKeys: string[])
   for (const key of fieldKeys) {
     const empties = read.filter((p) => p.empty.includes(key));
     if (empties.length === 0) continue;
-    out.push({ key, empty: empties.map((p) => p.url), sampled: read.length, unread, explanation: explain(empties, proof), representative: representative(empties) });
+    const answered = new Set(absentShapes[key] ?? []);
+    const open = empties.filter((p) => { const s = urlShape(p.url); return s === null || !answered.has(s); });
+    out.push({
+      key, empty: empties.map((p) => p.url), sampled: read.length, unread, explanation: explain(empties, proof), representative: representative(open),
+      ...(open.length === 0 ? { answered: true as const } : {}),
+    });
   }
   return out;
 }
 
 /** A coverage check that ran past its window (spec 2026-10-20 §3.5.5); a superseded one says nothing (a newer check replaced it). */
 export const COVERAGE_STALLED = 'The check took too long and stopped. It runs again after your next Verify.';
+
+/** A listing with no products (spec 2026-10-20 §3.6): the check samples nothing and says so. */
+export const NO_PRODUCTS_ON_LISTING = 'No products found on the listing page, so no more products were checked.';
 
 export function stageLine(status: 'running' | 'done' | 'failed', results: CoverageResults | null, fieldsWithEmpties: number, error: string | null): string | null {
   if (status === 'failed') return error;
@@ -76,6 +92,7 @@ export function stageLine(status: 'running' | 'done' | 'failed', results: Covera
     const n = results?.planned ?? results?.sampled.length ?? 0;
     return n === 0 ? null : `Checking ${n} more products from the listing…`;
   }
+  if (results?.noProducts) return NO_PRODUCTS_ON_LISTING;
   const n = results?.sampled.length ?? 0;
   if (n === 0) return null;
   const read = results!.sampled.filter(isRead).length;

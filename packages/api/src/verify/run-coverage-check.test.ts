@@ -9,7 +9,7 @@ import { db, captures, coverageChecks, domainIntelligence, sources, sourceVerifi
 import { _resetBackoffForTests, fieldHash, reportVerdict, type CertifiedPath, type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { COVERAGE_STALLED, type CoverageResults } from './coverage-summary.js';
+import { COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, type CoverageResults } from './coverage-summary.js';
 
 // No agent, ever: constructing one fails the file.
 const { agentCtor } = vi.hoisted(() => ({ agentCtor: vi.fn() }));
@@ -225,6 +225,42 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
       expect(list).not.toHaveBeenCalled();
       expect(extract).not.toHaveBeenCalled();
       expect((await latestCoverageCheck(f.sourceId))!).toMatchObject({ status: 'done', fields: [], stage: null });
+    } finally { await f.cleanup(); }
+  });
+
+  it('a listing with no products ends done, samples nothing and says so (spec 2026-10-20 §3.6)', async () => {
+    const f = await certifiedWebsite('cov-noproducts');
+    try {
+      const extract = vi.fn();
+      const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
+      await runCoverageCheck(checkId, { listing: vi.fn(async () => ({ productUrls: [], verdictMessage: null })), extract, proofShapes });
+      const row = await checkRow(checkId);
+      expect(row.status).toBe('done');
+      expect(row.results).toEqual({ listingUrl: f.listingUrl, sampled: [], proofShapes: {}, planned: 0, noProducts: true });
+      expect(extract).not.toHaveBeenCalled();
+      expect((await latestCoverageCheck(f.sourceId))!).toMatchObject({ status: 'done', fields: [], stage: NO_PRODUCTS_ON_LISTING });
+    } finally { await f.cleanup(); }
+  });
+
+  it('a proof page marked "Not on this product" for Price stops the offer for that shape (spec 2026-10-20 §3.8)', async () => {
+    const f = await certifiedWebsite('cov-answered');
+    try {
+      const host = new URL(f.proofUrls[0]!).host;
+      const listed = Array.from({ length: 4 }, (_, i) => `https://${host}/p/${10 + i}`);
+      const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
+      await runCoverageCheck(checkId, { listing: vi.fn(async () => ({ productUrls: listed, verdictMessage: null })), extract: extractWith(f.keyOf, () => true), proofShapes });
+      const before = (await latestCoverageCheck(f.sourceId))!.fields.find((x) => x.key === f.keyOf.price)!;
+      expect(before.representative).toBe(listed[0]);
+      expect(before.answered).toBeUndefined();
+
+      const src = (await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), columns: { verificationSet: true } }))!;
+      const set = src.verificationSet as VerificationSet;
+      await db.update(sources).set({ verificationSet: { ...set, absent: { [f.keyOf.price]: { [f.proofUrls[0]!]: true } } } }).where(eq(sources.id, f.sourceId));
+
+      const after = (await latestCoverageCheck(f.sourceId))!.fields.find((x) => x.key === f.keyOf.price)!;
+      expect(after).toMatchObject({ representative: null, answered: true, empty: listed });
+      const title = (await latestCoverageCheck(f.sourceId))!.fields.find((x) => x.key === f.keyOf.title);
+      expect(title).toBeUndefined(); // Title was never empty
     } finally { await f.cleanup(); }
   });
 
