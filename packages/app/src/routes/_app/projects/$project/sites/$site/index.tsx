@@ -1478,7 +1478,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   // Non-null locks the tab: from the click, not only once the server says the run is active.
   const stage = active ? (status?.stage ?? 'starting') : verifying ? 'starting' : null;
   const runNote =
-    strip === 'stalled' ? 'The last verification stalled. Run it again.' : strip === 'failed' ? (status?.errorMessage ?? 'The last verification failed.') : null;
+    strip === 'stalled' ? 'The last verification stalled. Run it again.' : strip === 'failed' ? 'The last verification failed.' : null;
   const unsaved = board !== seededBoard.current && !canSave(board);
   const panel = 'rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]';
   const selectedCard = board.cards[selected];

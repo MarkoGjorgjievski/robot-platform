@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Shape } from '@robot/scraper';
-import { summariseCoverage, stageLine, type CoverageResults } from './coverage-summary.js';
+import { summariseCoverage, stageLine, COVERAGE_STALLED, type CoverageResults } from './coverage-summary.js';
 
 const single: Shape = { jsonLdTypes: ['Product'], offers: 'top-level', rating: true, address: '/p/n' };
 const multi: Shape = { jsonLdTypes: ['ProductGroup'], offers: 'in-variants', rating: true, address: '/p/n' };
@@ -74,4 +74,11 @@ describe('stageLine (spec §5)', () => {
   it('one field, one product', () => expect(stageLine('done', results([page(10, ['price'])]), 1, null)).toBe('1 field was empty on some of the 1 sampled product — see the row.'));
   it('failed reads the error', () => expect(stageLine('failed', null, 0, 'shop.example refused the browser (HTTP 403).')).toBe('shop.example refused the browser (HTTP 403).'));
   it('nothing sampled says nothing', () => expect(stageLine('done', results([]), 0, null)).toBeNull());
+});
+
+describe('COVERAGE_STALLED (spec 2026-10-20 §3.5.5)', () => {
+  it('names no internal word', () => {
+    expect(COVERAGE_STALLED).toBe('The check took too long and stopped. It runs again after your next Verify.');
+    expect(COVERAGE_STALLED).not.toMatch(/stalled|superseded/i);
+  });
 });
