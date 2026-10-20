@@ -174,6 +174,12 @@ describe('productKey and onCard', () => {
     // Not a script: a slug page's query is still a copy of one product.
     expect(productKey('https://shop.example/p/oak-chair.html?id=12')).toBe('shop.example/p/oak-chair.html');
   });
+  it('percent-escapes in either case are one product (final review M1)', () => {
+    expect(productKey('https://shop.example/p/caf%c3%a9-chair')).toBe(productKey('https://shop.example/p/caf%C3%A9-chair'));
+    expect(productKey('https://shop.example/p/café-chair')).toBe(productKey('https://shop.example/p/caf%c3%a9-chair'));
+    // Letters outside an escape keep their case: /p/Oak-Chair and /p/oak-chair may be two pages.
+    expect(productKey('https://shop.example/p/Oak-Chair')).not.toBe(productKey('https://shop.example/p/oak-chair'));
+  });
   it('a card is a level with at most 3 link paths, under 800 characters, an image and a price — within 7 levels', () => {
     expect(onCard(CARD)).toBe(true);
     expect(onCard(TILE)).toBe(false); // an image alone is not a card (category tiles)
