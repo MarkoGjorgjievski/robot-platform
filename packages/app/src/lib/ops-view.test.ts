@@ -25,6 +25,7 @@ import {
   pathKind,
   pathPercent,
   provenText,
+  responseText,
   runStatsText,
   siteLastRunText,
   sortFooterText,
@@ -303,6 +304,30 @@ describe('oneSourceWarning', () => {
 
   it('is absent for an api + json-ld mix', () => {
     expect(oneSourceWarning([path({ source: 'api' }), path({ source: 'json-ld' })])).toBeNull();
+  });
+
+  it('fires for two meta paths; is exempt for two XPaths (controller ruling 2026-10-20: the page\'s HTML is exempt from the one-source rule)', () => {
+    expect(oneSourceWarning([path({ source: 'meta' }), path({ source: 'meta' })])).toBe(ONE_SOURCE_WARNING);
+    expect(oneSourceWarning([path({ source: 'xpath' }), path({ source: 'xpath' })])).toBeNull();
+  });
+
+  it('is null for one response plus the page, and for meta plus JSON-LD', () => {
+    expect(oneSourceWarning([path({ source: 'api', container: 'https://x.example/api/a' }), path({ source: 'xpath' })])).toBeNull();
+    expect(oneSourceWarning([path({ source: 'meta' }), path({ source: 'json-ld' })])).toBeNull();
+  });
+
+  it('two API paths of one response and a third of another is not one source', () => {
+    const a = 'https://x.example/api/a';
+    expect(oneSourceWarning([path({ source: 'api', container: a }), path({ source: 'api', container: 'https://x.example/api/b' }), path({ source: 'api', container: a })])).toBeNull();
+  });
+});
+
+describe('responseText', () => {
+  it('names the response without its scheme', () => {
+    expect(responseText('https://www.ikea.com/my/en/products/1.json')).toBe('from www.ikea.com/my/en/products/1.json');
+  });
+  it('shows an unparsable container as it is', () => {
+    expect(responseText('/api/product')).toBe('from /api/product');
   });
 });
 

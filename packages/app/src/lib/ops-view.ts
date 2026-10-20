@@ -247,23 +247,47 @@ export function pathPercent(uses: number, hits: number): number | null {
 export const ONE_SOURCE_WARNING = 'All backups read the same response — if it changes, they fail together';
 
 /**
- * The one-source warning (Global Constraints): a field with more than one
- * certified path, every one of them `api` or every one `json-ld`. For
- * `api`, `container` (the intercepted request's url) is what tells two
- * backups apart — a path with none recorded reads as the same response as
- * any other (the brief's own rule), so the warning fires unless at least
- * two DIFFERENT containers are on record.
+ * The source a path reads, mirrored from `@robot/scraper`'s
+ * `packages/scraper/src/verify/certify.ts` `sourceKey` (the app may not import
+ * @robot/scraper except its /normalize entry, so the rule is duplicated here,
+ * not imported): one API response, told apart by `container` — a path with
+ * none recorded (a result certified before 2026-10-20) reads as the same
+ * response as any other — or the page's JSON-LD, its meta tags, or its HTML.
+ */
+function sourceOf(p: Pick<OpsFieldPath, 'source' | 'container'>): string {
+  return p.source === 'api' ? `api ${p.container ?? ''}` : p.source;
+}
+
+/**
+ * Controller ruling 2026-10-20 (mirrors `@robot/scraper`'s `certify.ts`
+ * `isUncappedSource`): the page's HTML is exempt from the one-source rule —
+ * an all-XPath field never warns.
+ */
+const isUncappedSource = (key: string) => key === 'xpath';
+
+/**
+ * The one-source warning (Global Constraints, controller ruling 2026-10-20):
+ * a field with two or more certified paths, all reading one source, never an
+ * all-XPath field. Certification keeps at most two paths per source, so on a
+ * result certified since 2026-10-20 this fires only when the proof pages
+ * offered one source; on an older result it is the all-API / all-JSON-LD
+ * case it always was (an API path with no recorded `container` reads as the
+ * same response as any other).
  */
 export function oneSourceWarning(paths: ReadonlyArray<Pick<OpsFieldPath, 'source' | 'container'>>): string | null {
   if (paths.length < 2) return null;
-  const allApi = paths.every((p) => p.source === 'api');
-  const allJsonLd = paths.every((p) => p.source === 'json-ld');
-  if (!allApi && !allJsonLd) return null;
-  if (allApi) {
-    const containers = new Set(paths.map((p) => p.container).filter((c): c is string => !!c));
-    if (containers.size > 1) return null;
+  const keys = new Set(paths.map(sourceOf));
+  return keys.size === 1 && !isUncappedSource([...keys][0]!) ? ONE_SOURCE_WARNING : null;
+}
+
+/** Under an API path on the ops website page: the response it reads, without its scheme (spec 2026-10-20 one-source §4). */
+export function responseText(container: string): string {
+  try {
+    const u = new URL(container);
+    return `from ${u.host}${u.pathname}`;
+  } catch {
+    return `from ${container}`;
   }
-  return ONE_SOURCE_WARNING;
 }
 
 /** The collapsed row's "API, 2 backups" / "Page data, no backups" (Global Constraints: "the first path's kind and backup count"). */

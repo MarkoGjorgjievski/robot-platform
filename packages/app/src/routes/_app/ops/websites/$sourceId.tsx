@@ -22,6 +22,7 @@ import {
   pathKind,
   pathPercent,
   provenText,
+  responseText,
   runStatsText,
   siteLastRunText,
   verifiedState,
@@ -526,6 +527,11 @@ function LadderStep({ path, index, proofUrls }: { path: OpsFieldPath; index: num
             {copied ? 'Copied' : 'Copy'}
           </Button>
         </span>
+        {path.container ? (
+          <span title={path.container} className="max-w-[320px] truncate font-mono text-xs text-muted-foreground">
+            {responseText(path.container)}
+          </span>
+        ) : null}
         <span className="text-sm text-muted-foreground">{provenText(path.provenOn, proofUrls)}</span>
       </div>
 
