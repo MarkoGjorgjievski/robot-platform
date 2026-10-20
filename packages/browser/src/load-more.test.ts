@@ -13,6 +13,18 @@ describe('findLoadMore', () => {
     }
   });
 
+  it('matches the non-English wordings (controller ruling), case-insensitively', () => {
+    // One sample per language the ruling added, plus a verbatim (uppercased) check of one.
+    for (const text of [
+      'Mehr anzeigen', 'Weitere laden', 'Mehr laden', 'Voir plus', 'Afficher plus', 'Charger plus',
+      'Ver más', 'Cargar más', 'Mostrar más', 'Mostra altro', 'Carica altro', 'Meer laden', 'Toon meer',
+      'Ver mais', 'Carregar mais', 'Visa fler', 'Ladda fler',
+    ]) {
+      expect(findLoadMore(`<div id="results"></div><button id="b">${text}</button>`)).toBe('#b');
+    }
+    expect(findLoadMore('<div id="results"></div><button id="b">MEHR LADEN</button>')).toBe('#b');
+  });
+
   it('falls back to a class selector when there is no id', () => {
     expect(findLoadMore('<div id="results"></div><button class="btn more-btn">Load more</button>'))
       .toBe('button.more-btn');

@@ -177,6 +177,20 @@ export type CaptureOptions = {
    * certified path reads (final review I3, controller ruling).
    */
   expandTabs?: boolean;
+  /**
+   * Load more of a listing before it is read (spec 2026-10-20 §3.7): up to `rounds` rounds — never
+   * more than `LOAD_MORE_MAX_ROUNDS`, and never past about ten seconds of wall time (controller
+   * ruling, §5.3) — each an up-then-down step scroll and one click on a visible "load more"
+   * control (`findLoadMore`) that is neither a link to another page nor a variant control (a
+   * swatch or similar, never clicked). `probe` is a self-invoking expression evaluated in the live
+   * page before the first round and after each; `count` turns its value into how many of what the
+   * caller wants the page now holds. Stops once `count` reaches `enough`, after
+   * `LOAD_MORE_QUIET_ROUNDS` rounds that added nothing, or once the time budget is spent. Never
+   * leaves the page: a round that navigated returns to the address and ends the loading. Runs after
+   * the popup and "show more" rounds, before the final pass, so the HTML, `annotate` and the
+   * screenshot all read the loaded page. Skipped on an error response (status 400 or above).
+   */
+  loadMore?: { rounds: number; enough: number; probe: string; count: (probe: unknown) => number };
 };
 
 export interface IBrowser {

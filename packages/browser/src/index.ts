@@ -5,7 +5,7 @@ export { verdictSentence, BROWSER_UNAVAILABLE } from './verdict-copy.js';
 export { CaptureError, type CaptureVerdict, type CaptureErrorKind, type WallVendor } from './types.js';
 export { detectPaginationFromHtml } from './pagination-detector.js';
 export { isThirdPartyNoise } from './intercept-noise.js';
-export { findLoadMore } from './load-more.js';
+export { findLoadMore, LOAD_MORE_MAX_ROUNDS, LOAD_MORE_QUIET_ROUNDS } from './load-more.js';
 export { addressVariant, isKeyValueFragment, normalizeLabel, pageVariantFrom, selectedInPageData, wrongVariant, type Selection } from './page-variant.js';
 export type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, ReadyCheck, ReadySnapshot, PageCapture, PageVariant, StructuredData, InterceptedRequest, PaginationConfig, CrawlOptions, CrawlPage, ScrollOptions } from './types.js';
 export { rankInterceptedRequests, urlWords, collectJsonKeys, DEFAULT_WEIGHTS, type RankOptions, type RankWeights } from './rank-requests.js';

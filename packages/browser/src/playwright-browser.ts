@@ -10,6 +10,10 @@ import { isThirdPartyNoise } from './intercept-noise.js';
 import { rankInterceptedRequests } from './rank-requests.js';
 import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
 import {
+  findLoadMore, loadMoreTargetScript, LOAD_MORE_MAX_ROUNDS, LOAD_MORE_QUIET_ROUNDS, LOAD_MORE_SETTLE_MS, LOAD_MORE_BUDGET_MS,
+  MARK_DOCUMENT_SCRIPT, SAME_DOCUMENT_SCRIPT, STEP_SCROLL_SCRIPT,
+} from './load-more.js';
+import {
   hrefNavigates, EXPAND_START_SCRIPT, EXPAND_ROUND_SCRIPT, NEW_OVERLAYS_SCRIPT,
   REMOVE_NEW_OVERLAYS_SCRIPT, TABS_SCRIPT, NEXT_DISMISS_CANDIDATE_SCRIPT, NEXT_DISMISS_CANDIDATE_FINAL_SCRIPT, LAST_DISMISS_WORKED_SCRIPT,
   REMOVAL_PASS_SCRIPT, CENTRE_OVERLAY_SCRIPT, TOPMOST_OVERLAY_SCRIPT, TOPMOST_WITHOUT_CLOSE_SCRIPT, NOTE_ESCAPE_SCRIPT, overlayWarning, type OverlayDescription,
@@ -204,6 +208,14 @@ export class PlaywrightBrowser implements IBrowser {
         if (options.ready && readyWhen === 'after-expand') {
           ready = await this.waitUntilReady(page, url, intercepted, options.ready);
           await stage(`ready (after expand): ${ready.state}`);
+        }
+
+        // Spec 2026-10-20 §3.7: a listing reader loads more of the page before it is read. Not on an
+        // error response: a wall or a 404 has no grid to grow.
+        const documentStatus = (lastDocument ?? response)?.status() ?? 0;
+        if (options.loadMore && documentStatus < 400) {
+          await this.loadMoreOfListing(page, url, options);
+          await stage('after loadMore');
         }
 
         // Spec 2026-10-19 §3.4: one more dismissal pass for what arrived late (a consent manager
@@ -451,6 +463,65 @@ export class PlaywrightBrowser implements IBrowser {
     // then calls this once more; after that second return nothing clicks again —
     // a popup left standing costs far less than silently capturing another product.
     await this.navigateWithFallback(page, requestedUrl, options);
+  }
+
+  /**
+   * `CaptureOptions.loadMore` (spec 2026-10-20 §3.7): grow a listing that loads on scroll or on a
+   * "load more" click, bounded by rounds (`LOAD_MORE_MAX_ROUNDS`), quiet rounds
+   * (`LOAD_MORE_QUIET_ROUNDS`) and wall time (`LOAD_MORE_BUDGET_MS`, controller ruling §5.3) — the
+   * time budget is checked only between rounds, so a round already under way finishes. A probe or
+   * a count that throws reads as 0 (a quiet round); a dead renderer still rethrows. The found
+   * control is never clicked when it is a link that would navigate away or a variant control (a
+   * swatch or similar — §3.3.2's `isVariantChoice`, via `loadMoreTargetScript`). A round that left
+   * the document anyway (a load-more that was a link after all, a script redirect) goes back to
+   * the address, as `returnIfNavigatedAway` does, and ends the loading; the page is read as it
+   * first loaded.
+   */
+  private async loadMoreOfListing(page: Page, url: string, options: CaptureOptions): Promise<void> {
+    const lm = options.loadMore;
+    if (!lm) return;
+    const rethrowCrash = (err: unknown) => { if (isCrash(err)) throw err; };
+    const rounds = Math.max(0, Math.min(Math.floor(lm.rounds), LOAD_MORE_MAX_ROUNDS));
+    const measure = async (): Promise<number> => {
+      const value = await page.evaluate(lm.probe).catch((err) => { rethrowCrash(err); return null; });
+      try {
+        const n = lm.count(value);
+        return Number.isFinite(n) ? n : 0;
+      } catch { return 0; }
+    };
+
+    const start = Date.now();
+    let have = await measure();
+    let quiet = 0;
+    await page.evaluate(MARK_DOCUMENT_SCRIPT).catch(rethrowCrash);
+    for (
+      let round = 0;
+      round < rounds && have < lm.enough && quiet < LOAD_MORE_QUIET_ROUNDS && Date.now() - start < LOAD_MORE_BUDGET_MS;
+      round++
+    ) {
+      await page.evaluate(STEP_SCROLL_SCRIPT).catch(rethrowCrash);
+      await page.waitForTimeout(LOAD_MORE_SETTLE_MS);
+      const html = await page.content().catch((err) => { rethrowCrash(err); return ''; });
+      const selector = findLoadMore(html);
+      if (selector) {
+        const target = (await page.evaluate(loadMoreTargetScript(selector)).catch((err) => { rethrowCrash(err); return null; })) as
+          { visible: boolean; href: string | null; target: string | null; variant: boolean } | null;
+        if (target?.visible && !target.variant && !hrefNavigates(target)) {
+          await page.locator(selector).first().click({ timeout: 3_000 }).catch(rethrowCrash);
+          await page.waitForTimeout(LOAD_MORE_SETTLE_MS);
+        }
+      }
+      const same = await page.evaluate(SAME_DOCUMENT_SCRIPT).catch((err) => { rethrowCrash(err); return false; });
+      if (same !== true) {
+        console.warn(`[browser] loading more of ${url} left the page; returning to it and reading it as it first loaded`);
+        await this.navigateWithFallback(page, url, options);
+        await this.dismissPopups(page);
+        return;
+      }
+      const now = await measure();
+      quiet = now > have ? 0 : quiet + 1;
+      have = Math.max(have, now);
+    }
   }
 
   async close(): Promise<void> {
