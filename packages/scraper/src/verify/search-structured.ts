@@ -139,3 +139,31 @@ export function resolveStructured(
   }
   return undefined;
 }
+
+/**
+ * Spec 2026-10-20 one-source §3.1: a response's name — its address's origin and path. The query
+ * (product ids, cache-busters, options) and the fragment are not part of it: the same endpoint with
+ * another query changes, moves or disappears as one.
+ */
+export function responseKey(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.origin + u.pathname;
+  } catch {
+    return url.split(/[?#]/)[0]!;
+  }
+}
+
+/**
+ * Spec 2026-10-20 one-source §3.1: the response an API path reads on this page — the first JSON body,
+ * in capture order, where it resolves to a value, which is exactly the body `resolveStructured` takes
+ * the value from — by `responseKey`. Null when no body has it.
+ */
+export function apiResponseOf(capture: Pick<PageCapture, 'interceptedRequests' | 'pageVariant'>, path: string): string | null {
+  const ctx = { pageVariant: capture.pageVariant };
+  for (const r of capture.interceptedRequests) {
+    if (!r.isJson || r.parsedJson === null) continue;
+    if (nonEmpty(getByDotPath(r.parsedJson, path, ctx))) return responseKey(r.url);
+  }
+  return null;
+}

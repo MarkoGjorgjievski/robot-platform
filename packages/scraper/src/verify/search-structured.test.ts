@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { pageVariantFrom } from '@robot/browser';
-import { searchStructured, resolveStructured, searchStructuredByConcept } from './search-structured.js';
+import { searchStructured, resolveStructured, searchStructuredByConcept, apiResponseOf, responseKey } from './search-structured.js';
 import { applyTransform } from './transforms.js';
 
 const capture = {
@@ -105,5 +105,48 @@ describe('searchStructured — the [page] twin (spec 2026-10-14 §4)', () => {
   });
   it('the concept search emits the twin too', () => {
     expect(searchStructuredByConcept(capture, 'money', 'price').map((c) => c.path)).toContain('hasVariant[page].offers.price');
+  });
+});
+
+
+describe('apiResponseOf (spec 2026-10-20 one-source §3.1)', () => {
+  const json = (url: string, parsedJson: unknown) => ({ url, method: 'GET', resourceType: 'xhr', responseStatus: 200, responseHeaders: {}, contentType: 'application/json', bodySize: 1, timestamp: 0, isJson: true, responseBody: '{}', parsedJson });
+  const text = (url: string) => ({ url, method: 'POST', resourceType: 'xhr', responseStatus: 200, responseHeaders: {}, contentType: 'text/plain', bodySize: 1, timestamp: 0, isJson: false, responseBody: 'ok', parsedJson: null });
+  const at = (...requests: unknown[]) => ({ interceptedRequests: requests as unknown as typeof capture.interceptedRequests });
+
+  it('names the response by origin and path, query and fragment ignored', () => {
+    expect(apiResponseOf(at(json('https://api.salesitem.ingka.com/availabilities/ru/us?itemNos=80275887&expand=StoresList#x', { price: 79.99 })), 'price'))
+      .toBe('https://api.salesitem.ingka.com/availabilities/ru/us');
+  });
+
+  it('names the first body where the path reads, as resolveStructured does', () => {
+    const c = at(
+      json('https://shop.example/api/cart', { total: 0 }),
+      json('https://shop.example/api/product/1', { price: 129.99 }),
+      json('https://shop.example/api/recommendations', { price: 5 }),
+    );
+    expect(apiResponseOf(c, 'price')).toBe('https://shop.example/api/product/1');
+    expect(resolveStructured({ ...c, structuredData: capture.structuredData }, 'api', 'price')).toBe(129.99);
+  });
+
+  it('skips non-JSON and unparsed requests, and a body where the path is empty', () => {
+    const c = at(text('https://shop.example/telemetry'), json('https://shop.example/api/a', { price: '' }), json('https://shop.example/api/b', { price: null }), json('https://shop.example/api/c', { price: 9 }));
+    expect(apiResponseOf(c, 'price')).toBe('https://shop.example/api/c');
+  });
+
+  it('is null when no body has the path', () => {
+    expect(apiResponseOf(at(json('https://shop.example/api/a', { name: 'x' })), 'price')).toBeNull();
+    expect(apiResponseOf(at(), 'price')).toBeNull();
+  });
+
+  it('reads a [page] path through the capture\'s page variant', () => {
+    const pageVariant = pageVariantFrom('https://shop.example/p/1?size=M', null, {});
+    const c = { ...at(json('https://shop.example/api/p/1', { variants: [{ size: 'S', price: 1 }, { size: 'M', price: 2 }] })), pageVariant };
+    expect(apiResponseOf(c, 'variants[page].price')).toBe('https://shop.example/api/p/1');
+  });
+
+  it('responseKey keeps an unparsable address up to its query', () => {
+    expect(responseKey('/relative/path?x=1#y')).toBe('/relative/path');
+    expect(responseKey('https://a.example/x/y?z=1')).toBe('https://a.example/x/y');
   });
 });
