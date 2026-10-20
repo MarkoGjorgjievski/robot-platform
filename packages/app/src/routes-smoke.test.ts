@@ -178,8 +178,9 @@ const VARIANT_PRODUCT = {
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 
 /**
- * The listing: three product cards (a photo and the product's name in a link)
- * and one link that is not a product, which the listing heuristic must leave
+ * The listing: three product cards (a photo and the product's name in a link,
+ * the price beside it — spec 2026-10-20: a product link is a link on a priced
+ * card) and one link that is not a product, which the finder must leave
  * out. The product pages are `SHOP_EXAMPLE`'s html with its JSON-LD put back
  * where a shop keeps it, in the head — the page data `suggestMarks` reads.
  */
@@ -210,8 +211,8 @@ function shopPage(pathname: string, search = ''): { type: string; body: string |
   }
   if (pathname === '/l') {
     const cards =
-      PRODUCTS.map((p, i) => `<li><a href="${p.path}"><img src="/i/${i + 1}.png" alt=""><span>${p.title}</span></a></li>`).join('') +
-      `<li><a href="${SECOND_SHAPE.path}"><img src="/i/9.png" alt=""><span>${SECOND_SHAPE.title}</span></a></li>`;
+      PRODUCTS.map((p, i) => `<li><a href="${p.path}"><img src="/i/${i + 1}.png" alt=""><span>${p.title}</span></a><span class="price">${p.price}</span></li>`).join('') +
+      `<li><a href="${SECOND_SHAPE.path}"><img src="/i/9.png" alt=""><span>${SECOND_SHAPE.title}</span></a><span class="price">${SECOND_SHAPE.price}</span></li>`;
     return {
       type: 'text/html',
       body: `<html><head><title>All widgets</title></head><body><h1>All widgets</h1><ul class="grid">${cards}</ul><a href="/about">About the shop</a>${SHOP_FOOTER}</body></html>`,
@@ -1727,6 +1728,21 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000, interval: 1000 }).toBe(4);
     await shootViewportBothThemes(page, 'app-site-verification-coverage-absent');
 
+    // Spec 2026-10-20 §3.8: Price is now answered "Not on this product" on a proof page whose
+    // address has the sampled product's shape (/p/9 is that proof page), so the line stops
+    // offering it and says why — and the stage line no longer counts Price as empty.
+    await page.reload({ waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    await expect
+      .poll(async () => ((await priceLine.count()) ? await priceLine.locator('span').first().innerText() : ''), { timeout: 20_000 })
+      .toBe('Empty on 1 of 1 sampled product · it lists its sizes as variants in the page data · like a proof page marked "Not on this product"');
+    expect(await page.getByRole('button', { name: 'Use a sampled product as proof page for Price', exact: true }).count(), 'an answered shape is offered again').toBe(0);
+    expect(await page.getByText(stage, { exact: true }).count(), 'the stage line still counts an answered field as empty').toBe(0);
+    expect(
+      await page.getByText('Checked 1 more product from the listing: every field was found, except where a proof page says "Not on this product".', { exact: true }).count(),
+      'the stage line does not say the empty field is answered',
+    ).toBe(1);
+
     // Spec 2026-10-12 §B1: a Title that is not the page's heading never reads
     // agreed. `/p/10` (not on the listing) is added by URL as product 5: its
     // page data names it "Widget E (Drift)", its heading reads "Widget E".
@@ -2058,7 +2074,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
   }, 120_000);
 
   // Honest page verdicts (2026-10-09): a wall is named as a wall, never as "no
-  // product links". LAST on purpose: each wall puts the shop's host on
+  // products found". LAST on purpose: each wall puts the shop's host on
   // backoff, so anything after this that touched the shop would wait for it
   // (see the header).
   it('a wall is reported as a wall, in the same words everywhere', async () => {
@@ -2073,7 +2089,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect
       .poll(() => page.locator('main').innerText(), { timeout: 60_000 })
       .toContain(`${host} refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet.`);
-    expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No product links found');
+    expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No products found');
     await shoot(page, 'app-site-verification-wall-refused.png', false);
     // Find products again, on another page of the same host, now backing off:
     // answered from the backoff in the first wall's words, without a browser.
@@ -2084,7 +2100,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
       .toContain(
         `${host} refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet. Waiting 2 min before trying again.`,
       );
-    expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No product links found');
+    expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No products found');
     await shoot(page, 'app-site-verification-wall-backoff.png', false);
     expect(problems, `the Verification tab logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 240_000);

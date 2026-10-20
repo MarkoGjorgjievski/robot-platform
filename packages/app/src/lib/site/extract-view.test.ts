@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   stepStates,
   listingCheckLabel,
+  NO_PRODUCTS_FOUND,
   productUrlCounts,
   runSentence,
   budgetFromForm,
@@ -79,11 +80,16 @@ describe('listingCheckLabel', () => {
   it('surfaces the error message', () => {
     expect(listingCheckLabel({ error: 'timed out' })).toEqual({ tone: 'error', text: 'timed out' });
   });
-  it('reports product links and pager, singular and plural', () => {
-    expect(listingCheckLabel({ productLinks: 12, pagerSeen: true })).toEqual({ tone: 'ok', text: '12 product links · pager found' });
-    expect(listingCheckLabel({ productLinks: 1, pagerSeen: true })).toEqual({ tone: 'ok', text: '1 product link · pager found' });
-    expect(listingCheckLabel({ productLinks: 12, pagerSeen: false })).toEqual({ tone: 'warn', text: '12 product links · no pager seen' });
-    expect(listingCheckLabel({ productLinks: 1, pagerSeen: false })).toEqual({ tone: 'warn', text: '1 product link · no pager seen' });
+  it('reports products and pager, singular and plural (spec 2026-10-20 §4: it speaks of products)', () => {
+    expect(listingCheckLabel({ productLinks: 12, pagerSeen: true })).toEqual({ tone: 'ok', text: '12 products · pager found' });
+    expect(listingCheckLabel({ productLinks: 1, pagerSeen: true })).toEqual({ tone: 'ok', text: '1 product · pager found' });
+    expect(listingCheckLabel({ productLinks: 12, pagerSeen: false })).toEqual({ tone: 'warn', text: '12 products · no pager seen' });
+    expect(listingCheckLabel({ productLinks: 1, pagerSeen: false })).toEqual({ tone: 'warn', text: '1 product · no pager seen' });
+  });
+  it('a page with no products says so (spec 2026-10-20 §3.6)', () => {
+    expect(NO_PRODUCTS_FOUND).toBe('No products found on this page.');
+    expect(listingCheckLabel({ productLinks: 0, pagerSeen: true })).toEqual({ tone: 'warn', text: NO_PRODUCTS_FOUND });
+    expect(listingCheckLabel({ productLinks: 0, pagerSeen: false })).toEqual({ tone: 'warn', text: NO_PRODUCTS_FOUND });
   });
 });
 

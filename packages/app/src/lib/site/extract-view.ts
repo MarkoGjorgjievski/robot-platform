@@ -43,9 +43,13 @@ export function stepStates(args: {
   return ['done', 'current', 'later'];
 }
 
+/** Spec 2026-10-20 §3.6: what the finder says about a page with no products. */
+export const NO_PRODUCTS_FOUND = 'No products found on this page.';
+
 /**
  * The listing check chip: pending while running, error text verbatim, a
- * product-link/pager summary, or `saved` for a page that came back from the
+ * product/pager summary (spec 2026-10-20 §4: it speaks of products; none is
+ * `NO_PRODUCTS_FOUND`), or `saved` for a page that came back from the
  * database and has not been checked in this session. `saved` is deliberately
  * NOT a check result — the page is only ever checked when someone asks, so
  * opening the tab never launches a browser.
@@ -56,8 +60,8 @@ export function listingCheckLabel(
   if (check === null) return { tone: 'pending', text: 'checking…' };
   if ('saved' in check) return { tone: 'pending', text: 'saved' };
   if ('error' in check) return { tone: 'error', text: check.error };
-  const linkWord = check.productLinks === 1 ? 'link' : 'links';
-  const base = `${check.productLinks} product ${linkWord}`;
+  if (check.productLinks === 0) return { tone: 'warn', text: NO_PRODUCTS_FOUND };
+  const base = `${check.productLinks} ${check.productLinks === 1 ? 'product' : 'products'}`;
   return check.pagerSeen
     ? { tone: 'ok', text: `${base} · pager found` }
     : { tone: 'warn', text: `${base} · no pager seen` };
