@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { db, domainIntelligence, projects, runs, sourceVerifications, sources, users } from '@robot/db';
 import { and, eq } from 'drizzle-orm';
-import { fieldHash, type CertifiedPath, type FieldVerification, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
+import { fieldHash, readsOneSource, type CertifiedPath, type FieldVerification, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, createCallerFactory, isOperatorEmail, opsProcedure } from '../trpc.js';
 import { appRouter } from './index.js';
 import { loadSession } from '../auth/session.js';
@@ -300,11 +300,12 @@ describe('ops.website', () => {
     try {
       const built = await createProjectWithSource(op.caller, {
         tag: `ops4-${tag}`,
-        fields: [{ name: 'Price', type: 'money' }, { name: 'Name', type: 'text' }],
+        fields: [{ name: 'Price', type: 'money' }, { name: 'Name', type: 'text' }, { name: 'Sale', type: 'money' }],
         urls,
         expected: {
           Price: Object.fromEntries(urls.map((u) => [u, '9.99'])),
           Name: Object.fromEntries(urls.map((u) => [u, 'Widget'])),
+          Sale: Object.fromEntries(urls.map((u) => [u, '7.99'])),
         },
       });
 
@@ -317,7 +318,10 @@ describe('ops.website', () => {
       const pricePrimary: CertifiedPath = { source: 'api', path: 'product.price', transform: 'identity', container: `https://${host}/api/product` };
       const priceBackup: CertifiedPath = { source: 'json-ld', path: 'offers.price', transform: 'identity', provenOn: [urls[0]!, urls[2]!] };
       const namePath: CertifiedPath = { source: 'json-ld', path: 'name', transform: 'identity' };
-      await certifyPaths(built.sourceId, { [priceKey]: [pricePrimary, priceBackup], [nameKey]: [namePath] });
+      // Final review Minor 4: a result certified before 2026-10-20 — API paths with no container.
+      const saleKey = built.keys.Sale!;
+      const saleOld: CertifiedPath[] = [{ source: 'api', path: 'product.sale', transform: 'identity' }, { source: 'api', path: 'product.saleNumeral', transform: 'identity' }];
+      await certifyPaths(built.sourceId, { [priceKey]: [pricePrimary, priceBackup], [nameKey]: [namePath], [saleKey]: saleOld });
 
       await db.insert(domainIntelligence).values({
         domain: host,
@@ -339,9 +343,9 @@ describe('ops.website', () => {
       expect(result.sourceId).toBe(built.sourceId);
       expect(result.org).toMatchObject({ id: op.org.id, name: op.org.name, slug: op.org.slug });
       expect(result.proofUrls).toEqual(urls);
-      expect(result.verified).toEqual({ current: 2, total: 2 });
+      expect(result.verified).toEqual({ current: 3, total: 3 });
 
-      expect(result.fields.map((f) => f.key)).toEqual([priceKey, nameKey]);
+      expect(result.fields.map((f) => f.key)).toEqual([priceKey, nameKey, saleKey]);
       const priceField = result.fields.find((f) => f.key === priceKey)!;
       expect(priceField.name).toBe('Price');
       expect(priceField.state).toBe('current');
@@ -354,6 +358,15 @@ describe('ops.website', () => {
       expect(nameField.name).toBe('Name');
       expect(nameField.state).toBe('current');
       expect(nameField.paths).toEqual([{ source: 'json-ld', path: 'name', uses: 0, hits: 0 }]);
+
+      // An old row's API paths carry no container, and the all-API field reads as one source (the app warns on it).
+      const saleField = result.fields.find((f) => f.key === saleKey)!;
+      expect(saleField.paths).toEqual([
+        { source: 'api', path: 'product.sale', uses: 0, hits: 0 },
+        { source: 'api', path: 'product.saleNumeral', uses: 0, hits: 0 },
+      ]);
+      expect(readsOneSource(saleField.paths)).toBe(true);
+      expect(readsOneSource(priceField.paths)).toBe(false);
 
       await db.delete(domainIntelligence).where(and(eq(domainIntelligence.domain, host), eq(domainIntelligence.pageType, 'detail')));
       await built.cleanup();

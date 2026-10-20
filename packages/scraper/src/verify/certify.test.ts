@@ -1107,6 +1107,24 @@ describe('sourceKey / readsOneSource (spec 2026-10-20 one-source §3.1)', () => 
     expect(readsOneSource([p('xpath'), p('xpath')])).toBe(false);
     expect(readsOneSource([p('api', 'https://a.example/x'), p('json-ld')])).toBe(false);
   });
+
+  // Final review Minor 4: the same table in the scraper (readsOneSource) and the app (oneSourceWarning).
+  const R = 'https://x.example/api/a';
+  const S = 'https://x.example/api/b';
+  const cases: Array<[string, Array<{ source: 'api' | 'json-ld' | 'meta' | 'xpath'; container?: string }>, boolean]> = [
+    ['all API, one response', [{ source: 'api', container: R }, { source: 'api', container: R }], true],
+    ['all API, two responses', [{ source: 'api', container: R }, { source: 'api', container: S }], false],
+    ['API and JSON-LD', [{ source: 'api', container: R }, { source: 'json-ld' }], false],
+    ['all meta', [{ source: 'meta' }, { source: 'meta' }], true],
+    ['all XPath', [{ source: 'xpath' }, { source: 'xpath' }, { source: 'xpath' }], false],
+    ['one response and XPaths', [{ source: 'api', container: R }, { source: 'api', container: R }, { source: 'xpath' }], false],
+    ['old rows: API paths with no container', [{ source: 'api' }, { source: 'api' }], true],
+  ];
+  for (const [name, paths, one] of cases) {
+    it(`${name}: ${one ? 'one source' : 'not one source'}`, () => {
+      expect(readsOneSource(paths)).toBe(one);
+    });
+  }
 });
 
 describe('certify — backups from more than one source (spec 2026-10-20 one-source)', () => {
