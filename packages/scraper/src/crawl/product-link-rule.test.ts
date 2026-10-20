@@ -165,6 +165,15 @@ describe('productKey and onCard', () => {
     expect(productKey('https://shop.example/products/oak-chair?id=12')).toBe('shop.example/products/oak-chair');
     expect(productKey('https://shop.example/product?color=red')).toBe('shop.example/product');
   });
+  it('a script named like a slug (.php .aspx .asp .jsp .cfm .cgi .pl) keeps its id-like query params too (final review I1)', () => {
+    expect(productKey('https://shop.example/product_info.php?products_id=12&osCsid=abc')).toBe('shop.example/product_info.php?products_id=12');
+    expect(productKey('https://shop.example/ProductDetails.aspx?ProductID=7&utm_source=x')).toBe('shop.example/ProductDetails.aspx?ProductID=7');
+    expect(productKey('https://shop.example/shop/product-detail.php?id=3')).toBe('shop.example/shop/product-detail.php?id=3');
+    expect(productKey('https://shop.example/cgi-bin/show_item.cgi?itemid=9')).toBe('shop.example/cgi-bin/show_item.cgi?itemid=9');
+    expect(productKey('https://shop.example/item?ID=3')).toBe('shop.example/item?ID=3');
+    // Not a script: a slug page's query is still a copy of one product.
+    expect(productKey('https://shop.example/p/oak-chair.html?id=12')).toBe('shop.example/p/oak-chair.html');
+  });
   it('a card is a level with at most 3 link paths, under 800 characters, an image and a price — within 7 levels', () => {
     expect(onCard(CARD)).toBe(true);
     expect(onCard(TILE)).toBe(false); // an image alone is not a card (category tiles)
@@ -281,8 +290,13 @@ describe('findProductGroup (§3.2–§3.6)', () => {
     const CASES: Array<[string, string, (i: number) => string, string]> = [
       ['/product?id=N', 'https://shop.example/catalog?category=5', (i) => `/product?id=${i}`, 'shop.example/product'],
       ['/item.php?id=N', 'https://shop.example/list.php?cat=3', (i) => `/item.php?id=${i}`, 'shop.example/item.php'],
-      ['OpenCart', 'https://shop.example/index.php?route=product/category&path=20', (i) => `/index.php?route=product/product&product_id=${i}`, 'shop.example/index.php'],
+      ['a route-and-id shop (/index.php?route=…&product_id=N)', 'https://shop.example/index.php?route=product/category&path=20', (i) => `/index.php?route=product/product&product_id=${i}`, 'shop.example/index.php'],
       ['/?product=slug', 'https://shop.example/?category=sofas', (i) => `/?product=oak-chair-${i}`, 'shop.example/'],
+      // A script named like a slug, or an upper-case id (final review I1): the query still names the product.
+      ['/product_info.php?products_id=N', 'https://shop.example/index.php?cPath=3', (i) => `/product_info.php?products_id=${i}`, 'shop.example/*.php'],
+      ['/ProductDetails.aspx?ProductID=N', 'https://shop.example/SearchResults.aspx?CategoryID=7', (i) => `/ProductDetails.aspx?ProductID=${i}`, 'shop.example/*.aspx'],
+      ['/shop/product-detail.php?id=N', 'https://shop.example/shop/category.php?cat=2', (i) => `/shop/product-detail.php?id=${i}`, 'shop.example/shop/*.php'],
+      ['/item?ID=N', 'https://shop.example/list?cat=4', (i) => `/item?ID=${i}`, 'shop.example/item'],
     ];
     for (const [name, listing, href, shape] of CASES) {
       it(name, () => {
@@ -331,10 +345,11 @@ describe('findProductGroup (§3.2–§3.6)', () => {
   });
 });
 
-describe('ID_PARAM never takes a word that merely ends in "id" (controller, fix round)', () => {
-  it('keeps id-like names and drops paid / grid / valid', async () => {
-    const { ID_PARAM } = await import('./product-link-group.js');
-    for (const n of ['id', 'pid', 'sku', 'product_id', 'item-id', 'itemId', 'productID']) expect(ID_PARAM.test(n), n).toBe(true);
-    for (const n of ['paid', 'grid', 'valid', 'Id2', 'color']) expect(ID_PARAM.test(n), n).toBe(false);
+describe('isIdParam never takes a word that merely ends in "id" (controller, fix round; final review I1)', () => {
+  it('keeps id-like names in any case and drops paid / grid / valid', async () => {
+    const { isIdParam } = await import('./product-link-group.js');
+    for (const n of ['id', 'ID', 'Id', 'pid', 'PID', 'sku', 'SKU', 'item', 'Item', 'product', 'code', 'route', 'product_id', 'products_id', 'item-id',
+      'itemId', 'productID', 'ProductID', 'productid', 'PRODUCTID', 'itemid', 'articleid', 'goodsid', 'prodid', 'id_product', 'id-item']) expect(isIdParam(n), n).toBe(true);
+    for (const n of ['paid', 'PAID', 'Paid', 'grid', 'Grid', 'valid', 'VALID', 'Id2', 'color', 'squid', 'android', 'osCsid', 'video', 'idea']) expect(isIdParam(n), n).toBe(false);
   });
 });

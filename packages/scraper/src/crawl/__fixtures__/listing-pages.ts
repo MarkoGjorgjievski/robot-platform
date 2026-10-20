@@ -76,6 +76,8 @@ export const LISTING_FIXTURES: ServedPage[] = [
   { path: '/lazy', html: growingPage('lazy', 6, 3, 6) },
   // A grid that grows on "Load more": 6 cards, then 2 batches of 6.
   { path: '/more', html: growingPage('button', 6, 2, 6) },
+  // Products named by a query id on a script named like a slug (final review I1): twelve products, not one.
+  { path: '/query-ids', html: page(grid(range(12).map((i) => productCard(`/product_info.php?products_id=${i}`, `Oak chair ${i}`, `$${100 + i}.00`)))) },
   // Link text is collapsed whitespace and keeps every letter (`/\s+/`, not `/s+/`).
   { path: '/text', html: page(grid([productCard('/products/tree-runner-1', "Men's   Tree\n Runner Shoes", '$98')])) },
 ];

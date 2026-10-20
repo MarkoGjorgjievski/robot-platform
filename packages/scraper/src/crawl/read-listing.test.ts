@@ -104,4 +104,13 @@ describe('the finder on served listings (spec 2026-10-20 §6)', () => {
     const { links } = await find('/text');
     expect(links.anchors.find((a) => a.href === '/products/tree-runner-1')?.text).toBe("Men's Tree Runner Shoes");
   }, 60_000);
+
+  it('products named by a query id on a script named like a slug: twelve products, and the page counts them as twelve link paths (final review I1)', async () => {
+    const { group, links } = await find('/query-ids');
+    expect(group?.shape).toBe('127.0.0.1/*.php');
+    expect(paths(group!.urls)).toEqual(Array.from({ length: 12 }, (_, i) => `/product_info.php?products_id=${i + 1}`));
+    // The grid holding all twelve is not one card: the page script keys the links as the rule does.
+    const first = links.anchors.find((a) => a.href === '/product_info.php?products_id=1')!;
+    expect(first.levels!.some((l) => l.d > 3)).toBe(true);
+  }, 60_000);
 });
