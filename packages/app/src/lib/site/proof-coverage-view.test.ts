@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { coverageLine, coverageStage, EVERY_PRODUCT_DEFAULT } from './proof-coverage-view';
+import { ANSWERED, coverageLine, coverageStage, EVERY_PRODUCT_DEFAULT } from './proof-coverage-view';
 
 const f = { key: 'price', empty: ['https://s.example/p/10', 'https://s.example/p/11'], sampled: 20, explanation: 'all 2 list their sizes as variants in the page data', representative: 'https://s.example/p/10' };
 
@@ -16,6 +16,15 @@ describe('coverageLine (spec 2026-10-10 §5)', () => {
   it('a representative already on the board offers nothing and says so', () => {
     expect(coverageLine(f, false, true)).toEqual({ text: 'Empty on 2 of 20 sampled products · all 2 list their sizes as variants in the page data · already a proof page', useAsProofPage: null });
     expect(coverageLine({ ...f, explanation: null }, true, true)).toEqual({ text: 'Empty on 2 of 20 sampled products · already a proof page', useAsProofPage: null });
+  });
+  it('a shape a proof page answered "Not on this product" offers nothing and says why (spec 2026-10-20 §3.8)', () => {
+    expect(ANSWERED).toBe('like a proof page marked "Not on this product"');
+    expect(coverageLine({ ...f, representative: null, answered: true }, false)).toEqual({
+      text: 'Empty on 2 of 20 sampled products · all 2 list their sizes as variants in the page data · like a proof page marked "Not on this product"',
+      useAsProofPage: null,
+    });
+    // It wins over "already a proof page" and the six-page limit: it is the reason nothing is offered.
+    expect(coverageLine({ ...f, explanation: null, representative: null, answered: true }, true, true).text).toBe('Empty on 2 of 20 sampled products · like a proof page marked "Not on this product"');
   });
   it('one sampled product reads in the singular', () => {
     expect(coverageLine({ ...f, empty: ['https://s.example/p/10'], sampled: 1, explanation: null }, false).text).toBe('Empty on 1 of 1 sampled product');

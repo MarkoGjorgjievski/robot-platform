@@ -9,11 +9,13 @@
 export type ProofCoverageView = {
   status: 'running' | 'done' | 'failed';
   stage: string | null;
-  fields: Array<{ key: string; empty: string[]; sampled: number; explanation: string | null; representative: string | null }>;
+  fields: Array<{ key: string; empty: string[]; sampled: number; explanation: string | null; representative: string | null; answered?: boolean }>;
 };
 
 export const AT_LIMIT = 'This website has its six proof pages';
 export const ON_BOARD = 'already a proof page';
+/** Spec 2026-10-20 §3.8: the empty products look like a proof page already answered "Not on this product" for this field — nothing to add. */
+export const ANSWERED = 'like a proof page marked "Not on this product"';
 /** The line under a default-only field's row (spec 2026-10-13 §8): no path, so nothing is sampled for it. */
 export const EVERY_PRODUCT_DEFAULT = 'Every product gets the default';
 
@@ -23,14 +25,18 @@ export const EVERY_PRODUCT_DEFAULT = 'Every product gets the default';
  * nothing to add — the line says so instead of offering "Use as proof page".
  * `hasDefault`: the field has a website default, which filled the products
  * its paths left empty (spec 2026-10-13 §5) — the page is still offered.
+ * `f.answered` (spec 2026-10-20 §3.8): every empty product has the address
+ * shape of a proof page answered "Not on this product" for this field; the
+ * line says so and offers nothing.
  */
 export function coverageLine(f: ProofCoverageView['fields'][number], atLimit: boolean, onBoard = false, opts: { hasDefault?: boolean } = {}): { text: string; useAsProofPage: string | null } {
   const noun = f.sampled === 1 ? 'product' : 'products';
   const parts = [opts.hasDefault ? `The default filled ${f.empty.length} of ${f.sampled} sampled ${noun}` : `Empty on ${f.empty.length} of ${f.sampled} sampled ${noun}`];
   if (f.explanation) parts.push(f.explanation);
-  if (onBoard) parts.push(ON_BOARD);
+  if (f.answered) parts.push(ANSWERED);
+  else if (onBoard) parts.push(ON_BOARD);
   else if (atLimit) parts.push(AT_LIMIT);
-  return { text: parts.join(' · '), useAsProofPage: atLimit || onBoard ? null : f.representative };
+  return { text: parts.join(' · '), useAsProofPage: f.answered || atLimit || onBoard ? null : f.representative };
 }
 
 /** The verify bar's one stage line: a running Verify's own stage first, else the coverage check's. */

@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { trpc } from '../../lib/trpc';
 import type { Card } from '../../lib/site/verification-model';
+import { NO_PRODUCTS_FOUND } from '../../lib/site/extract-view';
 
 /**
  * The Verification tab's top bar (spec §2.1): one page load finds a listing
@@ -100,16 +101,16 @@ export function ListingBar({
 
       {found ? (
         // The browser's verdict first (spec 2026-10-09 §A2): a block page or a
-        // refusal is never reported as "no product links found".
+        // refusal is never reported as "no products found".
         found.message ? (
           <p role="alert" className="text-sm text-warn">
             {found.message}
           </p>
         ) : found.productLinks === 0 ? (
-          <p className="text-sm text-muted-foreground">No product links found on this page. Paste product pages below.</p>
+          <p className="text-sm text-muted-foreground">{NO_PRODUCTS_FOUND} Paste product pages below.</p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {found.productLinks} products found{found.pagerSeen ? ' · a pager too' : ''}
+            {found.productLinks} {found.productLinks === 1 ? 'product' : 'products'} found{found.pagerSeen ? ' · a pager too' : ''}
           </p>
         )
       ) : null}
