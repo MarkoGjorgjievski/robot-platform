@@ -35,7 +35,9 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [The finder reads product links (2026-10-20)](#the-finder-reads-product-links-2026-10-20).** "Find products" and the coverage check now offer products — no menus, tiles, policy pages or colour copies — and a page with no grid says so; live-checked on the 13 campaign listings. Merged 2026-10-20 after the full gate.
+**Newest: [Backups from more than one source (2026-10-20)](#backups-from-more-than-one-source-2026-10-20).** Verify keeps at most two paths per source and fills the rest from other sources, so a field's backups no longer all fail with one API response; ops shows each API path's response. Merged 2026-10-20 after the full gate.
+
+**Before it: [The finder reads product links (2026-10-20)](#the-finder-reads-product-links-2026-10-20).** "Find products" and the coverage check now offer products — no menus, tiles, policy pages or colour copies — and a page with no grid says so; live-checked on the 13 campaign listings. Merged 2026-10-20 after the full gate.
 
 **Before it: [Verify never fails silently (2026-10-20)](#verify-never-fails-silently-2026-10-20).** Every refused, failed or stalled Verify and every failed screenshot now ends with one customer sentence in view, a failed run keeps the last results on screen, and one field's AI failure no longer fails the run. Merged 2026-10-20 after the full gate on the branch (route smoke 27 of 27).
 
@@ -102,6 +104,30 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Backups from more than one source (2026-10-20)
+
+Spec `docs/superpowers/specs/2026-10-20-one-source-backups-design.md`, plan
+`docs/superpowers/plans/2026-10-20-one-source-backups.md`. Queue item 3, run under the standing approval.
+
+**What changed.** A field's certified paths used to be the five best, which on Ikea meant five
+sibling keys of one API response that fail together. Verify now keeps at most two paths per source
+(one API response, the JSON-LD, the meta tags) and fills the rest from other sources; XPath paths
+are exempt. Each certified API path records the response it reads (`container`), and ops shows
+"from {host}{path}" under it. Ops warns "All backups read the same response" only when every path
+still reads one source. A Verify whose cached result reads one source searches again (free, no AI).
+Nothing changes for a website until its next Verify; what certifies a field and its first path are
+decided as before.
+
+**How it was proven.** Reviews: Tasks 1–3 approved; the whole-branch review found the domain store
+dropping the new JSON-LD backup (every Verify would have searched again) — fixed. Gate: scraper 1251,
+api 1058, app 972 tests, tsc clean; route smoke 27 of 27. A read-only check on the stored captures:
+20 flagged fields spread at their next Verify, 21 stay single-source because the page offers one.
+
+**For Marko.** At their next Verify, two fields change their first path: Competitor prices / Ikea
+"In stock" (API → HTML) and Lookfantastic SKU. Ikea's Price stays one source (its pages have no
+second source for the price). Whether to re-verify the one-source websites, and whether to cap
+XPath backups too, are in `docs/queue.md`, Needs Marko.
 
 ## The finder reads product links (2026-10-20)
 

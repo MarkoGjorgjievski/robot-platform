@@ -6,6 +6,20 @@ item "Backups that all come from one source"), together with its plan
 code on `feat/one-source-backups` @ `dfc9fe1`; line numbers are approximate — find the code by the
 quoted text.
 
+
+**Status:** implemented on `feat/one-source-backups`. **Ruling that amends this text:** the
+page's HTML (XPath paths) is exempt from the two-per-source cap and from the ops warning, so
+XPath-only websites keep up to five paths as before (whether to cap them is a question for Marko in
+`docs/queue.md`). Tasks 1–3 reviewed together (approved), Tasks 4–5 by the whole-branch review. The
+whole-branch review found one Important problem — the domain store's five-path cap dropped the new
+JSON-LD backup, so a one-source field searched again on every Verify — fixed: a Verify's certified
+paths (and pinned ones) always stay in the store. Minors fixed too (responses grouped by union-find
+over page and response; cell paths stamped; a spy agent proves no AI call; one case table in both
+the scraper and app tests). Gate: scraper 1251, api 1058, app 972 tests, tsc clean; route smoke 27 of
+27. Read-only check on stored captures (`docs/testing/results/2026-10-20-one-source/recertify.md`): 20
+flagged fields would spread across sources at their next Verify, 21 stay single-source because their
+pages offer one source (Ikea's Price among them); two would change their first path (Competitor
+prices / Ikea "In stock", Lookfantastic SKU).
 ## 1. Why
 
 A field certifies with up to five paths, tried in order at scale; the first that reads a value wins.
