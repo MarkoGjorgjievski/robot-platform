@@ -414,6 +414,47 @@ describe('runDriftCheck', () => {
       expect(results.fields[f.keyOf.name]!.refresh).toBeUndefined();
     } finally { await f.cleanup(); }
   }, 120_000);
+
+  it('final review I2: each field reads its own certifying paths — a held field is read and refreshed while another is neither current nor held; that one records nothing, never lost', async () => {
+    const f = await certifiedWebsite('drift-per-field');
+    try {
+      // Price fails in the latest Verify but is held on its last pass; Stock fails and is not held.
+      const row = (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.sourceId, f.sourceId) }))!;
+      const results0 = row.results as Record<string, { cells: Record<string, unknown>; certified: unknown[]; fieldHash: string }>;
+      const failed = (r: (typeof results0)[string]) => ({ ...r, certified: [], cells: Object.fromEntries(U.map((u) => [u, { status: 'fail', reason: 'different_value', found: '9' }])) });
+      const pricePass = results0[f.keyOf.price]!;
+      await db.update(sourceVerifications).set({ allPassed: false, results: { ...results0, [f.keyOf.price]: failed(pricePass), [f.keyOf.stock]: failed(results0[f.keyOf.stock]!) } }).where(eq(sourceVerifications.id, row.id));
+      await db.insert(fieldHolds).values({ sourceId: f.sourceId, fieldKey: f.keyOf.price, result: pricePass, verificationId: row.id, verifiedAt: new Date(), fieldHashes: [pricePass.fieldHash] });
+
+      const pages = priceMovedOnP2();
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(pages[u]!)] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const startRefreshVerify = vi.fn(async () => null);
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price, f.keyOf.stock] });
+      await runDriftCheck(checkId, { capture, startRefreshVerify });
+      const results = (await checkRow(checkId))!.results as DriftCheckResults;
+      expect(results.fields[f.keyOf.price]!.result).not.toBe('lost');
+      expect(results.fields[f.keyOf.price]!.refresh).toEqual({ applied: true });
+      expect(results.fields[f.keyOf.stock]).toBeUndefined();
+      expect(startRefreshVerify).toHaveBeenCalledWith(f.sourceId, [f.keyOf.price], results.captures);
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('final review I2: a run-triggered check still says lost for a field with no certifying path', async () => {
+    const f = await certifiedWebsite('drift-per-field-run');
+    try {
+      const row = (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.sourceId, f.sourceId) }))!;
+      const results0 = row.results as Record<string, { certified: unknown[] }>;
+      await db.update(sourceVerifications).set({ allPassed: false, results: { ...results0, [f.keyOf.stock]: { ...results0[f.keyOf.stock]!, certified: [], cells: {} } } }).where(eq(sourceVerifications.id, row.id));
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(clone(PAGES[u]!))] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false });
+      await runDriftCheck(checkId, { capture, startRefreshVerify: vi.fn(async () => null) });
+      const results = (await checkRow(checkId))!.results as DriftCheckResults;
+      expect(results.fields[f.keyOf.stock]!.result).toBe('lost');
+      expect(results.fields[f.keyOf.price]!.result).not.toBe('lost');
+    } finally { await f.cleanup(); }
+  }, 120_000);
 });
 
 describe('startDriftCheck (Review Focus 1)', () => {

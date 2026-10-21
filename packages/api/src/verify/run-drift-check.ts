@@ -20,14 +20,14 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db, captures as captureRows, driftChecks, runs, sources, valueRefreshes } from '@robot/db';
 import {
   buildDomSearchScript, buildXPathProbeScript, classifyDrift, fieldHash, markPaths, planRefresh,
-  type Box, type ConfirmedPath, type DomHit, type DomNeedle, type DriftCapture, type DriftCheckResults, type DriftFieldResult,
+  type Box, type CertifiedPath, type ConfirmedPath, type DomHit, type DomNeedle, type DriftCapture, type DriftCheckResults, type DriftFieldResult,
   type DriftTrigger, type PathReading, type SchemaDefinitionField, type VerificationSet, type XPathProbeResult,
 } from '@robot/scraper';
 import type { PageCapture } from '@robot/browser';
 import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { runEmptyShares } from '../crawl/drift.js';
-import { certifyingResult, loadCurrentCertification, loadFieldCurrency } from './current-certification.js';
+import { certifyingResult, loadFieldCurrency } from './current-certification.js';
 import { applyRefreshes, startRefreshVerify, type RefreshRequest } from './refresh-values.js';
 import { startProofPageCapture, runProofPageCaptureInSlot, loadProofPageCaptureById, type ProofPageMeta } from './proof-page-capture.js';
 import { readCaptureFile, type StoredCaptureRef } from './capture-store.js';
@@ -221,13 +221,21 @@ export async function runDriftCheck(
     const trigger = (check.trigger ?? 'run') as DriftTrigger;
     const wanted = upKeys ?? drifted;
     const driftedFields = wanted.map((k) => fields.find((f) => f.key === k)).filter((f): f is SchemaDefinitionField => !!f);
-    const cert = await loadCurrentCertification(db, check.sourceId);
+    // Final review I2: each field's own certifying paths — its current result, else its hold — never the
+    // all-or-nothing website certification, which is null when any one field is neither current nor held.
+    const currency = await loadFieldCurrency(db, check.sourceId);
+    const pathsOf: Record<string, CertifiedPath[]> = Object.fromEntries(
+      driftedFields.map((f) => [f.key, certifyingResult(currency, f.key)?.result.certified ?? []]),
+    );
+    const defaultKeys = Object.entries(set.defaults ?? {}).filter(([, d]) => (d ?? '').trim() !== '').map(([k]) => k);
 
     const out: Record<string, DriftFieldResult> = {};
-    // A field with no current certified path has nothing to re-read: lost, with no work.
+    // A field with no certifying path has nothing to re-read. A run's drift (and a customer's check of it)
+    // says lost; a verify or scheduled check was not asked about a lost field, so it records nothing for it.
     // (No proof pages at all is the same: nothing to re-read.)
-    const toClassify = set.urls.length === 0 ? [] : driftedFields.filter((f) => (cert?.paths[f.key]?.length ?? 0) > 0);
-    for (const f of driftedFields) if (!toClassify.includes(f)) out[f.key] = { key: f.key, result: 'lost', pages: {} };
+    const toClassify = set.urls.length === 0 ? [] : driftedFields.filter((f) => pathsOf[f.key]!.length > 0);
+    const recordsLost = trigger === 'run' || trigger === 'manual';
+    if (recordsLost) for (const f of driftedFields) if (!toClassify.includes(f)) out[f.key] = { key: f.key, result: 'lost', pages: {} };
 
     const refs: Record<string, StoredCaptureRef> = {};
     // What a run writes per field and page; Task 6's refresh reads it.
@@ -255,14 +263,14 @@ export async function runDriftCheck(
           out[field.key] = await classifyDrift({
             field,
             expected: set.expected[field.key] ?? {},
-            certified: cert!.paths[field.key]!,
+            certified: pathsOf[field.key]!,
             captures,
             notChecked,
             confirmed: confirmedPathsOf(set, field.key),
             markXPaths: Object.values(set.marks?.[field.key] ?? {}).flatMap((m) => markPaths(field, m)),
           }, classifyDeps);
           // What a run writes on each captured page (spec 2026-10-21 §3.3): the hold rule and the refresh read it.
-          const readings = await readingsOf(browser, field, cert!.paths[field.key]!, pageCaptures);
+          const readings = await readingsOf(browser, field, pathsOf[field.key]!, pageCaptures);
           readingsByKey[field.key] = readings;
           out[field.key] = { ...out[field.key]!, reads: Object.fromEntries(Object.entries(readings).map(([u, r]) => [u, r.value])) };
         }
@@ -272,7 +280,7 @@ export async function runDriftCheck(
     // Each field's empty share in the run: as handed over at the start, else read from the run itself (a check started on demand).
     const upFront = ((check.results as DriftCheckResults | null)?.fields ?? {}) as Record<string, Partial<DriftFieldResult>>;
     const missing = Object.keys(out).filter((k) => typeof upFront[k]?.emptyShare !== 'number');
-    const fromRun = check.runId && missing.length > 0 ? await runEmptyShares(db, check.runId, missing, Object.keys(cert?.defaults ?? {})) : {};
+    const fromRun = check.runId && missing.length > 0 ? await runEmptyShares(db, check.runId, missing, defaultKeys) : {};
     for (const key of Object.keys(out)) {
       const share = upFront[key]?.emptyShare ?? fromRun[key];
       if (typeof share === 'number') out[key] = { ...out[key]!, emptyShare: share };
