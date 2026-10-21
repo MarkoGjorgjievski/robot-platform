@@ -30,7 +30,7 @@ import { variantsRequired } from '../verify/variant-check.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
 import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { readCaptureFile } from '../verify/capture-store.js';
-import { resolveInFlightVerification } from '../verify/in-flight.js';
+import { resolveInFlightVerification, startVerificationRow } from '../verify/in-flight.js';
 import { runFailure } from '../verify/run-failure.js';
 import type { JevAnswers } from '../verify/jev-reading.js';
 
@@ -1136,21 +1136,17 @@ export const sourcesRouter = router({
         }
       }
 
-      const inFlight = await resolveInFlightVerification(ctx.db, input.sourceId);
-      if (inFlight) {
-        return { verificationId: inFlight.id, status: 'in-progress' as const };
-      }
+      // Under the website row lock (fix wave 1, item 5): a refresh (verify/refresh-values.ts) takes the same
+      // lock for its in-flight check and writes, so a Verify and a refresh never interleave.
+      const start = await startVerificationRow(ctx.db, input.sourceId, hash);
+      if (start.status === 'in-progress') return start;
+      const id = start.verificationId;
 
-      const [row] = await ctx.db
-        .insert(sourceVerifications)
-        .values({ sourceId: input.sourceId, definitionHash: hash })
-        .returning({ id: sourceVerifications.id });
-
-      void runSourceVerification(input.sourceId, row!.id, { onlyKeys: input.onlyKeys, ...(input.free ? { free: true } : {}) }).catch((err) => {
-        console.error(`[sources.verify] verification ${row!.id} failed:`, err);
+      void runSourceVerification(input.sourceId, id, { onlyKeys: input.onlyKeys, ...(input.free ? { free: true } : {}) }).catch((err) => {
+        console.error(`[sources.verify] verification ${id} failed:`, err);
       });
 
-      return { verificationId: row!.id, status: 'started' as const };
+      return { verificationId: id, status: 'started' as const };
     }),
 
   /**

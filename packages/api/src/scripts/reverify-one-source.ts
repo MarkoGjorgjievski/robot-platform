@@ -23,7 +23,7 @@ import { readsOneSource, sourceKey, type CertifiedPath, type FieldVerification, 
 import { contractFields } from '../contract.js';
 import { bindingProblemList } from '../verify/binding-input.js';
 import { sourceDefinitionHash } from '../verify/current-certification.js';
-import { resolveInFlightVerification } from '../verify/in-flight.js';
+import { resolveInFlightVerification, startVerificationRow } from '../verify/in-flight.js';
 import { runProofPageCaptureInSlot, startProofPageCapture } from '../verify/proof-page-capture.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
 import { runCoverageCheck, startCoverageCheck } from '../verify/run-coverage-check.js';
@@ -174,7 +174,10 @@ for (const { s, flagged, results: beforeResults } of picked) {
   console.log(`  Jev readings: ${readings.length} (${readings.map((r) => r.status).join(', ') || 'none'})`);
 
   // 2. The verification row and its run, free, awaited.
-  const [row] = await db.insert(sourceVerifications).values({ sourceId: s.id, definitionHash: hash }).returning({ id: sourceVerifications.id });
+  // Under the website row lock, as every Verify start (fix wave 1, item 5): a Verify or refresh begun meanwhile wins.
+  const start = await startVerificationRow(db, s.id, hash);
+  if (start.status === 'in-progress') { rep.skipped = `a verification is already in flight (${start.verificationId})`; console.log(`  skipped: ${rep.skipped}`); save(); continue; }
+  const row = { id: start.verificationId };
   rep.verificationId = row!.id;
   // `runSourceVerification` fires the coverage start without awaiting it, so the promise is taken
   // synchronously here (the 2026-10-21 run first set it after an await, raced, and two checks ran
