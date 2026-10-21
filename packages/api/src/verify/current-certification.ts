@@ -2,7 +2,9 @@
 // field, at read time, by comparing each stored result's `fieldHash`
 // against the present `fieldHash(field, set)` on the latest completed,
 // error-free run — a certification exists only when every contract field
-// is current on that run. `definitionHash` is still kept on each row, but
+// is current on that run or held (spec 2026-10-21 §3.1: a field the latest
+// Verify did not pass is read from its hold, the last passing result, while
+// the hold stands for today's hash). `definitionHash` is still kept on each row, but
 // only for history; nothing here reads it to decide currency. Editing the
 // binding (`updateBinding`) or the contract (`datasets.ts`'s `addField` /
 // `renameField` / `retypeField` / `deleteField`) never touches past
@@ -28,6 +30,10 @@ import { loadHolds, loadHoldsBatch, resultPasses, type Certifying, type Hold, ty
 export { resultPasses } from './holds.js';
 
 export type Certification = {
+  /**
+   * The latest clean Verify — when fields are held, the one that did not pass them, not the hold's. A field's
+   * own provenance (which Verify passed the result runs read) is `certifyingResult`'s.
+   */
   verificationId: string;
   completedAt: Date;
   paths: Record<string /* field key */, CertifiedPath[]>;
@@ -143,8 +149,10 @@ function currencyOf(source: { schemaDefinition: unknown; verificationSet: unknow
 
   // Spec 2026-10-21 §3.1: a field not current is held while its hold stands for today's hash.
   // Only the customer's edit moves the hash off the hold's list, so only it ends a hold.
+  // A hold counts only when its result passes (fix wave 1, item 6) — writeHolds never writes another, but a
+  // row is read as it stands.
   const heldKeys = fields
-    .filter((f) => !currentKeys.includes(f.key) && holds.some((h) => h.fieldKey === f.key && h.fieldHashes.includes(fieldHash(f, set))))
+    .filter((f) => !currentKeys.includes(f.key) && holds.some((h) => h.fieldKey === f.key && resultPasses(h.result) && h.fieldHashes.includes(fieldHash(f, set))))
     .map((f) => f.key);
   const held = Object.fromEntries(heldKeys.map((k) => [k, holds.find((h) => h.fieldKey === k)!]));
 
@@ -186,8 +194,8 @@ export async function loadFieldCurrencyBatch(
 ): Promise<Map<string, FieldCurrency>> {
   const ids = sourcesIn.filter((s) => Array.isArray(s.schemaDefinition) && s.verificationSet).map((s) => s.id);
 
-  const rows = ids.length
-    ? await db
+  const [rows, holdsBySource] = await Promise.all([ids.length
+    ? db
         .selectDistinctOn([sourceVerifications.sourceId], {
           sourceId: sourceVerifications.sourceId,
           id: sourceVerifications.id,
@@ -198,9 +206,8 @@ export async function loadFieldCurrencyBatch(
         .from(sourceVerifications)
         .where(and(inArray(sourceVerifications.sourceId, ids), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)))
         .orderBy(sourceVerifications.sourceId, desc(sourceVerifications.completedAt), desc(sourceVerifications.id))
-    : [];
+    : Promise.resolve([]), loadHoldsBatch(db, ids)]);
   const rowBySource = new Map(rows.map((r) => [r.sourceId, r]));
-  const holdsBySource = await loadHoldsBatch(db, ids);
 
   return new Map(sourcesIn.map((s) => [s.id, currencyOf(s, rowBySource.get(s.id) ?? undefined, holdsBySource.get(s.id) ?? [])]));
 }
@@ -238,8 +245,9 @@ function variantCurrencyOf(source: VariantSource, result: VariantVerification | 
  * The certification and the variant currency, both from ONE read of the
  * latest clean run, so the field paths and the variants can never come from
  * different runs. `cert` is null unless every contract field is current
- * (spec 4.4); it carries `variants` only when they are required, current and
- * passed.
+ * (spec 4.4) or held (spec 2026-10-21 §3.1; a held field's paths are its
+ * hold's); it carries `variants` only when they are required, current and
+ * passed. Holds cover fields only, never variants.
  */
 export async function loadCertificationState(db: Database, sourceId: string): Promise<{ cert: Certification | null; variants: VariantCurrency }> {
   // ONE read of the source row, passed down, so the field half and the variant half always
@@ -285,7 +293,7 @@ export async function loadCertificationState(db: Database, sourceId: string): Pr
   };
 }
 
-/** A certification exists only when EVERY contract field is current on this source (spec 4.4). */
+/** A certification exists only when EVERY contract field is current (spec 4.4) or held (spec 2026-10-21 §3.1). */
 export async function loadCurrentCertification(db: Database, sourceId: string): Promise<Certification | null> {
   return (await loadCertificationState(db, sourceId)).cert;
 }
@@ -307,9 +315,20 @@ export function certifyingResult(currency: FieldCurrency, key: string): Certifyi
   return h ? { result: h.result, verificationId: h.verificationId, verifiedAt: h.verifiedAt, fieldHashes: h.fieldHashes } : null;
 }
 
-/** May this website run? `requireCertification`'s rule, as a boolean: a certification, and the variants it needs. */
+/**
+ * Why this website may not run, or null when it may: a certification, and the variants it needs. The one rule
+ * `requireCertification` (the run gate) throws with and `runnableOf` answers, so the two never differ
+ * (fix wave 1, item 6). The gate also lets a legacy website (no customer schema) through before asking; that
+ * is the gate's own, since such a website has no certification state to read.
+ */
+export function runRefusal(state: { cert: Certification | null; variants: VariantCurrency }): string | null {
+  if (!state.cert) return 'Verify the schema before extracting';
+  if (state.variants.required === 'setup-missing') return "Set up this website's variants before extracting";
+  if (state.variants.required === 'yes' && !(state.variants.current && state.variants.passed)) return 'Verify the variants before extracting';
+  return null;
+}
+
+/** May this website run? `runRefusal`'s rule, as a boolean. */
 export function runnableOf(state: { cert: Certification | null; variants: VariantCurrency }): boolean {
-  if (!state.cert) return false;
-  if (state.variants.required === 'setup-missing') return false;
-  return state.variants.required !== 'yes' || (state.variants.current && state.variants.passed);
+  return runRefusal(state) === null;
 }
