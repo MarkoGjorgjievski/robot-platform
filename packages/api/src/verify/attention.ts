@@ -7,7 +7,7 @@
 // What a check says about why it did not refresh a field (`refresh.reason`) and
 // the path a refresh read are staff-only (spec §5, §6): `forCustomer` and
 // `customerDriftResults` strip them from what a customer session receives.
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { driftChecks, sources, sourceVerifications, valueRefreshes, type Database } from '@robot/db';
 import { fieldHash, type DriftCheckResults, type DriftFieldResult, type RefreshPage, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { loadFieldCurrency } from './current-certification.js';
@@ -41,7 +41,24 @@ export async function websiteAttention(db: Database, sourceId: string): Promise<
       columns: { createdAt: true, results: true },
     }),
   ]);
-  const latestVerify = currency.latest?.completedAt ?? null;
+  // Follow-ups §1: a current field's finding is superseded by a newer clean Verify of that field. A refresh's
+  // re-verify verified only the fields it refreshed (its `value_refreshes` rows), every other clean Verify all.
+  const oldestCheck = checks.at(-1)?.createdAt ?? null;
+  const laterVerifies = oldestCheck === null ? [] : await db.select({ id: sourceVerifications.id, completedAt: sourceVerifications.completedAt })
+    .from(sourceVerifications)
+    .where(and(eq(sourceVerifications.sourceId, sourceId), gt(sourceVerifications.completedAt, oldestCheck), isNull(sourceVerifications.errorMessage)));
+  const refreshedBy = new Map<string, Set<string>>();
+  if (laterVerifies.length > 0) {
+    const links = await db.select({ verificationId: valueRefreshes.verificationId, fieldKey: valueRefreshes.fieldKey }).from(valueRefreshes)
+      .where(inArray(valueRefreshes.verificationId, laterVerifies.map((v) => v.id)));
+    for (const l of links) {
+      if (!l.verificationId) continue;
+      if (!refreshedBy.has(l.verificationId)) refreshedBy.set(l.verificationId, new Set());
+      refreshedBy.get(l.verificationId)!.add(l.fieldKey);
+    }
+  }
+  const verifiedAfter = (key: string, at: Date) =>
+    laterVerifies.some((v) => !!v.completedAt && v.completedAt > at && (refreshedBy.get(v.id)?.has(key) ?? true));
   // Final review M3: when each hold's failed Verify completed — a check from before it says nothing about the held field.
   const failedIds = [...new Set(currency.heldKeys.map((k) => currency.held[k]!.failedVerificationId).filter((id): id is string => !!id))];
   const failedAt = new Map(failedIds.length === 0 ? [] : (await db.select({ id: sourceVerifications.id, completedAt: sourceVerifications.completedAt })
@@ -54,9 +71,9 @@ export async function websiteAttention(db: Database, sourceId: string): Promise<
     for (const c of checks) {
       const r = (c.results as DriftCheckResults | null)?.fields?.[f.key];
       if (!r?.result) continue; // an entry with only its up-front share
-      // The newest check that read the field decides; a current field's finding counts only when newer than its Verify,
-      // a held field's only when newer than the Verify that failed it.
-      const newEnough = held ? !since || c.createdAt > since : !latestVerify || c.createdAt > latestVerify;
+      // The newest check that read the field decides; a current field's finding counts until a newer Verify of that field
+      // (follow-ups §1), a held field's only when newer than the Verify that failed it.
+      const newEnough = held ? !since || c.createdAt > since : !verifiedAfter(f.key, c.createdAt);
       if (newEnough && actionable(r)) findings[f.key] = r;
       break;
     }

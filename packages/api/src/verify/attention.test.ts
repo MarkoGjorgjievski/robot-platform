@@ -68,6 +68,33 @@ describe('websiteAttention (spec 2026-10-21 §3.5)', () => {
     } finally { await s.cleanup(); }
   });
 
+  it('follow-ups §1: a refresh re-verify supersedes only the fields it refreshed; the check’s other findings stay until a Verify of them', async () => {
+    const s = await twoFields('refresh-keeps');
+    try {
+      const t0 = Date.now() - 3 * 60_000;
+      await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(t0), allPassed: true, results: { price: s.pass('price'), title: s.pass('title') } });
+      // The scheduled check: Price changed and was refreshed; Title lost (the apply report's surprise 4 shape).
+      const results: DriftCheckResults = {
+        runId: null, trigger: 'schedule',
+        fields: {
+          price: { key: 'price', result: 'changed', pages: { [s.urls[0]!]: { status: 'ok', value: '1.10', changed: true, was: '1.00' } }, refresh: { applied: true } },
+          title: { key: 'title', result: 'lost', pages: { [s.urls[0]!]: { status: 'ok', value: null } } },
+        },
+      };
+      const [check] = await db.insert(driftChecks).values({ sourceId: s.sourceId, status: 'done', trigger: 'schedule', createdAt: new Date(t0 + 60_000), completedAt: new Date(t0 + 60_000), results }).returning({ id: driftChecks.id });
+      // Its free re-verify of Price, newer than the check, carrying Title forward.
+      const [re] = await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(t0 + 120_000), allPassed: true, results: { price: s.pass('price'), title: s.pass('title') } }).returning({ id: sourceVerifications.id });
+      await db.insert(valueRefreshes).values({ sourceId: s.sourceId, fieldKey: 'price', driftCheckId: check!.id, verificationId: re!.id, pages: {}, fromHash: 'a', toHash: 'b' });
+      let a = await websiteAttention(db, s.sourceId);
+      expect(a.fields).toEqual(['title']);
+      expect(Object.keys(a.findings)).toEqual(['title']);
+      // A Verify of every field supersedes it.
+      await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true, results: { price: s.pass('price'), title: s.pass('title') } });
+      a = await websiteAttention(db, s.sourceId);
+      expect(a.fields).toEqual([]);
+    } finally { await s.cleanup(); }
+  });
+
   it('final review M3: a held field’s finding from a check older than the hold’s failed Verify does not count; a newer one does', async () => {
     const s = await twoFields('held-old-check');
     try {
