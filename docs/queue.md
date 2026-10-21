@@ -7,23 +7,27 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Re-verify the one-source websites** — after the HTML cap (done): re-verify, free and keyless, the websites
-   the one-source check flagged (both Ikea websites, Lookfantastic, the rest in
-   `docs/testing/results/2026-10-20-one-source/recertify.md`); `pg_dump` first; record before/after.
-   (Marko: yes, 2026-10-21; the two first-path switches are accepted.)
-2. **Jev's agreement** — count the websites verified with Jev readings; with about 20, run the
-   agreement report and write up spec 2026-10-16 §9's decision for Marko; with fewer, record the
-   count and move it back to Needs Marko. (Marko: yes, 2026-10-21.)
-3. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-4. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+2. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
 
-*(Nothing waiting — items 6 and 7 above need Marko only for the UX notes.)*
+- **10 websites lost their certification at the re-verify** — their live pages changed since they
+  were verified (prices, ratings, descriptions moved; widgets no longer read; a Skullcandy proof page
+  is now a 404): Barnesandnoble, Acne / Ikea, Madeincookware, Everlane, Mejuri, Gymshark, Ridge,
+  Oliverbonas, Burrow, Skullcandy. Runs on them are refused until their failing fields are fixed and
+  verified again. Keep (the honest state; fix them in the app), or roll back (delete the 20 new
+  verification rows listed in `docs/testing/results/2026-10-21-reverify-one-source/results.json`, or
+  restore `backup-20261021-115643-pre-reverify-one-source.sql`)?
+- **Jev's agreement** — read 2026-10-21 (`docs/testing/results/2026-10-21-jev-agreement.md`): 86 %
+  at confidence 0.9+, most other disagreements are how we compare. Recommendation: do not apply
+  Jev's pick yet; fix the comparison and two candidate follow-ups, read again, then consider Price
+  only. Agree?
 
 ## Done
 
+- 2026-10-21 — Re-verified the 20 one-source websites (`docs/testing/results/2026-10-21-reverify-one-source/report.md`); Jev agreement read.
 - 2026-10-21 — HTML backups capped too (`33a67c7`).
 - 2026-10-21 — Customer copy: capture failures and run limits (`ae1f9ed`).
 - 2026-10-20 — Backups from more than one source (`357b202`).
