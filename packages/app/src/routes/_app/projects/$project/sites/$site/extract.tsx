@@ -39,6 +39,8 @@ import {
   withEditing,
 } from '../../../../../../lib/site/extract-screen-view';
 import { trpc } from '../../../../../../lib/trpc';
+import { captureWords } from '../../../../../../lib/capture-words';
+import { useStaffDetail } from '../../../../../../lib/use-staff-detail';
 import { useSite } from '../$site';
 
 /**
@@ -113,6 +115,9 @@ function ExtractTab() {
   const [budget, setBudget] = useState<{ items: number | 'all'; pages: number | 'all' }>({ items: 'all', pages: 'all' });
   const [editing, setEditing] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Spec 2026-10-21: an error here can carry a stored capture sentence (the execute guard's
+  // "This run failed while planning: …"); a customer reads it in customer words, staff as is.
+  const staff = useStaffDetail();
   const [note, setNote] = useState<string | null>(null);
   const [startedRunId, setStartedRunId] = useState<string | null>(null);
   /** The website the local state was seeded from, so a `$site` change reseeds. */
@@ -413,7 +418,7 @@ function ExtractTab() {
 
       {error ? (
         <p role="alert" className="rise mb-3 border-l-2 border-fail pl-3 text-base whitespace-pre-line text-fail">
-          {error}
+          {captureWords(error, staff)}
         </p>
       ) : null}
 

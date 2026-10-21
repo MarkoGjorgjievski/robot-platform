@@ -32,6 +32,10 @@ describe('captureWords (spec 2026-10-21 §3)', () => {
         expect(captureWords(stored)).toBe(want);
         expect(captureWords(`Not tried: ${stored}`)).toBe(`Not tried: ${want}`);
         expect(captureWords(`${stored} Waiting 2 min before trying again.`)).toBe(`${want} Waiting 2 min before trying again.`);
+        // The execute guard's wrapper (api crawl/execute-guard.ts) survives; the verdict inside it is mapped.
+        expect(captureWords(`This run failed while planning: ${stored}`)).toBe(`This run failed while planning: ${want}`);
+        // The orchestrator's wrapper is internal wording: a customer reads the mapped sentence alone.
+        expect(captureWords(`Page blocked or unusable: ${stored}`)).toBe(want);
         for (const leak of LEAKS) expect(captureWords(stored)).not.toMatch(leak);
         expect(captureWords(stored, true)).toBe(stored);
       });
@@ -53,5 +57,30 @@ describe('captureWords (spec 2026-10-21 §3)', () => {
       expect(captureWords(s)).toBe(PAGE_NOT_READ_SENTENCE);
     }
     expect(captureWords('Page blocked or unusable: CAPTCHA detected', false, BLOCKED_SENTENCE)).toBe(BLOCKED_SENTENCE);
+  });
+
+  it('library and system errors that reach run items, runs tables and the diagnosis become the generic sentence', () => {
+    for (const s of [
+      'Target page, context or browser has been closed',
+      'Navigation failed because page crashed!',
+      'connect ECONNREFUSED 127.0.0.1:5432',
+      'browserType.launch: Executable doesn\'t exist',
+      'browserContext.newPage: Target closed',
+      'page.waitForSelector: Timeout 30000ms exceeded.',
+      'Timeout 30000ms exceeded',
+      'read ETIMEDOUT',
+      'request to 10.0.0.12 failed',
+      'the browser went away',
+      'Page blocked or unusable: empty page',
+    ]) {
+      expect(captureWords(s), s).toBe(PAGE_NOT_READ_SENTENCE);
+      expect(captureWords(`Not tried: ${s}`), s).toBe(`Not tried: ${PAGE_NOT_READ_SENTENCE}`);
+    }
+    // A wrapped library error loses the wrapper too.
+    expect(captureWords('Page blocked or unusable: Target page, context or browser has been closed')).toBe(PAGE_NOT_READ_SENTENCE);
+    // Our own capitalised words are not error codes.
+    expect(captureWords('Extract stopped. Every page was saved.')).toBe('Extract stopped. Every page was saved.');
+    // The planning wrapper with no recorded reason is our own sentence.
+    expect(captureWords('This run failed while planning: no reason was recorded')).toBe('This run failed while planning: no reason was recorded');
   });
 });
