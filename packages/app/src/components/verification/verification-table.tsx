@@ -76,6 +76,9 @@ export type TableRow = {
   onReverifyField?: () => void;
   /** Jev's note for the row (spec 2026-10-16 §6, `jevNote`): shown muted under the status, never changes it. Null hides it. */
   jevNote: string | null;
+  /** A held field's word (spec 2026-10-21 §5, `heldWord`): shown under the status whatever the row's status is —
+   * a held row's cells may read failed or suggested, and the customer must still see that runs go on. Null hides it. */
+  heldWord: string | null;
 };
 
 /** The 2 px rail a value cell carries in its state colour (spec §4: never a background wash). */
@@ -92,17 +95,18 @@ function productsText(ns: number[]): string {
   return `products ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
 }
 
-type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null; onReverifyField?: () => void; showMoney: boolean };
+type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null; heldWord: string | null; onReverifyField?: () => void; showMoney: boolean };
 
 /** The status column: the row's status, and under it the address warning (spec 2026-10-14 §6)
  * when the row is accepted or agreed, or whenever the badge reads verified; then Jev's note
  * (spec 2026-10-16 §6), muted, whatever the status — it never changes the status. */
-function StatusCell({ addressWarning, jevNote, onReverifyField, showMoney, ...props }: StatusCellProps) {
+function StatusCell({ addressWarning, jevNote, heldWord, onReverifyField, showMoney, ...props }: StatusCellProps) {
   const shows = !!addressWarning && (props.status.kind === 'accepted' || props.status.kind === 'agreed' || props.badge?.kind === 'verified');
-  if (!shows && !jevNote) return <StatusBody {...props} />;
+  if (!shows && !jevNote && !heldWord) return <StatusBody {...props} />;
   return (
     <div className="flex flex-col gap-1">
       <StatusBody {...props} />
+      {heldWord ? <span className="text-sm text-muted-foreground">{heldWord}</span> : null}
       {shows ? (
         <span className="flex flex-wrap items-center gap-2 text-sm text-warn">
           <span>{addressWarning}</span>
@@ -118,7 +122,7 @@ function StatusCell({ addressWarning, jevNote, onReverifyField, showMoney, ...pr
   );
 }
 
-function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefault, defaultOnlyWord }: Omit<StatusCellProps, 'addressWarning' | 'jevNote' | 'onReverifyField' | 'showMoney'>) {
+function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefault, defaultOnlyWord }: Omit<StatusCellProps, 'addressWarning' | 'jevNote' | 'heldWord' | 'onReverifyField' | 'showMoney'>) {
   switch (status.kind) {
     case 'agreed':
       return (
@@ -530,7 +534,7 @@ export function VerificationTable({
                 {addHead ? <td className="w-[190px] border-t border-line" /> : null}
 
                 <td className="sticky right-0 z-10 w-[220px] border-t border-l border-line bg-panel px-2 py-2 align-top">
-                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} onReverifyField={row.onReverifyField} showMoney={showMoney} />
+                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} heldWord={row.heldWord} onReverifyField={row.onReverifyField} showMoney={showMoney} />
                 </td>
               </tr>
 

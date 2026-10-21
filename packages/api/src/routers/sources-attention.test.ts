@@ -1,10 +1,11 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, driftChecks } from '@robot/db';
-import type { DriftCheckResults } from '@robot/scraper';
+import { db, driftChecks, sources, sourceVerifications } from '@robot/db';
+import type { DriftCheckResults, VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { enterAsStaff, signedInCaller } from '../test-helpers/identity.js';
 import { seedAttention } from '../test-helpers/seed-attention.js';
+import { currentVariantHash } from '../verify/variant-check.js';
 
 const me = await signedInCaller('sources-attention');
 const staffUser = await signedInCaller('sources-attention-staff');
@@ -75,6 +76,60 @@ describe('what the app reads about a website that changed (spec 2026-10-21 §5)'
       const a = await me.caller.sources.attention({ sourceId: f.sourceId });
       expect(a).toEqual({ fields: [], heldSince: null, goneProducts: [], findings: {}, refreshes: [], runnable: false });
       expect((await me.caller.sources.get({ projectSlug: f.projectSlug, sourceSlug: f.sourceSlug })).needsAttention).toBe(false);
+    } finally { await f.cleanup(); }
+  });
+});
+
+describe('seedAttention on a website with variants (final review I3)', () => {
+  async function withVariants(tag: string) {
+    const f = await website(tag);
+    const src = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), columns: { datasetId: true } });
+    await me.caller.datasets.setVariantMode({ datasetId: src!.datasetId!, mode: 'row_per_variant' });
+    const setup = await me.caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'list', axes: [{ from: 'color', newAxisName: 'Colour' }] });
+    const colour = setup.axes[0]!.axisKey;
+    const list = { source: 'json-ld' as const, path: 'hasVariant' };
+    await me.caller.sources.saveVariantAnswer({ sourceId: f.sourceId, url: f.urls[0]!, answer: { count: 2, labels: ['Black', 'Red'], list, links: [f.urls[0]!, `${f.urls[0]!}-red`], spot: { index: 0, expected: { price: '1.00', [colour]: 'Black' } } } });
+    for (const u of f.urls.slice(1)) await me.caller.sources.saveVariantAnswer({ sourceId: f.sourceId, url: u, answer: { count: 0, labels: [] } });
+    return f;
+  }
+
+  it('with no earlier run, the seeded runs pass variants for the setup as it stands: held, and still runnable', async () => {
+    const f = await withVariants('srcattn-variants');
+    try {
+      await seedAttention(f.sourceId, { heldKey: 'title', refreshedKey: 'price' });
+      const status = await me.caller.sources.verificationStatus({ sourceId: f.sourceId });
+      expect(status!.heldKeys).toEqual(['title']);
+      expect(status!.runnable).toBe(true);
+    } finally { await f.cleanup(); }
+  });
+
+  const oldRun = (sourceId: string, variantResults: unknown) => db.insert(sourceVerifications).values({
+    sourceId, definitionHash: 'x', startedAt: new Date(Date.now() - 5 * 86_400_000), completedAt: new Date(Date.now() - 5 * 86_400_000), allPassed: true, results: {}, variantResults,
+  }).returning({ id: sourceVerifications.id });
+
+  it('an earlier clean run\'s current, passing variant result is carried into both seeded runs', async () => {
+    const f = await withVariants('srcattn-variants-prev');
+    try {
+      const fresh = (await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), with: { dataset: { columns: { schema: true } } } }))!;
+      const hash = currentVariantHash({ set: fresh.verificationSet as VerificationSet, setup: fresh.variantSetup as never, datasetSchema: fresh.dataset?.schema });
+      const prev = { method: 'list', hash, passed: true, pages: { [f.urls[0]!]: { passed: true } } };
+      const [old] = await oldRun(f.sourceId, prev);
+      await seedAttention(f.sourceId, { heldKey: 'title', refreshedKey: 'price' });
+      const rows = await db.query.sourceVerifications.findMany({ where: eq(sourceVerifications.sourceId, f.sourceId) });
+      expect(rows.filter((r) => r.id !== old!.id)).toHaveLength(2);
+      for (const r of rows) expect(r.variantResults).toEqual(prev);
+      expect((await me.caller.sources.verificationStatus({ sourceId: f.sourceId }))!.runnable).toBe(true);
+    } finally { await f.cleanup(); }
+  });
+
+  it('an earlier result for another setup, or a failed one, is not carried: the seeded runs pass the setup as it stands', async () => {
+    const f = await withVariants('srcattn-variants-stale');
+    try {
+      const [old] = await oldRun(f.sourceId, { method: 'list', hash: 'an-old-setup', passed: false, problem: 'x', pages: {} });
+      await seedAttention(f.sourceId, { heldKey: 'title', refreshedKey: 'price' });
+      const rows = await db.query.sourceVerifications.findMany({ where: eq(sourceVerifications.sourceId, f.sourceId) });
+      for (const r of rows.filter((x) => x.id !== old!.id)) expect(r.variantResults).toMatchObject({ method: 'list', passed: true });
+      expect((await me.caller.sources.verificationStatus({ sourceId: f.sourceId }))!.runnable).toBe(true);
     } finally { await f.cleanup(); }
   });
 });
