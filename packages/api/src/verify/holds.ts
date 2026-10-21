@@ -83,14 +83,21 @@ export async function readingsOf(
   return out;
 }
 
-/** Spec §3.1: the paths still extract — a value on some captured page, or nothing was captured (nothing learned), or the result has no paths. */
+/**
+ * Spec §3.1: the paths still extract — a value on some captured page, or the result has no paths
+ * (`defaultOnly` / `notOnWebsite`). No evidence, no hold (fix wave 1, item 1): when no page was read at all
+ * (no capture, a capture file pruned from disk), this is false. The spec's "no page could be captured, nothing
+ * learned" case is the caller's to decide — `decideHolds`'s `nothingCaptured` — never a default.
+ */
 export function stillExtracts(result: Pick<FieldVerification, 'certified'>, readings: Record<string, PathReading>): boolean {
   if (result.certified.length === 0) return true;
-  const read = Object.values(readings);
-  return read.length === 0 || read.some((r) => r.value !== null);
+  return Object.values(readings).some((r) => r.value !== null);
 }
 
-export type HoldPlan = { upsert: Hold[]; remove: string[]; readings: Record<string, Record<string, PathReading>> };
+/** Why a field a Verify checked has, or has no, hold. */
+export type HoldWhy = 'passed' | 'held' | 'no-certifying' | 'no-evidence' | 'reads-nothing';
+
+export type HoldPlan = { upsert: Hold[]; remove: string[]; readings: Record<string, Record<string, PathReading>>; why: Record<string, HoldWhy> };
 
 /**
  * Spec §3.1, for each field a Verify checked (`keys`): a pass ends its hold; a field it did not pass is
@@ -98,6 +105,10 @@ export type HoldPlan = { upsert: Hold[]; remove: string[]; readings: Record<stri
  * has not edited it since), and whose paths still extract on the Verify's captures; otherwise it has no
  * hold. Reads the captures the way a run would (no page load, never a model call). Variants are not
  * fields: a hold never stands in for a failed variant check.
+ *
+ * No page read is no evidence and no hold, unless `nothingCaptured: 'hold'` — a live Verify that could load
+ * no proof page at all learned nothing about the paths, and spec §3.1 keeps the hold then (a site down for a
+ * minute does not take a certification away). A backfill never passes it: a pruned capture file is not an outage.
  */
 export async function decideHolds(args: {
   fields: SchemaDefinitionField[];
@@ -108,16 +119,24 @@ export async function decideHolds(args: {
   captures: Record<string, PageCapture | null>;
   browser: IBrowser;
   failedVerificationId: string;
+  nothingCaptured?: 'hold' | 'no-hold';
 }): Promise<HoldPlan> {
-  const plan: HoldPlan = { upsert: [], remove: [], readings: {} };
+  const plan: HoldPlan = { upsert: [], remove: [], readings: {}, why: {} };
+  const drop = (key: string, why: HoldWhy) => { plan.remove.push(key); plan.why[key] = why; };
+  const nothingCaptured = Object.values(args.captures).every((c) => !c);
   for (const field of args.fields.filter((f) => args.keys.includes(f.key))) {
-    if (resultPasses(args.outcome[field.key])) { plan.remove.push(field.key); continue; }
+    if (resultPasses(args.outcome[field.key])) { drop(field.key, 'passed'); continue; }
     const c = args.certifying(field.key);
     // A hold is only ever made from a result that passes (Task 3 review).
-    if (!c || !resultPasses(c.result) || !c.fieldHashes.includes(fieldHash(field, args.set))) { plan.remove.push(field.key); continue; }
+    if (!c || !resultPasses(c.result) || !c.fieldHashes.includes(fieldHash(field, args.set))) { drop(field.key, 'no-certifying'); continue; }
     const readings = await readingsOf(args.browser, field, c.result.certified, args.captures);
     plan.readings[field.key] = readings;
-    if (!stillExtracts(c.result, readings)) { plan.remove.push(field.key); continue; }
+    const keepBlind = nothingCaptured && args.nothingCaptured === 'hold';
+    if (!keepBlind && !stillExtracts(c.result, readings)) {
+      drop(field.key, c.result.certified.length > 0 && Object.keys(readings).length === 0 ? 'no-evidence' : 'reads-nothing');
+      continue;
+    }
+    plan.why[field.key] = 'held';
     plan.upsert.push({ fieldKey: field.key, result: c.result, verificationId: c.verificationId, verifiedAt: c.verifiedAt, failedVerificationId: args.failedVerificationId, fieldHashes: c.fieldHashes });
   }
   return plan;
@@ -140,21 +159,26 @@ export async function writeHolds(db: HoldsDb, sourceId: string, plan: Pick<HoldP
   if (plan.remove.length > 0) await db.delete(fieldHolds).where(and(eq(fieldHolds.sourceId, sourceId), inArray(fieldHolds.fieldKey, plan.remove)));
 }
 
+/** Per field, what a backfill did: held, or skipped — for no evidence (no stored page could be read), or another reason. */
+export type BackfillField = { held: true } | { held: false; reason: 'no-evidence' | 'reads-nothing' | 'no-earlier-pass' | 'passing' | 'already-held' };
+
 /**
  * Spec 2026-10-21 §8: the hold rule applied after the fact to one named website's latest completed, clean
  * Verify — what it would have kept had this code run then. Callers name each website (the ten approved
  * ones); nothing here walks every website. A field's certifying result is its newest earlier pass at
  * today's hash; the pages are the latest Verify's stored capture files (read whatever their age, no page
- * load, never a model call). Fields the latest Verify passed, and fields already held, are left alone, so
- * it is idempotent. With `write`, writes the holds (never deletes one).
+ * load, never a model call). No evidence, no hold: a stored capture file that is missing or pruned reads as
+ * nothing, and a field no stored page could be read for is not held (`fields[key].reason: 'no-evidence'`).
+ * Fields the latest Verify passed, and fields already held, are left alone, so it is idempotent. With
+ * `write`, writes the holds (never deletes one).
  */
 export async function backfillHolds(
   db: Database,
   browser: IBrowser,
   sourceId: string,
   opts: { write?: boolean } = {},
-): Promise<HoldPlan & { certifying: Record<string, Certifying>; latestId: string | null; passing: string[] }> {
-  const empty = { upsert: [], remove: [], readings: {}, certifying: {}, latestId: null, passing: [] };
+): Promise<HoldPlan & { certifying: Record<string, Certifying>; latestId: string | null; passing: string[]; fields: Record<string, BackfillField> }> {
+  const empty = { upsert: [], remove: [], readings: {}, why: {}, certifying: {}, latestId: null, passing: [], fields: {} };
   const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, verificationSet: true } });
   if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return empty;
   const fields = source.schemaDefinition as SchemaDefinitionField[];
@@ -187,5 +211,13 @@ export async function backfillHolds(
   const plan = await decideHolds({ fields, set, keys: Object.keys(certifying), outcome: latestResults, certifying: (k) => certifying[k] ?? null, captures, browser, failedVerificationId: latest.id });
   if (opts.write) await writeHolds(db, sourceId, { upsert: plan.upsert, remove: [] });
   const passing = fields.filter((f) => resultPasses(latestResults[f.key])).map((f) => f.key);
-  return { ...plan, certifying, latestId: latest.id, passing };
+  const out: Record<string, BackfillField> = {};
+  for (const f of fields) {
+    if (passing.includes(f.key)) out[f.key] = { held: false, reason: 'passing' };
+    else if (existing.some((h) => h.fieldKey === f.key)) out[f.key] = { held: false, reason: 'already-held' };
+    else if (!certifying[f.key]) out[f.key] = { held: false, reason: 'no-earlier-pass' };
+    else if (plan.why[f.key] === 'held') out[f.key] = { held: true };
+    else out[f.key] = { held: false, reason: plan.why[f.key] === 'no-evidence' ? 'no-evidence' : 'reads-nothing' };
+  }
+  return { ...plan, certifying, latestId: latest.id, passing, fields: out };
 }

@@ -199,6 +199,8 @@ export async function runSourceVerification(
         captures: run.captures,
         browser,
         failedVerificationId: verificationId,
+        // Spec §3.1: a Verify that could load no proof page at all learned nothing — the hold stands.
+        nothingCaptured: 'hold',
       });
       return { run, variantResults, holdPlan };
     });
