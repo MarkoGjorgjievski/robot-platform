@@ -252,6 +252,19 @@ describe('classifyDrift', () => {
     expect(r.pages[U[0]!]).toEqual({ status: 'ok', value: '0.00' });
   }, 30_000);
 
+  it('review Important 2: blank expected with a default — a path reading another value than the default is changed, never other-layout; reading the default everywhere is other-layout', async () => {
+    const brandField: SchemaDefinitionField = { key: 'brand', name: 'Brand', type: 'text', description: 'the brand', concept: 'brand' };
+    const brandPath: CertifiedPath[] = [{ source: 'meta', path: 'og:site_name', transform: 'identity' }];
+    const withSiteName = (names: string[]) => Object.fromEntries(Object.entries(baseCaptures()).map(([u, c], i) => [u, { ...c, structuredData: { ...c.structuredData, meta: { ...c.structuredData.meta, 'og:site_name': names[i]! } } }]));
+    const works = await classifyDrift({ field: brandField, expected: {}, certified: brandPath, captures: withSiteName(['Gymshark', 'Gymshark', 'Gymshark']), defaultValue: 'Gymshark' }, deps());
+    expect(works.result).toBe('other-layout');
+    const nike = await classifyDrift({ field: brandField, expected: {}, certified: brandPath, captures: withSiteName(['Gymshark', 'Nike', 'Gymshark']), defaultValue: 'Gymshark' }, deps());
+    expect(nike.result).toBe('changed');
+    expect(nike.path).toEqual(brandPath[0]);
+    expect(nike.pages[U[1]!]).toEqual({ status: 'ok', value: 'Nike', changed: true, was: 'Gymshark' });
+    expect(nike.pages[U[0]!]).toMatchObject({ status: 'ok', value: 'Gymshark', changed: false });
+  }, 30_000);
+
   it('I1: moved price with page 3 gone → moved on pages 1–2, page-gone on 3', async () => {
     const captures: Record<string, DriftCapture | null> = baseCaptures();
     for (const u of [U[0]!, U[1]!]) {

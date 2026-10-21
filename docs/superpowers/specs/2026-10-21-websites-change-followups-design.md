@@ -43,6 +43,9 @@ page and is classified `lost` with `pages: {}`. A run or customer check of a fie
 write: its certified paths are read on every captured page; the field is `other-layout` (still works) when
 every captured page reads a value or the field has a website default, and `lost` only when some captured
 page reads nothing and there is no default (its pages then say which: `value: null` where nothing read).
+With a default, a blank cell's verified answer is the default: a page whose path reads a value that is not
+the default (type-aware, `valuesEqual`) is `changed` ("Page now shows Nike (was Gymshark)"), never
+`other-layout`; a page where nothing reads gets the default and still works (review, Important 2).
 No captured page at all keeps today's answer (`not-checked` when a page could not be read, else `lost`
 with the gone pages). A field with no certified path whose certifying result is `defaultOnly` and that has a
 default is `other-layout` (every product gets the default), never `lost`. `other-layout` is not
