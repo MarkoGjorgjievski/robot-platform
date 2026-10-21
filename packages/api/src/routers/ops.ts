@@ -7,6 +7,7 @@ import { router, publicProcedure, protectedProcedure, opsProcedure } from '../tr
 import { isCustomerSchema } from '../crawl/effective-schema.js';
 import { loadFieldCurrency, loadFieldCurrencyBatch } from '../verify/current-certification.js';
 import { latestDriftCheck } from '../verify/run-drift-check.js';
+import { opsRefreshes } from '../verify/attention.js';
 import { recordStaffAction, recordStaffStop } from '../auth/staff-actions.js';
 import { listStaffActivity } from '../auth/staff-activity.js';
 import type { JevAgreement } from '../verify/jev-agreement.js';
@@ -146,6 +147,8 @@ export const opsRouter = router({
         website: { name: r.sourceName, slug: r.sourceSlug, host: safeHost(r.url) },
         fields: fields.length,
         currentFields: currencyBySource.get(r.sourceId)?.currentKeys.length ?? 0,
+        // Spec 2026-10-21 §6: "{c} of {n} fields · {h} held".
+        held: currencyBySource.get(r.sourceId)?.heldKeys.length ?? 0,
         drifted: driftedKeys.length,
         driftedFieldNames: driftedKeys.map((key) => fields.find((f) => f.key === key)?.name ?? key),
         lastRun: lastRun ? { status: lastRun.status, at: lastRun.createdAt.toISOString(), rows: lastRun.resultCount } : null,
@@ -205,13 +208,14 @@ export const opsRouter = router({
     }
 
     const fields = row.schemaDefinition as SchemaDefinitionField[];
-    const [fieldCurrency, lastRunBySource, drift] = await Promise.all([
+    const [fieldCurrency, lastRunBySource, drift, refreshes] = await Promise.all([
       // The one read every field's state, paths and the strip's "Verified"
       // count (plan "Ops design": "as in the table") all come from — partial
       // counts allowed, never an all-or-nothing gate.
       loadFieldCurrency(db, row.sourceId),
       lastRunsBySource(db, [row.sourceId]),
       latestDriftCheck(row.sourceId),
+      opsRefreshes(db, row.sourceId),
     ]);
     const results = (fieldCurrency.latest?.results ?? {}) as Record<string, FieldVerification>;
     // Jev at Verify, in shadow (spec 2026-10-16 §7, §8): the same verification row's agreement, per field.
@@ -254,12 +258,16 @@ export const opsRouter = router({
         // (which requires every cell to pass), failed without the binding
         // moving ('failed'). The app labels them "Changed since verified"
         // and "Didn't pass verification" respectively.
-        const state: 'current' | 'changed' | 'failed' | 'none' = fieldCurrency.currentKeys.includes(f.key)
+        // Spec 2026-10-21 §6: a field the latest Verify did not pass, read from its hold — runs use the hold's paths, so they are the ones shown.
+        const hold = fieldCurrency.held[f.key];
+        const state: 'current' | 'held' | 'changed' | 'failed' | 'none' = fieldCurrency.currentKeys.includes(f.key)
           ? 'current'
-          : result
-            ? (fieldCurrency.unchangedKeys.includes(f.key) ? 'failed' : 'changed')
-            : 'none';
-        const certified = result?.certified ?? [];
+          : hold
+            ? 'held'
+            : result
+              ? (fieldCurrency.unchangedKeys.includes(f.key) ? 'failed' : 'changed')
+              : 'none';
+        const certified = hold ? hold.result.certified : result?.certified ?? [];
         const stats = fieldPaths[f.concept]?.paths ?? [];
         const def = (set?.defaults?.[f.key] ?? '').trim();
         return {
@@ -267,6 +275,7 @@ export const opsRouter = router({
           name: f.name,
           type: f.type,
           state,
+          ...(hold ? { heldSince: hold.verifiedAt.toISOString() } : {}),
           ...(def ? { defaultValue: def } : {}),
           ...(result?.defaultOnly ? { defaultOnly: true as const } : {}),
           ...(result?.notOnWebsite ? { notOnWebsite: true as const } : {}),
@@ -302,6 +311,8 @@ export const opsRouter = router({
       driftRunAt: drift?.runAt ? drift.runAt.toISOString() : null,
       lastRun: lastRun ? { status: lastRun.status, at: lastRun.createdAt.toISOString(), rows: lastRun.resultCount } : null,
       proofUrls: (row.verificationSet as { urls?: string[] } | null)?.urls ?? [],
+      // Spec 2026-10-21 §6: every automatic update, newest first, named with the customer's field name.
+      refreshes: refreshes.map((r) => ({ at: r.at.toISOString(), key: r.key, name: fields.find((f) => f.key === r.key)?.name ?? r.key, pages: r.pages })),
     };
   }),
 

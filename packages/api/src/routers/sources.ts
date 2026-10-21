@@ -25,7 +25,8 @@ import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../
 import { entryFieldsFor } from '../verify/variant-fields.js';
 import { describeListingPage, unreadListingPage, type ListingPageCheck } from '../verify/find-product-pages.js';
 import { reachabilityResult, type Reachability } from '../verify/reachability.js';
-import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency, notOnWebsiteKeys } from '../verify/current-certification.js';
+import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency, notOnWebsiteKeys, loadCertificationState, runnableOf } from '../verify/current-certification.js';
+import { customerDriftResults, forCustomer, latestRefreshes, needsAttention, websiteAttention } from '../verify/attention.js';
 import { variantsRequired } from '../verify/variant-check.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
 import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
@@ -299,6 +300,7 @@ export const sourcesRouter = router({
       // once the tab has owned this website's input, or a budget has been saved
       // through `sources.update`, even 40/3 is the customer's choice and stays).
       const parameters = (s.parameters ?? {}) as Record<string, unknown>;
+      const attention = await websiteAttention(ctx.db, s.id);
       return {
         id: s.id, slug: s.slug, name: s.name, url: s.urlTemplate, hostname, datasetId: s.datasetId,
         listingMode: s.listingMode as 'listing_to_detail' | 'detail' | null, confirmedAt: s.confirmedAt, isActive: s.isActive,
@@ -307,6 +309,8 @@ export const sourcesRouter = router({
           : (s.budget as { max_items: number | 'all'; max_pages: number | 'all'; mode?: 'all' | 'first_n' }),
         parameters,
         schemaDefinition: s.schemaDefinition, verificationSet: s.verificationSet, driftedFields: s.driftedFields as string[] | null,
+        // Spec 2026-10-21 §3.5: a held field, a check's finding not refreshed, or a gone proof page — the "Needs attention" badge.
+        needsAttention: needsAttention(attention),
         variantSetup: s.variantSetup as VariantSetup | null,
         project, fields: contractFields(hit.datasetSchema), createdAt: s.createdAt,
       };
@@ -1198,6 +1202,7 @@ export const sourcesRouter = router({
 
       const currency = await loadFieldCurrency(ctx.db, input.sourceId);
       const { currentKeys, unchangedKeys } = currency;
+      const runnable = runnableOf(await loadCertificationState(ctx.db, input.sourceId));
       const fieldCount = source && Array.isArray(source.schemaDefinition) ? source.schemaDefinition.length : 0;
       const v = await loadVariantCurrency(ctx.db, input.sourceId);
       const variants: null | { required: 'setup-missing' | 'yes'; current: boolean; passed: boolean; result: VariantVerification | null } =
@@ -1222,6 +1227,11 @@ export const sourcesRouter = router({
         currentKeys,
         // Fields whose latest result still matches them, passed or failed: a failure there is real, not stale.
         unchangedKeys,
+        // Spec 2026-10-21 §3.1: fields read from their last good result, and when that passed; runnable = every field current or held
+        // (and the variants it needs) — `requireCertification`'s rule, so Extract unlocks exactly when a run may start.
+        heldKeys: currency.heldKeys,
+        held: Object.fromEntries(currency.heldKeys.map((k) => [k, { verifiedAt: currency.held[k]!.verifiedAt }])) as Record<string, { verifiedAt: Date }>,
+        runnable,
         // Spec 2026-10-17 §2: fields currently passed as not on this website — the Extract sample's empty-cell note leaves them out.
         notOnWebsiteKeys: notOnWebsiteKeys(currency),
         current: fieldCount > 0 && currentKeys.length === fieldCount,
@@ -1242,7 +1252,8 @@ export const sourcesRouter = router({
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
-      return startDriftCheck(input.sourceId, await latestDriftedRun(input.sourceId));
+      // Spec 2026-10-21 §3.3: an on-demand check is 'manual'; it still reads the drifted fields.
+      return startDriftCheck(input.sourceId, await latestDriftedRun(input.sourceId), { trigger: 'manual' });
     }),
 
   /** The website's latest drift check (null when it never had one), with the date of the run it is about. */
@@ -1250,7 +1261,9 @@ export const sourcesRouter = router({
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
-      return latestDriftCheck(input.sourceId);
+      const check = await latestDriftCheck(input.sourceId);
+      // Why a check did not refresh a field is staff-only (spec 2026-10-21 §6).
+      return check ? { ...check, results: customerDriftResults(check.results, ctx.isOperator || !!ctx.session.staff) } : null;
     }),
 
   /** The website's latest coverage check (spec 2026-10-10 §A5): per field the sampled pages it was empty on, the explanation, the page to offer, and the stage line. Null when it never had one. */
@@ -1259,6 +1272,22 @@ export const sourcesRouter = router({
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
       return latestCoverageCheck(input.sourceId);
+    }),
+
+  /**
+   * What needs the customer on this website (spec 2026-10-21 §3.5), each field's live automatic refresh (§5), and
+   * whether it runs. A customer session gets no refresh reason and no path a refresh read; staff get them whole.
+   */
+  attention: protectedProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      const [attention, refreshes, state] = await Promise.all([
+        websiteAttention(ctx.db, input.sourceId),
+        latestRefreshes(ctx.db, input.sourceId),
+        loadCertificationState(ctx.db, input.sourceId),
+      ]);
+      return { ...forCustomer({ ...attention, refreshes }, ctx.isOperator || !!ctx.session.staff), runnable: runnableOf(state) };
     }),
 
   // ─── Variants (spec 2026-10-01 §3): how a website exposes variants ──────
