@@ -68,6 +68,27 @@ describe('websiteAttention (spec 2026-10-21 §3.5)', () => {
     } finally { await s.cleanup(); }
   });
 
+  it('final review M3: a held field’s finding from a check older than the hold’s failed Verify does not count; a newer one does', async () => {
+    const s = await twoFields('held-old-check');
+    try {
+      const verifiedAt = new Date(Date.now() - 3 * 86_400_000);
+      await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: verifiedAt, allPassed: true, results: { price: s.pass('price'), title: s.pass('title') } });
+      // A check found Title lost before the Verify that failed it and left it held.
+      const lost = { runId: null, trigger: 'schedule' as const, fields: { title: { key: 'title', result: 'lost' as const, pages: {} } } };
+      await db.insert(driftChecks).values({ sourceId: s.sourceId, status: 'done', trigger: 'schedule', createdAt: new Date(Date.now() - 2 * 86_400_000), completedAt: new Date(Date.now() - 2 * 86_400_000), results: lost });
+      const failedTitle = { ...s.pass('title'), certified: [], cells: { [s.urls[0]!]: { status: 'fail', reason: 'different_value' } } };
+      const [failed] = await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(Date.now() - 86_400_000), allPassed: false, results: { price: s.pass('price'), title: failedTitle } }).returning({ id: sourceVerifications.id });
+      await db.insert(fieldHolds).values({ sourceId: s.sourceId, fieldKey: 'title', result: s.pass('title'), verifiedAt, failedVerificationId: failed!.id, fieldHashes: [s.pass('title').fieldHash] });
+      let a = await websiteAttention(db, s.sourceId);
+      expect(a.fields).toEqual(['title']); // held: it still needs the customer
+      expect(a.findings).toEqual({});
+      // A check after the failed Verify speaks for the held field.
+      await db.insert(driftChecks).values({ sourceId: s.sourceId, status: 'done', trigger: 'verify', completedAt: new Date(), results: lost });
+      a = await websiteAttention(db, s.sourceId);
+      expect(Object.keys(a.findings)).toEqual(['title']);
+    } finally { await s.cleanup(); }
+  });
+
   it('a running check’s up-front shares and a failed check say nothing', async () => {
     const s = await twoFields('running');
     try {

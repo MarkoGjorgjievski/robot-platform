@@ -7,8 +7,8 @@
 // What a check says about why it did not refresh a field (`refresh.reason`) and
 // the path a refresh read are staff-only (spec §5, §6): `forCustomer` and
 // `customerDriftResults` strip them from what a customer session receives.
-import { and, desc, eq } from 'drizzle-orm';
-import { driftChecks, sources, valueRefreshes, type Database } from '@robot/db';
+import { and, desc, eq, inArray } from 'drizzle-orm';
+import { driftChecks, sources, sourceVerifications, valueRefreshes, type Database } from '@robot/db';
 import { fieldHash, type DriftCheckResults, type DriftFieldResult, type RefreshPage, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { loadFieldCurrency } from './current-certification.js';
 
@@ -42,14 +42,22 @@ export async function websiteAttention(db: Database, sourceId: string): Promise<
     }),
   ]);
   const latestVerify = currency.latest?.completedAt ?? null;
+  // Final review M3: when each hold's failed Verify completed — a check from before it says nothing about the held field.
+  const failedIds = [...new Set(currency.heldKeys.map((k) => currency.held[k]!.failedVerificationId).filter((id): id is string => !!id))];
+  const failedAt = new Map(failedIds.length === 0 ? [] : (await db.select({ id: sourceVerifications.id, completedAt: sourceVerifications.completedAt })
+    .from(sourceVerifications).where(inArray(sourceVerifications.id, failedIds))).map((r) => [r.id, r.completedAt] as const));
   const findings: Record<string, DriftFieldResult> = {};
   for (const f of fields) {
     const held = currency.heldKeys.includes(f.key);
+    const failedId = held ? currency.held[f.key]!.failedVerificationId : null;
+    const since = failedId ? failedAt.get(failedId) ?? null : null;
     for (const c of checks) {
       const r = (c.results as DriftCheckResults | null)?.fields?.[f.key];
       if (!r?.result) continue; // an entry with only its up-front share
-      // The newest check that read the field decides; a current field's finding counts only when newer than its Verify.
-      if ((held || !latestVerify || c.createdAt > latestVerify) && actionable(r)) findings[f.key] = r;
+      // The newest check that read the field decides; a current field's finding counts only when newer than its Verify,
+      // a held field's only when newer than the Verify that failed it.
+      const newEnough = held ? !since || c.createdAt > since : !latestVerify || c.createdAt > latestVerify;
+      if (newEnough && actionable(r)) findings[f.key] = r;
       break;
     }
   }
