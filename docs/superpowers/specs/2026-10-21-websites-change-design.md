@@ -8,6 +8,17 @@ text. The numbers in §1 and §8 come from the re-verify report
 (`docs/testing/results/2026-10-21-reverify-one-source/report.md`) and from a read-only probe of the ten
 websites' stored 2026-10-21 captures, run while writing this spec (no writes, no AI).
 
+
+**Status:** implemented on `feat/websites-change` (13 tasks). Rulings: the scheduled check runs only
+with `WEBSITE_CHECKS=on`; holds are backfilled only for the ten approved websites; a live Verify that
+loads no page keeps an existing hold (an outage), while missing stored captures never create one.
+Reviews: Tasks 3 and 5 reviewed on their own; a first fix wave (no evidence, no hold; a row lock
+shared by Verify starts and refreshes; hash lists merged under lock; per-page read errors) and a
+final whole-branch review (three Important: a refresh's re-verify re-checked and could revoke
+variants; the after-Verify check read the all-or-nothing certification; the smoke's held scenario on
+a variants website) — all fixed. Gate: api 1161, app 1074, scraper 1271, db 24, api-server 54 tests,
+tsc clean; route smoke 28 of 28. Read-only replay of the ten websites: all ten runnable, 22 fields
+held on real readings, 4 refreshed automatically.
 ## 1. Why
 
 On 2026-10-21 twenty websites were re-verified, free and keyless. Ten of them had been fully certified and
