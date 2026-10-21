@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Skeleton } from '../ui/skeleton';
 import { showsMoney } from '../../lib/money-visibility';
 import { trpc } from '../../lib/trpc';
+import { mutationErrorText } from '../../lib/mutation-error';
 import {
   backfillMutationInput,
   checkedHasDeadField,
@@ -242,7 +243,7 @@ export function BackfillPanel({
 
             {backfill.isError ? (
               <p role="alert" className="text-base text-fail">
-                {backfill.error.message}
+                {mutationErrorText(backfill.error, showMoney)}
               </p>
             ) : null}
           </>

@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { trpc } from '../../lib/trpc';
+import { mutationErrorText } from '../../lib/mutation-error';
+import { useStaffDetail } from '../../lib/use-staff-detail';
 import {
   extractButtonLabel,
   extractButtonTitle,
@@ -37,6 +39,7 @@ export function ExecuteControls({
   backfill: boolean;
 }) {
   const utils = trpc.useUtils();
+  const staff = useStaffDetail();
   const statusQuery = trpc.crawl.status.useQuery(
     { runId },
     // Three seconds, and only while the loop is actually working. A settled run
@@ -143,12 +146,12 @@ export function ExecuteControls({
       {notice ? <p className="mt-2 text-base text-muted-foreground">{notice}</p> : null}
       {execute.isError ? (
         <p role="alert" className="mt-2 text-base text-fail">
-          {execute.error.message}
+          {mutationErrorText(execute.error, staff)}
         </p>
       ) : null}
       {cancel.isError ? (
         <p role="alert" className="mt-2 text-base text-fail">
-          {cancel.error.message}
+          {mutationErrorText(cancel.error, staff)}
         </p>
       ) : null}
     </div>
