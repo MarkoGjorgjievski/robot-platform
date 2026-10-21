@@ -76,6 +76,8 @@ export type ClassifyDriftInput = {
   markXPaths?: string[];
   /** Pages that could not be read now, by url → the verdict sentence. Neither deciding nor gone; stamped `not-checked`. */
   notChecked?: Record<string, string>;
+  /** The website's default for the field (spec 2026-10-13): what a run writes where no certified path reads (follow-ups §3). */
+  defaultValue?: string;
 };
 
 /** The box (from the page's box map) whose xpaths include this one, as a Mark — the same shape the customer's own click produces. Undefined when no box carries it (no boxes supplied, or the path is not among them). */
@@ -243,6 +245,29 @@ async function tryChanged(
   return null;
 }
 
+/**
+ * Follow-ups §3: a field with no page to compare against (no expected value on any page read) is judged by
+ * what a run writes on the pages read — its certified paths' value, else the website default. It still works
+ * (`other-layout`) when every page read gets a value; otherwise it is `lost`, its pages naming where nothing
+ * was read (`value: null`).
+ */
+async function whatARunWrites(
+  field: SchemaDefinitionField, certified: CertifiedPath[], captures: Record<string, DriftCapture | null>,
+  readUrls: string[], defaultValue: string | undefined, deps: DriftDeps,
+): Promise<DriftFieldResult> {
+  const fallback = (defaultValue ?? '').trim() || null;
+  const pages: Record<string, DriftPage> = {};
+  for (const url of readUrls) {
+    const capture = captures[url]!;
+    const vals = certified.length > 0 ? await evalManyOnCapture(certified, capture, deps) : new Map<string, unknown>();
+    const ctx: NormalizeContext = { pageUrl: capture.url };
+    const raw = certified.map((p) => vals.get(pathId(p))).find((v) => normalize(field.type, v, ctx) !== null);
+    pages[url] = { status: 'ok', value: raw === undefined ? fallback : displayValue(raw) ?? String(raw) };
+  }
+  const works = readUrls.every((u) => (pages[u] as { value: string | null }).value !== null);
+  return { key: field.key, result: works ? 'other-layout' : 'lost', pages };
+}
+
 export async function classifyDrift(input: ClassifyDriftInput, deps: DriftDeps): Promise<DriftFieldResult> {
   const { field, expected, certified, captures, confirmed, markXPaths } = input;
   const notChecked = input.notChecked ?? {};
@@ -256,6 +281,13 @@ export async function classifyDrift(input: ClassifyDriftInput, deps: DriftDeps):
   };
 
   if (decidingUrls.length === 0) {
+    // Follow-ups §3: pages were read but none has an expected value to compare with (blank everywhere, the
+    // website default standing in) — the field is judged by what a run writes there, never "lost" for that alone.
+    const readUrls = allUrls.filter((u) => captures[u] != null);
+    if (readUrls.length > 0) {
+      const written = await whatARunWrites(field, certified, captures, readUrls, input.defaultValue, deps);
+      return { ...written, pages: { ...written.pages, ...unread } };
+    }
     // Nothing was read: with a page we could not check, nothing was learned either — not "lost".
     const result = Object.keys(notChecked).length > 0 ? 'not-checked' : 'lost';
     return { key: field.key, result, pages: unread };

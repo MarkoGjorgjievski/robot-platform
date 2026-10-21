@@ -235,7 +235,14 @@ export async function runDriftCheck(
     // (No proof pages at all is the same: nothing to re-read.)
     const toClassify = set.urls.length === 0 ? [] : driftedFields.filter((f) => pathsOf[f.key]!.length > 0);
     const recordsLost = trigger === 'run' || trigger === 'manual';
-    if (recordsLost) for (const f of driftedFields) if (!toClassify.includes(f)) out[f.key] = { key: f.key, result: 'lost', pages: {} };
+    // Follow-ups §3: a field passed by its default alone has no path by design — every product gets the default,
+    // so it still works; it is never "lost" for having nothing to re-read.
+    const byDefault = (f: SchemaDefinitionField) => certifyingResult(currency, f.key)?.result.defaultOnly === true && defaultKeys.includes(f.key);
+    if (recordsLost) {
+      for (const f of driftedFields) {
+        if (!toClassify.includes(f)) out[f.key] = { key: f.key, result: byDefault(f) ? 'other-layout' : 'lost', pages: {} };
+      }
+    }
 
     const refs: Record<string, StoredCaptureRef> = {};
     // What a run writes per field and page; Task 6's refresh reads it.
@@ -268,6 +275,8 @@ export async function runDriftCheck(
             notChecked,
             confirmed: confirmedPathsOf(set, field.key),
             markXPaths: Object.values(set.marks?.[field.key] ?? {}).flatMap((m) => markPaths(field, m)),
+            // Follow-ups §3: with nothing expected on any page, the field is judged by what a run writes, default included.
+            defaultValue: set.defaults?.[field.key],
           }, classifyDeps);
           // What a run writes on each captured page (spec 2026-10-21 §3.3): the hold rule and the refresh read it.
           const readings = await readingsOf(browser, field, pathsOf[field.key]!, pageCaptures);
