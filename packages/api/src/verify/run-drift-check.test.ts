@@ -17,6 +17,7 @@ import {
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { SHOP_EXAMPLE } from '../test-helpers/shop-example.js';
 import { writeCaptureFile } from './capture-store.js';
+import type { CheckedPage } from './run-drift-check.js';
 import { startProofPageCapture, runProofPageCaptureInSlot, type ProofPageCaptureRecord } from './proof-page-capture.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 
@@ -42,7 +43,7 @@ vi.mock('../../../scraper/src/verify/ai-fallback.ts', async (importOriginal) => 
 });
 
 const scraper = await import('@robot/scraper');
-const { startDriftCheck, runDriftCheck, captureProofPagesWith, outcomeOfFailedCapture, DRIFT_CHECK_STALL_MS } = await import('./run-drift-check.js');
+const { startDriftCheck, runDriftCheck, captureProofPagesWith, outcomeOfFailedCapture, storedCaptures, DRIFT_CHECK_STALL_MS } = await import('./run-drift-check.js');
 
 // A throwaway signed-in identity: every customer procedure needs a session
 // and works in its org only, so nothing here touches the seeded `default` org.
@@ -131,8 +132,9 @@ async function certifiedWebsite(tag: string) {
   return { ...f, keyOf };
 }
 
+// `nextCheckAt` is left out: every finished check moves it on (spec 2026-10-21 §3.3) — the one source column a check writes.
 const snapshot = async (sourceId: string) => ({
-  source: await db.query.sources.findFirst({ where: eq(sources.id, sourceId) }),
+  source: await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { nextCheckAt: false } }),
   verifications: (await db.select({ n: count() }).from(sourceVerifications).where(eq(sourceVerifications.sourceId, sourceId)))[0]!.n,
 });
 
@@ -170,6 +172,40 @@ describe('runDriftCheck', () => {
       expect(scraper.proposeWithAi).toBe(proposeSpy); // the spy is the one every scraper caller reaches
     } finally { await f.cleanup(); }
   }, 120_000);
+
+  it('a scheduled check reads the fields it is given, records what a run writes, the captures it read and the next check', async () => {
+    const f = await certifiedWebsite('drift-schedule');
+    try {
+      await db.update(sources).set({ driftedFields: null }).where(eq(sources.id, f.sourceId));
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(clone(PAGES[u]!))] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price, f.keyOf.name] });
+      await runDriftCheck(checkId, { capture });
+      const row = (await checkRow(checkId))!;
+      expect(row.trigger).toBe('schedule');
+      const results = row.results as DriftCheckResults;
+      expect(results.trigger).toBe('schedule');
+      expect(results.keys).toEqual([f.keyOf.price, f.keyOf.name]);
+      expect(Object.keys(results.fields).sort()).toEqual([f.keyOf.name, f.keyOf.price].sort());
+      expect(results.fields[f.keyOf.price]!.result).toBe('other-layout');
+      expect(results.fields[f.keyOf.price]!.reads).toEqual({ [U[0]!]: '129.99', [U[1]!]: '219.99', [U[2]!]: '149' });
+      expect(Object.keys(results.captures ?? {}).sort()).toEqual([...U].sort());
+      const src = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), columns: { nextCheckAt: true } });
+      expect(src!.nextCheckAt!.getTime()).toBeGreaterThan(Date.now() + 2.9 * 86_400_000);
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('storedCaptures reads the files a Verify stored and loads no page', async () => {
+    await writeCaptureFile('11111111-1111-1111-1111-111111111111', clone(PAGES[U[0]!]!));
+    const fn = storedCaptures({
+      [U[0]!]: { captureId: '11111111-1111-1111-1111-111111111111', capturedAt: new Date().toISOString() },
+      [U[1]!]: { captureId: '', capturedAt: new Date().toISOString(), blockedReason: 'The page could not be read.' },
+    });
+    const out = await fn('irrelevant', [U[0]!, U[1]!, U[2]!]);
+    expect((out[U[0]!] as { capture: PageCapture }).capture.url).toBe(U[0]);
+    expect(out[U[1]!]).toEqual({ notChecked: 'The page could not be read.' });
+    expect(out[U[2]!]).toEqual({ notChecked: 'The page could not be read.' });
+  });
 
   it('Review Focus 2: a page that no longer captures is page-gone, and the other pages still decide', async () => {
     const f = await certifiedWebsite('drift-gone');
@@ -276,9 +312,9 @@ describe('the default capture function', () => {
   });
 
   /** The captured record, or a failure naming what came back instead. */
-  const captured = (x: ProofPageCaptureRecord | { notChecked: string } | null | undefined): ProofPageCaptureRecord => {
+  const captured = (x: CheckedPage | { notChecked: string } | null | undefined): ProofPageCaptureRecord => {
     if (!x || 'notChecked' in x) throw new Error(`expected a captured record, got ${JSON.stringify(x)}`);
-    return x;
+    return x as ProofPageCaptureRecord;
   };
 
   it('re-captures every page; a page gone now (404) is null even when an older capture succeeded', async () => {
