@@ -18,6 +18,10 @@ function hostOf(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 }
 
+// Staff detail: a customer never reads these as written. `@robot/app`'s
+// `lib/capture-words.ts` maps each shape below to its customer sentence at
+// display time (spec 2026-10-21) — change a sentence here and its
+// capture-words test fails until the mapper learns the new shape.
 export function verdictSentence(v: CaptureVerdict | { kind: CaptureErrorKind }, requestedUrl: string): string {
   const host = hostOf(requestedUrl);
   switch (v.kind) {
