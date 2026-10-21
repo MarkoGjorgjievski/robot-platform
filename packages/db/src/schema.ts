@@ -179,6 +179,10 @@ export const sources = pgTable('sources', {
   // 2026-10-01 §3): VariantSetup { method: 'list' | 'links' | 'none'; axes:
   // Array<{ from: string; axisKey: string }>; confirmedAt }. Null until set.
   variantSetup: jsonb('variant_setup'),
+  // When the scheduled website check (spec 2026-10-21 §3.3) may next read this
+  // website's proof pages. Null = due. Moved on by every claim, every completed
+  // Verify and every finished check.
+  nextCheckAt: timestamp('next_check_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -437,6 +441,8 @@ export const driftChecks = pgTable('drift_checks', {
   runId: uuid('run_id').references(() => runs.id, { onDelete: 'set null' }),
   // 'running' | 'done' | 'failed'
   status: varchar('status', { length: 12 }).notNull().default('running'),
+  // 'run' | 'manual' | 'verify' | 'schedule' (spec 2026-10-21 §3.3): what started the check.
+  trigger: varchar('trigger', { length: 12 }).notNull().default('run'),
   // DriftCheckResults (@robot/scraper verify/drift-classify.ts)
   results: jsonb('results'),
   error: text('error'),
@@ -476,6 +482,59 @@ export const coverageChecks = pgTable('coverage_checks', {
 export const coverageChecksRelations = relations(coverageChecks, ({ one }) => ({
   source: one(sources, { fields: [coverageChecks.sourceId], references: [sources.id] }),
   verification: one(sourceVerifications, { fields: [coverageChecks.verificationId], references: [sourceVerifications.id] }),
+}));
+
+// ─── Field holds and value refreshes (2026-10-21) ───────────────────────────
+// Websites change (spec 2026-10-21 §3.1–§3.2): a hold keeps a field's last
+// passing result after a Verify that did not pass it, so runs go on with the
+// last good paths while they still extract; a value refresh records one
+// automatic update of a by-nature field's expected values.
+
+export const fieldHolds = pgTable('field_holds', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  fieldKey: varchar('field_key', { length: 255 }).notNull(),
+  // FieldVerification (@robot/scraper verify/types.ts): the last passing result; runs read its `certified`.
+  result: jsonb('result').notNull(),
+  // The completed Verify that passed it, and when.
+  verificationId: uuid('verification_id').references(() => sourceVerifications.id, { onDelete: 'set null' }),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull(),
+  // The Verify that did not pass it; null when an automatic refresh made the hold.
+  failedVerificationId: uuid('failed_verification_id').references(() => sourceVerifications.id, { onDelete: 'set null' }),
+  // string[]: every field hash this hold stands for (the hash it passed at, plus each refresh's).
+  fieldHashes: jsonb('field_hashes').notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('field_holds_source_field_idx').on(table.sourceId, table.fieldKey),
+]);
+
+export const fieldHoldsRelations = relations(fieldHolds, ({ one }) => ({
+  source: one(sources, { fields: [fieldHolds.sourceId], references: [sources.id] }),
+  verification: one(sourceVerifications, { fields: [fieldHolds.verificationId], references: [sourceVerifications.id] }),
+  failedVerification: one(sourceVerifications, { fields: [fieldHolds.failedVerificationId], references: [sourceVerifications.id] }),
+}));
+
+export const valueRefreshes = pgTable('value_refreshes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  fieldKey: varchar('field_key', { length: 255 }).notNull(),
+  at: timestamp('at', { withTimezone: true }).defaultNow().notNull(),
+  driftCheckId: uuid('drift_check_id').references(() => driftChecks.id, { onDelete: 'set null' }),
+  // The free re-verify the refresh started; null when none could start.
+  verificationId: uuid('verification_id').references(() => sourceVerifications.id, { onDelete: 'set null' }),
+  // Record<url, { was: string; now: string; path: CertifiedPath }>
+  pages: jsonb('pages').notNull(),
+  fromHash: varchar('from_hash', { length: 64 }).notNull(),
+  toHash: varchar('to_hash', { length: 64 }).notNull(),
+}, (table) => [
+  index('value_refreshes_source_at_idx').on(table.sourceId, table.at),
+]);
+
+export const valueRefreshesRelations = relations(valueRefreshes, ({ one }) => ({
+  source: one(sources, { fields: [valueRefreshes.sourceId], references: [sources.id] }),
+  driftCheck: one(driftChecks, { fields: [valueRefreshes.driftCheckId], references: [driftChecks.id] }),
+  verification: one(sourceVerifications, { fields: [valueRefreshes.verificationId], references: [sourceVerifications.id] }),
 }));
 
 // ─── Jev readings (2026-10-16) ──────────────────────────────────────────────

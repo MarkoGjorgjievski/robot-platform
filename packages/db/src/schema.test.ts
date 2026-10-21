@@ -1,7 +1,7 @@
 // packages/db/src/schema.test.ts
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions } from './index.js';
+import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions, driftChecks, fieldHolds, valueRefreshes } from './index.js';
 
 const SLUG = 'test-repair-engine-columns';
 
@@ -115,5 +115,38 @@ describe('identity', () => {
       await db.delete(users).where(eq(users.id, user!.id));
       await db.delete(orgs).where(eq(orgs.id, org!.id));
     }
+  });
+});
+
+describe('websites change (spec 2026-10-21 §4)', () => {
+  let changeOrgId: string | null = null;
+  afterEach(async () => {
+    if (changeOrgId) await db.delete(orgs).where(eq(orgs.id, changeOrgId));
+    changeOrgId = null;
+  });
+
+  it('stores one hold per website and field, with its hashes', async () => {
+    const { orgId: seeded, source } = await seedSource();
+    changeOrgId = seeded;
+    const result = { key: 'price', cells: {}, certified: [], weakEvidence: false, aiCalled: false, incomplete: false };
+    const [h] = await db.insert(fieldHolds).values({ sourceId: source.id, fieldKey: 'price', result, verifiedAt: new Date(), fieldHashes: ['a', 'b'] }).returning();
+    expect(h!.fieldHashes).toEqual(['a', 'b']);
+    expect(h!.failedVerificationId).toBeNull();
+    await expect(db.insert(fieldHolds).values({ sourceId: source.id, fieldKey: 'price', result, verifiedAt: new Date() })).rejects.toThrow();
+  });
+
+  it('stores a value refresh, a check trigger defaulting to run, and a next check time', async () => {
+    const { orgId: seeded, source } = await seedSource();
+    changeOrgId = seeded;
+    const [c] = await db.insert(driftChecks).values({ sourceId: source.id }).returning();
+    expect(c!.trigger).toBe('run');
+    const pages = { 'https://s.example/p/1': { was: '1.00', now: '1.10', path: { source: 'json-ld', path: 'offers.price', transform: 'identity' } } };
+    const [r] = await db.insert(valueRefreshes).values({ sourceId: source.id, fieldKey: 'price', driftCheckId: c!.id, pages, fromHash: 'x', toHash: 'y' }).returning();
+    expect(r!.pages).toEqual(pages);
+    expect(r!.verificationId).toBeNull();
+    const at = new Date('2026-10-24T00:00:00Z');
+    await db.update(sources).set({ nextCheckAt: at }).where(eq(sources.id, source.id));
+    const [s] = await db.select().from(sources).where(eq(sources.id, source.id));
+    expect(s!.nextCheckAt?.toISOString()).toBe(at.toISOString());
   });
 });
