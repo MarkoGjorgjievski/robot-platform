@@ -73,6 +73,7 @@ Variables already set in the shell take precedence over `.env`.
 - `TYPESAFE_API_KEY` — TypeSafe (Jev) API key; with `JEV_SHADOW=1` set too, enables a Jev reading after each proof-page capture (spec 2026-10-16). Either missing, no reading runs
 - `JEV_SHADOW` — set to `1` to turn on Jev at Verify, in shadow; needs `TYPESAFE_API_KEY` too
 - `JEV_DAILY_READINGS` — readings per UTC day across the api-server (one per proof-page capture); default 2000
+- `WEBSITE_CHECKS` — set to `on` to run the free scheduled website checks every hour (proof pages + listing sample, no AI); off by default
 
 ## Key Technical Decisions
 

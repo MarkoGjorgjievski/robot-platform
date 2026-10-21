@@ -24,3 +24,9 @@ const port = Number(process.env.PORT ?? 4000);
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[api-server] listening on http://localhost:${info.port}`);
 });
+
+// The scheduled website check (spec 2026-10-21 §3.3): every hour, free (proof pages + listing sample, no AI).
+// Off unless `WEBSITE_CHECKS=on` — a dev api-server never loads pages on its own.
+const { startWebsiteChecks, websiteChecksEnabled } = await import('@robot/api/website-checks');
+startWebsiteChecks();
+console.log(`[api-server] website checks ${websiteChecksEnabled() ? 'on (hourly)' : 'off (set WEBSITE_CHECKS=on to run them)'}`);
