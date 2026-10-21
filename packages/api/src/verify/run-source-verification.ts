@@ -10,6 +10,7 @@ import { BROWSER_UNAVAILABLE } from '@robot/browser';
 import { SchemaAgent, snapshotUsage, diffUsage, estimateCostUsd } from '@robot/agent';
 import {
   runVerification,
+  CaptureProblemError,
   saveVerifiedPaths,
   lookupVerifiedPaths,
   type SchemaDefinitionField,
@@ -77,6 +78,9 @@ export async function writeStage(dbOrTx: Database, verificationId: string, stage
     .where(and(eq(sourceVerifications.id, verificationId), isNull(sourceVerifications.completedAt)));
 }
 
+/** A refresh's re-verify loads no page (final review M1): a page with no stored capture is not read, with this sentence. */
+const notLoadedNow = async (): Promise<PageCapture> => { throw new CaptureProblemError('The page could not be read.'); };
+
 /** Starts the check that follows a Verify which left fields held (spec 2026-10-21 §3.3, trigger `verify`). */
 export type StartVerifyCheck = (sourceId: string, keys: string[], refs: Record<string, StoredCaptureRef>) => Promise<unknown>;
 
@@ -127,6 +131,7 @@ export async function runSourceVerification(
     // with errorMessage set (a stall, or a genuine failure) never got as far
     // as writing real results/captures, so it must be skipped in favour of
     // the newest run that actually completed cleanly.
+    const refresh = opts.origin === 'refresh';
     const reuse: Record<string, PageCapture> = {};
     const reusedRefs = new Map<string, StoredCaptureRef>();
     let previous: VerificationOutcome | undefined;
@@ -138,7 +143,7 @@ export async function runSourceVerification(
       const c = await readCaptureFile(ref.captureId);
       if (c) { reuse[url] = c; reusedRefs.set(url, ref); }
     }
-    if (opts.onlyKeys || opts.origin === 'refresh') {
+    if (opts.onlyKeys || refresh) {
       const rows = await db.query.sourceVerifications.findMany({
         where: eq(sourceVerifications.sourceId, sourceId),
         orderBy: (t, { desc }) => [desc(t.startedAt)],
@@ -150,7 +155,8 @@ export async function runSourceVerification(
         previousVariants = (last.variantResults as VariantVerification | null) ?? null;
         for (const [url, ref] of Object.entries(last.captures as Record<string, StoredCaptureRef>)) {
           if (!ref.captureId || reuse[url]) continue;
-          const c = await loadStoredCapture(ref);
+          // Final review M1: a refresh reads the last Verify's own pages whatever their age — never a page load.
+          const c = refresh ? await readCaptureFile(ref.captureId) : await loadStoredCapture(ref);
           if (c) { reuse[url] = c; reusedRefs.set(url, ref); }
         }
       }
@@ -159,9 +165,12 @@ export async function runSourceVerification(
     // Proof pages captured for marking (spec 2026-09-18 §3.5) are the same
     // captures verification would take; use them while fresh. A previous
     // verification's own captures, when reused above, stay in charge: the
-    // stored result was proven on those.
-    const proofPages = await loadProofPageCaptures(sourceId, set.urls.filter((u) => !reuse[u]));
-    for (const [url, p] of Object.entries(proofPages)) { reuse[url] = p.capture; reusedRefs.set(url, p.ref); }
+    // stored result was proven on those. A refresh reads only the check's
+    // pages and the last Verify's (final review M1).
+    if (!refresh) {
+      const proofPages = await loadProofPageCaptures(sourceId, set.urls.filter((u) => !reuse[u]));
+      for (const [url, p] of Object.entries(proofPages)) { reuse[url] = p.capture; reusedRefs.set(url, p.ref); }
+    }
 
     const before = snapshotUsage();
     // A free run (spec 2026-10-17 §10 property 9) has no agent at all, so no field in it can reach the AI.
@@ -178,6 +187,8 @@ export async function runSourceVerification(
         previous,
         cachedPaths: (concept) => lookupVerifiedPaths(hostname, 'detail', concept),
         onProgress,
+        // Final review M1: a page neither the check nor the last Verify read is not read now — not loaded live.
+        ...(refresh ? { captureOne: notLoadedNow } : {}),
       });
       // Variants (spec 2026-10-01 §4) ride on the same run and never fail it: a
       // throw is reported as a failed variant check, the fields' result stands.
