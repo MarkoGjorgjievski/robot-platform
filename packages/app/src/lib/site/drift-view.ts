@@ -7,6 +7,7 @@
 //
 // The app never imports `@robot/scraper`/`@robot/api`, so the shapes read
 // here are re-declared, narrowed to what these functions need.
+import { captureWords } from '../capture-words';
 import { answer, type Board, type Mark } from './verification-model';
 
 /** `sources.checkDrift`'s row, narrowed to what the banner reads. `results` is
@@ -135,13 +136,13 @@ export function storedExpected(verificationSet: unknown): Record<string, Record<
  * text the Global Constraints give for each: a gone page can be replaced; a
  * page the site would not let us read still exists, so it only says why.
  */
-function pageRows(pages: Record<string, DriftPageLike>, urls: string[]): DriftRow | null {
+function pageRows(pages: Record<string, DriftPageLike>, urls: string[], staff?: boolean): DriftRow | null {
   const texts: Array<{ url: string; text: string; replaceable: boolean }> = [];
   urls.forEach((url, i) => {
     const p = pages[url];
     const n = i + 1;
     if (p?.status === 'page-gone') texts.push({ url, text: `Product ${n} no longer loads — Replace product ${n}`, replaceable: true });
-    else if (p?.status === 'not-checked') texts.push({ url, text: `Product ${n} could not be checked — ${p.reason}`, replaceable: false });
+    else if (p?.status === 'not-checked') texts.push({ url, text: `Product ${n} could not be checked — ${captureWords(p.reason, staff)}`, replaceable: false });
   });
   return texts.length > 0 ? { kind: 'page-gone', texts } : null;
 }
@@ -170,8 +171,10 @@ export function driftRows(args: {
   urls: string[];
   results: DriftCheckResultsLike | null;
   values: Record<string, Record<string, string>>;
+  /** `showsMoney` (spec 2026-10-21): staff read a not-checked page's stored reason; a customer reads `captureWords`. */
+  staff?: boolean;
 }): Record<string, DriftRow[]> {
-  const { fieldKeys, urls, results, values } = args;
+  const { fieldKeys, urls, results, values, staff } = args;
   const out: Record<string, DriftRow[]> = {};
   if (!results) return out;
 
@@ -221,7 +224,7 @@ export function driftRows(args: {
         break;
     }
 
-    const gone = pageRows(r.pages, urls);
+    const gone = pageRows(r.pages, urls, staff);
     if (gone) rows.push(gone);
 
     if (rows.length > 0) out[key] = rows;

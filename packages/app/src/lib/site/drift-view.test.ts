@@ -332,13 +332,29 @@ describe('driftRows', () => {
         },
       },
     };
-    const rows = driftRows({ fieldKeys: ['price'], urls: URLS, results, values: {} });
+    const rows = driftRows({ fieldKeys: ['price'], urls: URLS, results, values: {}, staff: true });
     expect(rows.price![1]).toEqual({
       kind: 'page-gone',
       texts: [
         { url: URLS[1]!, text: 'Product 2 no longer loads — Replace product 2', replaceable: true },
         { url: URLS[2]!, text: 'Product 3 could not be checked — shop.example refused the browser (HTTP 403).', replaceable: false },
       ],
+    });
+  });
+
+  it('a customer reads why a page could not be checked in customer words (spec 2026-10-21)', () => {
+    const resultsWith = (reason: string): DriftCheckResultsLike => ({
+      runId: null,
+      fields: { price: { result: 'other-layout', pages: { [URLS[0]!]: { status: 'ok', value: '19.99' }, [URLS[2]!]: { status: 'not-checked', reason } } } },
+    });
+    // No "We can't read…" tail: not a whole verdict sentence, so it takes the generic sentence.
+    expect(driftRows({ fieldKeys: ['price'], urls: URLS, results: resultsWith('shop.example refused the browser (HTTP 403).'), values: {} }).price![1]).toEqual({
+      kind: 'page-gone',
+      texts: [{ url: URLS[2]!, text: "Product 3 could not be checked — We couldn't read this page. Try again.", replaceable: false }],
+    });
+    expect(driftRows({ fieldKeys: ['price'], urls: URLS, results: resultsWith("shop.example refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet."), values: {} }).price![1]).toEqual({
+      kind: 'page-gone',
+      texts: [{ url: URLS[2]!, text: "Product 3 could not be checked — This website turned us away, so we can't read it yet.", replaceable: false }],
     });
   });
 

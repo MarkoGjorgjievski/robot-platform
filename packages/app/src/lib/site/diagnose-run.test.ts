@@ -1,11 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { diagnoseRun, type DiagnoseRunInput } from './diagnose-run';
 
-/** A clean-slate input every test overrides just the field(s) it's testing. */
+/**
+ * A clean-slate input every test overrides just the field(s) it's testing.
+ * `staff: true`: these cases pin the stored detail staff read; a customer's
+ * view is pinned in its own block at the end (spec 2026-10-21).
+ */
 const base = (over: Partial<DiagnoseRunInput> = {}): DiagnoseRunInput => ({
   warnings: [],
   errors: [],
   itemFailures: [],
+  staff: true,
   ...over,
 });
 
@@ -230,5 +235,25 @@ describe('diagnoseRun — ordering across categories', () => {
     }));
     expect(result).toHaveLength(1);
     expect(result[0]!.severity).toBe('wrong-page');
+  });
+});
+
+describe('diagnoseRun for a customer (spec 2026-10-21)', () => {
+  const customer = { warnings: [], errors: [], itemFailures: [] };
+  it('a wall reads as its customer sentence, with no proxy line', () => {
+    const [d] = diagnoseRun({ ...customer, errors: [{ message: "scan.co.uk refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet." }] });
+    expect(d).toEqual({ severity: 'blocked', title: 'Site blocked our requests', detail: "This website turned us away, so we can't read it yet." });
+  });
+  it('a health-check block reads as the blocked sentence', () => {
+    const [d] = diagnoseRun({ ...customer, blockedReason: 'CAPTCHA detected — site requires human verification' });
+    expect(d!.detail).toBe('This website turned us away for now. Wait a few minutes and try again.');
+  });
+  it('a dead link names no status', () => {
+    const [d] = diagnoseRun({ ...customer, errors: [{ message: 'listing capture failed: HTTP 404 Not Found — page does not exist' }] });
+    expect(d!.detail).toBe('The link appears dead. Check the address.');
+  });
+  it('a failed item reads in customer words', () => {
+    const [d] = diagnoseRun({ ...customer, itemFailures: [{ url: 'https://shop.example/p/1', error: 'shop.example did not answer in time.' }] });
+    expect(d!.detail).toBe('This website took too long to answer. Try again.');
   });
 });

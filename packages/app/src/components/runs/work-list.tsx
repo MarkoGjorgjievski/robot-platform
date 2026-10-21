@@ -1,5 +1,7 @@
 import { listingValuesLabel, summariseWorkList, type WorkListCounts } from '../../lib/site/work-list';
 import { workListNote } from '../../lib/site/run-screen-view';
+import { captureWords } from '../../lib/capture-words';
+import { useStaffDetail } from '../../lib/use-staff-detail';
 
 /** One row of `crawl.items`, narrowed to what this table reads. */
 export type WorkListItem = {
@@ -25,6 +27,8 @@ const CAP = 200;
  * expensive.
  */
 export function WorkList({ items, counts }: { items: readonly WorkListItem[]; counts: WorkListCounts }) {
+  // Spec 2026-10-21: a customer reads an item's capture failure in customer words; staff read it as stored.
+  const staff = useStaffDetail();
   if (items.length === 0) return null;
   const shown = items.slice(0, CAP);
   const note = workListNote(shown.length, items.length);
@@ -72,7 +76,7 @@ export function WorkList({ items, counts }: { items: readonly WorkListItem[]; co
                   >
                     {item.status}
                   </span>
-                  {item.error ? <div className="mt-0.5 max-w-[240px] text-sm text-fail">{item.error}</div> : null}
+                  {item.error ? <div className="mt-0.5 max-w-[240px] text-sm text-fail">{captureWords(item.error, staff)}</div> : null}
                 </td>
                 <td className="px-4 py-2 align-top">
                   <a

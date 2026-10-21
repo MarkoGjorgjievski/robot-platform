@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { trpc } from '../../lib/trpc';
 import { diagnoseRun } from '../../lib/site/diagnose-run';
+import { useStaffDetail } from '../../lib/use-staff-detail';
 import { parseRunLog } from '../../lib/site/parse-run-log';
 import { probeEvidence } from '../../lib/site/probe-evidence';
 import { probeFacts } from '../../lib/site/run-screen-view';
@@ -59,6 +60,7 @@ export function ProbeGate({
 }) {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
+  const staff = useStaffDetail();
   const [showDiagnosis, setShowDiagnosis] = useState(false);
   const confirm = trpc.sources.confirm.useMutation({
     onSuccess: async (result) => {
@@ -96,6 +98,7 @@ export function ProbeGate({
     blockedReason: null,
     rowsFound: counts ? counts.detail : null,
     itemFailures,
+    staff,
   });
 
   return (

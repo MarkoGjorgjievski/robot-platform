@@ -1,6 +1,7 @@
 // Pure view logic for the Extract tab's three-step stepper (Pages, Sample, Run).
 // No React, no tRPC, no DOM — see docs/extraction-architecture.md and
 // .superpowers/sdd/2026-09-10-mvp-flow-phase4-extract-tab/task-4-brief.md.
+import { captureWords } from '../capture-words';
 import type { ProbeEvidence } from './probe-evidence';
 
 export type StepState = 'locked' | 'current' | 'done' | 'later';
@@ -56,10 +57,12 @@ export const NO_PRODUCTS_FOUND = 'No products found on this page.';
  */
 export function listingCheckLabel(
   check: { productLinks: number; pagerSeen: boolean } | { error: string } | { saved: true } | null,
+  /** `showsMoney` (spec 2026-10-21): staff read the stored error; a customer reads `captureWords`. */
+  staff = false,
 ): { tone: 'ok' | 'warn' | 'error' | 'pending'; text: string } {
   if (check === null) return { tone: 'pending', text: 'checking…' };
   if ('saved' in check) return { tone: 'pending', text: 'saved' };
-  if ('error' in check) return { tone: 'error', text: check.error };
+  if ('error' in check) return { tone: 'error', text: captureWords(check.error, staff) };
   if (check.productLinks === 0) return { tone: 'warn', text: NO_PRODUCTS_FOUND };
   const base = `${check.productLinks} ${check.productLinks === 1 ? 'product' : 'products'}`;
   return check.pagerSeen

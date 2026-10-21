@@ -77,6 +77,8 @@ import { boardStore, seedDecision } from '../../../../../../lib/site/board-store
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { showsMoney } from '../../../../../../lib/money-visibility';
+import { captureWords } from '../../../../../../lib/capture-words';
+import { useStaffDetail } from '../../../../../../lib/use-staff-detail';
 import { blockedReasons, cellHint, verificationState, type PageVariantLike, type VerificationResults } from '../../../../../../lib/site/verification-view';
 import { notCheckedText, refusalFromError, stageText, verifyMessage } from '../../../../../../lib/site/verify-messages';
 import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
@@ -372,7 +374,14 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   // A failure is shown only while the field still reads as it did when it failed.
   const unchangedKeys = useMemo(() => status?.unchangedKeys ?? [], [status?.unchangedKeys]);
   // Spec 2026-10-20 §3.5.2: why the last Verify could not capture a page, by url.
-  const blocked = useMemo(() => blockedReasons(status?.captures), [status?.captures]);
+  // Spec 2026-10-21: staff read a failed capture's stored sentence; a customer reads it in customer
+  // words. Mapped once here, so the badge, the cell hint and "Not checked on product n — …" agree
+  // (`notCheckedText`'s own redirect/address guard still applies on top, staff included).
+  const staff = useStaffDetail();
+  const blocked = useMemo(
+    () => Object.fromEntries(Object.entries(blockedReasons(status?.captures)).map(([u, r]) => [u, captureWords(r, staff)])),
+    [status?.captures, staff],
+  );
 
   // --- Drift (plan 2026-10-05 Task 3): the website's latest free check,
   // polled only while it is still running — the same "only while active" rule
@@ -443,9 +452,10 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         urls,
         results: (driftCheckQuery.data?.results as DriftCheckResultsLike | undefined) ?? null,
         values: driftValues,
+        staff,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [driftedKeys.join(','), urls, driftCheckQuery.data?.results, driftValues],
+    [driftedKeys.join(','), urls, driftCheckQuery.data?.results, driftValues, staff],
   );
   const captures = useProofCaptures(sourceId, urls);
   // A card added by URL (run page, coverage line, paste) keeps its address as
@@ -1506,9 +1516,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         />
         {newWebsite && reachability.data ? (
           reachability.data.verdict.kind === 'ok' ? (
-            <p className="text-sm text-muted-foreground">{reachability.data.message}</p>
+            <p className="text-sm text-muted-foreground">{captureWords(reachability.data.message, staff)}</p>
           ) : (
-            <p role="alert" className="text-sm text-warn">{reachability.data.message}</p>
+            <p role="alert" className="text-sm text-warn">{captureWords(reachability.data.message, staff)}</p>
           )
         ) : null}
         {unsaved ? <p className="text-sm text-muted-foreground">{problem ? `Not saved: ${problem}` : 'Not saved until every product has a page, all on this website'}</p> : null}

@@ -24,6 +24,8 @@ import {
 } from '../../../../../../../lib/site/run-screen-view';
 import { trpc } from '../../../../../../../lib/trpc';
 import { useUnauthorizedRedirect } from '../../../../../../../lib/use-unauthorized-redirect';
+import { captureWords } from '../../../../../../../lib/capture-words';
+import { useStaffDetail } from '../../../../../../../lib/use-staff-detail';
 import { useSite } from '../../$site';
 
 /**
@@ -63,6 +65,8 @@ function RunScreen() {
   const valid = isRunId(runId);
 
   const site = useSite();
+  // Spec 2026-10-21: a customer reads a failed run's capture text in customer words; staff read it as stored.
+  const staff = useStaffDetail();
   const detail = trpc.runs.getWithDetails.useQuery({ id: runId }, { enabled: valid });
   // An ended session is a trip to /login, not a Retry button that can only fail
   // again; nothing is drawn while that navigation is in flight.
@@ -294,7 +298,7 @@ function RunScreen() {
           line breaks in it. */}
       {run.errorMessage ? (
         <p role="alert" className="rise mb-3 border-l-2 border-fail pl-3 text-base whitespace-pre-line text-fail">
-          {run.errorMessage}
+          {captureWords(run.errorMessage, staff)}
         </p>
       ) : null}
 

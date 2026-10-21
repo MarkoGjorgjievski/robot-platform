@@ -12,9 +12,13 @@ describe('proofCaptureState (spec 2026-10-20 §3.5.5)', () => {
   it('a stalled capture says it took too long', () => {
     expect(proofCaptureState({ captureId: 'c', poll: { data: failed('stalled'), isError: false } })).toMatchObject({ status: 'failed', error: SCREENSHOT_TOO_LONG });
   });
-  it('a verdict sentence and its kind pass through', () => {
-    expect(proofCaptureState({ captureId: 'c', poll: { data: failed('shop.example did not answer in time.', { kind: 'timeout' }), isError: false } }))
+  it('staff read a verdict sentence as stored, with its kind', () => {
+    expect(proofCaptureState({ captureId: 'c', poll: { data: failed('shop.example did not answer in time.', { kind: 'timeout' }), isError: false }, staff: true }))
       .toMatchObject({ status: 'failed', error: 'shop.example did not answer in time.', verdict: { kind: 'timeout' } });
+  });
+  it('a customer reads the verdict in customer words; the kind still passes through', () => {
+    expect(proofCaptureState({ captureId: 'c', poll: { data: failed('shop.example did not answer in time.', { kind: 'timeout' }), isError: false } }))
+      .toMatchObject({ status: 'failed', error: 'This website took too long to answer. Try again.', verdict: { kind: 'timeout' } });
   });
   it('a poll that errors before any answer stops "taking screenshot…" and says the start sentence', () => {
     expect(proofCaptureState({ captureId: 'c', poll: { isError: true } })).toMatchObject({ captureId: 'c', status: 'failed', error: SCREENSHOT_COULD_NOT_START });

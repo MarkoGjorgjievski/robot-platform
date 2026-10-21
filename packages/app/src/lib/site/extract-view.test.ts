@@ -80,6 +80,11 @@ describe('listingCheckLabel', () => {
   it('surfaces the error message', () => {
     expect(listingCheckLabel({ error: 'timed out' })).toEqual({ tone: 'error', text: 'timed out' });
   });
+  it('a listing check error is shown in customer words; staff read it as stored', () => {
+    const error = 'shop.example did not answer in time.';
+    expect(listingCheckLabel({ error })).toEqual({ tone: 'error', text: 'This website took too long to answer. Try again.' });
+    expect(listingCheckLabel({ error }, true)).toEqual({ tone: 'error', text: error });
+  });
   it('reports products and pager, singular and plural (spec 2026-10-20 §4: it speaks of products)', () => {
     expect(listingCheckLabel({ productLinks: 12, pagerSeen: true })).toEqual({ tone: 'ok', text: '12 products · pager found' });
     expect(listingCheckLabel({ productLinks: 1, pagerSeen: true })).toEqual({ tone: 'ok', text: '1 product · pager found' });
