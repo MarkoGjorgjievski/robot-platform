@@ -4,6 +4,13 @@
 and 2, Marko: yes, 2026-10-21). Not yet implemented. Plan:
 `docs/superpowers/plans/2026-10-21-customer-copy.md`.
 
+
+**Status:** implemented on `feat/customer-copy`. Rulings: the refusal sentence has no contact
+line; the Settings row is "Run limits" / "Save limits". The whole-branch review found two Important
+leaks — the Extract tab showed a walled listing's planning error raw, and library errors (closed
+pages, ECONNREFUSED with an IP) passed the filter — both fixed, plus a shared `mutationErrorText`
+for failed buttons. Gate: app 1056, api 1059 tests, tsc clean in app, api and browser; route smoke
+27 of 27 (it now asserts no "HTTP 4", "Cloudflare", "refused the browser" or "CAPTCHA" in the page).
 ## 1. Why
 
 Two wording defects a customer reads today:

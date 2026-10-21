@@ -35,7 +35,9 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Backups from more than one source (2026-10-20)](#backups-from-more-than-one-source-2026-10-20).** Verify keeps at most two paths per source and fills the rest from other sources, so a field's backups no longer all fail with one API response; ops shows each API path's response. Merged 2026-10-20 after the full gate.
+**Newest: [Customer copy: capture failures and run limits (2026-10-21)](#customer-copy-capture-failures-and-run-limits-2026-10-21).** Customers no longer read a host, an HTTP code or "budget": capture failures are reworded on screen, staff keep the detail. Merged 2026-10-21 after the full gate.
+
+**Before it: [Backups from more than one source (2026-10-20)](#backups-from-more-than-one-source-2026-10-20).** Verify keeps at most two paths per source and fills the rest from other sources, so a field's backups no longer all fail with one API response; ops shows each API path's response. Merged 2026-10-20 after the full gate.
 
 **Before it: [The finder reads product links (2026-10-20)](#the-finder-reads-product-links-2026-10-20).** "Find products" and the coverage check now offer products — no menus, tiles, policy pages or colour copies — and a page with no grid says so; live-checked on the 13 campaign listings. Merged 2026-10-20 after the full gate.
 
@@ -104,6 +106,26 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Customer copy: capture failures and run limits (2026-10-21)
+
+Spec `docs/superpowers/specs/2026-10-21-customer-copy-design.md`, plan
+`docs/superpowers/plans/2026-10-21-customer-copy.md`. Queue items 1 and 2, approved by Marko 2026-10-21.
+
+**What a customer reads now.** A page we could not read is described in plain words, never with its
+host or an HTTP code: "This website turned us away, so we can't read it yet.", "This website asked
+for a human check. Wait a few minutes and try again…", "This website took too long to answer. Try
+again.", and so on; anything unrecognised reads "We couldn't read this page. Try again." Settings'
+"Budget" row is "Run limits"; the run page says "skipped for the page limit". Staff still see the
+stored detail everywhere.
+
+**How it works.** The stored sentences are unchanged (drift and the run diagnosis read them); the app
+rewords them on screen (`captureWords`), and failed buttons go through `mutationErrorText`. A sweep
+test fails on "budget", "HTTP <digit>", "refused the browser" or "CAPTCHA" in shipped customer copy.
+
+**How it was proven.** The whole-branch review found the Extract tab showing a walled listing's
+planning error raw, and library errors slipping through — both fixed. Gate: app 1056, api 1059
+tests, tsc clean; route smoke 27 of 27.
 
 ## Backups from more than one source (2026-10-20)
 
