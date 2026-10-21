@@ -130,12 +130,15 @@ export async function runSourceVerification(
     const reuse: Record<string, PageCapture> = {};
     const reusedRefs = new Map<string, StoredCaptureRef>();
     let previous: VerificationOutcome | undefined;
+    // Final review I1: a refresh's re-verify re-checks the refreshed fields on the check's captures, never the
+    // variants — it carries the last clean run's variant result forward, so it can never revoke them.
+    let previousVariants: VariantVerification | null = null;
     for (const [url, ref] of Object.entries(opts.captureRefs ?? {})) {
       if (!ref.captureId || !set.urls.includes(url)) continue;
       const c = await readCaptureFile(ref.captureId);
       if (c) { reuse[url] = c; reusedRefs.set(url, ref); }
     }
-    if (opts.onlyKeys) {
+    if (opts.onlyKeys || opts.origin === 'refresh') {
       const rows = await db.query.sourceVerifications.findMany({
         where: eq(sourceVerifications.sourceId, sourceId),
         orderBy: (t, { desc }) => [desc(t.startedAt)],
@@ -143,7 +146,8 @@ export async function runSourceVerification(
       });
       const last = rows.find((r) => r.id !== verificationId && r.completedAt !== null && r.errorMessage === null);
       if (last) {
-        previous = { fields: last.results as VerificationOutcome['fields'], allPassed: last.allPassed, aiCalls: last.aiCalls };
+        if (opts.onlyKeys) previous = { fields: last.results as VerificationOutcome['fields'], allPassed: last.allPassed, aiCalls: last.aiCalls };
+        previousVariants = (last.variantResults as VariantVerification | null) ?? null;
         for (const [url, ref] of Object.entries(last.captures as Record<string, StoredCaptureRef>)) {
           if (!ref.captureId || reuse[url]) continue;
           const c = await loadStoredCapture(ref);
@@ -178,7 +182,9 @@ export async function runSourceVerification(
       // Variants (spec 2026-10-01 §4) ride on the same run and never fail it: a
       // throw is reported as a failed variant check, the fields' result stands.
       let variantResults: VariantVerification | null = null;
-      if (checkVariants) {
+      if (checkVariants && opts.origin === 'refresh') {
+        variantResults = previousVariants;
+      } else if (checkVariants) {
         onProgress('checking variants');
         const args = { sourceId, set, setup: variantSetup!, datasetSchema: source.dataset?.schema };
         try {

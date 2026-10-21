@@ -25,6 +25,7 @@ process.env.CAPTURES_DIR = mkdtempSync(join(tmpdir(), 'robot-holds-'));
 const { runSourceVerification } = await import('./run-source-verification.js');
 const { loadCurrentCertification, loadCertificationState, runnableOf } = await import('./current-certification.js');
 const { backfillHolds, writeHolds } = await import('./holds.js');
+const { currentVariantHash } = await import('./variant-check.js');
 
 const me = await signedInCaller('verify-holds');
 afterAll(async () => { await me.cleanup(); });
@@ -170,6 +171,51 @@ describe('a Verify keeps the last good certification (spec 2026-10-21 §3.1)', (
       expect(state.cert!.variants).toBeUndefined();
       expect(state.variants).toMatchObject({ required: 'yes', current: true, passed: false });
       expect(runnableOf(state)).toBe(false);
+    } finally { await s.cleanup(); }
+  });
+});
+
+describe('a refresh re-verify on a variants website (final review I1)', () => {
+  async function withPassingVariants(tag: string) {
+    const s = await certified(tag);
+    const src = await db.query.sources.findFirst({ where: eq(sources.id, s.sourceId), columns: { datasetId: true } });
+    await me.caller.datasets.setVariantMode({ datasetId: src!.datasetId!, mode: 'row_per_variant' });
+    const setup = await me.caller.sources.setVariantSetup({ sourceId: s.sourceId, method: 'list', axes: [{ from: 'color', newAxisName: 'Colour' }] });
+    const colour = setup.axes[0]!.axisKey;
+    const list = { source: 'json-ld' as const, path: 'hasVariant' };
+    await me.caller.sources.saveVariantAnswer({ sourceId: s.sourceId, url: s.urls[0]!, answer: { count: 2, labels: ['Black', 'Red'], list, links: [s.urls[0]!, `${s.urls[0]!}-red`], spot: { index: 0, expected: { price: '1.00', [colour]: 'Black' } } } });
+    await me.caller.sources.saveVariantAnswer({ sourceId: s.sourceId, url: s.urls[1]!, answer: { count: 0, labels: [] } });
+    await me.caller.sources.saveVariantAnswer({ sourceId: s.sourceId, url: s.urls[2]!, answer: { count: 0, labels: [] } });
+    const fresh = (await db.query.sources.findFirst({ where: eq(sources.id, s.sourceId), with: { dataset: { columns: { schema: true } } } }))!;
+    const hash = currentVariantHash({ set: fresh.verificationSet as VerificationSet, setup: fresh.variantSetup as never, datasetSchema: fresh.dataset?.schema });
+    const variantResults = { method: 'list', hash, passed: true, pages: {} };
+    await db.update(sourceVerifications).set({ variantResults }).where(eq(sourceVerifications.id, s.goodId));
+    return { ...s, variantResults };
+  }
+
+  it('carries the last clean run\'s passing variants forward: variants stay passing and the website stays runnable', async () => {
+    const s = await withPassingVariants('refresh-variants');
+    try {
+      expect(runnableOf(await loadCertificationState(db, s.sourceId))).toBe(true);
+      // The check's captures carry no variant list: re-running the variant check on them would fail it.
+      const caps = Object.fromEntries(s.urls.map((u) => [u, page(u, '1.00')]));
+      const { id } = await verify(s.sourceId, { price: s.passed }, caps, { origin: 'refresh', onlyKeys: ['price'], free: true });
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, id) });
+      expect(row!.errorMessage).toBeNull();
+      expect(row!.variantResults).toEqual(s.variantResults);
+      const state = await loadCertificationState(db, s.sourceId);
+      expect(state.variants).toMatchObject({ required: 'yes', current: true, passed: true });
+      expect(runnableOf(state)).toBe(true);
+    } finally { await s.cleanup(); }
+  });
+
+  it('a customer re-verify still runs the variant check', async () => {
+    const s = await withPassingVariants('customer-variants');
+    try {
+      const caps = Object.fromEntries(s.urls.map((u) => [u, page(u, '1.00')]));
+      const { id } = await verify(s.sourceId, { price: s.passed }, caps, { onlyKeys: ['price'] });
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, id) });
+      expect(row!.variantResults).toMatchObject({ method: 'list', passed: false });
     } finally { await s.cleanup(); }
   });
 });
