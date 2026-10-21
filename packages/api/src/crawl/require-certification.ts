@@ -14,18 +14,14 @@ import { TRPCError } from '@trpc/server';
 import { sources } from '@robot/db';
 import type { Database } from '@robot/db';
 import { isCustomerSchema } from './effective-schema.js';
-import { loadCertificationState, type Certification } from '../verify/current-certification.js';
+import { loadCertificationState, runRefusal, type Certification } from '../verify/current-certification.js';
 
 export async function requireCertification(db: Database, sourceId: string): Promise<Certification | null> {
   const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true } });
   if (!source || !isCustomerSchema(source)) return null;
-  const { cert, variants } = await loadCertificationState(db, sourceId);
-  if (!cert) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Verify the schema before extracting' });
-  if (variants.required === 'setup-missing') {
-    throw new TRPCError({ code: 'PRECONDITION_FAILED', message: "Set up this website's variants before extracting" });
-  }
-  if (variants.required === 'yes' && !(variants.current && variants.passed)) {
-    throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Verify the variants before extracting' });
-  }
-  return cert;
+  const state = await loadCertificationState(db, sourceId);
+  // The one rule `runnableOf` answers too (verify/current-certification.ts).
+  const refusal = runRefusal(state);
+  if (refusal) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: refusal });
+  return state.cert;
 }

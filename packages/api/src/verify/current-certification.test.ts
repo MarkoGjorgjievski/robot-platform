@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db, sources, sourceVerifications, fieldHolds } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
-import { loadCurrentCertification, loadFieldCurrency, loadFieldCurrencyBatch, notOnWebsiteKeys, sourceDefinitionHash, certifyingResult } from './current-certification.js';
+import { loadCurrentCertification, loadFieldCurrency, loadFieldCurrencyBatch, notOnWebsiteKeys, sourceDefinitionHash, certifyingResult, runnableOf, runRefusal, type Certification, type VariantCurrency } from './current-certification.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 
 // A throwaway signed-in identity: every customer procedure needs a session
@@ -457,11 +457,71 @@ describe('holds (spec 2026-10-21 §3.1)', () => {
     } finally { await s.cleanup(); }
   });
 
+  it('fix wave 1, item 6: a hold whose result does not pass never counts, single or batch', async () => {
+    const s = await makeSchemaSource('held-notpassing');
+    try {
+      const set = s.source.verificationSet as VerificationSet;
+      const now = fieldHash((s.source.schemaDefinition as SchemaDefinitionField[])[0]!, set);
+      await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: false, results: { price: failing(now) } });
+      await db.insert(fieldHolds).values({ sourceId: s.sourceId, fieldKey: 'price', result: failing(now), verifiedAt: new Date(), fieldHashes: [now] });
+      expect((await loadFieldCurrency(db, s.sourceId)).heldKeys).toEqual([]);
+      expect(await loadCurrentCertification(db, s.sourceId)).toBeNull();
+      const batch = await loadFieldCurrencyBatch(db, [{ id: s.sourceId, schemaDefinition: s.source.schemaDefinition, verificationSet: s.source.verificationSet }]);
+      expect(batch.get(s.sourceId)!.heldKeys).toEqual([]);
+    } finally { await s.cleanup(); }
+  });
+
+  it('fix wave 1, item 6: a held field and a newly added field (never verified) — no certification', async () => {
+    const s = await heldWebsite('held-added', (now) => [now]);
+    try {
+      const fields = s.source.schemaDefinition as SchemaDefinitionField[];
+      await db.update(sources).set({ schemaDefinition: [...fields, { key: 'brand', name: 'Brand', type: 'text', description: 'x', concept: 'brand' }] }).where(eq(sources.id, s.sourceId));
+      const currency = await loadFieldCurrency(db, s.sourceId);
+      expect(currency.heldKeys).toEqual(['price']);
+      expect(await loadCurrentCertification(db, s.sourceId)).toBeNull();
+    } finally { await s.cleanup(); }
+  });
+
+  it('fix wave 1, item 6: certifyingResult of a current field is its current result, at the latest run', async () => {
+    const s = await makeSchemaSource('certifying-current');
+    try {
+      const r = currentPriceVerification(s.source, s.urls, heldPath);
+      const [row] = await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true, results: { price: r } }).returning({ id: sourceVerifications.id });
+      const c = certifyingResult(await loadFieldCurrency(db, s.sourceId), 'price')!;
+      expect(c.verificationId).toBe(row!.id);
+      expect(c.result.certified).toEqual(heldPath);
+      expect(c.fieldHashes).toEqual([r.fieldHash]);
+      expect(certifyingResult(await loadFieldCurrency(db, s.sourceId), 'nothing')).toBeNull();
+    } finally { await s.cleanup(); }
+  });
+
   it('the batch read counts a hold the same way the single read does', async () => {
     const s = await heldWebsite('held-batch', (now) => [now]);
     try {
       const batch = await loadFieldCurrencyBatch(db, [{ id: s.sourceId, schemaDefinition: s.source.schemaDefinition, verificationSet: s.source.verificationSet }]);
       expect(batch.get(s.sourceId)!.heldKeys).toEqual(['price']);
     } finally { await s.cleanup(); }
+  });
+});
+
+describe('runnableOf and requireCertification share one rule (fix wave 1, item 6)', () => {
+  const cert = { verificationId: 'v', completedAt: new Date(), paths: {}, concepts: {}, hostname: 'h' } as Certification;
+  const v = (over: Partial<VariantCurrency>): VariantCurrency => ({ required: 'no', current: false, passed: false, result: null, ...over });
+  it('no certification', () => {
+    expect(runRefusal({ cert: null, variants: v({}) })).toBe('Verify the schema before extracting');
+    expect(runnableOf({ cert: null, variants: v({}) })).toBe(false);
+  });
+  it('variants not set up', () => {
+    expect(runRefusal({ cert, variants: v({ required: 'setup-missing' }) })).toBe("Set up this website's variants before extracting");
+    expect(runnableOf({ cert, variants: v({ required: 'setup-missing' }) })).toBe(false);
+  });
+  it('variants required but not current and passed', () => {
+    expect(runRefusal({ cert, variants: v({ required: 'yes', current: true, passed: false }) })).toBe('Verify the variants before extracting');
+    expect(runnableOf({ cert, variants: v({ required: 'yes', current: false, passed: true }) })).toBe(false);
+  });
+  it('runnable: certified, and variants not required or current and passed', () => {
+    expect(runRefusal({ cert, variants: v({}) })).toBeNull();
+    expect(runnableOf({ cert, variants: v({}) })).toBe(true);
+    expect(runnableOf({ cert, variants: v({ required: 'yes', current: true, passed: true }) })).toBe(true);
   });
 });
