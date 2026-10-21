@@ -1,0 +1,2827 @@
+{
+  "at": "2026-10-21T15:04:18.699Z",
+  "report": [
+    {
+      "website": "Barnesandnoble",
+      "sourceId": "ae6fa0b3-4e5f-4028-8d35-993ce85b1d76",
+      "before": {
+        "runnable": false,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "backfilled": [
+        "rating",
+        "description"
+      ],
+      "backfillFields": {
+        "title": {
+          "held": false,
+          "reason": "passing"
+        },
+        "price": {
+          "held": false,
+          "reason": "passing"
+        },
+        "main_image": {
+          "held": false,
+          "reason": "passing"
+        },
+        "sku": {
+          "held": false,
+          "reason": "passing"
+        },
+        "brand": {
+          "held": false,
+          "reason": "passing"
+        },
+        "rating": {
+          "held": true
+        },
+        "in_stock": {
+          "held": false,
+          "reason": "passing"
+        },
+        "description": {
+          "held": true
+        }
+      },
+      "afterBackfill": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock"
+        ],
+        "held": [
+          "Rating",
+          "Description"
+        ],
+        "heldVerifiedOn": {
+          "Rating": "2026-10-08T10:29:12.208Z",
+          "Description": "2026-10-08T10:29:12.208Z"
+        },
+        "attention": {
+          "fields": [
+            "Rating",
+            "Description"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-08T10:29:12.208Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Rating and Description need you — runs go on with what you verified on 8 Oct.",
+          "extract": "Rating and Description need you on the Verification tab — runs go on with what you verified on 8 Oct."
+        }
+      },
+      "checked": "checked",
+      "settled": true,
+      "after": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "Rating",
+          "In stock"
+        ],
+        "held": [
+          "Description"
+        ],
+        "heldVerifiedOn": {
+          "Description": "2026-10-08T10:29:12.208Z"
+        },
+        "attention": {
+          "fields": [
+            "Description"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-08T10:29:12.208Z",
+          "findings": {
+            "Description": {
+              "result": "changed",
+              "refresh": null
+            }
+          }
+        },
+        "refreshes": [
+          {
+            "field": "Rating",
+            "at": "2026-10-21T13:56:28.092Z",
+            "pages": [
+              "4.5 → 4.6"
+            ],
+            "line": "Updated automatically on 21 Oct: 4.6 on product 2 (was 4.5)"
+          }
+        ],
+        "customer": {
+          "banner": "Description needs you — runs go on with what you verified on 8 Oct.",
+          "extract": "Description needs you on the Verification tab — runs go on with what you verified on 8 Oct."
+        }
+      },
+      "last": {
+        "check": {
+          "id": "78def8d4-da29-4abd-8b4b-78d3c403e3e1",
+          "trigger": "schedule",
+          "status": "done",
+          "createdAt": "2026-10-21T13:55:39.050Z",
+          "fields": {
+            "SKU": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "9781668236512",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "9781682818527",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "9780385550543"
+              },
+              "pages": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "ok",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "ok",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "ok"
+              }
+            },
+            "Brand": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "Atria Books",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "Entangled Publishing, LLC",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "JG Publishing"
+              },
+              "pages": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "ok",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "ok",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "ok"
+              }
+            },
+            "Price": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "20",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "11.99",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "24.5"
+              },
+              "pages": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "ok",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "ok",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "ok"
+              }
+            },
+            "Title": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "Theo of Golden: A Novel",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "Threshing Day",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "The French Illusion: A Novel"
+              },
+              "pages": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "ok",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "ok",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "ok"
+              }
+            },
+            "Rating": {
+              "result": "changed",
+              "refresh": {
+                "applied": true
+              },
+              "reads": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "4.6",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "4.3",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "4.4"
+              },
+              "pages": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "ok",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "ok",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "ok"
+              }
+            },
+            "In stock": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "true",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "true",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "true"
+              },
+              "pages": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "ok",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "ok",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "ok"
+              }
+            },
+            "Main image": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "https://cdn.shopify.com/s/files/1/0674/5433/7265/files/9781668236512_p0.jpg?v=1776257763",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "https://cdn.shopify.com/s/files/1/0674/5433/7265/files/9781682818527_p0.jpg?v=1784131630",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "https://cdn.shopify.com/s/files/1/0674/5433/7265/files/9780385550543_p0.jpg?v=1780972279"
+              },
+              "pages": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "ok",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "ok",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "ok"
+              }
+            },
+            "Description": {
+              "result": "changed",
+              "refresh": null,
+              "reads": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "THE #1 NEW YORK TIMES BESTSELLING PHENOMENON A Katie Couric Book Club Pick • A Jen Hatmaker Book Club Pick “[A] word-of-mouth smash hit.” —The New York Times “A treasure.” —Hoda KotbOne spring morning, a stranger named Theo arrives in the small Southern city of Golden. He doesn’t explain much about where he came from or why he’s there—but when he visits the local coffeehouse, where pencil portraits of the people of Golden hang on the walls, he begins purchasing them, one at a time, and giving each portrait to the person depicted. In exchange, he asks only for the person’s story. And so portrait by portrait, person by person, secrets are revealed, regrets are shared, and ordinary lives are profoundly altered. A story of giving and receiving, of seeing and being seen, Theo of Golden is an unforgettable novel about the power of generosity, the importance of connection, and the quiet miracles that happen when we choose kindness and wonder.",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "Welcome to Threshing Day, the brutal, high-stakes trial where would-be riders at Basgiath War College fight to earn the bond of a dragon or die trying. Amid ruthless competition and dragon fire, these thirteen cadets must survive a battlefield where desperate rivals will do anything to gain an advantage and dragons decide one’s ultimate fate—and where a single choice can forge a rider...or destroy them.Xaden Riorson, the powerful leader. Rhiannon Matthias, the clever friend. Dain Aetos, the dutiful rule-follower. Liam Mairi, the kindhearted protector. Ridoc Gamlyn, the jokester. Sawyer Henrick, the underdog. Garrick Tavis, the dependable aide. Imogen Cardulo, the impulsive fighter. Bodhi Durran, the second-in-command. Mira Sorrengail, the fearless rider. Brennan Sorrengail, the brilliant tactician. Aaric Graycastle, the restless royal. Sloane Mairi, the determined sister.On Threshing Day, there’s only one rule: don’t die.The standard edition of Threshing Day features sixteen beautiful original black-and-white illustrations by artist Joe Requeza. The Empyrean series is best enjoyed in order.Reading Order:Book #1 Fourth WingBook #2 Iron FlameBook #3 Onyx StormThough Threshing Day can be enjoyed as an introduction to the series, due to contained spoilers, it is best read after Onyx Storm.",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "NEW YORK TIMES BESTSELLER • John Grisham delivers a gripping, suspenseful page-turner about a Paris honeymoon gone horribly wrong—and the nightmare that follows.After Paul and Chelsea Tanner’s fairytale wedding, their future is full of promise. But their honeymoon to Paris takes a dark, shocking turn when they are kidnapped while on a day trip to the French countryside. Who would target them, and why? It turns out this is not the first crime of its kind. The search for clues soon stretches across borders, with the FBI, CIA, and French Intelligence trying to work together to put the pieces of the puzzle together. Struggling to find answers, a young lawyer is recruited to be the bait in an elaborate CIA operation.Propulsive and surprising, The French Illusion is an unmistakable Grisham thrill ride—gripping and impossible to put down."
+              },
+              "pages": {
+                "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "ok",
+                "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "ok",
+                "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "ok"
+              }
+            }
+          }
+        },
+        "verify": {
+          "id": "67786e1b-e2b3-4dbd-8192-72abc82884fc",
+          "startedAt": "2026-10-21T13:56:28.120Z",
+          "completedAt": "2026-10-21T13:56:28.334Z",
+          "error": null,
+          "results": {
+            "SKU": "certified",
+            "Brand": "certified",
+            "Price": "certified",
+            "Title": "certified",
+            "Rating": "certified",
+            "In stock": "certified",
+            "Main image": "certified",
+            "Description": "not certified"
+          }
+        }
+      }
+    },
+    {
+      "website": "Acne / Ikea",
+      "sourceId": "b4648622-bfa9-4d90-91b4-5a88ed288cd9",
+      "before": {
+        "runnable": false,
+        "current": [
+          "Price",
+          "Price currency",
+          "Title",
+          "Subtitle",
+          "Product id",
+          "Product details"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "backfilled": [
+        "total_reviews",
+        "average_rating"
+      ],
+      "backfillFields": {
+        "price": {
+          "held": false,
+          "reason": "passing"
+        },
+        "price_currency": {
+          "held": false,
+          "reason": "passing"
+        },
+        "title": {
+          "held": false,
+          "reason": "passing"
+        },
+        "subtitle": {
+          "held": false,
+          "reason": "passing"
+        },
+        "product_id": {
+          "held": false,
+          "reason": "passing"
+        },
+        "product_details": {
+          "held": false,
+          "reason": "passing"
+        },
+        "total_reviews": {
+          "held": true
+        },
+        "average_rating": {
+          "held": true
+        }
+      },
+      "afterBackfill": {
+        "runnable": true,
+        "current": [
+          "Price",
+          "Price currency",
+          "Title",
+          "Subtitle",
+          "Product id",
+          "Product details"
+        ],
+        "held": [
+          "Total reviews",
+          "Average rating"
+        ],
+        "heldVerifiedOn": {
+          "Total reviews": "2026-09-21T11:32:26.830Z",
+          "Average rating": "2026-09-21T11:32:26.830Z"
+        },
+        "attention": {
+          "fields": [
+            "Total reviews",
+            "Average rating"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-09-21T11:32:26.830Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Total reviews and Average rating need you — runs go on with what you verified on 21 Sep.",
+          "extract": "Total reviews and Average rating need you on the Verification tab — runs go on with what you verified on 21 Sep."
+        }
+      },
+      "checked": "checked",
+      "settled": true,
+      "after": {
+        "runnable": true,
+        "current": [
+          "Price",
+          "Price currency",
+          "Title",
+          "Subtitle",
+          "Product id",
+          "Product details",
+          "Total reviews",
+          "Average rating"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [
+          {
+            "field": "Total reviews",
+            "at": "2026-10-21T14:12:21.900Z",
+            "pages": [
+              "149 → 150",
+              "62 → 64",
+              "45 → 46"
+            ],
+            "line": "Updated automatically on 21 Oct: 150 on product 1 (was 149); 46 on product 2 (was 45); 64 on product 3 (was 62)"
+          },
+          {
+            "field": "Average rating",
+            "at": "2026-10-21T14:12:21.900Z",
+            "pages": [
+              "4.8 → 4.7"
+            ],
+            "line": "Updated automatically on 21 Oct: 4.7 on product 2 (was 4.8)"
+          }
+        ],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "last": {
+        "check": {
+          "id": "df10381a-555e-47e7-9324-e2e506127755",
+          "trigger": "schedule",
+          "status": "done",
+          "createdAt": "2026-10-21T14:11:35.040Z",
+          "fields": {
+            "Price": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "349",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "595",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "1195"
+              },
+              "pages": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "ok",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "ok",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "ok"
+              }
+            },
+            "Title": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "GLOSTAD",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "HEMLINGBY",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "KIVIK"
+              },
+              "pages": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "ok",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "ok",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "ok"
+              }
+            },
+            "Subtitle": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "2-seat sofa, Knisa dark grey",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "2-seat sofa, Knisa dark grey",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "2-seat sofa, Tibbleby beige/grey"
+              },
+              "pages": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "ok",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "ok",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "ok"
+              }
+            },
+            "Product id": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "104.890.09",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "704.343.68",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "194.405.94"
+              },
+              "pages": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "ok",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "ok",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "ok"
+              }
+            },
+            "Total reviews": {
+              "result": "changed",
+              "refresh": {
+                "applied": true
+              },
+              "reads": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "150",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "64",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "46"
+              },
+              "pages": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "ok",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "ok",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "ok"
+              }
+            },
+            "Average rating": {
+              "result": "changed",
+              "refresh": {
+                "applied": true
+              },
+              "reads": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "4.8",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "4.7",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "4.7"
+              },
+              "pages": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "ok",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "ok",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "ok"
+              }
+            },
+            "Price currency": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "RM",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "RM",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "RM"
+              },
+              "pages": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "ok",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "ok",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "ok"
+              }
+            },
+            "Product details": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "GLOSTAD sofa has a simple design which is also comfortable with its thick seat, padded armrests and soft back cushions that sit firmly in place.",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "A sofa with small, neat dimensions which is easy to furnish with, even when space is limited.",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "Enjoy the super comfy KIVIK sofa with deep seat cushions made of pocket springs, high resilience foam and polyester fibres – adding both firm support and relaxing softness."
+              },
+              "pages": {
+                "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "ok",
+                "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "ok",
+                "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "ok"
+              }
+            }
+          }
+        },
+        "verify": {
+          "id": "06858548-147a-4a4d-b1e8-07f07606f74c",
+          "startedAt": "2026-10-21T14:12:21.930Z",
+          "completedAt": "2026-10-21T14:12:22.178Z",
+          "error": null,
+          "results": {
+            "Price": "certified",
+            "Title": "certified",
+            "Subtitle": "certified",
+            "Product id": "certified",
+            "Total reviews": "certified",
+            "Average rating": "certified",
+            "Price currency": "certified",
+            "Product details": "certified"
+          }
+        }
+      }
+    },
+    {
+      "website": "Madeincookware",
+      "sourceId": "5cb04b47-53cf-4aac-9d66-d9ac5bf4c2de",
+      "before": {
+        "runnable": false,
+        "current": [
+          "Title",
+          "Main image",
+          "Brand",
+          "Rating",
+          "In stock",
+          "Description"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "backfilled": [
+        "price",
+        "sku"
+      ],
+      "backfillFields": {
+        "title": {
+          "held": false,
+          "reason": "passing"
+        },
+        "price": {
+          "held": true
+        },
+        "main_image": {
+          "held": false,
+          "reason": "passing"
+        },
+        "sku": {
+          "held": true
+        },
+        "brand": {
+          "held": false,
+          "reason": "passing"
+        },
+        "rating": {
+          "held": false,
+          "reason": "passing"
+        },
+        "in_stock": {
+          "held": false,
+          "reason": "passing"
+        },
+        "description": {
+          "held": false,
+          "reason": "passing"
+        }
+      },
+      "afterBackfill": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Main image",
+          "Brand",
+          "Rating",
+          "In stock",
+          "Description"
+        ],
+        "held": [
+          "Price",
+          "SKU"
+        ],
+        "heldVerifiedOn": {
+          "Price": "2026-10-08T11:37:25.152Z",
+          "SKU": "2026-10-08T11:37:25.152Z"
+        },
+        "attention": {
+          "fields": [
+            "Price",
+            "SKU"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-08T11:37:25.152Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Price and SKU need you — runs go on with what you verified on 8 Oct.",
+          "extract": "Price and SKU need you on the Verification tab — runs go on with what you verified on 8 Oct."
+        }
+      },
+      "checked": "checked",
+      "settled": true,
+      "after": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Main image",
+          "Brand",
+          "Rating",
+          "In stock",
+          "Description"
+        ],
+        "held": [
+          "Price",
+          "SKU"
+        ],
+        "heldVerifiedOn": {
+          "Price": "2026-10-08T11:37:25.152Z",
+          "SKU": "2026-10-08T11:37:25.152Z"
+        },
+        "attention": {
+          "fields": [
+            "Price",
+            "SKU"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-08T11:37:25.152Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Price and SKU need you — runs go on with what you verified on 8 Oct.",
+          "extract": "Price and SKU need you on the Verification tab — runs go on with what you verified on 8 Oct."
+        }
+      },
+      "last": {
+        "check": {
+          "id": "dfa6b171-e563-4c0b-8e7e-27300e291280",
+          "trigger": "schedule",
+          "status": "done",
+          "createdAt": "2026-10-21T14:13:05.662Z",
+          "fields": {
+            "SKU": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "KIT-2-FRY-ISS-V2"
+              },
+              "pages": {
+                "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "not-checked",
+                "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "not-checked",
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "ok"
+              }
+            },
+            "Brand": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "Made In"
+              },
+              "pages": {
+                "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "not-checked",
+                "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "not-checked",
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "ok"
+              }
+            },
+            "Price": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "1300"
+              },
+              "pages": {
+                "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "not-checked",
+                "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "not-checked",
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "ok"
+              }
+            },
+            "Title": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "Stainless Clad Frying Pan Set"
+              },
+              "pages": {
+                "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "not-checked",
+                "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "not-checked",
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "ok"
+              }
+            },
+            "Rating": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "4.8"
+              },
+              "pages": {
+                "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "not-checked",
+                "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "not-checked",
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "ok"
+              }
+            },
+            "In stock": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "true"
+              },
+              "pages": {
+                "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "not-checked",
+                "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "not-checked",
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "ok"
+              }
+            },
+            "Main image": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "https://cdn.shopify.com/s/files/1/2131/5111/files/Stainless_10_12.jpg?v=1775851934"
+              },
+              "pages": {
+                "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "not-checked",
+                "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "not-checked",
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "ok"
+              }
+            },
+            "Description": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "These two different sizes of our Award-Winning chef favorite pan will give you perfect sears and sautés no matter the meal."
+              },
+              "pages": {
+                "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "not-checked",
+                "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "not-checked",
+                "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "ok"
+              }
+            }
+          }
+        },
+        "verify": {
+          "id": "a69a5ede-386e-4f6e-8c88-492c4172e96c",
+          "startedAt": "2026-10-21T10:14:23.268Z",
+          "completedAt": "2026-10-21T10:14:33.915Z",
+          "error": null,
+          "results": {
+            "SKU": "not certified",
+            "Brand": "certified",
+            "Price": "not certified",
+            "Title": "certified",
+            "Rating": "certified",
+            "In stock": "certified",
+            "Main image": "certified",
+            "Description": "certified"
+          }
+        }
+      }
+    },
+    {
+      "website": "Everlane",
+      "sourceId": "b571fbfb-92e0-40af-bd87-e8b3f2d88a8a",
+      "before": {
+        "runnable": false,
+        "current": [
+          "Title",
+          "Main image",
+          "SKU",
+          "Brand",
+          "Rating",
+          "Description"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "backfilled": [
+        "price",
+        "in_stock"
+      ],
+      "backfillFields": {
+        "title": {
+          "held": false,
+          "reason": "passing"
+        },
+        "price": {
+          "held": true
+        },
+        "main_image": {
+          "held": false,
+          "reason": "passing"
+        },
+        "sku": {
+          "held": false,
+          "reason": "passing"
+        },
+        "brand": {
+          "held": false,
+          "reason": "passing"
+        },
+        "rating": {
+          "held": false,
+          "reason": "passing"
+        },
+        "in_stock": {
+          "held": true
+        },
+        "description": {
+          "held": false,
+          "reason": "passing"
+        }
+      },
+      "afterBackfill": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Main image",
+          "SKU",
+          "Brand",
+          "Rating",
+          "Description"
+        ],
+        "held": [
+          "Price",
+          "In stock"
+        ],
+        "heldVerifiedOn": {
+          "Price": "2026-10-08T13:43:30.929Z",
+          "In stock": "2026-10-08T13:43:30.929Z"
+        },
+        "attention": {
+          "fields": [
+            "Price",
+            "In stock"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-08T13:43:30.929Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Price and In stock need you — runs go on with what you verified on 8 Oct.",
+          "extract": "Price and In stock need you on the Verification tab — runs go on with what you verified on 8 Oct."
+        }
+      },
+      "checked": "checked",
+      "settled": true,
+      "after": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Main image",
+          "SKU",
+          "Brand",
+          "Rating",
+          "Description"
+        ],
+        "held": [
+          "Price",
+          "In stock"
+        ],
+        "heldVerifiedOn": {
+          "Price": "2026-10-08T13:43:30.929Z",
+          "In stock": "2026-10-08T13:43:30.929Z"
+        },
+        "attention": {
+          "fields": [
+            "Price",
+            "In stock"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-08T13:43:30.929Z",
+          "findings": {
+            "Price": {
+              "result": "changed",
+              "refresh": {
+                "reason": "fixed-variant",
+                "applied": false
+              }
+            }
+          }
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Price and In stock need you — runs go on with what you verified on 8 Oct.",
+          "extract": "Price and In stock need you on the Verification tab — runs go on with what you verified on 8 Oct."
+        }
+      },
+      "last": {
+        "check": {
+          "id": "c22537be-263f-4357-a0da-a07747c3f24d",
+          "trigger": "schedule",
+          "status": "done",
+          "createdAt": "2026-10-21T14:22:24.525Z",
+          "fields": {
+            "SKU": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "M-T-CTN-ORGN-CR.2-WHT-XS",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "M-T-CTN.DYE-SS-CR-AGRN-XS",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "M-T-FVJ-RLX-TEE-HOAT-XS"
+              },
+              "pages": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "ok",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "ok",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "ok"
+              }
+            },
+            "Brand": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "Everlane",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "Everlane",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "Everlane"
+              },
+              "pages": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "ok",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "ok",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "ok"
+              }
+            },
+            "Price": {
+              "result": "changed",
+              "refresh": {
+                "reason": "fixed-variant",
+                "applied": false
+              },
+              "reads": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "180",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "125",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "200"
+              },
+              "pages": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "ok",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "ok",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "ok"
+              }
+            },
+            "Title": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "The Essential Organic Crew",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "The Essential Organic Garment-Dyed Crew",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "Archive Relaxed-Fit Cotton Crew"
+              },
+              "pages": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "ok",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "ok",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "ok"
+              }
+            },
+            "Rating": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "3.891775",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "4.647059",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "3.5"
+              },
+              "pages": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "ok",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "ok",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "ok"
+              }
+            },
+            "In stock": {
+              "result": "other-layout",
+              "refresh": {
+                "reason": "fixed-variant",
+                "applied": false
+              },
+              "reads": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "false",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "false",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "true"
+              },
+              "pages": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "ok",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "ok",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "ok"
+              }
+            },
+            "Main image": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "https://www.everlane.com/cdn/shop/files/ae4c329b_b38f.jpg?v=1778176804&width=1920",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "https://www.everlane.com/cdn/shop/files/9ee47651_e939.jpg?v=1769540403&width=1920",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "https://www.everlane.com/cdn/shop/files/4d691dff_52f9.jpg?v=1780610407&width=1920"
+              },
+              "pages": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "ok",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "ok",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "ok"
+              }
+            },
+            "Description": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "We made this best-seller even better. Expertly crafted using 100% OCS-certified organic cotton, this timeless staple features an updated fit for enhanced comfort and style with the same soft yet durable feel that only gets better with wear. Extra Bonus Points: We also worked to minimize shrinkage, so it’ll keep its perfect fit—even after multiple washes.",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "This piece features a slim fit, crew neck, short sleeves, patch pocket, in garment dye to give vintage, worn-in look and soft feel, made with organic cotton.",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "Cut from regenerative cotton in a relaxed fit that's looser through the body without looking oversized. Medium weight, ribbed neckline, and that lived-in handfeel from the first wear. This is the tee you grab when a standard fit feels too fitted and an oversized tee feels like you're trying too hard. Wear it solo with denim or chinos, or throw an overshirt on top when you need an extra layer."
+              },
+              "pages": {
+                "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "ok",
+                "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "ok",
+                "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "ok"
+              }
+            }
+          }
+        },
+        "verify": {
+          "id": "ebea036f-a4f8-486f-a989-bf5054adbf58",
+          "startedAt": "2026-10-21T10:17:47.344Z",
+          "completedAt": "2026-10-21T10:17:58.392Z",
+          "error": null,
+          "results": {
+            "SKU": "certified",
+            "Brand": "certified",
+            "Price": "not certified",
+            "Title": "certified",
+            "Rating": "certified",
+            "In stock": "not certified",
+            "Main image": "certified",
+            "Description": "certified"
+          }
+        }
+      }
+    },
+    {
+      "website": "Mejuri",
+      "sourceId": "7d6ce510-4452-4a43-ad9c-4d66f18ea2f0",
+      "before": {
+        "runnable": false,
+        "current": [
+          "Title",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Rating",
+          "Description"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "backfilled": [
+        "price"
+      ],
+      "backfillFields": {
+        "title": {
+          "held": false,
+          "reason": "passing"
+        },
+        "price": {
+          "held": true
+        },
+        "main_image": {
+          "held": false,
+          "reason": "passing"
+        },
+        "sku": {
+          "held": false,
+          "reason": "passing"
+        },
+        "brand": {
+          "held": false,
+          "reason": "passing"
+        },
+        "in_stock": {
+          "held": false,
+          "reason": "passing"
+        },
+        "rating": {
+          "held": false,
+          "reason": "passing"
+        },
+        "description": {
+          "held": false,
+          "reason": "passing"
+        }
+      },
+      "afterBackfill": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Rating",
+          "Description"
+        ],
+        "held": [
+          "Price"
+        ],
+        "heldVerifiedOn": {
+          "Price": "2026-10-12T11:20:46.416Z"
+        },
+        "attention": {
+          "fields": [
+            "Price"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-12T11:20:46.416Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Price needs you — runs go on with what you verified on 12 Oct.",
+          "extract": "Price needs you on the Verification tab — runs go on with what you verified on 12 Oct."
+        }
+      },
+      "checked": "checked",
+      "settled": true,
+      "after": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Rating",
+          "Description"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [
+          {
+            "field": "Price",
+            "at": "2026-10-21T14:37:23.241Z",
+            "pages": [
+              "615.00 → 625.00",
+              "435.00 → 440.00",
+              "3250.00 → 3300.00"
+            ],
+            "line": "Updated automatically on 21 Oct: 625.00 on product 1 (was 615.00); 440.00 on product 2 (was 435.00); 3300.00 on product 3 (was 3250.00)"
+          }
+        ],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "last": {
+        "check": {
+          "id": "c12db9ce-3392-4694-84d3-2c5b3272e7de",
+          "trigger": "schedule",
+          "status": "done",
+          "createdAt": "2026-10-21T14:37:07.301Z",
+          "fields": {
+            "SKU": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "p2291815148",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "p62709243",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "p62706511"
+              },
+              "pages": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "ok",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "ok",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "ok"
+              }
+            },
+            "Brand": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "Mejuri",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "Mejuri",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "Mejuri"
+              },
+              "pages": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "ok",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "ok",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "ok"
+              }
+            },
+            "Price": {
+              "result": "changed",
+              "refresh": {
+                "applied": true
+              },
+              "reads": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "625",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "440",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "3300"
+              },
+              "pages": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "ok",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "ok",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "ok"
+              }
+            },
+            "Title": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "Stacker Ring",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "Duo Beaded Stacker Ring",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "Diamonds Band"
+              },
+              "pages": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "ok",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "ok",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "ok"
+              }
+            },
+            "Rating": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "4.8",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "4.8",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "4.8"
+              },
+              "pages": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "ok",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "ok",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "ok"
+              }
+            },
+            "In stock": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "true",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "true",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "true"
+              },
+              "pages": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "ok",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "ok",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "ok"
+              }
+            },
+            "Main image": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "https://cdn.shopify.com/s/files/1/0797/3637/3533/files/0-StackerRing_10k_OffFigureAngledView_PDP_new_cd553b68-0235-4101-a70c-91b663ca2d63.png?v=1763561719",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "https://cdn.shopify.com/s/files/1/0797/3637/3533/files/0-VermeilSilverStackerRings_DuoBeadedStackerRing_V_ANGLED_011_new_6555c174-cb9f-41bc-bf06-d5aad78b7e93.png?v=1758142440",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "https://cdn.shopify.com/s/files/1/0797/3637/3533/files/0-DiamondsBand-14k-Front_196_new_4027d573-3459-47b3-bbb8-8ace5420c2ee.png?v=1758043843"
+              },
+              "pages": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "ok",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "ok",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "ok"
+              }
+            },
+            "Description": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "The Stacker is the white tee of rings. It is everyone's go-to because there's nothing it can't go with (trust us). This essential piece is the perfect starter ring or addition to anyone's collection.",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "To answer your question, yes, every jewelry wardrobe requires a beaded ring. It’s our iconic texture that’s loved and stacked by all—so we had no choice but to double it. More is more. Handcrafted in 18k gold vermeil.",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "However big or small the occasion–treat yourself or them whenever. Handcrafted in 14k solid gold with diamonds, hold on to it forever, and ever."
+              },
+              "pages": {
+                "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "ok",
+                "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "ok",
+                "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "ok"
+              }
+            }
+          }
+        },
+        "verify": {
+          "id": "d6ca28be-834c-4d51-98ca-a3d01d4266eb",
+          "startedAt": "2026-10-21T14:37:23.268Z",
+          "completedAt": "2026-10-21T14:37:24.352Z",
+          "error": null,
+          "results": {
+            "SKU": "certified",
+            "Brand": "certified",
+            "Price": "certified",
+            "Title": "certified",
+            "Rating": "certified",
+            "In stock": "certified",
+            "Main image": "certified",
+            "Description": "certified"
+          }
+        }
+      }
+    },
+    {
+      "website": "Gymshark",
+      "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
+      "before": {
+        "runnable": false,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Description"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "backfilled": [
+        "rating"
+      ],
+      "backfillFields": {
+        "title": {
+          "held": false,
+          "reason": "passing"
+        },
+        "price": {
+          "held": false,
+          "reason": "passing"
+        },
+        "main_image": {
+          "held": false,
+          "reason": "passing"
+        },
+        "sku": {
+          "held": false,
+          "reason": "passing"
+        },
+        "brand": {
+          "held": false,
+          "reason": "passing"
+        },
+        "in_stock": {
+          "held": false,
+          "reason": "passing"
+        },
+        "rating": {
+          "held": true
+        },
+        "description": {
+          "held": false,
+          "reason": "passing"
+        }
+      },
+      "afterBackfill": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Description"
+        ],
+        "held": [
+          "Rating"
+        ],
+        "heldVerifiedOn": {
+          "Rating": "2026-10-14T07:22:03.172Z"
+        },
+        "attention": {
+          "fields": [
+            "Rating"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-14T07:22:03.172Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Rating needs you — runs go on with what you verified on 14 Oct.",
+          "extract": "Rating needs you on the Verification tab — runs go on with what you verified on 14 Oct."
+        }
+      },
+      "checked": "checked",
+      "settled": true,
+      "after": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Rating",
+          "Description"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [
+          {
+            "field": "Rating",
+            "at": "2026-10-21T14:39:34.120Z",
+            "pages": [
+              "4 → 4.2"
+            ],
+            "line": "Updated automatically on 21 Oct: 4.2 on product 3 (was 4)"
+          }
+        ],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "last": {
+        "check": {
+          "id": "17878ee7-9294-4465-a758-2f1aa7dc8e88",
+          "trigger": "schedule",
+          "status": "done",
+          "createdAt": "2026-10-21T14:38:49.992Z",
+          "fields": {
+            "SKU": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "B6B2A-BB2J",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "B7C4M-BB2J",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "B7A3L-NDJ1",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "B4B8H-BB2J"
+              },
+              "pages": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "ok",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "ok"
+              }
+            },
+            "Brand": {
+              "result": "lost",
+              "refresh": null,
+              "reads": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "Gymshark",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "Gymshark",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "Gymshark",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "Gymshark"
+              },
+              "pages": {}
+            },
+            "Price": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "54",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "46",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "38",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "38"
+              },
+              "pages": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "ok",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "ok"
+              }
+            },
+            "Title": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "Whitney Mid-Rise Leggings",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "Adapt Solid Sports Bra",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "Everyday Seamless Leggings",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "Everyday Seamless Flared Leggings"
+              },
+              "pages": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "ok",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "ok"
+              }
+            },
+            "Rating": {
+              "result": "changed",
+              "refresh": {
+                "applied": true
+              },
+              "reads": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "4.2",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": null,
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "3.4",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "3.5"
+              },
+              "pages": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "ok"
+              }
+            },
+            "In stock": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "true",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "true",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "true",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "true"
+              },
+              "pages": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "ok",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "ok"
+              }
+            },
+            "Main image": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "https://cdn.shopify.com/s/files/1/0156/6146/files/images-WhitneyMidRiseLeggingGSBlackB6B2A_BB2J_2089_V1.jpg?v=1773329267",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "https://cdn.shopify.com/s/files/1/0156/6146/files/Adapt_Solid_Sports_Bra_GS_Black_B7C4M_BB2J_01.jpg?v=1790772369",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "https://cdn.shopify.com/s/files/1/0156/6146/files/EverydaySeamlessLeggingsGSEspressoBrownB7A3L_NDJ1_7750.jpg?v=1784725201",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "https://cdn.shopify.com/s/files/1/0156/6146/files/EverydaySeamlessFlaredLeggingGSBlackB4B8H_BB2J_4470_9287c606-3445-4faf-b66b-0c4347969674.jpg?v=1785490427"
+              },
+              "pages": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "ok",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "ok"
+              }
+            },
+            "Description": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "Made with our ButterSmoothTM fabric. Designed for lifting. These leggings are mid rise and made from stretchy, buttery soft, squat-proof fabric.",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "Designed for lifting. This sports bra is light support and made from breathable, sweat-wicking, seamless fabric.",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "Designed for any kind of training such as hybrid, lifting and studio. These leggings are high waisted and made from soft seamless fabric.",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "Designed for any kind of training such as running, lifting, studio. These leggings are flared fit and made from soft seamless fabric."
+              },
+              "pages": {
+                "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "ok",
+                "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "ok",
+                "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "ok"
+              }
+            }
+          }
+        },
+        "verify": {
+          "id": "bf523f58-cdc3-41ad-9bea-61a799c3039a",
+          "startedAt": "2026-10-21T14:39:34.150Z",
+          "completedAt": "2026-10-21T14:39:36.045Z",
+          "error": null,
+          "results": {
+            "SKU": "certified",
+            "Brand": "certified",
+            "Price": "certified",
+            "Title": "certified",
+            "Rating": "certified",
+            "In stock": "certified",
+            "Main image": "certified",
+            "Description": "certified"
+          }
+        }
+      }
+    },
+    {
+      "website": "Ridge",
+      "sourceId": "c716c55b-cd64-4930-87d0-01feec19bcab",
+      "before": {
+        "runnable": false,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "Rating",
+          "Description"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "backfilled": [
+        "in_stock"
+      ],
+      "backfillFields": {
+        "title": {
+          "held": false,
+          "reason": "passing"
+        },
+        "price": {
+          "held": false,
+          "reason": "passing"
+        },
+        "main_image": {
+          "held": false,
+          "reason": "passing"
+        },
+        "sku": {
+          "held": false,
+          "reason": "passing"
+        },
+        "brand": {
+          "held": false,
+          "reason": "passing"
+        },
+        "in_stock": {
+          "held": true
+        },
+        "rating": {
+          "held": false,
+          "reason": "passing"
+        },
+        "description": {
+          "held": false,
+          "reason": "passing"
+        }
+      },
+      "afterBackfill": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "Rating",
+          "Description"
+        ],
+        "held": [
+          "In stock"
+        ],
+        "heldVerifiedOn": {
+          "In stock": "2026-10-12T12:44:28.531Z"
+        },
+        "attention": {
+          "fields": [
+            "In stock"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-12T12:44:28.531Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "In stock needs you — runs go on with what you verified on 12 Oct.",
+          "extract": "In stock needs you on the Verification tab — runs go on with what you verified on 12 Oct."
+        }
+      },
+      "checked": "checked",
+      "settled": true,
+      "after": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "Rating",
+          "Description"
+        ],
+        "held": [
+          "In stock"
+        ],
+        "heldVerifiedOn": {
+          "In stock": "2026-10-12T12:44:28.531Z"
+        },
+        "attention": {
+          "fields": [
+            "In stock"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-12T12:44:28.531Z",
+          "findings": {
+            "In stock": {
+              "result": "changed",
+              "refresh": {
+                "reason": "fixed-variant",
+                "applied": false
+              }
+            }
+          }
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "In stock needs you — runs go on with what you verified on 12 Oct.",
+          "extract": "In stock needs you on the Verification tab — runs go on with what you verified on 12 Oct."
+        }
+      },
+      "last": {
+        "check": {
+          "id": "2dca819f-b8db-4fd7-b210-736eacb248d9",
+          "trigger": "schedule",
+          "status": "done",
+          "createdAt": "2026-10-21T14:40:53.579Z",
+          "fields": {
+            "SKU": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://ridge.com/products/carbon-fiber": "A0456",
+                "https://ridge.com/products/aluminum-black": "A0449",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "A1059",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "A1243"
+              },
+              "pages": {
+                "https://ridge.com/products/carbon-fiber": "ok",
+                "https://ridge.com/products/aluminum-black": "ok",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "ok",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "ok"
+              }
+            },
+            "Brand": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://ridge.com/products/carbon-fiber": "Ridge",
+                "https://ridge.com/products/aluminum-black": "Ridge",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "Ridge",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "Ridge"
+              },
+              "pages": {
+                "https://ridge.com/products/carbon-fiber": "ok",
+                "https://ridge.com/products/aluminum-black": "ok",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "ok",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "ok"
+              }
+            },
+            "Price": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://ridge.com/products/carbon-fiber": "150",
+                "https://ridge.com/products/aluminum-black": "76",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "125",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "76"
+              },
+              "pages": {
+                "https://ridge.com/products/carbon-fiber": "ok",
+                "https://ridge.com/products/aluminum-black": "ok",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "ok",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "ok"
+              }
+            },
+            "Title": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://ridge.com/products/carbon-fiber": "Ridge Wallet",
+                "https://ridge.com/products/aluminum-black": "Ridge Wallet",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "Ridge Wallet For MagSafe",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "Ridge Wallet"
+              },
+              "pages": {
+                "https://ridge.com/products/carbon-fiber": "ok",
+                "https://ridge.com/products/aluminum-black": "ok",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "ok",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "ok"
+              }
+            },
+            "Rating": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://ridge.com/products/carbon-fiber": "4.8",
+                "https://ridge.com/products/aluminum-black": "4.8",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "4.5",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "4.8"
+              },
+              "pages": {
+                "https://ridge.com/products/carbon-fiber": "ok",
+                "https://ridge.com/products/aluminum-black": "ok",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "ok",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "ok"
+              }
+            },
+            "In stock": {
+              "result": "changed",
+              "refresh": {
+                "reason": "fixed-variant",
+                "applied": false
+              },
+              "reads": {
+                "https://ridge.com/products/carbon-fiber": "false",
+                "https://ridge.com/products/aluminum-black": "false",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "false",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "false"
+              },
+              "pages": {
+                "https://ridge.com/products/carbon-fiber": "ok",
+                "https://ridge.com/products/aluminum-black": "ok",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "ok",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "ok"
+              }
+            },
+            "Main image": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://ridge.com/products/carbon-fiber": "https://ridge.com/cdn/shop/files/CF3K-Wallet-THUMBNAIL_1a2b3445-ce50-4089-b349-c001c8335ecf.jpg?v=1782485728&width=1920",
+                "https://ridge.com/products/aluminum-black": "https://ridge.com/cdn/shop/files/RoyalBlack-Wallet-THUMBNAIL_6694badf-3e94-49d0-9a4b-9c62f9bfe82b.jpg?v=1748985968&width=1920",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "https://ridge.com/cdn/shop/files/Name-THUMBNAIL_4849da05-7a05-4a1a-8a8b-b2ec57c50444.jpg?v=1779991442&width=1920",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "https://ridge.com/cdn/shop/files/American-Traditional-Wallet-THUMBNAIL_b09d537c-b75c-453d-8ffd-d4b785bd1a7a.jpg?v=1785303329&width=1920"
+              },
+              "pages": {
+                "https://ridge.com/products/carbon-fiber": "ok",
+                "https://ridge.com/products/aluminum-black": "ok",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "ok",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": "ok"
+              }
+            },
+            "Description": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://ridge.com/products/carbon-fiber": "Our Carbon Fiber wallet has beveled edges and a scratch-resistant matte finish to keep your wallet in peak condition day-in and day-out.",
+                "https://ridge.com/products/aluminum-black": "Our black wallet has an anodized aluminum plating that gives it a scratch-resistant surface, and comes with a dual-track design that expands for 1-12 cards!",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "Camo for what you carry now. Tiger Stripe for the field, Neon Tiger for your tech system. Two executions, one Jungle Ops drop.",
+                "https://ridge.com/products/american-traditional?variant=43765981675594": null
+              },
+              "pages": {
+                "https://ridge.com/products/carbon-fiber": "ok",
+                "https://ridge.com/products/aluminum-black": "ok",
+                "https://ridge.com/products/magsafe-wallet-neon-tiger": "ok"
+              }
+            }
+          }
+        },
+        "verify": {
+          "id": "dc038f49-cd34-48fa-810a-2570dbd363f8",
+          "startedAt": "2026-10-21T10:22:30.609Z",
+          "completedAt": "2026-10-21T10:22:56.595Z",
+          "error": null,
+          "results": {
+            "SKU": "certified",
+            "Brand": "certified",
+            "Price": "certified",
+            "Title": "certified",
+            "Rating": "certified",
+            "In stock": "not certified",
+            "Main image": "certified",
+            "Description": "certified"
+          }
+        }
+      }
+    },
+    {
+      "website": "Oliverbonas",
+      "sourceId": "3406d1ae-81b2-42fa-95f2-e7a3f4393b6e",
+      "before": {
+        "runnable": false,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Description"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "backfilled": [
+        "rating"
+      ],
+      "backfillFields": {
+        "title": {
+          "held": false,
+          "reason": "passing"
+        },
+        "price": {
+          "held": false,
+          "reason": "passing"
+        },
+        "main_image": {
+          "held": false,
+          "reason": "passing"
+        },
+        "sku": {
+          "held": false,
+          "reason": "passing"
+        },
+        "brand": {
+          "held": false,
+          "reason": "passing"
+        },
+        "in_stock": {
+          "held": false,
+          "reason": "passing"
+        },
+        "rating": {
+          "held": true
+        },
+        "description": {
+          "held": false,
+          "reason": "passing"
+        }
+      },
+      "afterBackfill": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Description"
+        ],
+        "held": [
+          "Rating"
+        ],
+        "heldVerifiedOn": {
+          "Rating": "2026-10-12T15:12:42.370Z"
+        },
+        "attention": {
+          "fields": [
+            "Rating"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-12T15:12:42.370Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Rating needs you — runs go on with what you verified on 12 Oct.",
+          "extract": "Rating needs you on the Verification tab — runs go on with what you verified on 12 Oct."
+        }
+      },
+      "checked": "checked",
+      "settled": true,
+      "after": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Description"
+        ],
+        "held": [
+          "Rating"
+        ],
+        "heldVerifiedOn": {
+          "Rating": "2026-10-12T15:12:42.370Z"
+        },
+        "attention": {
+          "fields": [
+            "Rating"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-12T15:12:42.370Z",
+          "findings": {
+            "Rating": {
+              "result": "changed",
+              "refresh": {
+                "reason": "not-shown",
+                "applied": false
+              }
+            }
+          }
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Rating needs you — runs go on with what you verified on 12 Oct.",
+          "extract": "Rating needs you on the Verification tab — runs go on with what you verified on 12 Oct."
+        }
+      },
+      "last": {
+        "check": {
+          "id": "7ca2b55b-30f8-4e5f-a3c5-8edb5bb2ac68",
+          "trigger": "schedule",
+          "status": "done",
+          "createdAt": "2026-10-21T14:43:01.390Z",
+          "fields": {
+            "SKU": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "2146560",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "2130903",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "2196831",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "2148694"
+              },
+              "pages": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "ok",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "ok",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "ok",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "ok"
+              }
+            },
+            "Brand": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "Oliver Bonas",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "Oliver Bonas",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "Oliver Bonas",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "Oliver Bonas"
+              },
+              "pages": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "ok",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "ok",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "ok",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "ok"
+              }
+            },
+            "Price": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "32.8",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "40",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "40",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "42.5"
+              },
+              "pages": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "ok",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "ok",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "ok",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "ok"
+              }
+            },
+            "Title": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "Red Embroidered Tie Waist Strappy Midi Dress",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "Red & Orange Floral V-Neck Tie Waist Midi Dress",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "White & Brown Polka Dot Scallop Collar Cotton Midi Dress",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "Black Floral Embroidered Frill Collar Tiered Midi Dress"
+              },
+              "pages": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "ok",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "ok",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "ok",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "ok"
+              }
+            },
+            "Rating": {
+              "result": "changed",
+              "refresh": {
+                "reason": "not-shown",
+                "applied": false
+              },
+              "reads": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "4.5",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "4.9",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": null,
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "5"
+              },
+              "pages": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "ok",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "ok",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "ok"
+              }
+            },
+            "In stock": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "true",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "true",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "true",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "true"
+              },
+              "pages": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "ok",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "ok",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "ok",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "ok"
+              }
+            },
+            "Main image": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "https://media.oliverbonas.com/static/media/catalog/product/2/1/2146577_1.jpg",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "https://media.oliverbonas.com/static/media/catalog/product/2/1/2130910_1.jpg",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "https://media.oliverbonas.com/static/media/catalog/product/2/1/2196848_1.jpg",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "https://media.oliverbonas.com/static/media/catalog/product/2/1/2148700_1.jpg"
+              },
+              "pages": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "ok",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "ok",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "ok",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "ok"
+              }
+            },
+            "Description": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "In a dark red shade, our midi dress has been designed with white embroidered details down the length and cut-out details along the hem and neckline. With a ruffled, square neckline and handy side pockets, we've added an elasticated panel to the back for a fit that feels made for you. Complete with ruffled shoulder straps and an adjustable tie waist, style with a pair of sandals for an effortless summer-ready look.",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "Designed in a tonal pink, red and orange floral print, our midi dress features a V-shaped neckline and red buttons down the front. With flowy short sleeves and adjustable tie details at the waist for extra shape, just add a sprinkling of accessories for a summer-ready look.",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "We've designed our white and brown polka dot midi dress with a V-shaped neckline and scalloped collar. With matching white buttons down the length and short puff sleeves, it's complete with a flowy skirt. Just add accessories for fresh summer-ready style.",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "We've designed our black midi dress with a V-shaped neckline and oversized collar with a frill edge. With floral embroidery down the length, black buttons and a sleeveless silhouette with a frill on the shoulders, we've added a tie waist belt for extra shape. Complete with a flowy tiered skirt, just add accessories for fresh summer-ready style."
+              },
+              "pages": {
+                "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "ok",
+                "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "ok",
+                "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "ok",
+                "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "ok"
+              }
+            }
+          }
+        },
+        "verify": {
+          "id": "be178496-6038-4604-aecf-4906ffbb3cb4",
+          "startedAt": "2026-10-21T10:24:06.480Z",
+          "completedAt": "2026-10-21T10:24:15.181Z",
+          "error": null,
+          "results": {
+            "SKU": "certified",
+            "Brand": "certified",
+            "Price": "certified",
+            "Title": "certified",
+            "Rating": "not certified",
+            "In stock": "certified",
+            "Main image": "certified",
+            "Description": "certified"
+          }
+        }
+      }
+    },
+    {
+      "website": "Burrow",
+      "sourceId": "c8d2a589-f342-4e4a-8787-96ebc9a0d27a",
+      "before": {
+        "runnable": false,
+        "current": [
+          "Title",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Description"
+        ],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "backfilled": [
+        "price",
+        "rating"
+      ],
+      "backfillFields": {
+        "title": {
+          "held": false,
+          "reason": "passing"
+        },
+        "price": {
+          "held": true
+        },
+        "main_image": {
+          "held": false,
+          "reason": "passing"
+        },
+        "sku": {
+          "held": false,
+          "reason": "passing"
+        },
+        "brand": {
+          "held": false,
+          "reason": "passing"
+        },
+        "in_stock": {
+          "held": false,
+          "reason": "passing"
+        },
+        "rating": {
+          "held": true
+        },
+        "description": {
+          "held": false,
+          "reason": "passing"
+        }
+      },
+      "afterBackfill": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Description"
+        ],
+        "held": [
+          "Price",
+          "Rating"
+        ],
+        "heldVerifiedOn": {
+          "Price": "2026-10-12T15:03:43.005Z",
+          "Rating": "2026-10-12T15:03:43.005Z"
+        },
+        "attention": {
+          "fields": [
+            "Price",
+            "Rating"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-12T15:03:43.005Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Price and Rating need you — runs go on with what you verified on 12 Oct.",
+          "extract": "Price and Rating need you on the Verification tab — runs go on with what you verified on 12 Oct."
+        }
+      },
+      "checked": "checked",
+      "settled": true,
+      "after": {
+        "runnable": true,
+        "current": [
+          "Title",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Description"
+        ],
+        "held": [
+          "Price",
+          "Rating"
+        ],
+        "heldVerifiedOn": {
+          "Price": "2026-10-12T15:03:43.005Z",
+          "Rating": "2026-10-12T15:03:43.005Z"
+        },
+        "attention": {
+          "fields": [
+            "Price",
+            "Rating"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-12T15:03:43.005Z",
+          "findings": {
+            "Price": {
+              "result": "changed",
+              "refresh": {
+                "reason": "fixed-variant",
+                "applied": false
+              }
+            },
+            "Rating": {
+              "result": "changed",
+              "refresh": {
+                "reason": "not-shown",
+                "applied": false
+              }
+            }
+          }
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Price and Rating need you — runs go on with what you verified on 12 Oct.",
+          "extract": "Price and Rating need you on the Verification tab — runs go on with what you verified on 12 Oct."
+        }
+      },
+      "last": {
+        "check": {
+          "id": "9bfb6937-2f5d-4419-bc49-9e5710b33b96",
+          "trigger": "schedule",
+          "status": "done",
+          "createdAt": "2026-10-21T14:48:26.274Z",
+          "fields": {
+            "SKU": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "FLRST-SF-RGPL-S3-A1-C0-MGF-BM",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "FLRST-SC-RGPL-S3-A1-C1-MGF-BM",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "FLRST-SFT-RGPL-S3-A1-C0-MGF-LW-OK"
+              },
+              "pages": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "ok"
+              }
+            },
+            "Brand": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "Burrow",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "Burrow",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "Burrow"
+              },
+              "pages": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "ok"
+              }
+            },
+            "Price": {
+              "result": "changed",
+              "refresh": {
+                "reason": "fixed-variant",
+                "applied": false
+              },
+              "reads": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "1619",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "2009",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "1859"
+              },
+              "pages": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "ok"
+              }
+            },
+            "Title": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "Range 3-Piece One Arm Sofa",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "Range 4-Piece One Arm Sofa Lounger",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "Range 3-Piece One Arm Sofa with Table"
+              },
+              "pages": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "ok"
+              }
+            },
+            "Rating": {
+              "result": "changed",
+              "refresh": {
+                "reason": "not-shown",
+                "applied": false
+              },
+              "reads": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "4.74",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "4.74",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "4.74"
+              },
+              "pages": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "ok"
+              }
+            },
+            "In stock": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "true",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "true",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "true"
+              },
+              "pages": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "ok"
+              }
+            },
+            "Main image": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "https://cdn.shopify.com/s/files/1/0932/3220/2030/files/FLRST-SF-RGPL-S3-A1-C0-MGF-BM_FA.jpg?v=1764103933",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "https://cdn.shopify.com/s/files/1/0932/3220/2030/files/FLRST-SC-RGPL-S3-A1-C1-MGF-BM_FA.jpg?v=1764103961",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "https://cdn.shopify.com/s/files/1/0932/3220/2030/files/FLRST-SFT-RGPL-S3-A1-C0-MGF-LW-OK_FA.jpg?v=1764103923"
+              },
+              "pages": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "ok"
+              }
+            },
+            "Description": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "Range is our take on modern comfort—plush, laid-back seating designed for everything from streaming marathons to afternoon naps. With clean lines, a low profile, and bold, contemporary style, it’s as much a statement piece as it is a place to unwind. And thanks to our universal modular system, it’s easy to customize, rearrange, and expand with extra seats, tables, and smart upgrades. Universal modular design CertiPUR-US® certified PFAS-free",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "Range is our take on modern comfort—plush, laid-back seating designed for everything from streaming marathons to afternoon naps. With clean lines, a low profile, and bold, contemporary style, it’s as much a statement piece as it is a place to unwind. And thanks to our universal modular system, it’s easy to customize, rearrange, and expand with extra seats, tables, and smart upgrades. Universal modular design CertiPUR-US® certified PFAS-free",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "Range is our take on modern comfort—plush, laid-back seating designed for everything from streaming marathons to afternoon naps. With clean lines, a low profile, and bold, contemporary style, it’s as much a statement piece as it is a place to unwind. And thanks to our universal modular system, it’s easy to customize, rearrange, and expand with extra seats, tables, and smart upgrades. Universal modular design CertiPUR-US® certified PFAS-free"
+              },
+              "pages": {
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "ok",
+                "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "ok"
+              }
+            }
+          }
+        },
+        "verify": {
+          "id": "a883cc30-ae25-4860-9238-8aec2e988fed",
+          "startedAt": "2026-10-21T10:25:29.811Z",
+          "completedAt": "2026-10-21T10:26:01.328Z",
+          "error": null,
+          "results": {
+            "SKU": "certified",
+            "Brand": "certified",
+            "Price": "not certified",
+            "Title": "certified",
+            "Rating": "not certified",
+            "In stock": "certified",
+            "Main image": "certified",
+            "Description": "certified"
+          }
+        }
+      }
+    },
+    {
+      "website": "Skullcandy",
+      "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
+      "before": {
+        "runnable": false,
+        "current": [],
+        "held": [],
+        "heldVerifiedOn": {},
+        "attention": {
+          "fields": [],
+          "goneProducts": [],
+          "heldSince": null,
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": null,
+          "extract": null
+        }
+      },
+      "backfilled": [
+        "title",
+        "price",
+        "main_image",
+        "sku",
+        "brand",
+        "in_stock",
+        "rating",
+        "description"
+      ],
+      "backfillFields": {
+        "title": {
+          "held": true
+        },
+        "price": {
+          "held": true
+        },
+        "main_image": {
+          "held": true
+        },
+        "sku": {
+          "held": true
+        },
+        "brand": {
+          "held": true
+        },
+        "in_stock": {
+          "held": true
+        },
+        "rating": {
+          "held": true
+        },
+        "description": {
+          "held": true
+        }
+      },
+      "afterBackfill": {
+        "runnable": true,
+        "current": [],
+        "held": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Rating",
+          "Description"
+        ],
+        "heldVerifiedOn": {
+          "Title": "2026-10-12T14:44:48.135Z",
+          "Price": "2026-10-12T14:44:48.135Z",
+          "Main image": "2026-10-12T14:44:48.135Z",
+          "SKU": "2026-10-12T14:44:48.135Z",
+          "Brand": "2026-10-12T14:44:48.135Z",
+          "In stock": "2026-10-12T14:44:48.135Z",
+          "Rating": "2026-10-12T14:44:48.135Z",
+          "Description": "2026-10-12T14:44:48.135Z"
+        },
+        "attention": {
+          "fields": [
+            "Title",
+            "Price",
+            "Main image",
+            "SKU",
+            "Brand",
+            "In stock",
+            "Rating",
+            "Description"
+          ],
+          "goneProducts": [],
+          "heldSince": "2026-10-12T14:44:48.135Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Title, Price, Main image, SKU, Brand, In stock, Rating and Description need you — runs go on with what you verified on 12 Oct.",
+          "extract": "Title, Price, Main image, SKU, Brand, In stock, Rating and Description need you on the Verification tab — runs go on with what you verified on 12 Oct."
+        }
+      },
+      "checked": "checked",
+      "settled": true,
+      "after": {
+        "runnable": true,
+        "current": [],
+        "held": [
+          "Title",
+          "Price",
+          "Main image",
+          "SKU",
+          "Brand",
+          "In stock",
+          "Rating",
+          "Description"
+        ],
+        "heldVerifiedOn": {
+          "Title": "2026-10-12T14:44:48.135Z",
+          "Price": "2026-10-12T14:44:48.135Z",
+          "Main image": "2026-10-12T14:44:48.135Z",
+          "SKU": "2026-10-12T14:44:48.135Z",
+          "Brand": "2026-10-12T14:44:48.135Z",
+          "In stock": "2026-10-12T14:44:48.135Z",
+          "Rating": "2026-10-12T14:44:48.135Z",
+          "Description": "2026-10-12T14:44:48.135Z"
+        },
+        "attention": {
+          "fields": [
+            "Title",
+            "Price",
+            "Main image",
+            "SKU",
+            "Brand",
+            "In stock",
+            "Rating",
+            "Description"
+          ],
+          "goneProducts": [
+            2
+          ],
+          "heldSince": "2026-10-12T14:44:48.135Z",
+          "findings": {}
+        },
+        "refreshes": [],
+        "customer": {
+          "banner": "Title, Price, Main image, SKU, Brand, In stock, Rating and Description need you and product 2 no longer loads — runs go on with what you verified on 12 Oct.",
+          "extract": "Title, Price, Main image, SKU, Brand, In stock, Rating and Description need you on the Verification tab — runs go on with what you verified on 12 Oct."
+        }
+      },
+      "last": {
+        "check": {
+          "id": "b24c9849-1307-41dc-8737-6e9fa21c9111",
+          "trigger": "schedule",
+          "status": "done",
+          "createdAt": "2026-10-21T14:56:45.663Z",
+          "fields": {
+            "SKU": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "S6KBW-R740",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "S6EVW-N740"
+              },
+              "pages": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "ok",
+                "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "page-gone",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "ok"
+              }
+            },
+            "Brand": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "Skullcandy US",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "Skullcandy US"
+              },
+              "pages": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "ok",
+                "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "page-gone",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "ok"
+              }
+            },
+            "Price": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "36.99",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "209.99"
+              },
+              "pages": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "ok",
+                "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "page-gone",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "ok"
+              }
+            },
+            "Title": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "Grom® Wireless",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "Crusher® Evo"
+              },
+              "pages": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "ok",
+                "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "page-gone",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "ok"
+              }
+            },
+            "Rating": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "4.3",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "4.6"
+              },
+              "pages": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "ok",
+                "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "page-gone",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "ok"
+              }
+            },
+            "In stock": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "false",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "true"
+              },
+              "pages": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "ok",
+                "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "page-gone",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "ok"
+              }
+            },
+            "Main image": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "https://www.skullcandy.com/cdn/shop/files/grom_wireless_buy_box_black_1.png?v=1709649642&width=1080",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "https://www.skullcandy.com/cdn/shop/files/CrusherEvo_TrueBlack_1_6e2c71c7-a278-4d0e-b579-c6314f7930cc.png?v=1768942094"
+              },
+              "pages": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "ok",
+                "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "page-gone",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "ok"
+              }
+            },
+            "Description": {
+              "result": "other-layout",
+              "refresh": null,
+              "reads": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "KID-FRIENDLY SOUND AND WIRELESS FREEDOM. Grom Wireless gives kids the quality and features of premium headphones, plus total wireless freedom. With Skullcandy Supreme Sound, intuitive earcup controls, 45 hours of battery, a fit designed specifically for kids and sophisticated, modern styling, Grom Wireless puts many brands’ high-end offerings to shame.",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "CRUSH THE ORDINARY WITH MIND-BENDING BASS Ready to feel your music? Crusher Evo brings the brain-rattling, soul-shaking power of adjustable Crusher Bass to your daily grind. It’s everything you need to crush commutes, couch sessions, and life in between. With up to 40 hours of battery life and Rapid Charge, you’ll never get caught without the vibes. And thanks to Personal Sound, it’s tuned just for you. Because your ears deserve better."
+              },
+              "pages": {
+                "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "ok",
+                "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "page-gone",
+                "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "ok"
+              }
+            }
+          }
+        },
+        "verify": {
+          "id": "ce5c1657-2993-4d8b-b690-2917392db0ce",
+          "startedAt": "2026-10-21T10:27:02.509Z",
+          "completedAt": "2026-10-21T10:27:47.647Z",
+          "error": null,
+          "results": {
+            "SKU": "not certified",
+            "Brand": "not certified",
+            "Price": "not certified",
+            "Title": "not certified",
+            "Rating": "not certified",
+            "In stock": "not certified",
+            "Main image": "not certified",
+            "Description": "not certified"
+          }
+        }
+      }
+    }
+  ]
+}
