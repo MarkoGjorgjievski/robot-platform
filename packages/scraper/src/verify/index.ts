@@ -25,4 +25,5 @@ export * from './variant-certify.js';
 export * from './variant-collector.js';
 export * from './variant-rows.js';
 export * from './drift-classify.js';
+export * from './refresh.js';
 export * from './jev-candidates.js';
