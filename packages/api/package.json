@@ -8,6 +8,7 @@
     "./routers": "./src/routers/index.ts",
     "./export": "./src/export/index.ts",
     "./auth": "./src/auth/session.ts",
+    "./website-checks": "./src/verify/website-checks.ts",
     "./test-helpers/identity": "./src/test-helpers/identity.ts",
     "./test-helpers/customer-source": "./src/test-helpers/customer-source.ts"
   },
