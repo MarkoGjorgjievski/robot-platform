@@ -7,6 +7,7 @@ import { appRouter } from './index.js';
 import { loadSession } from '../auth/session.js';
 import { deleteOwnOrg } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
+import { seedAttention } from '../test-helpers/seed-attention.js';
 
 function callerWith(session: Awaited<ReturnType<typeof loadSession>> = null) {
   const cookies: Record<string, string | null> = {};
@@ -610,6 +611,37 @@ describe('ops.website', () => {
       const priceOut = result.fields.find((f) => f.key === priceField.key)!;
       expect(priceOut.state).toBe('failed');
       expect(priceOut.paths).toEqual([{ source: 'json-ld', path: 'offers.price', uses: 0, hits: 0 }]);
+
+      await built.cleanup();
+    } finally {
+      await dropIdentity(op);
+    }
+  });
+
+  it("marks a held field 'held' with the hold's paths and date, counts it on the overview, and lists the automatic updates (spec 2026-10-21 §6)", async () => {
+    const tag = Date.now();
+    const op = await signIn(`ops-site-held-${tag}@example.com`);
+    process.env.OPS_EMAILS = op.user.email;
+    try {
+      const host = `test-ops-held-${tag}.example.com`;
+      const urls = [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`];
+      const built = await createProjectWithSource(op.caller, {
+        tag: `ops-held-${tag}`,
+        fields: [{ name: 'Price', type: 'money' }, { name: 'Title', type: 'text' }],
+        urls,
+        expected: { Price: Object.fromEntries(urls.map((u) => [u, '9.99'])), Title: Object.fromEntries(urls.map((u, i) => [u, `T${i}`])) },
+      });
+      const { heldSince } = await seedAttention(built.sourceId, { heldKey: built.keys.Title!, refreshedKey: built.keys.Price! });
+
+      const site = await op.caller.ops.website({ sourceId: built.sourceId });
+      const title = site.fields.find((f) => f.key === built.keys.Title)!;
+      expect(title.state).toBe('held');
+      expect(title.heldSince).toBe(heldSince.toISOString());
+      expect(title.paths.map((p) => p.path)).toEqual(['name']); // the hold's path (seedAttention certifies `json-ld name`)
+      expect(site.refreshes).toEqual([expect.objectContaining({ key: built.keys.Price, name: 'Price' })]);
+
+      const row = (await op.caller.ops.websites()).find((r) => r.sourceId === built.sourceId)!;
+      expect(row.held).toBe(1);
 
       await built.cleanup();
     } finally {

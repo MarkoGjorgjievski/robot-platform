@@ -43,6 +43,14 @@ describe('sources.checkDrift / sources.driftCheck', () => {
     } finally { await f.cleanup(); }
   });
 
+  it('an on-demand check records its trigger as manual (spec 2026-10-21 §3.3)', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'drift-router-manual', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const started = await caller.sources.checkDrift({ sourceId: f.sourceId });
+      expect((await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, started.checkId) }))!.trigger).toBe('manual');
+    } finally { await f.cleanup(); }
+  });
+
   it('runAt is null for a check with no run', async () => {
     const f = await createProjectWithSource(caller, { tag: 'drift-router-norun', fields: [{ name: 'Price', type: 'money' }] });
     try {

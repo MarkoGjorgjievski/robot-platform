@@ -6,6 +6,7 @@ import { router, protectedProcedure, type Context } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
 import { loadCurrentCertification, loadFieldCurrency } from '../verify/current-certification.js';
+import { needsAttention, websiteAttention } from '../verify/attention.js';
 import { contractFields } from '../contract.js';
 import { loadProjectExport } from '../export/load-project-export.js';
 
@@ -148,6 +149,8 @@ export const projectsRouter = router({
           ...s,
           driftedFields: s.driftedFields as string[] | null,
           verifiedFields: (await loadFieldCurrency(ctx.db, s.id)).currentKeys.length,
+          // Spec 2026-10-21 §3.5: the websites table's "Needs attention".
+          needsAttention: needsAttention(await websiteAttention(ctx.db, s.id)),
           lastRun: lastRunBySource.get(s.id) ?? null,
         })),
       );
