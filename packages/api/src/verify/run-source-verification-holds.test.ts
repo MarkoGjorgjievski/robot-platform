@@ -24,7 +24,7 @@ process.env.CAPTURES_DIR = mkdtempSync(join(tmpdir(), 'robot-holds-'));
 
 const { runSourceVerification } = await import('./run-source-verification.js');
 const { loadCurrentCertification, loadCertificationState, runnableOf } = await import('./current-certification.js');
-const { backfillHolds } = await import('./holds.js');
+const { backfillHolds, writeHolds } = await import('./holds.js');
 
 const me = await signedInCaller('verify-holds');
 afterAll(async () => { await me.cleanup(); });
@@ -235,6 +235,54 @@ describe('backfillHolds (spec 2026-10-21 §8)', () => {
       expect(none.upsert).toEqual([]);
       expect(none.fields).toEqual({ price: { held: false, reason: 'no-earlier-pass' } });
       expect(await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, s.sourceId) })).toBeUndefined();
+    } finally { await s.cleanup(); }
+  });
+});
+
+describe('writeHolds keeps hashes a concurrent refresh added (fix wave 1, item 2)', () => {
+  it('the same hold lineage: stored hashes and new ones are unioned, never dropped', async () => {
+    const s = await certified('union');
+    try {
+      const at = new Date('2026-10-12T00:00:00Z');
+      await db.insert(fieldHolds).values({ sourceId: s.sourceId, fieldKey: 'price', result: s.passed, verificationId: s.goodId, verifiedAt: at, fieldHashes: [s.hash, 'refreshed-hash'] });
+      await writeHolds(db, s.sourceId, { upsert: [{ fieldKey: 'price', result: s.passed as never, verificationId: s.goodId, verifiedAt: at, failedVerificationId: null, fieldHashes: [s.hash, 'another'] }], remove: [] });
+      const hold = await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, s.sourceId) });
+      expect(new Set(hold!.fieldHashes as string[])).toEqual(new Set([s.hash, 'refreshed-hash', 'another']));
+    } finally { await s.cleanup(); }
+  });
+  it('a different lineage (another passing Verify) replaces the hashes', async () => {
+    const s = await certified('union-other');
+    try {
+      await db.insert(fieldHolds).values({ sourceId: s.sourceId, fieldKey: 'price', result: s.passed, verificationId: null, verifiedAt: new Date('2026-09-01T00:00:00Z'), fieldHashes: ['old-lineage'] });
+      await writeHolds(db, s.sourceId, { upsert: [{ fieldKey: 'price', result: s.passed as never, verificationId: s.goodId, verifiedAt: new Date(), failedVerificationId: null, fieldHashes: [s.hash] }], remove: [] });
+      const hold = await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, s.sourceId) });
+      expect(hold!.fieldHashes).toEqual([s.hash]);
+      expect(hold!.verificationId).toBe(s.goodId);
+    } finally { await s.cleanup(); }
+  });
+  it('waits for a concurrent writer holding the hold row, then unions what it committed', async () => {
+    const s = await certified('union-lock');
+    try {
+      const at = new Date('2026-10-12T00:00:00Z');
+      await db.insert(fieldHolds).values({ sourceId: s.sourceId, fieldKey: 'price', result: s.passed, verificationId: s.goodId, verifiedAt: at, fieldHashes: [s.hash] });
+      let release!: () => void;
+      const gate = new Promise<void>((r) => { release = r; });
+      let locked!: () => void;
+      const isLocked = new Promise<void>((r) => { locked = r; });
+      const other = db.transaction(async (tx) => {
+        await tx.select().from(fieldHolds).where(eq(fieldHolds.sourceId, s.sourceId)).for('update');
+        await tx.update(fieldHolds).set({ fieldHashes: [s.hash, 'refresh-to'] }).where(eq(fieldHolds.sourceId, s.sourceId));
+        locked();
+        await gate;
+      });
+      await isLocked;
+      const writing = db.transaction((tx) => writeHolds(tx, s.sourceId, { upsert: [{ fieldKey: 'price', result: s.passed as never, verificationId: s.goodId, verifiedAt: at, failedVerificationId: null, fieldHashes: [s.hash] }], remove: [] }));
+      await new Promise((r) => setTimeout(r, 200));
+      release();
+      await other;
+      await writing;
+      const hold = await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, s.sourceId) });
+      expect(new Set(hold!.fieldHashes as string[])).toEqual(new Set([s.hash, 'refresh-to']));
     } finally { await s.cleanup(); }
   });
 });

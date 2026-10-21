@@ -142,9 +142,16 @@ export async function decideHolds(args: {
   return plan;
 }
 
+/** Whether two holds keep the same passing result — the same Verify passed it, at the same moment. */
+function sameLineage(stored: { verificationId: string | null; verifiedAt: Date }, h: Pick<Hold, 'verificationId' | 'verifiedAt'>): boolean {
+  return stored.verificationId === h.verificationId && stored.verifiedAt.getTime() === h.verifiedAt.getTime();
+}
+
 /**
  * Writes a plan's holds and deletes its ended ones — call inside the Verify's own transaction. A hold whose
- * result does not pass is never written, whoever built the plan.
+ * result does not pass is never written, whoever built the plan. The stored hold is re-read under its row
+ * lock first: of the same lineage, its hashes and the plan's are unioned, so a hash a concurrent refresh
+ * added (spec §3.2) is never dropped (fix wave 1, item 2).
  */
 export async function writeHolds(db: HoldsDb, sourceId: string, plan: Pick<HoldPlan, 'upsert' | 'remove'>): Promise<void> {
   for (const h of plan.upsert) {
@@ -152,7 +159,11 @@ export async function writeHolds(db: HoldsDb, sourceId: string, plan: Pick<HoldP
       console.error(`[holds] refused a hold for ${sourceId}/${h.fieldKey}: its result does not pass`);
       continue;
     }
-    const values = { result: h.result, verificationId: h.verificationId, verifiedAt: h.verifiedAt, failedVerificationId: h.failedVerificationId, fieldHashes: h.fieldHashes, updatedAt: new Date() };
+    const [stored] = await db.select({ verificationId: fieldHolds.verificationId, verifiedAt: fieldHolds.verifiedAt, fieldHashes: fieldHolds.fieldHashes })
+      .from(fieldHolds).where(and(eq(fieldHolds.sourceId, sourceId), eq(fieldHolds.fieldKey, h.fieldKey))).for('update');
+    const storedHashes = stored && Array.isArray(stored.fieldHashes) ? (stored.fieldHashes as string[]) : [];
+    const fieldHashes = stored && sameLineage(stored, h) ? [...new Set([...storedHashes, ...h.fieldHashes])] : h.fieldHashes;
+    const values = { result: h.result, verificationId: h.verificationId, verifiedAt: h.verifiedAt, failedVerificationId: h.failedVerificationId, fieldHashes, updatedAt: new Date() };
     await db.insert(fieldHolds).values({ sourceId, fieldKey: h.fieldKey, ...values })
       .onConflictDoUpdate({ target: [fieldHolds.sourceId, fieldHolds.fieldKey], set: values });
   }
