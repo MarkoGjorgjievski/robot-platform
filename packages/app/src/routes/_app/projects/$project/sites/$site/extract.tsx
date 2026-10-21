@@ -42,6 +42,7 @@ import { trpc } from '../../../../../../lib/trpc';
 import { captureWords } from '../../../../../../lib/capture-words';
 import { useStaffDetail } from '../../../../../../lib/use-staff-detail';
 import { useSite } from '../$site';
+import { extractHeldLine } from '../../../../../../lib/site/attention-view';
 
 /**
  * Extract: which pages of this website to collect from, proof that the walk
@@ -182,8 +183,10 @@ function ExtractTab() {
   }
 
   const status = statusQuery.data ?? null;
-  const green = !!(status?.current && status?.allPassed);
-  const currentKeys = useMemo(() => status?.currentKeys ?? [], [status]);
+  // Spec 2026-10-21 §3.1: the server's run gate — every field current or held (and the variants it needs).
+  const green = !!status?.runnable;
+  // A held field still extracts: it counts as verified on the locked strip.
+  const certifiedKeys = useMemo(() => [...(status?.currentKeys ?? []), ...(status?.heldKeys ?? [])], [status]);
   // The contract comes with the website — `sources.get` returns it as `fields`
   // — so the tab does not run `datasets.getContract` a second time for the same
   // rows the layout already holds.
@@ -250,12 +253,19 @@ function ExtractTab() {
     [productText, proofUrls, host],
   );
 
-  const firstFailing = contract.find((f) => !currentKeys.includes(f.key));
+  const firstFailing = contract.find((f) => !certifiedKeys.includes(f.key));
   const lockedText = lockedStripText({
     fieldCount: contract.length,
-    currentKeys,
+    currentKeys: certifiedKeys,
     firstFailing: firstFailing?.name ?? null,
   });
+  // Spec 2026-10-21 §5: runs go on with held fields; the tab says which need the customer, and since when.
+  const fieldNames = useMemo(() => Object.fromEntries(contract.map((f) => [f.key, f.name])), [contract]);
+  const heldSince = useMemo(() => {
+    const times = Object.values(status?.held ?? {}).map((h) => new Date(h.verifiedAt).getTime());
+    return times.length > 0 ? new Date(Math.min(...times)) : null;
+  }, [status]);
+  const heldLine = extractHeldLine(status?.heldKeys ?? [], fieldNames, heldSince);
 
   const savingPages = listingPagesMutation.isPending || productUrlsMutation.isPending;
   const extracting =
@@ -412,7 +422,15 @@ function ExtractTab() {
 
   return (
     <>
-      {green ? null : <ExtractLockedStrip text={lockedText} project={projectSlug} site={siteSlug} />}
+      {green ? (
+        heldLine ? (
+          <p role="status" className="border-l-2 border-warn pl-3 text-sm text-warn">
+            {heldLine}
+          </p>
+        ) : null
+      ) : (
+        <ExtractLockedStrip text={lockedText} project={projectSlug} site={siteSlug} />
+      )}
 
       <ExtractStrip cells={cells} />
 

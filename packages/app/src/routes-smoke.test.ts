@@ -106,6 +106,7 @@ import { SHOP_EXAMPLE } from '../../api/src/test-helpers/shop-example';
 import { seedCompletedVariantsRun } from '../../api/src/test-helpers/seed-variants-run';
 import { seedUnshownRun } from '../../api/src/test-helpers/seed-unshown-run';
 import { seedDriftCheck } from '../../api/src/test-helpers/seed-drift-check';
+import { seedAttention } from '../../api/src/test-helpers/seed-attention';
 import { seedPassingVerification } from '../../api/src/test-helpers/seed-coverage-check';
 import { seedJevReading } from '../../api/src/test-helpers/seed-jev-reading';
 import { seedFailedAfterElsewhere, SEEDED_RAW_ERROR } from '../../api/src/test-helpers/seed-silent-failures';
@@ -1537,6 +1538,37 @@ describe.skipIf(!ENABLED)('app shell', () => {
     expect(await cellState('Price', 1), 'accepting the move lost product 1’s value').not.toBeNull();
 
     expect(problems, `the seeded drift check logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 60_000);
+
+  // Spec 2026-10-21 §5: a website whose pages changed keeps running and says
+  // what needs the customer. Seeded directly (no browser check, no Verify),
+  // after every screenshot of this website was taken, like the drift test.
+  it('a website that changed keeps running and says what needs the customer', async () => {
+    expect(projectSlug, 'there is no project to seed on').not.toBeNull();
+    expect(websiteSlug, 'there is no website to seed on').not.toBeNull();
+    problems.length = 0;
+    const api = apiAs(await sessionCookie(context));
+    const site = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+    const price = site.fields.find((f) => f.name === 'Price')!;
+    const other = site.fields.find((f) => f.name !== 'Price')!;
+    await seedAttention(site.id, { heldKey: other.key, refreshedKey: price.key });
+
+    await page.goto(`${APP}/projects/${projectSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    const row = page.locator('tbody tr').filter({ hasText: WEBSITE_HOST });
+    await expect.poll(() => row.innerText(), { timeout: 20_000 }).toContain('Needs attention');
+
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    const banner = page.getByRole('status').filter({ hasText: 'needs you' });
+    const otherName = other.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    await expect.poll(() => banner.innerText(), { timeout: 20_000 }).toMatch(new RegExp(`^${otherName} needs you — runs go on with what you verified on \\d{1,2} [A-Z][a-z]{2}\\.$`));
+    // The held row word sits beside the badge of a row in its accepted state; asserted on the page, not on one cell's layout.
+    await expect.poll(() => page.getByText(/^runs use what you verified on \d{1,2} [A-Z][a-z]{2}$/).count(), { timeout: 20_000 }).toBeGreaterThan(0);
+    await expect.poll(() => page.getByText(/^Updated automatically on \d{1,2} [A-Z][a-z]{2}: 1\.10 on product 1 \(was 1\.00\)$/).count(), { timeout: 20_000 }).toBe(1);
+    expect((await api.sources.verificationStatus.query({ sourceId: site.id }))!.runnable).toBe(true);
+    await shoot(page, 'app-site-verification-attention.png');
+
+    expect(problems, `the seeded website change logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 60_000);
 
   it('a rename on the Settings tab reaches the server and comes back', async () => {

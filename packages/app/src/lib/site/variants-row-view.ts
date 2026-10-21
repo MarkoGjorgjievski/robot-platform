@@ -335,12 +335,12 @@ export function variantsNeed(args: {
 }
 
 /**
- * Extract's gate (Rules): fields current and all passed, and variants are
- * either not required (`null`, `ignore` mode or method `none`) or current
- * and passed. `status` mirrors `sources.verificationStatus`'s own field
- * names, so the route can pass that query's result straight through.
+ * Extract's gate (Rules): `runnable` — every field current or held (spec
+ * 2026-10-21 §3.1; the server's run gate) — and variants are either not
+ * required (`null`, `ignore` mode or method `none`) or current and passed.
+ * `status` mirrors `sources.verificationStatus`'s own field names.
  */
-export function extractEnabled(status: { current: boolean; allPassed: boolean; variants: { current: boolean; passed: boolean } | null }): boolean {
-  if (!status.current || !status.allPassed) return false;
+export function extractEnabled(status: { runnable: boolean; variants: { current: boolean; passed: boolean } | null }): boolean {
+  if (!status.runnable) return false;
   return status.variants === null || (status.variants.current && status.variants.passed);
 }

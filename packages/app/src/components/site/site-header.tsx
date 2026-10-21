@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
 import { Page } from '../page';
 import { Skeleton } from '../ui/skeleton';
-import { driftBadge } from '../../lib/site/drift-view';
+import { websiteBadge } from '../../lib/site/attention-view';
 import { InlineRename } from './inline-rename';
 import { SiteTabs } from './site-tabs';
 
 /** What the header reads off `sources.get`. */
-export type SiteHeaderWebsite = { id: string; name: string; hostname: string; driftedFields: string[] | null };
+export type SiteHeaderWebsite = { id: string; name: string; hostname: string; driftedFields: string[] | null; needsAttention: boolean };
 
 /**
  * The website's page: its name on the left, the address it collects from on the
@@ -27,7 +27,7 @@ export function SiteHeader({
   website: SiteHeaderWebsite | null;
   children: ReactNode;
 }) {
-  const badge = website ? driftBadge(website.driftedFields) : null;
+  const badge = website ? websiteBadge(website.driftedFields, website.needsAttention) : null;
   return (
     <Page
       // The title is the thing being loaded, so it waits as a bar rather than

@@ -42,6 +42,8 @@ export type DriftLine =
   | { kind: 'changed'; text: string; onAccept: () => void }
   | { kind: 'other-layout'; text: string; onSeeMissed: (() => void) | null }
   | { kind: 'lost'; text: string; onMarkAgain: () => void }
+  /** Spec 2026-10-21 §5: "Updated automatically on {d MMM}: …" — information, nothing to act on. */
+  | { kind: 'refreshed'; text: string }
   /** `onReplace` is null for a page that could not be read now: it still exists, so there is nothing to replace. */
   | { kind: 'page-gone'; items: Array<{ product: number; text: string; onReplace: (() => void) | null }> };
 
@@ -220,6 +222,12 @@ function DriftLines({ field, lines, locked }: { field: Field; lines: DriftLine[]
                     See missed products
                   </Button>
                 ) : null}
+              </div>
+            );
+          case 'refreshed':
+            return (
+              <div key={i} className="text-sm text-muted-foreground">
+                {line.text}
               </div>
             );
           case 'page-gone':
