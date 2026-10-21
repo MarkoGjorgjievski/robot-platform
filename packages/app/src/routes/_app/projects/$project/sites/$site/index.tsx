@@ -82,7 +82,7 @@ import { attentionBanner, heldWord, refreshLine } from '../../../../../../lib/si
 import { useStaffDetail } from '../../../../../../lib/use-staff-detail';
 import { blockedReasons, cellHint, verificationState, type PageVariantLike, type VerificationResults } from '../../../../../../lib/site/verification-view';
 import { notCheckedText, refusalFromError, stageText, verifyMessage } from '../../../../../../lib/site/verify-messages';
-import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
+import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, markAgainProduct, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { coverageLine, coverageStage, EVERY_PRODUCT_DEFAULT, type ProofCoverageView } from '../../../../../../lib/site/proof-coverage-view';
 import { jevNote, jevPollMs, jevTextFor, readsVariantList, type JevReadingLike } from '../../../../../../lib/site/jev-view';
@@ -1236,14 +1236,14 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               : null,
           };
         case 'lost':
-          // "That product" is whichever is open (or the first, none is) — the
-          // same reveal a click on an empty cell already gives (Global
-          // Constraints: "Mark it again" opens mark mode for the field).
+          // "That product" is the one the row names ("Not found on product n"; the open one when it
+          // is among them), else whichever is open — the same reveal a click on an empty cell already
+          // gives (Global Constraints: "Mark it again" opens mark mode for the field).
           return {
             kind: 'lost',
             text: row.text,
             onMarkAgain: () => {
-              const product = selected + 1;
+              const product = markAgainProduct(row.products, selected + 1);
               setPopover(null);
               select({ product, field: f.key });
               setReveal((r) => ({ n: r.n + 1, product, field: f.key }));

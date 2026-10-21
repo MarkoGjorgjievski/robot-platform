@@ -108,7 +108,8 @@ export type DriftRow =
   | { kind: 'moved'; text: string; marks: Record<string, Mark> }
   | { kind: 'changed'; text: string; values: Record<string, { value: string; mark?: Mark }> }
   | { kind: 'other-layout'; text: string; runId: string | null }
-  | { kind: 'lost'; text: string }
+  /** `products`: the 1-based products the row names ("Not found on product n"), empty when it names none. */
+  | { kind: 'lost'; text: string; products: number[] }
   /** One item per proof page that is gone (`replaceable`: the table offers "Replace product n") or could not be read now (not replaceable — the page exists). */
   | { kind: 'page-gone'; texts: Array<{ url: string; text: string; replaceable: boolean }> };
 
@@ -226,7 +227,8 @@ export function driftRows(args: {
         const missing = urls.flatMap((u, i) => (r.reads && u in r.reads && r.reads[u] === null ? [i + 1] : []));
         const someRead = urls.some((u) => r.reads?.[u] != null);
         const where = missing.length === 1 ? `product ${missing[0]}` : `products ${joinList(missing.map(String))}`;
-        rows.push({ kind: 'lost', text: someRead && missing.length > 0 ? `Not found on ${where} — Mark it again` : 'Not found on the page — Mark it again' });
+        const named = someRead && missing.length > 0;
+        rows.push({ kind: 'lost', text: named ? `Not found on ${where} — Mark it again` : 'Not found on the page — Mark it again', products: named ? missing : [] });
         break;
       }
     }
@@ -237,6 +239,14 @@ export function driftRows(args: {
     if (rows.length > 0) out[key] = rows;
   }
   return out;
+}
+
+/**
+ * The product a lost row's "Mark it again" opens (1-based): the open one when the row names it, else the
+ * first it names; the open one when it names none ("Not found on the page").
+ */
+export function markAgainProduct(products: readonly number[], openProduct: number): number {
+  return products.length === 0 || products.includes(openProduct) ? openProduct : products[0]!;
 }
 
 /**

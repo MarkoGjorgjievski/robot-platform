@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { driftBadge, driftBanner, driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from './drift-view';
+import { driftBadge, driftBanner, driftRows, acceptMoved, acceptChanged, canAcceptMoved, markAgainProduct, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from './drift-view';
 import { emptyBoard, answer, type Board, type Mark } from './verification-model';
 
 describe('driftBadge', () => {
@@ -275,17 +275,24 @@ describe('driftRows', () => {
   it('builds a lost row', () => {
     const results: DriftCheckResultsLike = { runId: null, fields: { sku: { result: 'lost', pages: { [URLS[0]!]: { status: 'ok', value: null } } } } };
     const rows = driftRows({ fieldKeys: ['sku'], urls: URLS, results, values: {} });
-    expect(rows.sku).toEqual([{ kind: 'lost', text: 'Not found on the page — Mark it again' }]);
+    expect(rows.sku).toEqual([{ kind: 'lost', text: 'Not found on the page — Mark it again', products: [] }]);
+  });
+
+  it('"Mark it again" opens a product the row names — the open one when it is named, else the first; any when it names none', () => {
+    expect(markAgainProduct([2], 1)).toBe(2);
+    expect(markAgainProduct([2, 3], 3)).toBe(3);
+    expect(markAgainProduct([2, 3], 1)).toBe(2);
+    expect(markAgainProduct([], 1)).toBe(1);
   });
 
   it('Review Focus 4: a lost field that still reads elsewhere names the products that read nothing', () => {
     const urls = ['u1', 'u2', 'u3'];
     const results = { runId: null, fields: { price: { result: 'lost' as const, pages: { u1: { status: 'ok' as const, value: null }, u2: { status: 'ok' as const, value: null }, u3: { status: 'ok' as const, value: null } }, reads: { u1: '1.00', u2: null, u3: '3.00' } } } };
-    expect(driftRows({ fieldKeys: ['price'], urls, results, values: {} }).price![0]).toEqual({ kind: 'lost', text: 'Not found on product 2 — Mark it again' });
+    expect(driftRows({ fieldKeys: ['price'], urls, results, values: {} }).price![0]).toEqual({ kind: 'lost', text: 'Not found on product 2 — Mark it again', products: [2] });
     const two = { ...results, fields: { price: { ...results.fields.price, reads: { u1: '1.00', u2: null, u3: null } } } };
-    expect(driftRows({ fieldKeys: ['price'], urls, results: two, values: {} }).price![0]).toEqual({ kind: 'lost', text: 'Not found on products 2 and 3 — Mark it again' });
+    expect(driftRows({ fieldKeys: ['price'], urls, results: two, values: {} }).price![0]).toEqual({ kind: 'lost', text: 'Not found on products 2 and 3 — Mark it again', products: [2, 3] });
     const none = { ...results, fields: { price: { ...results.fields.price, reads: { u1: null, u2: null, u3: null } } } };
-    expect(driftRows({ fieldKeys: ['price'], urls, results: none, values: {} }).price![0]).toEqual({ kind: 'lost', text: 'Not found on the page — Mark it again' });
+    expect(driftRows({ fieldKeys: ['price'], urls, results: none, values: {} }).price![0]).toEqual({ kind: 'lost', text: 'Not found on the page — Mark it again', products: [] });
   });
 
   it("puts a page-gone row beside the field's own result row, one entry per gone product", () => {
@@ -322,7 +329,7 @@ describe('driftRows', () => {
     };
     const rows = driftRows({ fieldKeys: ['sku'], urls: URLS, results, values: {} });
     expect(rows.sku).toEqual([
-      { kind: 'lost', text: 'Not found on the page — Mark it again' },
+      { kind: 'lost', text: 'Not found on the page — Mark it again', products: [] },
       { kind: 'page-gone', texts: [{ url: URLS[1]!, text: 'Product 2 no longer loads — Replace product 2', replaceable: true }] },
     ]);
   });
