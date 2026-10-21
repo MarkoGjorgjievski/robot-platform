@@ -252,13 +252,14 @@ export async function runSourceVerification(
       for (const f of fields) (byConcept[f.concept] ??= []).push(...run.outcome.fields[f.key]!.certified);
       await saveVerifiedPaths(hostname, 'detail', byConcept, set.urls[0]!);
       await db.update(sources).set({ driftedFields: null, updatedAt: new Date() }).where(eq(sources.id, sourceId));
-      // The coverage check (spec 2026-10-10 §A1): free, in the background, never awaited.
-      void startCoverage(sourceId, verificationId).catch((err) => console.error(`[coverage] could not start for ${sourceId}:`, err));
+      // The coverage check (spec 2026-10-10 §A1): free, in the background, never awaited. Never after a refresh's own
+      // re-verify (spec 2026-10-21 §7.6, follow-ups §2): the scheduled check that started it runs its own listing sample.
+      if (!refresh) void startCoverage(sourceId, verificationId).catch((err) => console.error(`[coverage] could not start for ${sourceId}:`, err));
     }
 
     // Spec 2026-10-21 §3.3: fields this Verify left held are checked on its own captures (no page load) —
     // what changed, and whether it changed by nature. Never after a refresh's own re-verify (§7.6).
-    if (opts.origin !== 'refresh' && holdPlan.upsert.length > 0) {
+    if (!refresh && holdPlan.upsert.length > 0) {
       void startCheck(sourceId, holdPlan.upsert.map((h) => h.fieldKey), captureRefs)
         .catch((err) => console.error(`[verify] the check after ${verificationId} could not start:`, err));
     }

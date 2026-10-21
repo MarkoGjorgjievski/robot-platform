@@ -153,6 +153,22 @@ describe('a Verify keeps the last good certification (spec 2026-10-21 §3.1)', (
     } finally { await s.cleanup(); }
   });
 
+  it('follow-ups §2: a passing refresh re-verify starts no coverage check; a passing customer Verify does', async () => {
+    const s = await certified('refresh-no-coverage');
+    try {
+      const caps = Object.fromEntries(s.urls.map((u) => [u, page(u, '1.00')]));
+      const run = async (opts: Record<string, unknown>) => {
+        const [row] = await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x' }).returning({ id: sourceVerifications.id });
+        runVerificationMock.mockResolvedValue({ outcome: { fields: { price: s.passed }, allPassed: true, aiCalls: 0 }, captures: caps, captureErrors: {} });
+        const coverage = vi.fn(async () => ({ checkId: 'none', status: 'started' as const }));
+        await runSourceVerification(s.sourceId, row!.id, { startCoverage: coverage, startCheck: vi.fn(async () => undefined), ...opts });
+        return coverage;
+      };
+      expect(await run({ origin: 'refresh', onlyKeys: ['price'], free: true })).not.toHaveBeenCalled();
+      expect(await run({})).toHaveBeenCalledTimes(1);
+    } finally { await s.cleanup(); }
+  });
+
   it('captures handed in are used first', async () => {
     const s = await certified('refs');
     try {
