@@ -7,7 +7,7 @@
 // Nothing here writes `staff_actions`: an automatic change is not staff
 // touching a customer's data (spec §3.2).
 import { eq } from 'drizzle-orm';
-import { db, fieldHolds, sources, valueRefreshes } from '@robot/db';
+import { db, driftChecks, fieldHolds, sources, valueRefreshes } from '@robot/db';
 import { fieldHash, type RefreshPage, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { certifyingResult, loadFieldCurrency, sourceDefinitionHash } from './current-certification.js';
 import { resolveInFlightVerification, startVerificationRow } from './in-flight.js';
@@ -17,9 +17,11 @@ import type { StoredCaptureRef } from './capture-store.js';
 /** One field's planned refresh, with the field hash the check read under. */
 export type RefreshRequest = { key: string; pages: Record<string, RefreshPage>; basisHash: string };
 
-export type RefreshOutcome = { applied: string[]; skipped: Record<string, 'busy' | 'moved'> };
+/** Why a planned refresh was not written: a Verify in flight, the field moved since the check read it, or the check was closed (stalled) before it could write. */
+export type RefreshSkip = 'busy' | 'moved' | 'closed';
+export type RefreshOutcome = { applied: string[]; skipped: Record<string, RefreshSkip> };
 
-const allBusy = (requests: RefreshRequest[]): RefreshOutcome => ({ applied: [], skipped: Object.fromEntries(requests.map((r) => [r.key, 'busy' as const])) });
+const allSkipped = (requests: RefreshRequest[], why: RefreshSkip): RefreshOutcome => ({ applied: [], skipped: Object.fromEntries(requests.map((r) => [r.key, why])) });
 
 /**
  * All of a check's refreshes in one transaction, under the website row lock every Verify start and
@@ -28,19 +30,25 @@ const allBusy = (requests: RefreshRequest[]): RefreshOutcome => ({ applied: [], 
  * skipped as `moved` when its hash or any refreshed cell's stored value changed since the check read them (or
  * it has no certifying result any more), and everything is skipped as `busy` while a Verify is in flight
  * (spec §3.2, §7.4). Only `expected` changes: marks, paths, defaults and absences are carried as they are.
+ * A check already closed (as stalled) writes nothing — everything is skipped as `closed` — and the check row
+ * is held locked until commit, so it cannot be closed while its refreshes are written (fix wave 1, item 7).
  */
 export async function applyRefreshes(sourceId: string, checkId: string | null, requests: RefreshRequest[]): Promise<RefreshOutcome> {
   if (requests.length === 0) return { applied: [], skipped: {} };
   return db.transaction(async (tx) => {
     const [locked] = await tx.select({ schemaDefinition: sources.schemaDefinition, verificationSet: sources.verificationSet }).from(sources).where(eq(sources.id, sourceId)).for('update');
     // Under the lock, as every Verify start checks (it also closes a stalled row, so a crash leftover never blocks).
-    if (await resolveInFlightVerification(tx, sourceId)) return allBusy(requests);
+    if (checkId) {
+      const [check] = await tx.select({ status: driftChecks.status }).from(driftChecks).where(eq(driftChecks.id, checkId)).for('update');
+      if (check?.status !== 'running') return allSkipped(requests, 'closed');
+    }
+    if (await resolveInFlightVerification(tx, sourceId)) return allSkipped(requests, 'busy');
     // Read under the lock too: no Verify can start, so none can finish, until this commits.
     const currency = await loadFieldCurrency(tx, sourceId);
     const fields = (Array.isArray(locked?.schemaDefinition) ? locked!.schemaDefinition : []) as SchemaDefinitionField[];
     let set = (locked?.verificationSet ?? { urls: [], expected: {} }) as VerificationSet;
     const applied: string[] = [];
-    const skipped: Record<string, 'busy' | 'moved'> = {};
+    const skipped: Record<string, RefreshSkip> = {};
     for (const req of requests) {
       const field = fields.find((f) => f.key === req.key);
       const certifying = certifyingResult(currency, req.key);

@@ -8,7 +8,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { and, eq, count } from 'drizzle-orm';
-import { db, captures, driftChecks, jevReadings, sources, sourceVerifications, valueRefreshes } from '@robot/db';
+import { db, captures, driftChecks, fieldHolds, jevReadings, sources, sourceVerifications, valueRefreshes } from '@robot/db';
 import { CaptureError, BROWSER_UNAVAILABLE, PlaywrightBrowser, type IBrowser, type PageCapture } from '@robot/browser';
 import {
   buildBoxMapScript, fieldHash,
@@ -331,6 +331,54 @@ describe('runDriftCheck', () => {
       const row = (await checkRow(second.checkId))!;
       expect(row.status).toBe('done');
       expect((row.results as DriftCheckResults).fields[f.keyOf.price]!.refresh).toEqual({ applied: false, reason: 'not-applied' });
+      expect(startRefreshVerify).toHaveBeenCalledTimes(1);
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('fix wave 1, item 7: a check already closed as stalled when its refreshes would be written writes none', async () => {
+    const f = await certifiedWebsite('drift-refresh-closed');
+    try {
+      const pages = priceMovedOnP2();
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(pages[u]!)] as const)));
+      let checkId = '';
+      // The check is closed as stalled while it reads its pages (as startDriftCheck's stall rule would).
+      const capture = async (_s: string, urls: string[]) => {
+        await db.update(driftChecks).set({ status: 'failed', error: 'stalled', completedAt: new Date() }).where(eq(driftChecks.id, checkId));
+        return Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      };
+      const startRefreshVerify = vi.fn(async () => null);
+      ({ checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price] }));
+      await runDriftCheck(checkId, { capture, startRefreshVerify });
+      const row = (await checkRow(checkId))!;
+      expect(row.status).toBe('failed');
+      expect(row.error).toBe('stalled');
+      const src = (await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) }))!;
+      expect((src.verificationSet as VerificationSet).expected[f.keyOf.price]![U[1]!]).toBe('219.99');
+      expect(await db.query.valueRefreshes.findFirst({ where: eq(valueRefreshes.sourceId, f.sourceId) })).toBeUndefined();
+      expect(await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, f.sourceId) })).toBeUndefined();
+      expect(startRefreshVerify).not.toHaveBeenCalled();
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('fix wave 1, item 7: a check closed as stalled just after its refreshes were written is reopened done, showing them', async () => {
+    const f = await certifiedWebsite('drift-refresh-reopen');
+    try {
+      const pages = priceMovedOnP2();
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(pages[u]!)] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const { applyRefreshes } = await import('./refresh-values.js');
+      const applyThenStall: typeof applyRefreshes = async (sourceId, id, requests) => {
+        const out = await applyRefreshes(sourceId, id, requests);
+        await db.update(driftChecks).set({ status: 'failed', error: 'stalled', completedAt: new Date() }).where(eq(driftChecks.id, id!));
+        return out;
+      };
+      const startRefreshVerify = vi.fn(async () => null);
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price] });
+      await runDriftCheck(checkId, { capture, applyRefreshes: applyThenStall, startRefreshVerify });
+      const row = (await checkRow(checkId))!;
+      expect(row.status).toBe('done');
+      expect(row.error).toBeNull();
+      expect((row.results as DriftCheckResults).fields[f.keyOf.price]!.refresh).toEqual({ applied: true });
       expect(startRefreshVerify).toHaveBeenCalledTimes(1);
     } finally { await f.cleanup(); }
   }, 120_000);
