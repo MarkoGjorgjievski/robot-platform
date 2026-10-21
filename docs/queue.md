@@ -7,20 +7,23 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Websites change: keep running, re-check, tell the customer** — a failed re-verify never revokes a
-   certification that still extracts (runs continue on the last good paths; the website shows "needs
-   attention"); fields that change by nature (price, rating, review count, stock) refresh their
-   expected value when the certified path still reads a valid value in the same place; a free
-   scheduled drift check of the proof pages (no AI) notices structural changes and tells the customer
-   in one plain notice; a partly rolled-out new design comes back as a new page shape with "Use as
-   proof page". *Done when:* the 10 websites from the 2026-10-21 re-verify run again or say exactly
-   what needs the customer; tests, smoke. (Marko: yes, start, 2026-10-21.)
+1. **Websites change follow-ups** — from the apply run (docs/testing/results/2026-10-21-websites-change-apply/report.md):
+   (a) a refresh re-verify must not hide the other findings of the check that started it (a real lost or
+   moved field on a refreshed website would go unreported); (b) a refresh-started Verify must not start a
+   listing sample (spec §7.6: one browser, no check from a refresh); (c) a default-only or blank-expected
+   field is not reported "lost" when its paths read on every page (Gymshark Brand). *Done when:* each has a
+   test, the gate passes. (Standing approval; found 2026-10-21.)
 2. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
 3. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
 
+- **Turn the scheduled checks on?** `WEBSITE_CHECKS=on` makes the api-server check each certified website
+  every 3 days (free, proof pages + 20 listing products). Off by default.
+- **Backfill holds for other websites** whose last Verify failed only on stale values (e.g. Decathlon,
+  Lookfantastic)? Only the 10 were approved.
+- **Customer-marked "changes on its own" fields** and **email notices** — later?
 - **Jev's agreement** — read 2026-10-21 (`docs/testing/results/2026-10-21-jev-agreement.md`): 86 %
   at confidence 0.9+, most other disagreements are how we compare. Recommendation: do not apply
   Jev's pick yet; fix the comparison and two candidate follow-ups, read again, then consider Price
@@ -28,6 +31,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-21 — Websites change: keep running, re-check, tell the customer (`d595283`); applied to the 10 websites — all 10 run again (report in docs/testing/results/2026-10-21-websites-change-apply/).
 - 2026-10-21 — The 10 websites that lost certification at the re-verify are kept as they are (Marko); item 1 brings them back.
 - 2026-10-21 — Re-verified the 20 one-source websites (`docs/testing/results/2026-10-21-reverify-one-source/report.md`); Jev agreement read.
 - 2026-10-21 — HTML backups capped too (`33a67c7`).
