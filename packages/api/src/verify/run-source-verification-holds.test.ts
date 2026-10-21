@@ -133,6 +133,26 @@ describe('a Verify keeps the last good certification (spec 2026-10-21 §3.1)', (
     } finally { await s.cleanup(); }
   });
 
+  it('final review M1: a refresh re-verify reads the check\'s captures and the last Verify\'s stored ones, whatever their age, and never loads a page', async () => {
+    const s = await certified('refresh-no-load');
+    try {
+      await writeCaptureFile('33333333-3333-3333-3333-333333333333', page(s.urls[0]!, '1.10'));
+      await writeCaptureFile('44444444-4444-4444-4444-444444444444', page(s.urls[1]!, '2.00'));
+      const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString();
+      await db.update(sourceVerifications).set({ captures: { [s.urls[1]!]: { captureId: '44444444-4444-4444-4444-444444444444', capturedAt: threeDaysAgo } } }).where(eq(sourceVerifications.id, s.goodId));
+      const refs = { [s.urls[0]!]: { captureId: '33333333-3333-3333-3333-333333333333', capturedAt: new Date().toISOString() } };
+      await verify(s.sourceId, { price: s.passed }, { [s.urls[0]!]: page(s.urls[0]!, '1.10'), [s.urls[1]!]: page(s.urls[1]!, '2.00'), [s.urls[2]!]: null }, { origin: 'refresh', onlyKeys: ['price'], free: true, captureRefs: refs });
+      const deps = runVerificationMock.mock.calls[0]![1] as { captures: Record<string, PageCapture>; captureOne?: (b: unknown, url: string) => Promise<PageCapture> };
+      expect(Object.keys(deps.captures).sort()).toEqual([s.urls[0]!, s.urls[1]!].sort());
+      expect(deps.captures[s.urls[0]!]!.structuredData.ldJson).toEqual([{ '@type': 'Product', offers: { price: '1.10' } }]);
+      // The third page was read by neither: it is not loaded now.
+      const live = { capture: vi.fn() };
+      expect(deps.captureOne).toBeTypeOf('function');
+      await expect(deps.captureOne!(live, s.urls[2]!)).rejects.toThrow();
+      expect(live.capture).not.toHaveBeenCalled();
+    } finally { await s.cleanup(); }
+  });
+
   it('captures handed in are used first', async () => {
     const s = await certified('refs');
     try {
