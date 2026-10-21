@@ -25,10 +25,13 @@ import type { Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
 import { persistScreenshot } from '../persist-screenshot.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
-import { loadStoredCapture, writeCaptureFile, type StoredCaptureRef } from './capture-store.js';
+import { loadStoredCapture, readCaptureFile, writeCaptureFile, type StoredCaptureRef } from './capture-store.js';
 import { loadProofPageCaptures } from './proof-page-capture.js';
 import { startCoverageCheck } from './run-coverage-check.js';
 import { recordJevAgreement } from './jev-agreement.js';
+import { certifyingResult, loadFieldCurrency } from './current-certification.js';
+import { decideHolds, writeHolds, type HoldPlan } from './holds.js';
+import { nextCheckAt } from './check-schedule.js';
 
 /**
  * Strips ANSI escape codes (e.g. the dim/reset styling Playwright's own
@@ -74,12 +77,35 @@ export async function writeStage(dbOrTx: Database, verificationId: string, stage
     .where(and(eq(sourceVerifications.id, verificationId), isNull(sourceVerifications.completedAt)));
 }
 
+/** Starts the check that follows a Verify which left fields held (spec 2026-10-21 §3.3, trigger `verify`). */
+export type StartVerifyCheck = (sourceId: string, keys: string[], refs: Record<string, StoredCaptureRef>) => Promise<unknown>;
+
+/**
+ * The `verify` check reads the Verify's own stored captures (no page load) and calls no model. It never
+ * starts a Verify or another check, so it cannot loop back here.
+ */
+const startVerifyCheck: StartVerifyCheck = async (sourceId, keys, refs) => {
+  // Imported when needed: the refresh (spec §3.2) makes run-drift-check reach this module, so a static import would be a cycle.
+  const { startDriftCheck, storedCaptures } = await import('./run-drift-check.js');
+  return startDriftCheck(sourceId, null, { trigger: 'verify', keys, capture: storedCaptures(refs) });
+};
+
 export async function runSourceVerification(
   sourceId: string,
   verificationId: string,
-  opts: { onlyKeys?: string[]; free?: boolean; startCoverage?: typeof startCoverageCheck } = {},
+  opts: {
+    onlyKeys?: string[];
+    free?: boolean;
+    startCoverage?: typeof startCoverageCheck;
+    /** Spec 2026-10-21 §3.2: captures to verify on, used before any other (a check's own, for a refresh's re-verify). */
+    captureRefs?: Record<string, StoredCaptureRef>;
+    /** `refresh`: started by an automatic refresh — it never starts a check, so refreshes cannot loop (spec §7.6). */
+    origin?: 'customer' | 'refresh';
+    startCheck?: StartVerifyCheck;
+  } = {},
 ): Promise<void> {
   const startCoverage = opts.startCoverage ?? startCoverageCheck;
+  const startCheck = opts.startCheck ?? startVerifyCheck;
   try {
     const source = await db.query.sources.findFirst({
       where: eq(sources.id, sourceId),
@@ -92,6 +118,8 @@ export async function runSourceVerification(
     const variantSetup = (source.variantSetup as VariantSetup | null) ?? null;
     const checkVariants = variantsRequired(source.dataset?.variantMode, variantSetup) === 'yes';
     const hostname = new URL(set.urls[0]!).hostname;
+    // Spec 2026-10-21 §3.1: what certified each field before this Verify — the hold rule compares against it.
+    const certifiedBefore = await loadFieldCurrency(db, sourceId);
 
     // Re-verify only: reuse the previous completed run's captures when young
     // enough. The row being filled in is the newest, so look past it — and
@@ -102,6 +130,11 @@ export async function runSourceVerification(
     const reuse: Record<string, PageCapture> = {};
     const reusedRefs = new Map<string, StoredCaptureRef>();
     let previous: VerificationOutcome | undefined;
+    for (const [url, ref] of Object.entries(opts.captureRefs ?? {})) {
+      if (!ref.captureId || !set.urls.includes(url)) continue;
+      const c = await readCaptureFile(ref.captureId);
+      if (c) { reuse[url] = c; reusedRefs.set(url, ref); }
+    }
     if (opts.onlyKeys) {
       const rows = await db.query.sourceVerifications.findMany({
         where: eq(sourceVerifications.sourceId, sourceId),
@@ -112,7 +145,7 @@ export async function runSourceVerification(
       if (last) {
         previous = { fields: last.results as VerificationOutcome['fields'], allPassed: last.allPassed, aiCalls: last.aiCalls };
         for (const [url, ref] of Object.entries(last.captures as Record<string, StoredCaptureRef>)) {
-          if (!ref.captureId) continue;
+          if (!ref.captureId || reuse[url]) continue;
           const c = await loadStoredCapture(ref);
           if (c) { reuse[url] = c; reusedRefs.set(url, ref); }
         }
@@ -131,7 +164,7 @@ export async function runSourceVerification(
     const agent = !opts.free && process.env.ANTHROPIC_API_KEY ? new SchemaAgent() : null;
     const onProgress = (stage: string) =>
       void writeStage(db, verificationId, stage).catch((err) => console.error(`[verify] failed to record stage for ${verificationId}:`, err));
-    const { run, variantResults } = await withBrowserSession(async (browser) => {
+    const { run, variantResults, holdPlan } = await withBrowserSession(async (browser) => {
       const run = await runVerification({ fields, verificationSet: set }, {
         browser,
         agent,
@@ -155,7 +188,19 @@ export async function runSourceVerification(
           variantResults = { method: variantSetup!.method as 'list' | 'links', hash: currentVariantHash(args), passed: false, problem: VARIANT_CHECK_FAILED, pages: {} };
         }
       }
-      return { run, variantResults };
+      // Spec 2026-10-21 §3.1: which fields this Verify did not pass keep their last good certification —
+      // read on this Verify's own captures, the way a run would (no page load, no model call).
+      const holdPlan: HoldPlan = await decideHolds({
+        fields,
+        set,
+        keys: opts.onlyKeys ?? fields.map((f) => f.key),
+        outcome: run.outcome.fields,
+        certifying: (key) => certifyingResult(certifiedBefore, key),
+        captures: run.captures,
+        browser,
+        failedVerificationId: verificationId,
+      });
+      return { run, variantResults, holdPlan };
     });
     const cost = estimateCostUsd(diffUsage(before, snapshotUsage())).usd;
 
@@ -168,15 +213,21 @@ export async function runSourceVerification(
       else captureRefs[url] = { captureId: '', capturedAt: new Date().toISOString(), blockedReason: run.captureErrors[url] ?? BROWSER_UNAVAILABLE };
     }
 
-    await db.update(sourceVerifications).set({
-      results: run.outcome.fields,
-      variantResults,
-      captures: captureRefs,
-      allPassed: run.outcome.allPassed,
-      aiCalls: run.outcome.aiCalls,
-      costUsd: cost.toFixed(4),
-      completedAt: new Date(),
-    }).where(eq(sourceVerifications.id, verificationId));
+    // One transaction (spec 2026-10-21 §3.1): no reader sees a field uncertified between the result and its hold.
+    await db.transaction(async (tx) => {
+      await tx.update(sourceVerifications).set({
+        results: run.outcome.fields,
+        variantResults,
+        captures: captureRefs,
+        allPassed: run.outcome.allPassed,
+        aiCalls: run.outcome.aiCalls,
+        costUsd: cost.toFixed(4),
+        completedAt: new Date(),
+      }).where(eq(sourceVerifications.id, verificationId));
+      await writeHolds(tx, sourceId, holdPlan);
+      // The pages were just read: the scheduled check need not read them again for a while (spec §3.3).
+      await tx.update(sources).set({ nextCheckAt: nextCheckAt() }).where(eq(sources.id, sourceId));
+    });
     if (run.outcome.allPassed) {
       const byConcept: Record<string, CertifiedPath[]> = {};
       for (const f of fields) (byConcept[f.concept] ??= []).push(...run.outcome.fields[f.key]!.certified);
@@ -184,6 +235,13 @@ export async function runSourceVerification(
       await db.update(sources).set({ driftedFields: null, updatedAt: new Date() }).where(eq(sources.id, sourceId));
       // The coverage check (spec 2026-10-10 §A1): free, in the background, never awaited.
       void startCoverage(sourceId, verificationId).catch((err) => console.error(`[coverage] could not start for ${sourceId}:`, err));
+    }
+
+    // Spec 2026-10-21 §3.3: fields this Verify left held are checked on its own captures (no page load) —
+    // what changed, and whether it changed by nature. Never after a refresh's own re-verify (§7.6).
+    if (opts.origin !== 'refresh' && holdPlan.upsert.length > 0) {
+      void startCheck(sourceId, holdPlan.upsert.map((h) => h.fieldKey), captureRefs)
+        .catch((err) => console.error(`[verify] the check after ${verificationId} could not start:`, err));
     }
 
     // Jev at Verify, in shadow (spec 2026-10-16 §7): Jev's picks against what the customer
