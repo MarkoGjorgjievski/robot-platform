@@ -36,12 +36,15 @@ export async function startVerificationRow(
   db: Database,
   sourceId: string,
   definitionHash: string,
+  /** Written in the same transaction as the new row (a refresh's re-verify names itself in the refresh log, review Minor 1). */
+  onStarted?: (tx: DbOrTx, verificationId: string) => Promise<unknown>,
 ): Promise<{ verificationId: string; status: 'started' | 'in-progress' }> {
   return db.transaction(async (tx) => {
     await lockSource(tx, sourceId);
     const inFlight = await resolveInFlightVerification(tx, sourceId);
     if (inFlight) return { verificationId: inFlight.id, status: 'in-progress' as const };
     const [row] = await tx.insert(sourceVerifications).values({ sourceId, definitionHash }).returning({ id: sourceVerifications.id });
+    if (onStarted) await onStarted(tx, row!.id);
     return { verificationId: row!.id, status: 'started' as const };
   });
 }

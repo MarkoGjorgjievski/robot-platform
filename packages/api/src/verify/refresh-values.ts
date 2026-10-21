@@ -6,7 +6,7 @@
 // the re-verify is `free` and refresh-origin (it starts no check of its own).
 // Nothing here writes `staff_actions`: an automatic change is not staff
 // touching a customer's data (spec §3.2).
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db, driftChecks, fieldHolds, sources, valueRefreshes } from '@robot/db';
 import { fieldHash, type RefreshPage, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { certifyingResult, loadFieldCurrency, sourceDefinitionHash } from './current-certification.js';
@@ -86,14 +86,19 @@ export async function startRefreshVerify(
   sourceId: string,
   keys: string[],
   captureRefs: Record<string, StoredCaptureRef>,
-  deps: { run?: typeof runSourceVerification } = {},
+  deps: { run?: typeof runSourceVerification; checkId?: string | null } = {},
 ): Promise<string | null> {
   if (keys.length === 0) return null;
   const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, verificationSet: true } });
   const hash = source ? sourceDefinitionHash(source) : null;
   if (!hash) return null;
-  // The same start as `sources.verify`: the in-flight check and the insert under the website row lock.
-  const start = await startVerificationRow(db, sourceId, hash);
+  // The same start as `sources.verify`: the in-flight check and the insert under the website row lock. The check's
+  // refresh log names this re-verify in that same transaction, before it runs (review Minor 1): attention reads the
+  // link to know which fields a refresh's re-verify verified (follow-ups §1), so an unlinked one must never exist.
+  const checkId = deps.checkId;
+  const start = await startVerificationRow(db, sourceId, hash, checkId
+    ? (tx, id) => tx.update(valueRefreshes).set({ verificationId: id }).where(and(eq(valueRefreshes.driftCheckId, checkId), inArray(valueRefreshes.fieldKey, keys)))
+    : undefined);
   if (start.status === 'in-progress') return null;
   const id = start.verificationId;
   void (deps.run ?? runSourceVerification)(sourceId, id, { onlyKeys: keys, free: true, origin: 'refresh', captureRefs })

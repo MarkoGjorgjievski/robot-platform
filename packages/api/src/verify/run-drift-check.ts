@@ -16,8 +16,8 @@
 // Follows run-source-verification.ts's fire-and-forget rule: the caller never
 // awaits `runDriftCheck`, so it never rejects and always leaves the row
 // terminal.
-import { and, desc, eq, inArray } from 'drizzle-orm';
-import { db, captures as captureRows, driftChecks, runs, sources, valueRefreshes } from '@robot/db';
+import { and, desc, eq } from 'drizzle-orm';
+import { db, captures as captureRows, driftChecks, runs, sources } from '@robot/db';
 import {
   buildDomSearchScript, buildXPathProbeScript, classifyDrift, fieldHash, markPaths, planRefresh,
   type Box, type CertifiedPath, type ConfirmedPath, type DomHit, type DomNeedle, type DriftCapture, type DriftCheckResults, type DriftFieldResult,
@@ -313,10 +313,8 @@ export async function runDriftCheck(
     await db.update(sources).set({ nextCheckAt: nextCheckAt() }).where(eq(sources.id, check.sourceId));
     // The refreshed fields are verified again, free, on the pages this check just read. That re-verify is
     // refresh-origin, so it never starts another check (spec §7.6).
-    if (refreshed.length > 0) {
-      const id = await (deps.startRefreshVerify ?? startRefreshVerify)(check.sourceId, refreshed, refs);
-      if (id) await db.update(valueRefreshes).set({ verificationId: id }).where(and(eq(valueRefreshes.driftCheckId, checkId), inArray(valueRefreshes.fieldKey, refreshed)));
-    }
+    // It names itself in this check's refresh log as it starts (review Minor 1).
+    if (refreshed.length > 0) await (deps.startRefreshVerify ?? startRefreshVerify)(check.sourceId, refreshed, refs, { checkId });
   } catch (err) {
     console.error(`[drift] check ${checkId} failed:`, err);
     try {

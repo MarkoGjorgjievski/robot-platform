@@ -3,7 +3,7 @@
 // DB-backed; the re-verify's runner is injected, so no page load and no model call.
 import { describe, it, expect, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, fieldHolds, sources, sourceVerifications, valueRefreshes } from '@robot/db';
+import { db, driftChecks, fieldHolds, sources, sourceVerifications, valueRefreshes } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
@@ -92,6 +92,21 @@ describe('startRefreshVerify', () => {
       const id = await startRefreshVerify(s.sourceId, ['price'], refs, { run });
       expect(id).not.toBeNull();
       expect(run).toHaveBeenCalledWith(s.sourceId, id, { onlyKeys: ['price'], free: true, origin: 'refresh', captureRefs: refs });
+    } finally { await s.cleanup(); }
+  });
+  it('review Minor 1: the refresh log names the re-verify before it runs, in the transaction that starts it', async () => {
+    const s = await currentPrice('reverify-link');
+    try {
+      const [check] = await db.insert(driftChecks).values({ sourceId: s.sourceId, status: 'running', trigger: 'schedule', results: { runId: null, fields: {} } }).returning({ id: driftChecks.id });
+      await db.insert(valueRefreshes).values({ sourceId: s.sourceId, fieldKey: 'price', driftCheckId: check!.id, pages: {}, fromHash: 'a', toHash: 'b' });
+      let linkedWhenRun: string | null | undefined;
+      const run = vi.fn(async () => {
+        linkedWhenRun = (await db.query.valueRefreshes.findFirst({ where: eq(valueRefreshes.driftCheckId, check!.id) }))?.verificationId;
+      });
+      const id = await startRefreshVerify(s.sourceId, ['price'], {}, { run, checkId: check!.id });
+      expect(id).not.toBeNull();
+      await run.mock.results[0]!.value;
+      expect(linkedWhenRun).toBe(id);
     } finally { await s.cleanup(); }
   });
   it('Review Focus 3: starts no re-verify while one is in flight', async () => {
