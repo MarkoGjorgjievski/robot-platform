@@ -42,9 +42,27 @@ export type DriftFieldResult = {
   pages: Record<string, DriftPage>;
   /** filled by the API from the run, not by classifyDrift */
   emptyShare?: number;
+  /** Filled by the API (spec 2026-10-21 §3.3): what a run writes on each captured page from the field's certified paths, null for nothing. */
+  reads?: Record<string, string | null>;
+  /** Filled by the API (spec 2026-10-21 §3.2): whether this check refreshed the field's expected values, and if not, why (staff only). */
+  refresh?: { applied: boolean; reason?: string };
 };
 
-export type DriftCheckResults = { runId: string | null; fields: Record<string, DriftFieldResult> };
+/** What started a check (spec 2026-10-21 §3.3). */
+export type DriftTrigger = 'run' | 'manual' | 'verify' | 'schedule';
+/** A capture a check read, as the API stores it (`StoredCaptureRef`). */
+export type DriftCaptureRef = { captureId: string; capturedAt: string; screenshotUrl?: string; blockedReason?: string };
+
+/** `trigger`, `keys` and `captures` are absent on checks written before 2026-10-21. */
+export type DriftCheckResults = {
+  runId: string | null;
+  fields: Record<string, DriftFieldResult>;
+  trigger?: DriftTrigger;
+  /** The fields the check was asked to read, when not the drifted ones. */
+  keys?: string[];
+  /** url → the capture the check read there; a refresh's re-verify reuses them. */
+  captures?: Record<string, DriftCaptureRef>;
+};
 
 export type DriftCapture = CaptureLike & { boxes?: Box[] };
 export type DriftDeps = CertifyDeps & { runDomSearch: (html: string, needles: DomNeedle[], pageUrl: string) => Promise<DomHit[]> };
