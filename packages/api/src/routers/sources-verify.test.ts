@@ -5,6 +5,7 @@ import { VERIFY_STALL_MS, estAiCostPerFieldUsd, fieldHash, type SchemaDefinition
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { VerifyRefusal } from '../verify/verify-refusal.js';
+import { holdSourceLock, stillPending } from '../test-helpers/row-lock.js';
 
 // `sources.verify` fires `runSourceVerification` (verify/run-source-verification.ts)
 // without awaiting it — stubbed here so this file exercises ONLY sources.ts's
@@ -232,6 +233,42 @@ describe('sources.verify', () => {
       });
       const err = await rejectionOf(caller.sources.verify({ sourceId: f.sourceId }));
       expect((err!.cause as VerifyRefusal).problems).toEqual([{ reason: 'too_few_values', field: 'Price' }]);
+    } finally { await f.cleanup(); }
+  });
+});
+
+describe('sources.verify takes the website row lock (fix wave 1, item 5)', () => {
+  it('waits for a refresh holding the lock, then sees the Verify started under it: in-progress, nothing started', async () => {
+    const f = await makeSchemaSource('lock-wait');
+    try {
+      const lock = await holdSourceLock(f.sourceId);
+      const started = caller.sources.verify({ sourceId: f.sourceId });
+      expect(await stillPending(started)).toBe(true);
+      const inside = await lock.startVerifyInside();
+      await lock.release();
+      expect(await started).toEqual({ verificationId: inside, status: 'in-progress' });
+      expect(runSourceVerificationMock).not.toHaveBeenCalled();
+    } finally { await f.cleanup(); }
+  });
+  it('two concurrent starts make one verification: one started, the other in progress on the same row', async () => {
+    const f = await makeSchemaSource('lock-two');
+    try {
+      const [a, b] = await Promise.all([caller.sources.verify({ sourceId: f.sourceId }), caller.sources.verify({ sourceId: f.sourceId })]);
+      expect([a.status, b.status].sort()).toEqual(['in-progress', 'started']);
+      expect(a.verificationId).toBe(b.verificationId);
+      expect(await db.select().from(sourceVerifications).where(eq(sourceVerifications.sourceId, f.sourceId))).toHaveLength(1);
+      expect(runSourceVerificationMock).toHaveBeenCalledTimes(1);
+    } finally { await f.cleanup(); }
+  });
+  it('the field re-verify (onlyKeys) waits on the lock the same way', async () => {
+    const f = await makeSchemaSource('lock-field');
+    try {
+      const lock = await holdSourceLock(f.sourceId);
+      const started = caller.sources.verify({ sourceId: f.sourceId, onlyKeys: [f.keys.Price!] });
+      expect(await stillPending(started)).toBe(true);
+      const inside = await lock.startVerifyInside();
+      await lock.release();
+      expect(await started).toEqual({ verificationId: inside, status: 'in-progress' });
     } finally { await f.cleanup(); }
   });
 });

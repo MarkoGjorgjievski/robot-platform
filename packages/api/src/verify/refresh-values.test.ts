@@ -9,6 +9,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { applyRefreshes, startRefreshVerify } from './refresh-values.js';
 import { loadCurrentCertification } from './current-certification.js';
+import { holdSourceLock, stillPending } from '../test-helpers/row-lock.js';
 
 const me = await signedInCaller('refresh-values');
 afterAll(async () => { await me.cleanup(); });
@@ -100,6 +101,46 @@ describe('startRefreshVerify', () => {
       const run = vi.fn(async () => undefined);
       expect(await startRefreshVerify(s.sourceId, ['price'], {}, { run })).toBeNull();
       expect(run).not.toHaveBeenCalled();
+    } finally { await s.cleanup(); }
+  });
+});
+
+describe('a refresh and a Verify never interleave (fix wave 1, item 5)', () => {
+  it('the refresh re-verify waits for the website row lock, then sees the Verify started under it', async () => {
+    const s = await currentPrice('lock-reverify');
+    try {
+      const lock = await holdSourceLock(s.sourceId);
+      const run = vi.fn(async () => undefined);
+      const started = startRefreshVerify(s.sourceId, ['price'], {}, { run });
+      expect(await stillPending(started)).toBe(true);
+      await lock.startVerifyInside();
+      await lock.release();
+      expect(await started).toBeNull();
+      expect(run).not.toHaveBeenCalled();
+    } finally { await s.cleanup(); }
+  });
+  it('applyRefreshes waits for a Verify start holding the lock, then is busy', async () => {
+    const s = await currentPrice('lock-apply');
+    try {
+      const lock = await holdSourceLock(s.sourceId);
+      const applying = applyRefreshes(s.sourceId, null, [{ key: 'price', pages: pages(s.urls), basisHash: s.hash }]);
+      expect(await stillPending(applying)).toBe(true);
+      await lock.startVerifyInside();
+      await lock.release();
+      expect(await applying).toEqual({ applied: [], skipped: { price: 'busy' } });
+      const src = await db.query.sources.findFirst({ where: eq(sources.id, s.sourceId), columns: { verificationSet: true } });
+      expect((src!.verificationSet as VerificationSet).expected.price![s.urls[0]!]).toBe('615.00');
+    } finally { await s.cleanup(); }
+  });
+  it('a Verify started while a refresh holds the lock waits, and starts after it on the refreshed values', async () => {
+    const s = await currentPrice('lock-order');
+    try {
+      const lock = await holdSourceLock(s.sourceId);
+      const run = vi.fn(async () => undefined);
+      const started = startRefreshVerify(s.sourceId, ['price'], {}, { run });
+      expect(await stillPending(started)).toBe(true);
+      await lock.release();
+      expect(await started).not.toBeNull();
     } finally { await s.cleanup(); }
   });
 });

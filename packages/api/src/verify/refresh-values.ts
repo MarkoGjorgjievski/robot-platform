@@ -6,11 +6,11 @@
 // the re-verify is `free` and refresh-origin (it starts no check of its own).
 // Nothing here writes `staff_actions`: an automatic change is not staff
 // touching a customer's data (spec §3.2).
-import { and, eq, gt, isNull } from 'drizzle-orm';
-import { db, fieldHolds, sources, sourceVerifications, valueRefreshes } from '@robot/db';
-import { fieldHash, VERIFY_STALL_MS, type RefreshPage, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
+import { eq } from 'drizzle-orm';
+import { db, fieldHolds, sources, valueRefreshes } from '@robot/db';
+import { fieldHash, type RefreshPage, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { certifyingResult, loadFieldCurrency, sourceDefinitionHash } from './current-certification.js';
-import { resolveInFlightVerification } from './in-flight.js';
+import { resolveInFlightVerification, startVerificationRow } from './in-flight.js';
 import { runSourceVerification } from './run-source-verification.js';
 import type { StoredCaptureRef } from './capture-store.js';
 
@@ -22,23 +22,21 @@ export type RefreshOutcome = { applied: string[]; skipped: Record<string, 'busy'
 const allBusy = (requests: RefreshRequest[]): RefreshOutcome => ({ applied: [], skipped: Object.fromEntries(requests.map((r) => [r.key, 'busy' as const])) });
 
 /**
- * All of a check's refreshes in one transaction, under the source row lock `updateBinding` takes. A field is
+ * All of a check's refreshes in one transaction, under the website row lock every Verify start and
+ * `updateBinding` take — the in-flight check and the writes both happen under it, so no Verify interleaves
+ * (fix wave 1, item 5). A field is
  * skipped as `moved` when its hash or any refreshed cell's stored value changed since the check read them (or
  * it has no certifying result any more), and everything is skipped as `busy` while a Verify is in flight
  * (spec §3.2, §7.4). Only `expected` changes: marks, paths, defaults and absences are carried as they are.
  */
 export async function applyRefreshes(sourceId: string, checkId: string | null, requests: RefreshRequest[]): Promise<RefreshOutcome> {
   if (requests.length === 0) return { applied: [], skipped: {} };
-  // Also closes a stalled row, so a crash leftover never blocks refreshes.
-  if (await resolveInFlightVerification(db, sourceId)) return allBusy(requests);
-  const currency = await loadFieldCurrency(db, sourceId);
   return db.transaction(async (tx) => {
     const [locked] = await tx.select({ schemaDefinition: sources.schemaDefinition, verificationSet: sources.verificationSet }).from(sources).where(eq(sources.id, sourceId)).for('update');
-    // Again under the lock: a Verify that started since the check above would verify the values we are replacing.
-    const [running] = await tx.select({ id: sourceVerifications.id }).from(sourceVerifications)
-      .where(and(eq(sourceVerifications.sourceId, sourceId), isNull(sourceVerifications.completedAt), gt(sourceVerifications.startedAt, new Date(Date.now() - VERIFY_STALL_MS))))
-      .limit(1);
-    if (running) return allBusy(requests);
+    // Under the lock, as every Verify start checks (it also closes a stalled row, so a crash leftover never blocks).
+    if (await resolveInFlightVerification(tx, sourceId)) return allBusy(requests);
+    // Read under the lock too: no Verify can start, so none can finish, until this commits.
+    const currency = await loadFieldCurrency(tx, sourceId);
     const fields = (Array.isArray(locked?.schemaDefinition) ? locked!.schemaDefinition : []) as SchemaDefinitionField[];
     let set = (locked?.verificationSet ?? { urls: [], expected: {} }) as VerificationSet;
     const applied: string[] = [];
@@ -83,12 +81,14 @@ export async function startRefreshVerify(
   deps: { run?: typeof runSourceVerification } = {},
 ): Promise<string | null> {
   if (keys.length === 0) return null;
-  if (await resolveInFlightVerification(db, sourceId)) return null;
   const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, verificationSet: true } });
   const hash = source ? sourceDefinitionHash(source) : null;
   if (!hash) return null;
-  const [row] = await db.insert(sourceVerifications).values({ sourceId, definitionHash: hash }).returning({ id: sourceVerifications.id });
-  void (deps.run ?? runSourceVerification)(sourceId, row!.id, { onlyKeys: keys, free: true, origin: 'refresh', captureRefs })
-    .catch((err) => console.error(`[refresh] re-verify ${row!.id} failed:`, err));
-  return row!.id;
+  // The same start as `sources.verify`: the in-flight check and the insert under the website row lock.
+  const start = await startVerificationRow(db, sourceId, hash);
+  if (start.status === 'in-progress') return null;
+  const id = start.verificationId;
+  void (deps.run ?? runSourceVerification)(sourceId, id, { onlyKeys: keys, free: true, origin: 'refresh', captureRefs })
+    .catch((err) => console.error(`[refresh] re-verify ${id} failed:`, err));
+  return id;
 }

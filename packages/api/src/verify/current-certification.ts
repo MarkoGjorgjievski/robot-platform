@@ -23,7 +23,7 @@ import {
 } from '@robot/scraper';
 import type { VariantSetup } from '../contract.js';
 import { variantsRequired, currentVariantHash, type VariantsRequired } from './variant-check.js';
-import { loadHolds, loadHoldsBatch, resultPasses, type Certifying, type Hold } from './holds.js';
+import { loadHolds, loadHoldsBatch, resultPasses, type Certifying, type Hold, type HoldsDb } from './holds.js';
 
 export { resultPasses } from './holds.js';
 
@@ -95,7 +95,7 @@ export function notOnWebsiteKeys(currency: Pick<FieldCurrency, 'latest' | 'curre
  * it the overview and the website page could read different rows for the
  * same source.
  */
-function latestCleanRun(db: Database, sourceId: string) {
+function latestCleanRun(db: HoldsDb, sourceId: string) {
   return db.query.sourceVerifications.findFirst({
     where: and(eq(sourceVerifications.sourceId, sourceId), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)),
     orderBy: [desc(sourceVerifications.completedAt), desc(sourceVerifications.id)],
@@ -156,7 +156,7 @@ function currencyOf(source: { schemaDefinition: unknown; verificationSet: unknow
  * Per-field currency (spec 4.4): one source, one query for its latest
  * completed, error-free run.
  */
-export async function loadFieldCurrency(db: Database, sourceId: string): Promise<FieldCurrency> {
+export async function loadFieldCurrency(db: HoldsDb, sourceId: string): Promise<FieldCurrency> {
   const source = await db.query.sources.findFirst({
     where: eq(sources.id, sourceId),
     columns: { schemaDefinition: true, verificationSet: true },
@@ -165,7 +165,7 @@ export async function loadFieldCurrency(db: Database, sourceId: string): Promise
 }
 
 /** `loadFieldCurrency` on a source row the caller already read. */
-async function fieldCurrencyOf(db: Database, sourceId: string, source: { schemaDefinition: unknown; verificationSet: unknown } | undefined): Promise<FieldCurrency> {
+async function fieldCurrencyOf(db: HoldsDb, sourceId: string, source: { schemaDefinition: unknown; verificationSet: unknown } | undefined): Promise<FieldCurrency> {
   if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return none();
   const [row, holds] = await Promise.all([latestCleanRun(db, sourceId), loadHolds(db, sourceId)]);
   return currencyOf(source, row ?? undefined, holds);
