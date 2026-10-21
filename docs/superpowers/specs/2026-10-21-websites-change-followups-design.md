@@ -18,7 +18,8 @@ decides, as today) or by a newer clean Verify **that verified that field**. A re
 the fields it refreshed: those are the `value_refreshes` rows whose `verification_id` is that Verify. Every
 other clean Verify verified every field, as before. Held fields are unchanged (their finding counts when newer
 than the Verify that failed them). No new column: `value_refreshes.verification_id` already records which
-fields a refresh re-verify was for.
+fields a refresh re-verify was for. It is written in the transaction that inserts the re-verify's row, before it runs (review Minor 1), so an
+unlinked refresh re-verify — which would read as a Verify of every field — cannot exist.
 
 ## 2. A refresh-started Verify starts no check at all (surprise 1)
 
