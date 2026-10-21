@@ -80,7 +80,7 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
       setBudgetDirty(false);
       await Promise.all([utils.sources.get.invalidate(), utils.projects.get.invalidate()]);
     } catch {
-      setBudgetError('That budget could not be saved.');
+      setBudgetError('Those limits could not be saved.');
     }
   }
 
@@ -130,7 +130,8 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
         ) : null}
       </Row>
 
-      <Row label="Budget">
+      {/* Products and pages per run (spec 2026-10-21 §4): "budget" read as money to a customer. */}
+      <Row label="Run limits">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-base">
             <span className="text-muted-foreground">Products</span>
@@ -199,7 +200,7 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
               onClick={() => void saveBudget()}
               disabled={!budgetDirty || budgetUpdate.isPending}
             >
-              Save budget
+              Save limits
             </Button>
             {/* Every disabled control says why, within a line of it. */}
             {!budgetDirty ? <span className="text-sm text-muted-foreground">No changes to save</span> : null}

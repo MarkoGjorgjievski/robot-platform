@@ -271,7 +271,7 @@ export function variantCountLines(summary: VariantSummary | null | undefined): s
   ];
   if (summary.variantsSkippedForBudget > 0) {
     lines.push(`${summary.variantsSkippedForBudget.toLocaleString('en-US')} `
-      + `${plural(summary.variantsSkippedForBudget, 'variant page')} skipped for the budget`);
+      + `${plural(summary.variantsSkippedForBudget, 'variant page')} skipped for the page limit`);
   }
   return lines;
 }

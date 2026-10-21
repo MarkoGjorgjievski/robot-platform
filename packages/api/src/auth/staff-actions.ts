@@ -91,9 +91,13 @@ export const STAFF_ACTIONS: Record<string, StaffAction | null> = {
       const b = resolveBudget(src?.budget);
       return { budget: b.mode === 'all' ? 'all' : b.maxItems };
     },
-    describe: ({ input, before, target }) => input.probe
-      ? `Tried a sample on ${site(target)}`
-      : `Planned an extraction on ${site(target)} (budget ${before?.budget ?? '?'} products)`,
+    // "Budget" read as money to a customer (spec 2026-10-21 §4): the bracket names the product limit.
+    describe: ({ input, before, target }) => {
+      if (input.probe) return `Tried a sample on ${site(target)}`;
+      const b = before?.budget;
+      const limit = b === 'all' ? ' (all products)' : typeof b === 'number' ? ` (up to ${b} products)` : '';
+      return `Planned an extraction on ${site(target)}${limit}`;
+    },
     runId: (_i, r) => r?.runId,
   },
   'crawl.probeAndSample': { describe: ({ target }) => `Ran a sample on ${site(target)}`, runId: (_i, r) => r?.runId },

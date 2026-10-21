@@ -1473,7 +1473,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     const text = await main.innerText();
     expect(text, 'the "without variants" count is missing').toContain('1 product without variants');
     expect(text, 'the "partial variants" count is missing').toContain('0 products with partial variants');
-    expect(text, 'the skipped-for-budget count is missing').toContain('2 variant pages skipped for the budget');
+    expect(text, 'the skipped-for-page-limit count is missing').toContain('2 variant pages skipped for the page limit');
     await expectNoMoney(page);
 
     // The results sheet: the axis column and the variant key, after the
