@@ -283,9 +283,15 @@ export async function runDriftCheck(
     const refreshed = await refreshByNature(checkId, check.sourceId, toClassify, set, readingsByKey, out, deps.applyRefreshes ?? applyRefreshes);
 
     const results: DriftCheckResults = { runId: check.runId, fields: out, trigger, ...(upKeys ? { keys: upKeys } : {}), captures: refs };
-    await db.update(driftChecks)
+    const [finished] = await db.update(driftChecks)
       .set({ status: 'done', results, completedAt: new Date() })
-      .where(and(eq(driftChecks.id, checkId), eq(driftChecks.status, 'running')));
+      .where(and(eq(driftChecks.id, checkId), eq(driftChecks.status, 'running')))
+      .returning({ id: driftChecks.id });
+    // Fix wave 1, item 7: closed as stalled between its refreshes' commit and here. The refreshes stand, so the
+    // check is reopened as done, to show them (a check closed before they were written writes none).
+    if (!finished && refreshed.length > 0) {
+      await db.update(driftChecks).set({ status: 'done', error: null, results, completedAt: new Date() }).where(eq(driftChecks.id, checkId));
+    }
     // The pages were just read: the scheduled check need not read them again for a while (spec §3.3).
     await db.update(sources).set({ nextCheckAt: nextCheckAt() }).where(eq(sources.id, check.sourceId));
     // The refreshed fields are verified again, free, on the pages this check just read. That re-verify is
