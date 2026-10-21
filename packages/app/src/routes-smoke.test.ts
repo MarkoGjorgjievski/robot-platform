@@ -915,6 +915,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     // fields yet there). The shop's host has seen no wall yet: that test is last.
     // In customer words (spec 2026-10-21): no host, no HTTP code.
     await expect.poll(() => page.locator('main').innerText(), { timeout: 30_000 }).toContain('This website opens normally.');
+    expect(await page.locator('main').innerText(), 'the reachability line named an HTTP code').not.toContain('HTTP 2');
     await shootBothThemes(page, 'empty');
 
     // 1. The listing: one page load, three column heads named by the
@@ -2084,6 +2085,13 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
     await waitForHydration(page, 'input[aria-label="Listing page"]');
     const host = new URL(SHOP).hostname;
+    // Spec 2026-10-21: a customer's screen never carries a verdict's staff wording.
+    const expectNoStaffWording = async () => {
+      const text = await page.locator('main').innerText();
+      for (const staffWords of ['HTTP 4', 'Cloudflare', 'refused the browser', 'CAPTCHA']) {
+        expect(text, `the customer's screen says "${staffWords}"`).not.toContain(staffWords);
+      }
+    };
     // Find products on a 403 Cloudflare page.
     await page.getByRole('textbox', { name: 'Listing page' }).fill(`${SHOP}/blocked`);
     await page.getByRole('button', { name: 'Find products' }).click();
@@ -2092,6 +2100,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
       .toContain("This website turned us away, so we can't read it yet.");
     // Customer words (spec 2026-10-21): the wall's alert names no host, no HTTP code and no vendor.
     expect((await page.locator('main [role="alert"]').allInnerTexts()).join(' '), 'the wall named the host').not.toContain(host);
+    await expectNoStaffWording();
     expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No products found');
     await shoot(page, 'app-site-verification-wall-refused.png', false);
     // Find products again, on another page of the same host, now backing off:
@@ -2103,6 +2112,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
       .toContain(
         "This website turned us away, so we can't read it yet. Waiting 2 min before trying again.",
       );
+    await expectNoStaffWording();
     expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No products found');
     await shoot(page, 'app-site-verification-wall-backoff.png', false);
     expect(problems, `the Verification tab logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
