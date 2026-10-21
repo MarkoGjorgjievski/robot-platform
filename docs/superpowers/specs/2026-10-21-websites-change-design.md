@@ -394,6 +394,16 @@ again; the apply task records what it actually found.
 - **Copy of the existing drift rows** (e.g. a boolean shown as `http://schema.org/OutOfStock`) — unchanged.
 - **Run speed / a real job queue** — the timer is in-process, per api-server, as small as possible.
 
+**Rollback (migration 0019).** The migration is additive: two new tables (`field_holds`, `value_refreshes`)
+and two new columns (`drift_checks.trigger`, default `'run'`; `sources.next_check_at`, nullable). Code from
+before this branch never reads them, so rolling the code back needs no database change — the tables and
+columns are left in place, unused. What a code rollback does change: a website runnable only because a field is
+held stops being runnable (the old gate needs every field current), and expected values a refresh wrote stay
+as written (they are ordinary expected values; the `value_refreshes` rows say what each was). To remove the
+schema as well, after the code rollback: `DROP TABLE value_refreshes; DROP TABLE field_holds; ALTER TABLE
+drift_checks DROP COLUMN trigger; ALTER TABLE sources DROP COLUMN next_check_at;` and delete 0019's row from
+`drizzle.__drizzle_migrations` so a later `db:migrate` applies it again. `pg_dump` first.
+
 ## 11. Open for Marko
 
 1. The schedule is on by default (`WEBSITE_CHECKS` unset = on). Marko's own api-server starts checking every
