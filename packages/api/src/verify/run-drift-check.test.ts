@@ -16,7 +16,8 @@ import {
 } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { SHOP_EXAMPLE } from '../test-helpers/shop-example.js';
-import { writeCaptureFile } from './capture-store.js';
+import { writeCaptureFile, type StoredCaptureRef } from './capture-store.js';
+import { startRefreshVerify as realStartRefreshVerify } from './refresh-values.js';
 import type { CheckedPage } from './run-drift-check.js';
 import { startProofPageCapture, runProofPageCaptureInSlot, type ProofPageCaptureRecord } from './proof-page-capture.js';
 import { signedInCaller } from '../test-helpers/identity.js';
@@ -299,7 +300,7 @@ describe('runDriftCheck', () => {
       expect(results.fields[f.keyOf.price]!.refresh).toEqual({ applied: true });
       const src = (await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) }))!;
       expect((src.verificationSet as VerificationSet).expected[f.keyOf.price]![U[1]!]).toBe('229.99');
-      expect(startRefreshVerify).toHaveBeenCalledWith(f.sourceId, [f.keyOf.price], results.captures);
+      expect(startRefreshVerify).toHaveBeenCalledWith(f.sourceId, [f.keyOf.price], results.captures, { checkId });
       expect(await db.query.valueRefreshes.findFirst({ where: eq(valueRefreshes.sourceId, f.sourceId) })).toMatchObject({ fieldKey: f.keyOf.price, driftCheckId: checkId });
       expect(agentCtor).not.toHaveBeenCalled();
     } finally { await f.cleanup(); }
@@ -311,11 +312,9 @@ describe('runDriftCheck', () => {
       const pages = priceMovedOnP2();
       const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(pages[u]!)] as const)));
       const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
-      const startRefreshVerify = vi.fn(async (sourceId: string) => {
-        // Left in flight, as a just-started re-verify is: a completed row with no results would end the certification.
-        const [row] = await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'x' }).returning({ id: sourceVerifications.id });
-        return row!.id;
-      });
+      // The real start (review Minor 1: it names itself in the log), its run left in flight as a just-started re-verify is.
+      const startRefreshVerify = vi.fn((sourceId: string, keys: string[], refs: Record<string, StoredCaptureRef>, o: { checkId?: string | null } = {}) =>
+        realStartRefreshVerify(sourceId, keys, refs, { ...o, run: vi.fn(async () => undefined) }));
       const first = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price] });
       await runDriftCheck(first.checkId, { capture, startRefreshVerify });
       const id = await startRefreshVerify.mock.results[0]!.value;
@@ -436,7 +435,7 @@ describe('runDriftCheck', () => {
       expect(results.fields[f.keyOf.price]!.result).not.toBe('lost');
       expect(results.fields[f.keyOf.price]!.refresh).toEqual({ applied: true });
       expect(results.fields[f.keyOf.stock]).toBeUndefined();
-      expect(startRefreshVerify).toHaveBeenCalledWith(f.sourceId, [f.keyOf.price], results.captures);
+      expect(startRefreshVerify).toHaveBeenCalledWith(f.sourceId, [f.keyOf.price], results.captures, { checkId });
     } finally { await f.cleanup(); }
   }, 120_000);
 
