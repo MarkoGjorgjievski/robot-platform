@@ -1371,8 +1371,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         isDefault: isDefaultCell(board, f, live, c.url),
       })),
       hasDefault: defaultOf(board, f.key) !== undefined,
-      // Spec 2026-10-21 §5: a held field says runs use what was verified, and when.
-      defaultOnlyWord: heldWord(status?.held?.[f.key]?.verifiedAt) ?? defaultOnlyWord(results, f.key, unchangedKeys) ?? notOnWebsiteWord(results, f.key, unchangedKeys),
+      defaultOnlyWord: defaultOnlyWord(results, f.key, unchangedKeys) ?? notOnWebsiteWord(results, f.key, unchangedKeys),
+      // Spec 2026-10-21 §5: a held field says runs use what was verified, and when — whatever its row's status.
+      heldWord: heldWord(status?.held?.[f.key]?.verifiedAt),
       addressWarning: addressWarning(f.key, results, board.cards, pageVariants),
       onReverifyField: () => void reverifyField(f.key),
       // Spec 2026-10-16 §6: a variant note only under a field whose certified or suggested path reads a variant list.

@@ -1562,7 +1562,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     const banner = page.getByRole('status').filter({ hasText: 'needs you' });
     const otherName = other.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     await expect.poll(() => banner.innerText(), { timeout: 20_000 }).toMatch(new RegExp(`^${otherName} needs you — runs go on with what you verified on \\d{1,2} [A-Z][a-z]{2}\\.$`));
-    // The held row word sits beside the badge of a row in its accepted state; asserted on the page, not on one cell's layout.
+    // The held row word sits under the row's status whatever that status is (final review I3); asserted on the page, not on one cell's layout.
     await expect.poll(() => page.getByText(/^runs use what you verified on \d{1,2} [A-Z][a-z]{2}$/).count(), { timeout: 20_000 }).toBeGreaterThan(0);
     await expect.poll(() => page.getByText(/^Updated automatically on \d{1,2} [A-Z][a-z]{2}: 1\.10 on product 1 \(was 1\.00\)$/).count(), { timeout: 20_000 }).toBe(1);
     expect((await api.sources.verificationStatus.query({ sourceId: site.id }))!.runnable).toBe(true);
