@@ -19,14 +19,18 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db, captures as captureRows, driftChecks, runs, sources } from '@robot/db';
 import {
   buildDomSearchScript, buildXPathProbeScript, classifyDrift, markPaths,
-  type ConfirmedPath, type DomHit, type DomNeedle, type DriftCapture, type DriftCheckResults, type DriftFieldResult,
-  type SchemaDefinitionField, type VerificationSet, type XPathProbeResult,
+  type Box, type ConfirmedPath, type DomHit, type DomNeedle, type DriftCapture, type DriftCheckResults, type DriftFieldResult,
+  type DriftTrigger, type PathReading, type SchemaDefinitionField, type VerificationSet, type XPathProbeResult,
 } from '@robot/scraper';
+import type { PageCapture } from '@robot/browser';
 import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { runEmptyShares } from '../crawl/drift.js';
 import { loadCurrentCertification } from './current-certification.js';
-import { startProofPageCapture, runProofPageCaptureInSlot, loadProofPageCaptureById, type ProofPageCaptureRecord, type ProofPageMeta } from './proof-page-capture.js';
+import { startProofPageCapture, runProofPageCaptureInSlot, loadProofPageCaptureById, type ProofPageMeta } from './proof-page-capture.js';
+import { readCaptureFile, type StoredCaptureRef } from './capture-store.js';
+import { readingsOf } from './holds.js';
+import { nextCheckAt } from './check-schedule.js';
 
 type Session = typeof withBrowserSession;
 
@@ -37,7 +41,23 @@ type Session = typeof withBrowserSession;
  * answered blank, timed out, crashed, or the host is backing off; `null` when
  * the page is gone (it 404s, redirects off-site, or left no record).
  */
-export type CaptureProofPagesFn = (sourceId: string, urls: string[]) => Promise<Record<string, ProofPageCaptureRecord | { notChecked: string } | null>>;
+export type CaptureProofPagesFn = (sourceId: string, urls: string[]) => Promise<Record<string, CheckedPage | { notChecked: string } | null>>;
+
+/** A captured page the check reads: a proof-page capture record, or a stored Verify capture (no box map). */
+export type CheckedPage = { ref: StoredCaptureRef; capture: PageCapture; meta?: { boxes?: Box[] } };
+
+/**
+ * Spec 2026-10-21 §3.3 (`verify` trigger): the pages a Verify just read, from the files it stored — no
+ * page load, no Jev reading. A page that Verify could not read is not checked, with its reason.
+ */
+export function storedCaptures(refs: Record<string, StoredCaptureRef>): CaptureProofPagesFn {
+  return async (_sourceId, urls) => Object.fromEntries(await Promise.all(urls.map(async (url) => {
+    const ref = refs[url];
+    if (!ref || !ref.captureId) return [url, { notChecked: ref?.blockedReason ?? 'The page could not be read.' }] as const;
+    const capture = await readCaptureFile(ref.captureId);
+    return [url, capture ? { ref, capture } : { notChecked: 'The page could not be read.' }] as const;
+  })));
+}
 
 /**
  * What a failed proof-page capture means to the drift check (known-gaps fixes
@@ -107,7 +127,7 @@ export const defaultCaptureProofPages: CaptureProofPagesFn = captureProofPagesWi
 export async function startDriftCheck(
   sourceId: string,
   runId: string | null,
-  opts: { capture?: CaptureProofPagesFn; fire?: boolean; emptyShare?: Record<string, number> } = {},
+  opts: { capture?: CaptureProofPagesFn; fire?: boolean; emptyShare?: Record<string, number>; trigger?: DriftTrigger; keys?: string[] } = {},
 ): Promise<{ checkId: string; status: 'started' | 'in-progress' }> {
   const running = await db.query.driftChecks.findFirst({
     where: and(eq(driftChecks.sourceId, sourceId), eq(driftChecks.status, 'running')),
@@ -123,7 +143,7 @@ export async function startDriftCheck(
 
   const upFront = Object.fromEntries(Object.entries(opts.emptyShare ?? {}).map(([key, share]) => [key, { key, emptyShare: share }]));
   const [row] = await db.insert(driftChecks)
-    .values({ sourceId, runId, status: 'running', results: { runId, fields: upFront } })
+    .values({ sourceId, runId, status: 'running', trigger: opts.trigger ?? 'run', results: { runId, fields: upFront, ...(opts.keys ? { keys: opts.keys } : {}) } })
     .returning({ id: driftChecks.id });
   const checkId = row!.id;
   if (opts.fire ?? true) void runDriftCheck(checkId, { capture: opts.capture });
@@ -151,7 +171,11 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
     const fields = (Array.isArray(source.schemaDefinition) ? source.schemaDefinition : []) as SchemaDefinitionField[];
     const set = (source.verificationSet ?? { urls: [], expected: {} }) as VerificationSet;
     const drifted = (Array.isArray(source.driftedFields) ? source.driftedFields : []) as string[];
-    const driftedFields = drifted.map((k) => fields.find((f) => f.key === k)).filter((f): f is SchemaDefinitionField => !!f);
+    // Spec 2026-10-21 §3.3: a check started with `keys` reads those fields; otherwise the drifted ones (today's rule).
+    const upKeys = (check.results as { keys?: string[] } | null)?.keys;
+    const trigger = (check.trigger ?? 'run') as DriftTrigger;
+    const wanted = upKeys ?? drifted;
+    const driftedFields = wanted.map((k) => fields.find((f) => f.key === k)).filter((f): f is SchemaDefinitionField => !!f);
     const cert = await loadCurrentCertification(db, check.sourceId);
 
     const out: Record<string, DriftFieldResult> = {};
@@ -160,6 +184,9 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
     const toClassify = set.urls.length === 0 ? [] : driftedFields.filter((f) => (cert?.paths[f.key]?.length ?? 0) > 0);
     for (const f of driftedFields) if (!toClassify.includes(f)) out[f.key] = { key: f.key, result: 'lost', pages: {} };
 
+    const refs: Record<string, StoredCaptureRef> = {};
+    // What a run writes per field and page; Task 6's refresh reads it.
+    const readingsByKey: Record<string, Record<string, PathReading>> = {};
     if (toClassify.length > 0) {
       const records = await capture(check.sourceId, set.urls);
       // Three kinds of page: captured (decides), gone (null), and not checked —
@@ -169,8 +196,11 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
       for (const u of set.urls) {
         const r = records[u];
         if (r && 'notChecked' in r) notChecked[u] = r.notChecked;
-        else captures[u] = r ? { ...r.capture, boxes: r.meta.boxes } : null;
+        else if (r) { captures[u] = { ...r.capture, boxes: r.meta?.boxes }; refs[u] = r.ref; }
+        else captures[u] = null;
       }
+      const pageCaptures: Record<string, PageCapture> = {};
+      for (const u of set.urls) { const r = records[u]; if (r && !('notChecked' in r)) pageCaptures[u] = r.capture; }
       await session(async (browser) => {
         const classifyDeps = {
           evalXPaths: (html: string, xpaths: string[]) => browser.setContentEvaluate<XPathProbeResult>(html, buildXPathProbeScript(xpaths)),
@@ -186,6 +216,10 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
             confirmed: confirmedPathsOf(set, field.key),
             markXPaths: Object.values(set.marks?.[field.key] ?? {}).flatMap((m) => markPaths(field, m)),
           }, classifyDeps);
+          // What a run writes on each captured page (spec 2026-10-21 §3.3): the hold rule and the refresh read it.
+          const readings = await readingsOf(browser, field, cert!.paths[field.key]!, pageCaptures);
+          readingsByKey[field.key] = readings;
+          out[field.key] = { ...out[field.key]!, reads: Object.fromEntries(Object.entries(readings).map(([u, r]) => [u, r.value])) };
         }
       });
     }
@@ -199,10 +233,13 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
       if (typeof share === 'number') out[key] = { ...out[key]!, emptyShare: share };
     }
 
-    const results: DriftCheckResults = { runId: check.runId, fields: out };
+    void readingsByKey;
+    const results: DriftCheckResults = { runId: check.runId, fields: out, trigger, ...(upKeys ? { keys: upKeys } : {}), captures: refs };
     await db.update(driftChecks)
       .set({ status: 'done', results, completedAt: new Date() })
       .where(and(eq(driftChecks.id, checkId), eq(driftChecks.status, 'running')));
+    // The pages were just read: the scheduled check need not read them again for a while (spec §3.3).
+    await db.update(sources).set({ nextCheckAt: nextCheckAt() }).where(eq(sources.id, check.sourceId));
   } catch (err) {
     console.error(`[drift] check ${checkId} failed:`, err);
     try {
