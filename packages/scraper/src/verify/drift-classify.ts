@@ -247,7 +247,8 @@ async function tryChanged(
 
 /**
  * Follow-ups §3: a field with no page to compare against (no expected value on any page read) is judged by
- * what a run writes on the pages read — its certified paths' value, else the website default. It still works
+ * what a run writes on the pages read — its certified paths' value, else the website default. With a default, a
+ * page reading another value than the default is `changed` (review Important 2). It still works
  * (`other-layout`) when every page read gets a value; otherwise it is `lost`, its pages naming where nothing
  * was read (`value: null`).
  */
@@ -257,15 +258,32 @@ async function whatARunWrites(
 ): Promise<DriftFieldResult> {
   const fallback = (defaultValue ?? '').trim() || null;
   const pages: Record<string, DriftPage> = {};
+  let changedBy: CertifiedPath | undefined;
+  let missing = false;
   for (const url of readUrls) {
     const capture = captures[url]!;
     const vals = certified.length > 0 ? await evalManyOnCapture(certified, capture, deps) : new Map<string, unknown>();
     const ctx: NormalizeContext = { pageUrl: capture.url };
-    const raw = certified.map((p) => vals.get(pathId(p))).find((v) => normalize(field.type, v, ctx) !== null);
-    pages[url] = { status: 'ok', value: raw === undefined ? fallback : displayValue(raw) ?? String(raw) };
+    const path = certified.find((p) => normalize(field.type, vals.get(pathId(p)), ctx) !== null);
+    if (!path) {
+      // Nothing reads: a run writes the default, when there is one.
+      pages[url] = { status: 'ok', value: fallback };
+      if (fallback === null) missing = true;
+      continue;
+    }
+    const raw = vals.get(pathId(path));
+    const value = displayValue(raw) ?? String(raw);
+    // Review Important 2: with a default, a blank cell's verified answer is the default — a path reading anything
+    // else there is a change, reported like any other, never silently "still works".
+    const changed = fallback !== null && !valuesEqual(field.type, raw, fallback, ctx);
+    if (changed) changedBy ??= path;
+    pages[url] = fallback !== null ? { status: 'ok', value, mark: markFor(path, capture), changed, was: fallback } : { status: 'ok', value };
   }
-  const works = readUrls.every((u) => (pages[u] as { value: string | null }).value !== null);
-  return { key: field.key, result: works ? 'other-layout' : 'lost', pages };
+  if (missing) return { key: field.key, result: 'lost', pages };
+  if (changedBy) return { key: field.key, result: 'changed', path: changedBy, pages };
+  // Still works: drop the comparison fields a working result never carries.
+  const plain = Object.fromEntries(Object.entries(pages).map(([u, p]) => [u, p.status === 'ok' ? { status: 'ok' as const, value: p.value } : p]));
+  return { key: field.key, result: 'other-layout', pages: plain };
 }
 
 export async function classifyDrift(input: ClassifyDriftInput, deps: DriftDeps): Promise<DriftFieldResult> {
