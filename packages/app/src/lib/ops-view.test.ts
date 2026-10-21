@@ -568,6 +568,12 @@ describe('holds and automatic updates in ops (spec 2026-10-21 §6)', () => {
     expect(refreshRefusalText('busy')).toBe('Not updated automatically: a Verify was running');
     expect(refreshRefusalText(undefined)).toBeNull();
   });
+  it('final review M4: every reason a check records has words — the plan\'s refusals, the apply skips, and a failed save', () => {
+    // RefreshRefusal (scraper refresh.ts, never not-by-nature: that records nothing), RefreshSkip (api refresh-values.ts), 'not-applied' (run-drift-check.ts).
+    const codes = ['empty', 'too-few-pages', 'not-same-place', 'fixed-variant', 'not-shown', 'out-of-range', 'busy', 'moved', 'closed', 'not-applied'];
+    for (const c of codes) expect(refreshRefusalText(c), c).toMatch(/^Not updated automatically: \S/);
+    expect(refreshRefusalText('closed')).toBe('Not updated automatically: the check was closed before it could save');
+  });
   it('one refusal line per field the latest check did not refresh', () => {
     const results = { fields: { price: { refresh: { applied: false, reason: 'not-shown' } }, rating: { refresh: { applied: true } }, title: {} } };
     expect(refreshRefusals(results)).toEqual({ price: 'Not updated automatically: the page does not show the new value' });

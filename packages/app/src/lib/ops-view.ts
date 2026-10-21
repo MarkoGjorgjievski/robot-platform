@@ -486,6 +486,7 @@ const REFUSAL_WORDS: Record<string, string> = {
   'out-of-range': 'the new value is out of range',
   busy: 'a Verify was running',
   moved: 'the value was edited meanwhile',
+  closed: 'the check was closed before it could save',
   'not-applied': 'it could not be saved',
 };
 
