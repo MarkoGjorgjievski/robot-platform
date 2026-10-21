@@ -15,6 +15,12 @@ describe('readingsOf (spec 2026-10-21 §3.1)', () => {
     expect(r[SHOP_EXAMPLE.p1.url]).toEqual({ value: '129.99', path: LD, shown: true });
     expect(r['https://gone.example/p/9']).toBeUndefined();
   });
+  it('Fix wave 1, item 3: a page whose reading throws is no reading for that page, and never fails the rest', async () => {
+    const broken = { ...SHOP_EXAMPLE.p2, structuredData: undefined } as unknown as typeof SHOP_EXAMPLE.p2;
+    const r = await readingsOf(browser, price, [LD], { [SHOP_EXAMPLE.p1.url]: SHOP_EXAMPLE.p1, 'https://broken.example/p/2': broken });
+    expect(r[SHOP_EXAMPLE.p1.url]).toEqual({ value: '129.99', path: LD, shown: true });
+    expect(r['https://broken.example/p/2']).toBeUndefined();
+  });
   it('reads null where no path resolves', async () => {
     const r = await readingsOf(browser, price, [{ source: 'json-ld', path: 'offers.nothing', transform: 'identity' }], { [SHOP_EXAMPLE.p1.url]: SHOP_EXAMPLE.p1 });
     expect(r[SHOP_EXAMPLE.p1.url]).toEqual({ value: null, path: null, shown: null });

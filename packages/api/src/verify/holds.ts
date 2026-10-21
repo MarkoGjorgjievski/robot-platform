@@ -64,7 +64,8 @@ export async function loadHoldsBatch(db: HoldsDb, sourceIds: string[]): Promise<
 
 /**
  * What a run writes for `field` from `paths` on each captured page (`runVerifiedExtraction` with the
- * capture supplied: no page load). A null capture — a page that did not load — has no reading.
+ * capture supplied: no page load). A null capture — a page that did not load — has no reading, and so has a
+ * page whose reading throws (fix wave 1, item 3): one bad capture never fails the Verify or the check.
  */
 export async function readingsOf(
   browser: IBrowser,
@@ -75,10 +76,14 @@ export async function readingsOf(
   const out: Record<string, PathReading> = {};
   for (const [url, capture] of Object.entries(captures)) {
     if (!capture) continue;
-    const r = await runVerifiedExtraction({ url, fields: [{ key: field.key, type: field.type, concept: field.concept, paths }] }, { browser, capture });
-    const hit = r.stats.find((s) => s.key === field.key && s.hit);
-    const v = r.data[field.key];
-    out[url] = { value: v === null || v === undefined ? null : String(v), path: hit?.path ?? null, shown: r.shown[field.key] ?? null };
+    try {
+      const r = await runVerifiedExtraction({ url, fields: [{ key: field.key, type: field.type, concept: field.concept, paths }] }, { browser, capture });
+      const hit = r.stats.find((s) => s.key === field.key && s.hit);
+      const v = r.data[field.key];
+      out[url] = { value: v === null || v === undefined ? null : String(v), path: hit?.path ?? null, shown: r.shown[field.key] ?? null };
+    } catch (err) {
+      console.error(`[holds] reading ${field.key} on ${url} failed; no reading for that page:`, err);
+    }
   }
   return out;
 }
