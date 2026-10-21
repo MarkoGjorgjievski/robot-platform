@@ -7,6 +7,7 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { showsMoney } from '../../lib/money-visibility';
 import { trpc } from '../../lib/trpc';
+import { mutationErrorText } from '../../lib/mutation-error';
 import {
   emptyFilterNote,
   reExtractLabel,
@@ -152,7 +153,7 @@ export function CoverageBar({
 
       {backfill.isError ? (
         <p role="alert" className="mt-2 text-base text-fail">
-          {backfill.error.message}
+          {mutationErrorText(backfill.error, showMoney)}
         </p>
       ) : null}
     </div>

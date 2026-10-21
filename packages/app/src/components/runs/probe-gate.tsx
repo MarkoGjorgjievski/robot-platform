@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { trpc } from '../../lib/trpc';
 import { diagnoseRun } from '../../lib/site/diagnose-run';
 import { useStaffDetail } from '../../lib/use-staff-detail';
+import { mutationErrorText } from '../../lib/mutation-error';
 import { parseRunLog } from '../../lib/site/parse-run-log';
 import { probeEvidence } from '../../lib/site/probe-evidence';
 import { probeFacts } from '../../lib/site/run-screen-view';
@@ -157,7 +158,7 @@ export function ProbeGate({
 
           {confirm.isError ? (
             <p role="alert" className="mt-2 text-base text-fail">
-              {confirm.error.message}
+              {mutationErrorText(confirm.error, staff)}
             </p>
           ) : null}
         </div>
