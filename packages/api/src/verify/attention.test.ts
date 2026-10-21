@@ -95,6 +95,19 @@ describe('websiteAttention (spec 2026-10-21 §3.5)', () => {
     } finally { await s.cleanup(); }
   });
 
+  it('review Minor 4: a customer’s own onlyKeys Verify (not in the refresh log) still supersedes every current field’s finding, as before', async () => {
+    const s = await twoFields('customer-only-keys');
+    try {
+      const t0 = Date.now() - 3 * 60_000;
+      await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(t0), allPassed: true, results: { price: s.pass('price'), title: s.pass('title') } });
+      await db.insert(driftChecks).values({ sourceId: s.sourceId, status: 'done', trigger: 'schedule', createdAt: new Date(t0 + 60_000), completedAt: new Date(t0 + 60_000), results: { runId: null, fields: { title: { key: 'title', result: 'lost', pages: {} } } } });
+      expect((await websiteAttention(db, s.sourceId)).fields).toEqual(['title']);
+      // The customer re-verifies Price only; Title's result is carried forward, and no refresh names this Verify.
+      await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(t0 + 120_000), allPassed: true, results: { price: s.pass('price'), title: s.pass('title') } });
+      expect((await websiteAttention(db, s.sourceId)).fields).toEqual([]);
+    } finally { await s.cleanup(); }
+  });
+
   it('final review M3: a held field’s finding from a check older than the hold’s failed Verify does not count; a newer one does', async () => {
     const s = await twoFields('held-old-check');
     try {
