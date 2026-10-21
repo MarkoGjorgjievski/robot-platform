@@ -440,6 +440,50 @@ describe('runDriftCheck', () => {
     } finally { await f.cleanup(); }
   }, 120_000);
 
+  /** Rewrites the website's verification set, re-hashing the clean Verify's results so every field stays current; `override` replaces some results. */
+  async function rebind(sourceId: string, edit: (set: VerificationSet) => VerificationSet, override: Record<string, Record<string, unknown>> = {}) {
+    const src = (await db.query.sources.findFirst({ where: eq(sources.id, sourceId) }))!;
+    const set = edit(src.verificationSet as VerificationSet);
+    await db.update(sources).set({ verificationSet: set }).where(eq(sources.id, sourceId));
+    const row = (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.sourceId, sourceId) }))!;
+    const results = Object.fromEntries((src.schemaDefinition as SchemaDefinitionField[]).map((fd) => {
+      const r = { ...(row.results as Record<string, Record<string, unknown>>)[fd.key]!, ...override[fd.key] };
+      return [fd.key, { ...r, fieldHash: fieldHash(fd, set) }];
+    }));
+    await db.update(sourceVerifications).set({ results }).where(eq(sourceVerifications.id, row.id));
+  }
+
+  it('follow-ups §3: a scheduled check of a field with nothing expected on any page (Gymshark Brand) whose path reads everywhere records other-layout, never lost', async () => {
+    const f = await certifiedWebsite('drift-blank-expected');
+    try {
+      await rebind(f.sourceId, (set) => ({ ...set, expected: { ...set.expected, [f.keyOf.name]: {} } }));
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(clone(PAGES[u]!))] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.name] });
+      await runDriftCheck(checkId, { capture, startRefreshVerify: vi.fn(async () => null) });
+      const results = (await checkRow(checkId))!.results as DriftCheckResults;
+      expect(results.fields[f.keyOf.name]!.result).toBe('other-layout');
+      expect(results.fields[f.keyOf.name]!.pages[U[1]!]).toEqual({ status: 'ok', value: 'Widget B' });
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('follow-ups §3: a run-triggered check of a field passed by its default alone records other-layout, never lost', async () => {
+    const f = await certifiedWebsite('drift-default-only');
+    try {
+      await rebind(
+        f.sourceId,
+        (set) => ({ ...set, expected: { ...set.expected, [f.keyOf.stock]: {} }, defaults: { ...(set.defaults ?? {}), [f.keyOf.stock]: 'In stock' } }),
+        { [f.keyOf.stock]: { certified: [], cells: Object.fromEntries(U.map((u) => [u, { status: 'pass', found: 'In stock' }])), defaultOnly: true } },
+      );
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(clone(PAGES[u]!))] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false });
+      await runDriftCheck(checkId, { capture, startRefreshVerify: vi.fn(async () => null) });
+      const results = (await checkRow(checkId))!.results as DriftCheckResults;
+      expect(results.fields[f.keyOf.stock]!.result).toBe('other-layout');
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
   it('final review I2: a run-triggered check still says lost for a field with no certifying path', async () => {
     const f = await certifiedWebsite('drift-per-field-run');
     try {

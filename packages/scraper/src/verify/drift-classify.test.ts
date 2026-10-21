@@ -221,6 +221,37 @@ describe('classifyDrift', () => {
     expect(r.result).toBe('lost');
   });
 
+  it('follow-ups §3: nothing expected on any page (Gymshark Brand) and the certified path reads everywhere → other-layout, never lost', async () => {
+    const blank = Object.fromEntries(U.map((u) => [u, '']));
+    const r = await classifyDrift({ field: priceField, expected: blank, certified: priceCertified, captures: baseCaptures() }, deps());
+    expect(r.result).toBe('other-layout');
+    expect(r.pages[U[0]!]).toEqual({ status: 'ok', value: '129.99' });
+    expect(Object.keys(r.pages).sort()).toEqual([...U].sort());
+  }, 30_000);
+
+  it('follow-ups §3: nothing expected, a page gone, the path reads on the rest → other-layout with the gone page', async () => {
+    const captures: Record<string, DriftCapture | null> = { ...baseCaptures(), [U[2]!]: null };
+    const r = await classifyDrift({ field: priceField, expected: {}, certified: priceCertified, captures }, deps());
+    expect(r.result).toBe('other-layout');
+    expect(r.pages[U[2]!]).toEqual({ status: 'page-gone' });
+  }, 30_000);
+
+  it('follow-ups §3: nothing expected and the path reads nothing on a page, no default → lost, naming the page', async () => {
+    const captures = baseCaptures();
+    captures[U[1]!] = stripPriceSources(captures[U[1]!]!);
+    const r = await classifyDrift({ field: priceField, expected: {}, certified: priceCertified, captures }, deps());
+    expect(r.result).toBe('lost');
+    expect(r.pages[U[1]!]).toEqual({ status: 'ok', value: null });
+    expect(r.pages[U[0]!]).toEqual({ status: 'ok', value: '129.99' });
+  }, 30_000);
+
+  it('follow-ups §3: nothing expected and the path reads nothing, but the website has a default → other-layout (the default applies)', async () => {
+    const captures = Object.fromEntries(Object.entries(baseCaptures()).map(([u, c]) => [u, stripPriceSources(c)]));
+    const r = await classifyDrift({ field: priceField, expected: {}, certified: priceCertified, captures, defaultValue: '0.00' }, deps());
+    expect(r.result).toBe('other-layout');
+    expect(r.pages[U[0]!]).toEqual({ status: 'ok', value: '0.00' });
+  }, 30_000);
+
   it('I1: moved price with page 3 gone → moved on pages 1–2, page-gone on 3', async () => {
     const captures: Record<string, DriftCapture | null> = baseCaptures();
     for (const u of [U[0]!, U[1]!]) {
