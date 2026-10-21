@@ -1,0 +1,2131 @@
+{
+  "startedAt": "2026-10-21T10:00:14.179Z",
+  "finishedAt": "2026-10-21T10:27:48.693Z",
+  "dry": false,
+  "jevSpentUsd": 0.019286,
+  "sites": [
+    {
+      "website": "Credit campaign 2026-10/Credit campaign 2026-10/Barnesandnoble",
+      "sourceId": "ae6fa0b3-4e5f-4028-8d35-993ce85b1d76",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "price",
+          "name": "Price",
+          "before": [
+            "json-ld @graph[1].offers.price",
+            "json-ld @graph[0].hasVariant[2].offers.price"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld @graph[0].hasVariant[2].offers.price"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": true,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "in_stock",
+          "name": "In stock",
+          "before": [
+            "json-ld @graph[1].offers.availability",
+            "json-ld @graph[0].hasVariant[0].offers.availability",
+            "json-ld @graph[0].hasVariant[1].offers.availability",
+            "json-ld @graph[0].hasVariant[2].offers.availability",
+            "json-ld @graph[0].hasVariant[3].offers.availability"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld @graph[1].offers.availability",
+            "json-ld @graph[0].hasVariant[0].offers.availability"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "description",
+          "name": "Description",
+          "before": [
+            "json-ld @graph[0].description",
+            "json-ld @graph[1].description",
+            "json-ld @graph[0].hasVariant[0].description",
+            "json-ld @graph[0].hasVariant[1].description",
+            "json-ld @graph[0].hasVariant[2].description"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [],
+          "afterSources": [],
+          "firstPathChanged": true,
+          "passedBefore": true,
+          "passedAfter": false,
+          "failReason": "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611: different_value (found \"Welcome to Threshing Day, the brutal, high-stakes trial wher\")"
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611",
+          "captureId": "7e276073-fafe-4976-b59a-a9ff3ed97993",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011",
+          "captureId": "11938d5c-879e-416a-a16e-8044deebe4f8",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428",
+          "captureId": "3840c433-6410-4756-b463-58cc2b4f21ce",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611",
+          "status": "failed",
+          "costUsd": 0,
+          "error": "timed out after 10000 ms"
+        },
+        {
+          "url": "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011",
+          "status": "done",
+          "costUsd": 0.000322,
+          "error": null
+        }
+      ],
+      "verificationId": "f02b3ec6-3bca-4658-a14c-94873172412f",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Rating",
+          "reason": "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011: different_value (found \"4.6\")"
+        },
+        {
+          "name": "Description",
+          "reason": "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611: different_value (found \"Welcome to Threshing Day, the brutal, high-stakes trial wher\")"
+        }
+      ],
+      "agreement": {
+        "asked": 6,
+        "agreed": 6
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Credit campaign 2026-10/Allbirds",
+      "sourceId": "da33ce25-77b6-424c-932f-7837b254ea05",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "main_image",
+          "name": "Main image",
+          "before": [
+            "json-ld image[0]",
+            "json-ld image",
+            "json-ld image[1]",
+            "json-ld image[2]",
+            "json-ld image[3]"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld image[0]",
+            "meta og:image",
+            "xpath //div[@data-media-type=\"image\"]/button[@class=\"relative overflow-hidden rounded-lg aspect-7/4 w-full\"]/img[@class=\"cursor-zoom-plus block h-full w-full rounded-lg object-contain md:object-cover object-center\"]/@src",
+            "json-ld image",
+            "meta og:image:secure_url"
+          ],
+          "afterSources": [
+            "json-ld",
+            "meta",
+            "xpath"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "sku",
+          "name": "SKU",
+          "before": [
+            "json-ld sku",
+            "json-ld productGroupID"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld sku",
+            "json-ld productGroupID"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.allbirds.com/products/mens-runner-nz-slip-on-mushroom",
+          "captureId": "74d34dfb-14e5-41f8-9e6f-b23266dd0ee5",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.allbirds.com/products/mens-cruiser-medium-grey",
+          "captureId": "8d1ae3c2-b664-4724-9252-9ef504d8829c",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.allbirds.com/products/mens-tree-runner-nz-medium-grey",
+          "captureId": "81fac2c8-0e0a-4739-9595-da2622457844",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.allbirds.com/products/mens-runner-nz-slip-on-mushroom",
+          "status": "done",
+          "costUsd": 0.000278,
+          "error": null
+        },
+        {
+          "url": "https://www.allbirds.com/products/mens-cruiser-medium-grey",
+          "status": "done",
+          "costUsd": 0.000277,
+          "error": null
+        }
+      ],
+      "verificationId": "c20dece8-a5e9-4a40-b7f5-79d677bd072e",
+      "allPassed": true,
+      "errorMessage": null,
+      "failedFields": [],
+      "coverage": {
+        "checkId": "96cda3f9-eceb-413d-9085-d66271b9256c",
+        "status": "done",
+        "error": null
+      },
+      "agreement": {
+        "asked": 3,
+        "agreed": 3
+      }
+    },
+    {
+      "website": "Mar/Competitor prices/Ikea",
+      "sourceId": "3ed8855a-1165-4aad-91f5-13fec51dea49",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "product_url",
+          "name": "Product URL",
+          "before": [
+            "api pipUrl",
+            "api revampPrice.separator",
+            "api otherConfigs.theme.tokens.--d-1",
+            "api otherConfigs.theme.colors.primary",
+            "api otherConfigs.theme.styles.link.color"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [
+            "api pipUrl @ https://www.ikea.com/my/en/products/882/70483882.json"
+          ],
+          "afterSources": [
+            "api https://www.ikea.com/my/en/products/882/70483882.json"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "price",
+          "name": "Price",
+          "before": [
+            "api price",
+            "api priceExclTax",
+            "api priceNumeral",
+            "api priceExclTaxNumeral",
+            "api revampPrice.integer"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [],
+          "afterSources": [],
+          "firstPathChanged": true,
+          "passedBefore": true,
+          "passedAfter": false,
+          "failReason": "https://www.ikea.com/my/en/p/billy-oxberg-bookcase-with-doors-white-s49528340/: different_value (found \"RM259\")"
+        },
+        {
+          "key": "in_stock",
+          "name": "In stock",
+          "before": [
+            "api priority",
+            "api [0].cashAndCarry",
+            "api [1].cashAndCarry",
+            "api [2].cashAndCarry",
+            "api [3].cashAndCarry"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [
+            "json-ld offers.availability"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": true,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.ikea.com/my/en/p/baggebo-cabinet-with-door-white-70483882/",
+          "captureId": "3676b67e-d28f-4755-853d-0bf99f8b92cd",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.ikea.com/my/en/p/sagmaestare-cabinet-light-grey-blue-70570252/",
+          "captureId": "d8dd3482-a004-4108-b1d8-0bc0f58c3107",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.ikea.com/my/en/p/billy-oxberg-bookcase-with-doors-white-s49528340/",
+          "captureId": "e2b1072b-26c6-4610-b9d9-62a5f4cd479f",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.ikea.com/my/en/p/baggebo-cabinet-with-door-white-70483882/",
+          "status": "done",
+          "costUsd": 0.000279,
+          "error": null
+        },
+        {
+          "url": "https://www.ikea.com/my/en/p/sagmaestare-cabinet-light-grey-blue-70570252/",
+          "status": "done",
+          "costUsd": 0.000274,
+          "error": null
+        }
+      ],
+      "verificationId": "2e51ed79-d3c4-44de-96a5-d313ba299f2c",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Price",
+          "reason": "https://www.ikea.com/my/en/p/billy-oxberg-bookcase-with-doors-white-s49528340/: different_value (found \"RM259\")"
+        },
+        {
+          "name": "Main image",
+          "reason": "https://www.ikea.com/my/en/p/baggebo-cabinet-with-door-white-70483882/: ambiguous; https://www.ikea.com/my/en/p/billy-oxberg-bookcase-with-doors-white-s49528340/: different_value (found \"https://www.ikea.com/my/en/images/products/billy-oxberg-book\")"
+        }
+      ],
+      "agreement": {
+        "asked": 3,
+        "agreed": 2
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Credit campaign 2026-10/Nike",
+      "sourceId": "d3caae72-c6f0-4f38-baf2-1e1971928aa9",
+      "proofPages": 4,
+      "fields": [
+        {
+          "key": "main_image",
+          "name": "Main image",
+          "before": [
+            "json-ld hasVariant[0].image",
+            "json-ld hasVariant[1].image",
+            "json-ld hasVariant[2].image",
+            "json-ld hasVariant[3].image",
+            "json-ld hasVariant[4].image"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld hasVariant[0].image",
+            "json-ld hasVariant[1].image"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.nike.com/t/metcon-10-mens-workout-shoes-WWGl2m1D/HJ1875-100",
+          "captureId": "52bc3fb9-8ea0-47ac-9275-be99af514790",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.nike.com/t/air-force-1-07-mens-shoes-XVPIszaq/FJ4146-002",
+          "captureId": "59dd6125-3024-4ee0-a04e-745a5a7f4c44",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.nike.com/t/air-max-270-mens-shoes-KkLcGR/AH8050-033",
+          "captureId": "a07a086c-950e-45ff-8e4a-b2c90b60b7ab",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.nike.com/t/vomero-18-mens-road-running-shoes-NzWnvcC8/IQ0459-001",
+          "captureId": "a236662b-c4c5-4d0e-8d7f-aa7765346556",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.nike.com/t/metcon-10-mens-workout-shoes-WWGl2m1D/HJ1875-100",
+          "status": "done",
+          "costUsd": 0.000488,
+          "error": null
+        },
+        {
+          "url": "https://www.nike.com/t/air-max-270-mens-shoes-KkLcGR/AH8050-033",
+          "status": "failed",
+          "costUsd": 0,
+          "error": "timed out after 10000 ms"
+        },
+        {
+          "url": "https://www.nike.com/t/air-force-1-07-mens-shoes-XVPIszaq/FJ4146-002",
+          "status": "done",
+          "costUsd": 0.00043,
+          "error": null
+        },
+        {
+          "url": "https://www.nike.com/t/vomero-18-mens-road-running-shoes-NzWnvcC8/IQ0459-001",
+          "status": "done",
+          "costUsd": 0.000414,
+          "error": null
+        }
+      ],
+      "verificationId": "6a24794a-c745-4146-bb3c-e7d369a627ea",
+      "allPassed": true,
+      "errorMessage": null,
+      "failedFields": [],
+      "agreement": {
+        "asked": 11,
+        "agreed": 6
+      }
+    },
+    {
+      "website": "Markodjordjievski/Acne/Ikea",
+      "sourceId": "b4648622-bfa9-4d90-91b4-5a88ed288cd9",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "price",
+          "name": "Price",
+          "before": [
+            "api price",
+            "api priceExclTax",
+            "api priceNumeral",
+            "api priceExclTaxNumeral",
+            "api revampPrice.integer"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [
+            "api price @ https://www.ikea.com/my/en/products/009/10489009.json",
+            "api priceExclTax @ https://www.ikea.com/my/en/products/009/10489009.json"
+          ],
+          "afterSources": [
+            "api https://www.ikea.com/my/en/products/009/10489009.json"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "price_currency",
+          "name": "Price currency",
+          "before": [
+            "api revampPrice.currencyPrefix",
+            "api revampPrice.currencySymbol"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [
+            "api revampPrice.currencyPrefix @ https://www.ikea.com/my/en/products/009/10489009.json",
+            "api revampPrice.currencySymbol @ https://www.ikea.com/my/en/products/009/10489009.json"
+          ],
+          "afterSources": [
+            "api https://www.ikea.com/my/en/products/009/10489009.json"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "product_id",
+          "name": "Product id",
+          "before": [
+            "json-ld mpn",
+            "json-ld sku"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld mpn",
+            "xpath //*[@id=\"overview\"]/div[@class=\"pipf-overview-tab\"]/div[1]/div[@class=\"pipf-overview-summary\"]/div[@class=\"pipf-overview-summary__product-info-container\"]/span[@class=\"pipf-product-identifier\"]/span[@class=\"pipf-typography-label-s pipf-product-identifier__value\"]",
+            "json-ld sku",
+            "xpath //*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-product-information-tabs js-product-information-tabs\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-tabs \")]/div[@class=\"pipf-tabs__panel\"]/div[@class=\"pipf-overview-tab\"]/div[1]/div[@class=\"pipf-overview-summary\"]/div[@class=\"pipf-overview-summary__product-info-container\"]/span[@class=\"pipf-product-identifier\"]/span[@class=\"pipf-typography-label-s pipf-product-identifier__value\"]"
+          ],
+          "afterSources": [
+            "json-ld",
+            "xpath"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/",
+          "captureId": "ce391f8b-2ae2-4325-90a5-fc64faeaefe1",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/",
+          "captureId": "5e4dce62-ed17-4990-8947-0dccb1ac1126",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/",
+          "captureId": "9f26c59b-78dc-41f9-962a-d7f95d20aa0a",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/",
+          "status": "done",
+          "costUsd": 0.000292,
+          "error": null
+        },
+        {
+          "url": "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/",
+          "status": "done",
+          "costUsd": 0.000275,
+          "error": null
+        }
+      ],
+      "verificationId": "fe7a78ad-3d6b-4db0-904d-169a654915c1",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Total reviews",
+          "reason": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/: not_found; https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/: not_found; https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/: not_found"
+        },
+        {
+          "name": "Average rating",
+          "reason": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/: ambiguous; https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/: different_value (found \"4.77\"); https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/: different_value (found \"4.7\")"
+        }
+      ],
+      "agreement": {
+        "asked": 7,
+        "agreed": 2
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Bombas",
+      "sourceId": "a7edaf4a-51e0-41e1-90f9-39bf010bb707",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "main_image",
+          "name": "Main image",
+          "before": [
+            "json-ld image[0]",
+            "json-ld image"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld image[0]",
+            "json-ld image"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://bombas.com/products/mens-classic-marls-ankle?variant=slate-sea",
+          "captureId": "81a30a50-2e5a-4675-bcd1-abcdd122ab94",
+          "status": "captured"
+        },
+        {
+          "url": "https://bombas.com/products/mens-merino-wool-socks?variant=rouge",
+          "captureId": "d8debf06-63c6-463e-8ad5-af1be3349aec",
+          "status": "captured"
+        },
+        {
+          "url": "https://bombas.com/products/mens-dress-calf-sock?variant=navy-dot",
+          "captureId": "7e649dc1-b538-4e23-9d3f-35985e42a4dd",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://bombas.com/products/mens-merino-wool-socks?variant=rouge",
+          "status": "done",
+          "costUsd": 0.000246,
+          "error": null
+        },
+        {
+          "url": "https://bombas.com/products/mens-classic-marls-ankle?variant=slate-sea",
+          "status": "done",
+          "costUsd": 0.000246,
+          "error": null
+        }
+      ],
+      "verificationId": "5070de0e-25ff-4ed9-91fb-4dd4a2ede5d1",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Price",
+          "reason": "https://bombas.com/products/mens-merino-wool-socks?variant=rouge: ambiguous; https://bombas.com/products/mens-dress-calf-sock?variant=navy-dot: different_value (found \"91.0\"); https://bombas.com/products/mens-classic-marls-ankle?variant=slate-sea: ambiguous"
+        },
+        {
+          "name": "Rating",
+          "reason": "https://bombas.com/products/mens-merino-wool-socks?variant=rouge: not_found; https://bombas.com/products/mens-dress-calf-sock?variant=navy-dot: not_found; https://bombas.com/products/mens-classic-marls-ankle?variant=slate-sea: not_found"
+        }
+      ],
+      "agreement": {
+        "asked": 3,
+        "agreed": 3
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Credit campaign 2026-10/Madeincookware",
+      "sourceId": "5cb04b47-53cf-4aac-9d66-d9ac5bf4c2de",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "sku",
+          "name": "SKU",
+          "before": [
+            "json-ld @graph[2].sku",
+            "json-ld @graph[2].offers[0].sku"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [],
+          "afterSources": [],
+          "firstPathChanged": true,
+          "passedBefore": true,
+          "passedAfter": false,
+          "failReason": "https://madeincookware.com/products/small-spaces-set/5-piece-stainless: different_value (found \"KIT-5-FSS-ISS\"); https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish: ambiguous; https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle: ambiguous"
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish",
+          "captureId": "1b10ec2a-d5c7-4ce6-ba7f-05afcc6466fb",
+          "status": "captured"
+        },
+        {
+          "url": "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle",
+          "captureId": "46a78e8b-986e-4ba2-a9bc-5a1a4e3b677c",
+          "status": "captured"
+        },
+        {
+          "url": "https://madeincookware.com/products/small-spaces-set/5-piece-stainless",
+          "captureId": "935ae5c9-1e18-404e-8de2-ef730a54efdf",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish",
+          "status": "done",
+          "costUsd": 0.000295,
+          "error": null
+        },
+        {
+          "url": "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle",
+          "status": "done",
+          "costUsd": 0.000296,
+          "error": null
+        }
+      ],
+      "verificationId": "a69a5ede-386e-4f6e-8c88-492c4172e96c",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Price",
+          "reason": "https://madeincookware.com/products/small-spaces-set/5-piece-stainless: ambiguous; https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish: different_value (found \"4050.00\"); https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle: ambiguous"
+        },
+        {
+          "name": "SKU",
+          "reason": "https://madeincookware.com/products/small-spaces-set/5-piece-stainless: different_value (found \"KIT-5-FSS-ISS\"); https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish: ambiguous; https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle: ambiguous"
+        }
+      ],
+      "agreement": {
+        "asked": 9,
+        "agreed": 9
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Ruggable",
+      "sourceId": "39c5a38a-28a1-4093-b6b7-86790a3b8a86",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "sku",
+          "name": "SKU",
+          "before": [
+            "api [0].vendorCode",
+            "api [0].productCode"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [
+            "api [0].vendorCode @ https://www.roomvo.com/services/product/product_mappings/",
+            "json-ld hasVariant[page].sku",
+            "api [0].productCode @ https://www.roomvo.com/services/product/product_mappings/"
+          ],
+          "afterSources": [
+            "api https://www.roomvo.com/services/product/product_mappings/",
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "description",
+          "name": "Description",
+          "before": [
+            "json-ld description",
+            "json-ld hasVariant[0].description",
+            "json-ld hasVariant[1].description",
+            "json-ld hasVariant[2].description",
+            "json-ld hasVariant[3].description"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld description",
+            "xpath //*[@id=\"add-to-cart-section-container\"]/div[@class=\"pdp-container min-h-225 mx-auto lg:w-fit\"]/div[@class=\"flex flex-col md:flex-row md:justify-center md:px-4 md:pb-6\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" md:block \")]/div[@class=\"px-4 mb-8 md:px-0 pdp-detail-section\"]/div[@class=\"border-t-1 border-grey-veryLight last:border-b-1\"]/div[@class=\"transition-[max-height] overflow-hidden max-h-0 m-0! ease-out duration-200\"]/p[@class=\"mb-4 text-custom-13 leading-custom-150 tracking-[.26px]\"]",
+            "json-ld hasVariant[page].description",
+            "xpath //body/div[1]/main[contains(concat(\" \",normalize-space(@class),\" \"),\" outline-none \")]/div[3]/div[@class=\"pdp-container min-h-225 mx-auto lg:w-fit\"]/div[@class=\"flex flex-col md:flex-row md:justify-center md:px-4 md:pb-6\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" md:block \")]/div[@class=\"px-4 mb-8 md:px-0 pdp-detail-section\"]/div[@class=\"border-t-1 border-grey-veryLight last:border-b-1\"]/div[@class=\"transition-[max-height] overflow-hidden max-h-0 m-0! ease-out duration-200\"]/p[@class=\"mb-4 text-custom-13 leading-custom-150 tracking-[.26px]\"]"
+          ],
+          "afterSources": [
+            "json-ld",
+            "xpath"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+          "captureId": "45ed46f4-c166-41e8-9ec6-4ad6d9d5c4f6",
+          "status": "captured"
+        },
+        {
+          "url": "https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr",
+          "captureId": "2e10569b-9441-4055-b577-9bd80d85d1bf",
+          "status": "captured"
+        },
+        {
+          "url": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr",
+          "captureId": "73203315-1ba0-48b2-b5d5-75356aecd420",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+          "status": "done",
+          "costUsd": 0.000472,
+          "error": null
+        },
+        {
+          "url": "https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr",
+          "status": "done",
+          "costUsd": 0.000409,
+          "error": null
+        }
+      ],
+      "verificationId": "72f58487-1a6b-4177-97ed-e75cc694791e",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Price",
+          "reason": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr: not_found; https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr: ambiguous; https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr: not_found"
+        },
+        {
+          "name": "Rating",
+          "reason": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr: not_found; https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr: not_found; https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr: ambiguous"
+        }
+      ],
+      "agreement": {
+        "asked": 12,
+        "agreed": 5
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Credit campaign 2026-10/Lookfantastic",
+      "sourceId": "e94144d0-87ad-4f8e-896a-54976e64c351",
+      "proofPages": 4,
+      "fields": [
+        {
+          "key": "sku",
+          "name": "SKU",
+          "before": [
+            "api response.Results[0].ProductId",
+            "api response.Results[1].ProductId",
+            "api response.Results[2].ProductId",
+            "api response.Results[3].ProductId"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [
+            "api itemsData[0].sku @ https://st-eu.dynamicyield.com/spa/json",
+            "api response.Results[0].ProductId @ https://apps.bazaarvoice.com/bfd/v1/clients/lookfantastic/api-products/cv2/resources/data/reviews.json",
+            "api response.Results[0].FamilyIds @ https://apps.bazaarvoice.com/bfd/v1/clients/lookfantastic/api-products/cv2/resources/data/products.json",
+            "json-ld review[0].itemReviewed.@id",
+            "api feedProperties.sku @ https://st-eu.dynamicyield.com/spa/json"
+          ],
+          "afterSources": [
+            "api https://st-eu.dynamicyield.com/spa/json",
+            "api https://apps.bazaarvoice.com/bfd/v1/clients/lookfantastic/api-products/cv2/resources/data/reviews.json",
+            "api https://apps.bazaarvoice.com/bfd/v1/clients/lookfantastic/api-products/cv2/resources/data/products.json",
+            "json-ld"
+          ],
+          "firstPathChanged": true,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "brand",
+          "name": "Brand",
+          "before": [
+            "api feedProperties.brand",
+            "api response.Results[0].Brand.Name"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [
+            "api feedProperties.brand @ https://st-eu.dynamicyield.com/spa/json",
+            "api response.Results[0].Brand.Name @ https://apps.bazaarvoice.com/bfd/v1/clients/lookfantastic/api-products/cv2/resources/data/products.json"
+          ],
+          "afterSources": [
+            "api https://st-eu.dynamicyield.com/spa/json",
+            "api https://apps.bazaarvoice.com/bfd/v1/clients/lookfantastic/api-products/cv2/resources/data/products.json"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "in_stock",
+          "name": "In stock",
+          "before": [
+            "api itemsData[0].in_stock",
+            "api feedProperties.in_stock"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [
+            "api itemsData[0].in_stock @ https://st-eu.dynamicyield.com/spa/json",
+            "api feedProperties.in_stock @ https://st-eu.dynamicyield.com/spa/json"
+          ],
+          "afterSources": [
+            "api https://st-eu.dynamicyield.com/spa/json"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.lookfantastic.com/p/aveeno-calm-restore-oat-rich-cream-50ml/17887161/",
+          "captureId": "606b80db-c048-44a2-a5e6-967ca6c5cb63",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.lookfantastic.com/p/medik8-advanced-pro-collagen-peptide-cream-50ml/16818015/",
+          "captureId": "75f52b7c-4bb5-4303-9ec4-285a5859323a",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.lookfantastic.com/p/dr.-althea-345-relief-cream-50ml/17729496/",
+          "captureId": "412bd73b-3772-4325-a3f3-f8ebbc15f4cb",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.lookfantastic.com/p/ole-henriksen-strength-trainer-peptide-boost-moisturiser-15ml/14887426/?variation=14887426",
+          "captureId": "b6ee0fb9-2e96-480c-9613-a1e6d1a3ea42",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.lookfantastic.com/p/medik8-advanced-pro-collagen-peptide-cream-50ml/16818015/",
+          "status": "failed",
+          "costUsd": 0,
+          "error": "timed out after 10000 ms"
+        },
+        {
+          "url": "https://www.lookfantastic.com/p/ole-henriksen-strength-trainer-peptide-boost-moisturiser-15ml/14887426/?variation=14887426",
+          "status": "done",
+          "costUsd": 0.000309,
+          "error": null
+        },
+        {
+          "url": "https://www.lookfantastic.com/p/aveeno-calm-restore-oat-rich-cream-50ml/17887161/",
+          "status": "done",
+          "costUsd": 0.000331,
+          "error": null
+        },
+        {
+          "url": "https://www.lookfantastic.com/p/dr.-althea-345-relief-cream-50ml/17729496/",
+          "status": "done",
+          "costUsd": 0.000282,
+          "error": null
+        }
+      ],
+      "verificationId": "6456db4b-e9d8-4991-8e47-57614d7e453e",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Price",
+          "reason": "https://www.lookfantastic.com/p/dr.-althea-345-relief-cream-50ml/17729496/: not_found; https://www.lookfantastic.com/p/aveeno-calm-restore-oat-rich-cream-50ml/17887161/: not_found"
+        },
+        {
+          "name": "Rating",
+          "reason": "https://www.lookfantastic.com/p/dr.-althea-345-relief-cream-50ml/17729496/: not_found; https://www.lookfantastic.com/p/aveeno-calm-restore-oat-rich-cream-50ml/17887161/: not_found; https://www.lookfantastic.com/p/medik8-advanced-pro-collagen-peptide-cream-50ml/16818015/: not_found"
+        }
+      ],
+      "agreement": {
+        "asked": 8,
+        "agreed": 6
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Skims",
+      "sourceId": "565711fb-1b67-49bf-a4a8-23ffb0d96f0e",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "price",
+          "name": "Price",
+          "before": [
+            "json-ld hasVariant[0].offers.price",
+            "json-ld hasVariant[1].offers.price",
+            "json-ld hasVariant[2].offers.price",
+            "json-ld hasVariant[3].offers.price",
+            "json-ld hasVariant[4].offers.price"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld hasVariant[0].offers.price",
+            "xpath //div[@data-testid=\"product-page-sticky-bar\"]/div[@class=\"grid w-full grid-cols-[auto_repeat(12,minmax(0,1fr))] items-center gap-3 p-2 sm:p-4 lg:mx-auto lg:max-w-7xl lg:gap-8 lg:p-6\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" col-span-2 \")]/span[@class=\"body-2 text-primary whitespace-nowrap\"]",
+            "json-ld hasVariant[1].offers.price",
+            "xpath //div[@data-testid=\"product-page-sticky-bar\"]/div[@class=\"grid w-full grid-cols-[auto_repeat(12,minmax(0,1fr))] items-center gap-3 p-2 sm:p-4 lg:mx-auto lg:max-w-7xl lg:gap-8 lg:p-6\"]/div[@class=\"col-span-5 min-w-0 lg:col-span-3\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" flex \")]/span[@class=\"body-2 text-primary whitespace-nowrap\"]"
+          ],
+          "afterSources": [
+            "json-ld",
+            "xpath"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "main_image",
+          "name": "Main image",
+          "before": [
+            "json-ld image[0]",
+            "json-ld image",
+            "json-ld hasVariant[0].image",
+            "json-ld hasVariant[1].image",
+            "json-ld hasVariant[2].image"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld image[0]",
+            "meta og:image:url",
+            "json-ld image",
+            "meta og:image:secure_url"
+          ],
+          "afterSources": [
+            "json-ld",
+            "meta"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "in_stock",
+          "name": "In stock",
+          "before": [
+            "json-ld hasVariant[1].offers.availability",
+            "json-ld hasVariant[3].offers.availability",
+            "json-ld hasVariant[4].offers.availability",
+            "json-ld hasVariant[5].offers.availability",
+            "json-ld hasVariant[6].offers.availability"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld hasVariant[1].offers.availability",
+            "json-ld hasVariant[2].offers.availability"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://skims.com/en-my/products/fits-everybody-balconette-bra-onyx",
+          "captureId": "a5d4e63e-c4f0-4169-af8d-285f98923d27",
+          "status": "captured"
+        },
+        {
+          "url": "https://skims.com/en-my/products/skims-ultimate-balconette-push-up-bra-clay",
+          "captureId": "7f5b2a95-0131-4da5-9612-a47c52b1c89d",
+          "status": "captured"
+        },
+        {
+          "url": "https://skims.com/en-my/products/fits-everybody-t-shirt-bra-onyx",
+          "captureId": "44b70dc0-851d-4cd8-913b-397c594957be",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://skims.com/en-my/products/skims-ultimate-balconette-push-up-bra-clay",
+          "status": "done",
+          "costUsd": 0.000503,
+          "error": null
+        },
+        {
+          "url": "https://skims.com/en-my/products/fits-everybody-balconette-bra-onyx",
+          "status": "done",
+          "costUsd": 0.000502,
+          "error": null
+        },
+        {
+          "url": "https://skims.com/en-my/products/fits-everybody-t-shirt-bra-onyx",
+          "status": "done",
+          "costUsd": 0.000506,
+          "error": null
+        }
+      ],
+      "verificationId": "ec471ede-91b6-4f3c-9281-ec074281695c",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Description",
+          "reason": "https://skims.com/en-my/products/fits-everybody-t-shirt-bra-onyx: not_found; https://skims.com/en-my/products/fits-everybody-balconette-bra-onyx: ambiguous; https://skims.com/en-my/products/skims-ultimate-balconette-push-up-bra-clay: not_found"
+        }
+      ],
+      "agreement": {
+        "asked": 6,
+        "agreed": 0
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Credit campaign 2026-10/Everlane",
+      "sourceId": "b571fbfb-92e0-40af-bd87-e8b3f2d88a8a",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "price",
+          "name": "Price",
+          "before": [
+            "json-ld hasVariant[0].offers.price",
+            "json-ld hasVariant[1].offers.price",
+            "json-ld hasVariant[2].offers.price",
+            "json-ld hasVariant[3].offers.price",
+            "json-ld hasVariant[4].offers.price"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [],
+          "afterSources": [],
+          "firstPathChanged": true,
+          "passedBefore": true,
+          "passedAfter": false,
+          "failReason": "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white: not_found; https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal: not_found"
+        },
+        {
+          "key": "main_image",
+          "name": "Main image",
+          "before": [
+            "json-ld hasVariant[0].image",
+            "json-ld hasVariant[1].image",
+            "json-ld hasVariant[2].image",
+            "json-ld hasVariant[3].image",
+            "json-ld hasVariant[4].image"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld hasVariant[0].image",
+            "meta og:image",
+            "xpath //media-gallery[@data-desktop-layout=\"stacked\"]/slider-component[@class=\"slider-mobile-gutter\"]/ul[contains(concat(\" \",normalize-space(@class),\" \"),\" product__media-list \")]/li[contains(concat(\" \",normalize-space(@class),\" \"),\" product__media-item \")]/div[@class=\"product-media-container media-type-image media-fit-contain global-media-settings gradient constrain-height\"]/modal-opener[contains(concat(\" \",normalize-space(@class),\" \"),\" product__modal-opener \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product__media \")]/img[@class=\"image-magnify-lightbox\"]/@src",
+            "json-ld hasVariant[1].image",
+            "meta og:image:secure_url"
+          ],
+          "afterSources": [
+            "json-ld",
+            "meta",
+            "xpath"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white",
+          "captureId": "d61a2e45-ad61-46d5-9ac5-b667137e3448",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green",
+          "captureId": "3f92b098-a1c7-44bd-be18-e0be5a03c3fc",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal",
+          "captureId": "879853c1-8f0b-4d10-b4b7-a234f6c9762a",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white",
+          "status": "done",
+          "costUsd": 0.000302,
+          "error": null
+        },
+        {
+          "url": "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green",
+          "status": "done",
+          "costUsd": 0.000302,
+          "error": null
+        }
+      ],
+      "verificationId": "ebea036f-a4f8-486f-a989-bf5054adbf58",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Price",
+          "reason": "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white: not_found; https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal: not_found"
+        },
+        {
+          "name": "In stock",
+          "reason": "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green: elsewhere"
+        }
+      ],
+      "agreement": {
+        "asked": 6,
+        "agreed": 0
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Mejuri",
+      "sourceId": "7d6ce510-4452-4a43-ad9c-4d66f18ea2f0",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "title",
+          "name": "Title",
+          "before": [
+            "json-ld isVariantOf.name",
+            "json-ld hasVariant[0].isVariantOf.name",
+            "json-ld hasVariant[1].isVariantOf.name",
+            "json-ld hasVariant[2].isVariantOf.name",
+            "json-ld hasVariant[3].isVariantOf.name"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld isVariantOf.name",
+            "xpath //*[@id=\"main-product-content\"]/div[@class=\"px-md md:px-0\"]/div[@class=\"flex w-full justify-between items-stretch\"]/div[@class=\"flex flex-col flex-1 justify-between\"]/div[@class=\"flex justify-between items-start gap-2xl\"]/h1[@class=\"type-heading-s text-content text-lg md:text-xl\"]",
+            "json-ld hasVariant[0].isVariantOf.name",
+            "xpath //div[@data-testid=\"product-page\"]/div[2]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" block \")]/div[@class=\"pb-lg md:pb-0 md:grow-0 md:shrink-0 min-w-0 md:w-full md:basis-[35vw] md:max-w-[35vw] lg:basis-[30vw] lg:max-w-[30vw] xl:w-[30vw] md:self-center\"]/div[@class=\"px-md md:px-0\"]/div[@class=\"flex w-full justify-between items-stretch\"]/div[@class=\"flex flex-col flex-1 justify-between\"]/div[@class=\"flex justify-between items-start gap-2xl\"]/h1[@class=\"type-heading-s text-content text-lg md:text-xl\"]"
+          ],
+          "afterSources": [
+            "json-ld",
+            "xpath"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "price",
+          "name": "Price",
+          "before": [
+            "json-ld offers.price",
+            "json-ld offers.lowPrice",
+            "json-ld hasVariant[0].offers.price",
+            "json-ld hasVariant[1].offers.price",
+            "json-ld hasVariant[2].offers.price"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [],
+          "afterSources": [],
+          "firstPathChanged": true,
+          "passedBefore": true,
+          "passedAfter": false,
+          "failReason": "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold: not_found; https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil: not_found; https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond: not_found"
+        },
+        {
+          "key": "main_image",
+          "name": "Main image",
+          "before": [
+            "json-ld image",
+            "json-ld hasVariant[0].image",
+            "json-ld hasVariant[1].image",
+            "json-ld hasVariant[2].image",
+            "json-ld hasVariant[3].image"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld image",
+            "meta og:image",
+            "json-ld hasVariant[0].image"
+          ],
+          "afterSources": [
+            "json-ld",
+            "meta"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "sku",
+          "name": "SKU",
+          "before": [
+            "json-ld sku",
+            "json-ld hasVariant[0].sku"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld sku",
+            "json-ld hasVariant[0].sku"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "brand",
+          "name": "Brand",
+          "before": [
+            "json-ld brand.name",
+            "json-ld hasVariant[0].brand.name",
+            "json-ld hasVariant[1].brand.name",
+            "json-ld hasVariant[2].brand.name",
+            "json-ld hasVariant[3].brand.name"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld brand.name",
+            "meta og:brand",
+            "json-ld hasVariant[0].brand.name"
+          ],
+          "afterSources": [
+            "json-ld",
+            "meta"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "in_stock",
+          "name": "In stock",
+          "before": [
+            "json-ld offers.availability",
+            "json-ld hasVariant[0].offers.availability",
+            "json-ld hasVariant[1].offers.availability",
+            "json-ld hasVariant[2].offers.availability",
+            "json-ld hasVariant[3].offers.availability"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld hasVariant[2].offers.availability",
+            "json-ld hasVariant[3].offers.availability"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": true,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold",
+          "captureId": "5aedb7a1-848b-451e-a3c2-b325f4698fed",
+          "status": "captured"
+        },
+        {
+          "url": "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil",
+          "captureId": "32221042-7bc0-4b83-8115-3c2396e684b2",
+          "status": "captured"
+        },
+        {
+          "url": "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond",
+          "captureId": "e1cc7b37-49cc-4904-9489-9d3f2a7016bc",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold",
+          "status": "done",
+          "costUsd": 0.000364,
+          "error": null
+        },
+        {
+          "url": "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil",
+          "status": "done",
+          "costUsd": 0.000304,
+          "error": null
+        }
+      ],
+      "verificationId": "4db28718-a6ae-4b09-bc7c-4f8e4661d71f",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Price",
+          "reason": "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold: not_found; https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil: not_found; https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond: not_found"
+        }
+      ],
+      "agreement": {
+        "asked": 10,
+        "agreed": 9
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Sigmabeauty",
+      "sourceId": "4cad5f0e-90ce-4ffd-89bc-7bd0e2f1dce5",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "sku",
+          "name": "SKU",
+          "before": [
+            "json-ld sku",
+            "json-ld offers[0].sku"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld sku",
+            "json-ld offers[0].sku"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://sigmabeauty.com/products/f80-flatkabuki-chrome",
+          "captureId": "9b5338a8-9c0f-4b97-9f32-0ca8868ef3f8",
+          "status": "captured"
+        },
+        {
+          "url": "https://sigmabeauty.com/products/f80-air-flat-kabuki",
+          "captureId": "ab12cff7-0544-4281-84d1-efe494d26db8",
+          "status": "captured"
+        },
+        {
+          "url": "https://sigmabeauty.com/products/f48-soft-coverage",
+          "captureId": "8e29709d-21be-4849-bfb4-c08faa33e227",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://sigmabeauty.com/products/f80-flatkabuki-chrome",
+          "status": "done",
+          "costUsd": 0.000242,
+          "error": null
+        },
+        {
+          "url": "https://sigmabeauty.com/products/f80-air-flat-kabuki",
+          "status": "done",
+          "costUsd": 0.000242,
+          "error": null
+        }
+      ],
+      "verificationId": "31b63e31-8631-471e-91cc-4dfef15de46f",
+      "allPassed": true,
+      "errorMessage": null,
+      "failedFields": [],
+      "agreement": {
+        "asked": 5,
+        "agreed": 3
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Gymshark",
+      "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
+      "proofPages": 4,
+      "fields": [
+        {
+          "key": "title",
+          "name": "Title",
+          "before": [
+            "json-ld name",
+            "json-ld hasVariant[0].name",
+            "json-ld hasVariant[1].name",
+            "json-ld hasVariant[2].name",
+            "json-ld hasVariant[3].name"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld name",
+            "api products[0].title @ https://www.gymshark.com/api/products/by-handles",
+            "xpath //div[@data-testid=\"pdp-page\"]/div[2]/section[1]/h1[@class=\"product-information_title__PGbQD\"]",
+            "json-ld hasVariant[0].name",
+            "xpath //section[@data-testid=\"pdp-productInformationContainer-read\"]/h1[@class=\"product-information_title__PGbQD\"]"
+          ],
+          "afterSources": [
+            "json-ld",
+            "api https://www.gymshark.com/api/products/by-handles",
+            "xpath"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "main_image",
+          "name": "Main image",
+          "before": [
+            "json-ld image[0]",
+            "json-ld image",
+            "json-ld hasVariant[0].image",
+            "json-ld hasVariant[1].image",
+            "json-ld hasVariant[2].image"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld image[0]",
+            "api products[0].media @ https://www.gymshark.com/api/products/by-handles",
+            "meta og:image",
+            "json-ld image",
+            "api products[0].media[0].src @ https://www.gymshark.com/api/products/by-handles"
+          ],
+          "afterSources": [
+            "json-ld",
+            "api https://www.gymshark.com/api/products/by-handles",
+            "meta"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26",
+          "captureId": "62a1e239-c4d4-4afa-83d3-fae6e9f73428",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25",
+          "captureId": "5dcd1c1a-d251-4bbe-be9d-80e1c25fabbd",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26",
+          "captureId": "6fd8773e-0961-414e-9165-23ece927276c",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26",
+          "captureId": "2de811a9-c348-4e2d-a621-309f12174860",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26",
+          "status": "done",
+          "costUsd": 0.000351,
+          "error": null
+        },
+        {
+          "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25",
+          "status": "done",
+          "costUsd": 0.000353,
+          "error": null
+        },
+        {
+          "url": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26",
+          "status": "done",
+          "costUsd": 0.00036,
+          "error": null
+        }
+      ],
+      "verificationId": "1a220142-7e0b-4a00-87a4-5a027f7af4fd",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Rating",
+          "reason": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26: different_value (found \"4.2\")"
+        }
+      ],
+      "agreement": {
+        "asked": 11,
+        "agreed": 10
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Colourpop",
+      "sourceId": "91c12dfe-cc82-4a0b-87e6-f0bb2417f084",
+      "proofPages": 4,
+      "fields": [
+        {
+          "key": "title",
+          "name": "Title",
+          "before": [
+            "json-ld name",
+            "json-ld itemListElement[0].name",
+            "json-ld itemListElement[1].name",
+            "json-ld itemListElement[2].name",
+            "json-ld itemListElement[3].name"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld name"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://colourpop.com/products/fade-to-hue-pressed-powder-makeup-palette",
+          "captureId": "7c99091e-8bff-4b59-af1c-d3e97421d38e",
+          "status": "captured"
+        },
+        {
+          "url": "https://colourpop.com/products/aurora-stuck-shadow-palette",
+          "captureId": "37e95ce9-bd89-4c6f-83de-718c98b64bd4",
+          "status": "captured"
+        },
+        {
+          "url": "https://colourpop.com/products/bare-necessities-neutral-eyeshadow-palette",
+          "captureId": "2dcae11b-c3f0-42d8-88aa-7ff1bd5a10cc",
+          "status": "captured"
+        },
+        {
+          "url": "https://colourpop.com/products/fallen-collection",
+          "captureId": "1af89751-f74e-4f51-8a9f-46919a3be3e2",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://colourpop.com/products/aurora-stuck-shadow-palette",
+          "status": "done",
+          "costUsd": 0.000246,
+          "error": null
+        },
+        {
+          "url": "https://colourpop.com/products/fade-to-hue-pressed-powder-makeup-palette",
+          "status": "done",
+          "costUsd": 0.000246,
+          "error": null
+        },
+        {
+          "url": "https://colourpop.com/products/bare-necessities-neutral-eyeshadow-palette",
+          "status": "done",
+          "costUsd": 0.000246,
+          "error": null
+        }
+      ],
+      "verificationId": "e207e4d0-04a1-4ca8-bbe6-2c8337c2b611",
+      "allPassed": true,
+      "errorMessage": null,
+      "failedFields": [],
+      "agreement": {
+        "asked": 9,
+        "agreed": 3
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Ridge",
+      "sourceId": "c716c55b-cd64-4930-87d0-01feec19bcab",
+      "proofPages": 4,
+      "fields": [
+        {
+          "key": "brand",
+          "name": "Brand",
+          "before": [
+            "api products[0].vendor",
+            "api products[1].vendor",
+            "api products[2].vendor",
+            "api products[3].vendor",
+            "api products[4].vendor"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [
+            "api products[0].vendor @ https://ridge.com/collections/kintsugi-eligible-playing-cards-hide/products.json",
+            "meta og:site_name",
+            "api products[1].vendor @ https://ridge.com/collections/kintsugi-eligible-playing-cards-hide/products.json"
+          ],
+          "afterSources": [
+            "api https://ridge.com/collections/kintsugi-eligible-playing-cards-hide/products.json",
+            "meta"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://ridge.com/products/aluminum-black",
+          "captureId": "80b9b836-707e-4d4b-b7cc-e58597109c95",
+          "status": "captured"
+        },
+        {
+          "url": "https://ridge.com/products/carbon-fiber",
+          "captureId": "5d3f192e-ba93-4321-84b0-88be37c37178",
+          "status": "captured"
+        },
+        {
+          "url": "https://ridge.com/products/magsafe-wallet-neon-tiger",
+          "captureId": "656642e7-190c-46ca-8670-97afaf3e9b3a",
+          "status": "captured"
+        },
+        {
+          "url": "https://ridge.com/products/american-traditional?variant=43765981675594",
+          "captureId": "f1cb6416-e998-4414-a290-9d1f7defffe4",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://ridge.com/products/aluminum-black",
+          "status": "done",
+          "costUsd": 0.000287,
+          "error": null
+        },
+        {
+          "url": "https://ridge.com/products/carbon-fiber",
+          "status": "done",
+          "costUsd": 0.000281,
+          "error": null
+        },
+        {
+          "url": "https://ridge.com/products/magsafe-wallet-neon-tiger",
+          "status": "done",
+          "costUsd": 0.000275,
+          "error": null
+        }
+      ],
+      "verificationId": "dc038f49-cd34-48fa-810a-2570dbd363f8",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "In stock",
+          "reason": "https://ridge.com/products/carbon-fiber: not_found; https://ridge.com/products/aluminum-black: not_found; https://ridge.com/products/magsafe-wallet-neon-tiger: not_found; https://ridge.com/products/american-traditional?variant=43765981675594: not_found"
+        }
+      ],
+      "agreement": {
+        "asked": 11,
+        "agreed": 10
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Oliverbonas",
+      "sourceId": "3406d1ae-81b2-42fa-95f2-e7a3f4393b6e",
+      "proofPages": 4,
+      "fields": [
+        {
+          "key": "main_image",
+          "name": "Main image",
+          "before": [
+            "json-ld image[0]",
+            "json-ld image",
+            "json-ld hasVariant[0].image",
+            "json-ld hasVariant[1].image",
+            "json-ld hasVariant[2].image"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld image[0]",
+            "meta og:image",
+            "json-ld image",
+            "meta twitter:image"
+          ],
+          "afterSources": [
+            "json-ld",
+            "meta"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016",
+          "captureId": "e970649f-2a3e-43a9-b36a-3a1094be373e",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216",
+          "captureId": "36bf7161-f3aa-4b2c-9195-e29862648dcd",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184",
+          "captureId": "70d30319-a6c6-4ac9-b548-6900368171f2",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935",
+          "captureId": "f506228b-ea95-4c5f-ae86-21c5427d4913",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184",
+          "status": "failed",
+          "costUsd": 0,
+          "error": "timed out after 10000 ms"
+        },
+        {
+          "url": "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016",
+          "status": "done",
+          "costUsd": 0.000297,
+          "error": null
+        },
+        {
+          "url": "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216",
+          "status": "done",
+          "costUsd": 0.000283,
+          "error": null
+        },
+        {
+          "url": "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935",
+          "status": "done",
+          "costUsd": 0.000285,
+          "error": null
+        }
+      ],
+      "verificationId": "be178496-6038-4604-aecf-4906ffbb3cb4",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Rating",
+          "reason": "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184: different_value (found \"4.5\"); https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016: ambiguous"
+        }
+      ],
+      "agreement": {
+        "asked": 7,
+        "agreed": 6
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Ikea",
+      "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "price",
+          "name": "Price",
+          "before": [
+            "api price",
+            "api priceExclTax",
+            "api priceNumeral",
+            "api priceExclTaxNumeral",
+            "api revampPrice.integer"
+          ],
+          "beforeSources": [
+            "api "
+          ],
+          "after": [
+            "api price @ https://www.ikea.com/my/en/products/009/10489009.json",
+            "api priceExclTax @ https://www.ikea.com/my/en/products/009/10489009.json"
+          ],
+          "afterSources": [
+            "api https://www.ikea.com/my/en/products/009/10489009.json"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/",
+          "captureId": "ba113a56-f572-4019-854b-66885798a278",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/",
+          "captureId": "cdc5a743-fc9c-479d-9710-090f3edb8d03",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/",
+          "captureId": "7a0653b9-22d3-44b6-90b0-e70a9e3a4159",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/",
+          "status": "done",
+          "costUsd": 0.000292,
+          "error": null
+        },
+        {
+          "url": "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/",
+          "status": "done",
+          "costUsd": 0.000275,
+          "error": null
+        }
+      ],
+      "verificationId": "997daff2-75ed-4bc1-b0e3-c6769a01a1e3",
+      "allPassed": true,
+      "errorMessage": null,
+      "failedFields": [],
+      "agreement": {
+        "asked": 5,
+        "agreed": 3
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Burrow",
+      "sourceId": "c8d2a589-f342-4e4a-8787-96ebc9a0d27a",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "brand",
+          "name": "Brand",
+          "before": [
+            "json-ld brand.name",
+            "json-ld hasVariant[0].brand.name",
+            "json-ld hasVariant[1].brand.name",
+            "json-ld hasVariant[2].brand.name",
+            "json-ld hasVariant[3].brand.name"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld brand.name",
+            "json-ld hasVariant[0].brand.name"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "in_stock",
+          "name": "In stock",
+          "before": [
+            "json-ld hasVariant[0].offers.availability",
+            "json-ld hasVariant[1].offers.availability",
+            "json-ld hasVariant[2].offers.availability",
+            "json-ld hasVariant[3].offers.availability",
+            "json-ld hasVariant[5].offers.availability"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld hasVariant[0].offers.availability",
+            "json-ld hasVariant[2].offers.availability"
+          ],
+          "afterSources": [
+            "json-ld"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        },
+        {
+          "key": "description",
+          "name": "Description",
+          "before": [
+            "json-ld description",
+            "json-ld hasVariant[0].description",
+            "json-ld hasVariant[1].description",
+            "json-ld hasVariant[2].description",
+            "json-ld hasVariant[3].description"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [
+            "json-ld description",
+            "meta description",
+            "json-ld hasVariant[0].description"
+          ],
+          "afterSources": [
+            "json-ld",
+            "meta"
+          ],
+          "firstPathChanged": false,
+          "passedBefore": true,
+          "passedAfter": true
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table",
+          "captureId": "19305310-d483-43e5-b863-0804832673a1",
+          "status": "captured"
+        },
+        {
+          "url": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal",
+          "captureId": "764dccd4-b774-4d7e-af72-281cc768819e",
+          "status": "captured"
+        },
+        {
+          "url": "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal",
+          "captureId": "29a4795c-a740-4e5a-8a9a-b18a7a09dcb6",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table",
+          "status": "done",
+          "costUsd": 0.000364,
+          "error": null
+        },
+        {
+          "url": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal",
+          "status": "done",
+          "costUsd": 0.000345,
+          "error": null
+        }
+      ],
+      "verificationId": "a883cc30-ae25-4860-9238-8aec2e988fed",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Price",
+          "reason": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal: not_found; https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal: not_found; https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table: not_found"
+        },
+        {
+          "name": "Rating",
+          "reason": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal: not_found; https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal: not_found; https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table: not_found"
+        }
+      ],
+      "agreement": {
+        "asked": 9,
+        "agreed": 6
+      }
+    },
+    {
+      "website": "Credit campaign 2026-10/Campaign 2 2026-10-11/Skullcandy",
+      "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
+      "proofPages": 3,
+      "fields": [
+        {
+          "key": "description",
+          "name": "Description",
+          "before": [
+            "json-ld description",
+            "json-ld hasVariant[0].description"
+          ],
+          "beforeSources": [
+            "json-ld"
+          ],
+          "after": [],
+          "afterSources": [],
+          "firstPathChanged": true,
+          "passedBefore": true,
+          "passedAfter": false,
+          "failReason": "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset: not_captured"
+        }
+      ],
+      "proofCaptures": [
+        {
+          "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound",
+          "captureId": "0eadad02-c83f-4917-a8cc-2866c8f18767",
+          "status": "captured"
+        },
+        {
+          "url": "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset",
+          "captureId": "f509d488-3779-454a-87f7-4a12049770c2",
+          "status": "failed",
+          "error": "That page doesn't exist on skullcandy.com (404). Check the address."
+        },
+        {
+          "url": "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids",
+          "captureId": "f75d3712-6480-4b7b-a5c8-9692eca3798c",
+          "status": "captured"
+        }
+      ],
+      "jev": [
+        {
+          "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound",
+          "status": "done",
+          "costUsd": 0.000314,
+          "error": null
+        }
+      ],
+      "verificationId": "ce5c1657-2993-4d8b-b690-2917392db0ce",
+      "allPassed": false,
+      "errorMessage": null,
+      "failedFields": [
+        {
+          "name": "Title",
+          "reason": "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset: not_captured"
+        },
+        {
+          "name": "Price",
+          "reason": "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset: not_captured"
+        },
+        {
+          "name": "Main image",
+          "reason": "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset: not_captured"
+        },
+        {
+          "name": "SKU",
+          "reason": "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset: not_captured"
+        },
+        {
+          "name": "Brand",
+          "reason": "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset: not_captured"
+        },
+        {
+          "name": "In stock",
+          "reason": "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset: not_captured"
+        },
+        {
+          "name": "Rating",
+          "reason": "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset: not_captured"
+        },
+        {
+          "name": "Description",
+          "reason": "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset: not_captured"
+        }
+      ],
+      "agreement": {
+        "asked": 5,
+        "agreed": 4
+      }
+    }
+  ]
+}
