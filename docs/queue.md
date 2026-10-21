@@ -7,14 +7,8 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Websites change follow-ups** — from the apply run (docs/testing/results/2026-10-21-websites-change-apply/report.md):
-   (a) a refresh re-verify must not hide the other findings of the check that started it (a real lost or
-   moved field on a refreshed website would go unreported); (b) a refresh-started Verify must not start a
-   listing sample (spec §7.6: one browser, no check from a refresh); (c) a default-only or blank-expected
-   field is not reported "lost" when its paths read on every page (Gymshark Brand). *Done when:* each has a
-   test, the gate passes. (Standing approval; found 2026-10-21.)
-2. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-3. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+2. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
@@ -31,6 +25,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-21 — Websites change follow-ups (`5ec19af`): a refresh no longer hides other findings, never starts a listing sample, and a default-backed field is judged against its default. Gymshark re-checked: all 8 fields read as working (15:49); a later re-check could not open a browser (low memory) and is recorded as failed.
 - 2026-10-21 — Websites change: keep running, re-check, tell the customer (`d595283`); applied to the 10 websites — all 10 run again (report in docs/testing/results/2026-10-21-websites-change-apply/).
 - 2026-10-21 — The 10 websites that lost certification at the re-verify are kept as they are (Marko); item 1 brings them back.
 - 2026-10-21 — Re-verified the 20 one-source websites (`docs/testing/results/2026-10-21-reverify-one-source/report.md`); Jev agreement read.
