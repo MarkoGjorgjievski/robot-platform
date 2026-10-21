@@ -268,7 +268,9 @@ function sourceOf(p: Pick<OpsFieldPath, 'source' | 'container'>): string {
  * all-XPath case (an API path with no recorded `container` reads as the same
  * response as any other).
  */
-export function oneSourceWarning(paths: ReadonlyArray<Pick<OpsFieldPath, 'source' | 'container'>>): string | null {
+export function oneSourceWarning(paths: ReadonlyArray<Pick<OpsFieldPath, 'source' | 'container' | 'provenOn'>>): string | null {
+  // Mirrors the scraper's readsOneSource: a multi-layout cover (provenOn) is not a set of backups.
+  if (paths.some((p) => p.provenOn !== undefined)) return null;
   return paths.length >= 2 && new Set(paths.map(sourceOf)).size === 1 ? ONE_SOURCE_WARNING : null;
 }
 

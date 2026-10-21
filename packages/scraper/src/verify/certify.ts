@@ -88,7 +88,10 @@ export function sourceKey(p: Pick<CertifiedPath, 'source' | 'container'>): strin
 }
 
 /** Two or more paths, all from one source (spec 2026-10-20 one-source §3.2, §3.4) — the page's HTML included (spec 2026-10-21 xpath-cap). */
-export function readsOneSource(paths: ReadonlyArray<Pick<CertifiedPath, 'source' | 'container'>>): boolean {
+export function readsOneSource(paths: ReadonlyArray<Pick<CertifiedPath, 'source' | 'container' | 'provenOn'>>): boolean {
+  // A multi-layout cover (paths carry provenOn) is not a set of backups: each path answers different
+  // pages, so sharing a source is not "failing together" (review, 2026-10-21).
+  if (paths.some((p) => p.provenOn !== undefined)) return false;
   return paths.length >= 2 && new Set(paths.map(sourceKey)).size === 1;
 }
 

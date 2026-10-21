@@ -1314,3 +1314,14 @@ describe('certify — which API paths are one source (final review Minor 1, spec
     });
   }
 });
+
+describe('a multi-layout cover is not a set of backups (review, 2026-10-21)', () => {
+  it('readsOneSource is false when the paths carry provenOn, even all XPath', () => {
+    const cover = [
+      { source: 'xpath' as const, path: '//a', provenOn: ['https://s.example/1'] },
+      { source: 'xpath' as const, path: '//b', provenOn: ['https://s.example/2'] },
+    ];
+    expect(readsOneSource(cover)).toBe(false);
+    expect(readsOneSource(cover.map(({ source, path }) => ({ source, path })))).toBe(true);
+  });
+});

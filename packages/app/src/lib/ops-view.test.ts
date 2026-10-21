@@ -528,3 +528,11 @@ describe('Jev agreement in ops (spec 2026-10-16 §8)', () => {
     expect(jevAgreementLine({})).toBeNull();
   });
 });
+
+describe('oneSourceWarning skips a multi-layout cover (review, 2026-10-21)', () => {
+  it('no warning when the paths carry provenOn', () => {
+    const p = (path: string, provenOn?: string[]) => ({ source: 'xpath' as const, path, uses: 0, hits: 0, ...(provenOn ? { provenOn } : {}) });
+    expect(oneSourceWarning([p('//a', ['u1']), p('//b', ['u2'])])).toBeNull();
+    expect(oneSourceWarning([p('//a'), p('//b')])).not.toBeNull();
+  });
+});
