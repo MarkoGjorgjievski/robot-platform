@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { IBrowser } from '@robot/browser';
+import * as scraper from '@robot/scraper';
 import type { CertifiedPath, FieldVerification, SchemaDefinitionField } from '@robot/scraper';
 import { SHOP_EXAMPLE } from '../test-helpers/shop-example.js';
-import { readingsOf, resultPasses, stillExtracts } from './holds.js';
+import { decideHolds, readingsOf, resultPasses, stillExtracts } from './holds.js';
 
 const LD: CertifiedPath = { source: 'json-ld', path: 'offers.price', transform: 'identity' };
 const price: SchemaDefinitionField = { key: 'price', name: 'Price', type: 'money', description: '', concept: 'price' };
@@ -42,5 +43,51 @@ describe('resultPasses', () => {
     expect(resultPasses({ ...base, cells: {} })).toBe(false);
     expect(resultPasses({ ...base, certified: [] })).toBe(false);
     expect(resultPasses(undefined)).toBe(false);
+  });
+});
+
+describe('decideHolds (spec 2026-10-21 §3.1)', () => {
+  const U = [SHOP_EXAMPLE.p1.url, SHOP_EXAMPLE.p2.url];
+  const caps = { [U[0]!]: SHOP_EXAMPLE.p1, [U[1]!]: SHOP_EXAMPLE.p2 };
+  const set = { urls: U, expected: { price: { [U[0]!]: '1.00', [U[1]!]: '2.00' } } };
+  const passed: FieldVerification = { key: 'price', cells: { [U[0]!]: { status: 'pass', found: '1', path: LD } }, certified: [LD], weakEvidence: false, aiCalled: false, incomplete: false };
+  const failed: FieldVerification = { ...passed, certified: [], cells: { [U[0]!]: { status: 'fail', reason: 'different_value', found: '129.99' } } };
+  const now = (f: SchemaDefinitionField) => scraper.fieldHash(f, set);
+  const certifying = (hashes: string[], result = passed) => () => ({ result, verificationId: 'v0', verifiedAt: new Date('2026-10-12T00:00:00Z'), fieldHashes: hashes });
+  const base = { fields: [price], set, keys: ['price'], captures: caps, browser, failedVerificationId: 'v1' };
+
+  it('a passing field ends its hold', async () => {
+    const plan = await decideHolds({ ...base, outcome: { price: passed }, certifying: certifying([now(price)]) });
+    expect(plan.remove).toEqual(['price']);
+    expect(plan.upsert).toEqual([]);
+  });
+  it('a failing field whose last good path still reads is held, from its certifying result', async () => {
+    const plan = await decideHolds({ ...base, outcome: { price: failed }, certifying: certifying([now(price)]) });
+    expect(plan.upsert).toEqual([{ fieldKey: 'price', result: passed, verificationId: 'v0', verifiedAt: new Date('2026-10-12T00:00:00Z'), failedVerificationId: 'v1', fieldHashes: [now(price)] }]);
+    expect(plan.readings.price![U[0]!]!.value).toBe('129.99');
+  });
+  it('Review Focus 4: a path that reads on one page and nothing on another keeps the hold', async () => {
+    const half = { ...SHOP_EXAMPLE.p2, structuredData: { ...SHOP_EXAMPLE.p2.structuredData, ldJson: [] } };
+    const plan = await decideHolds({ ...base, captures: { [U[0]!]: SHOP_EXAMPLE.p1, [U[1]!]: half }, outcome: { price: failed }, certifying: certifying([now(price)]) });
+    expect(plan.upsert.map((h) => h.fieldKey)).toEqual(['price']);
+  });
+  it('a path that reads nothing anywhere is not held', async () => {
+    const gone = { source: 'json-ld' as const, path: 'offers.nothing', transform: 'identity' as const };
+    const plan = await decideHolds({ ...base, outcome: { price: failed }, certifying: certifying([now(price)], { ...passed, certified: [gone] }) });
+    expect(plan.upsert).toEqual([]);
+    expect(plan.remove).toEqual(['price']);
+  });
+  it('a field the customer changed since its pass, or one that never passed, is not held', async () => {
+    expect((await decideHolds({ ...base, outcome: { price: failed }, certifying: certifying(['an-older-hash']) })).upsert).toEqual([]);
+    expect((await decideHolds({ ...base, outcome: { price: failed }, certifying: () => null })).upsert).toEqual([]);
+  });
+  it('a hold is only ever written from a result that passes (Task 3 review)', async () => {
+    const plan = await decideHolds({ ...base, outcome: { price: failed }, certifying: certifying([now(price)], failed) });
+    expect(plan.upsert).toEqual([]);
+    expect(plan.remove).toEqual(['price']);
+  });
+  it('touches only the fields this Verify checked', async () => {
+    const plan = await decideHolds({ ...base, keys: [], outcome: { price: failed }, certifying: certifying([now(price)]) });
+    expect(plan).toEqual({ upsert: [], remove: [], readings: {} });
   });
 });

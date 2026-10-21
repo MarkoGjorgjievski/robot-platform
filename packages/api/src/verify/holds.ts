@@ -2,12 +2,13 @@
 // Websites change (spec 2026-10-21 §3.1): a hold keeps a field's last passing
 // result after a Verify that did not pass it, while its paths still extract.
 // This file loads holds and reads, the way a run would, what a set of paths
-// writes on a set of captures (no page load). Writing holds lives here too
-// (Task 5). Never a model call.
-import { eq, inArray } from 'drizzle-orm';
-import { fieldHolds, type Database } from '@robot/db';
+// writes on a set of captures (no page load), decides and writes a Verify's
+// holds, and backfills them once for named websites. Never a model call.
+import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { fieldHolds, sourceVerifications, sources, type Database } from '@robot/db';
 import type { IBrowser, PageCapture } from '@robot/browser';
-import { runVerifiedExtraction, type CertifiedPath, type FieldVerification, type PathReading, type SchemaDefinitionField } from '@robot/scraper';
+import { fieldHash, runVerifiedExtraction, type CertifiedPath, type FieldVerification, type PathReading, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
+import { readCaptureFile, type StoredCaptureRef } from './capture-store.js';
 
 /** The database or a transaction on it. */
 export type HoldsDb = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -87,4 +88,104 @@ export function stillExtracts(result: Pick<FieldVerification, 'certified'>, read
   if (result.certified.length === 0) return true;
   const read = Object.values(readings);
   return read.length === 0 || read.some((r) => r.value !== null);
+}
+
+export type HoldPlan = { upsert: Hold[]; remove: string[]; readings: Record<string, Record<string, PathReading>> };
+
+/**
+ * Spec §3.1, for each field a Verify checked (`keys`): a pass ends its hold; a field it did not pass is
+ * held when it had a certifying result that itself passes, whose hashes include today's hash (the customer
+ * has not edited it since), and whose paths still extract on the Verify's captures; otherwise it has no
+ * hold. Reads the captures the way a run would (no page load, never a model call). Variants are not
+ * fields: a hold never stands in for a failed variant check.
+ */
+export async function decideHolds(args: {
+  fields: SchemaDefinitionField[];
+  set: VerificationSet;
+  keys: string[];
+  outcome: Record<string, FieldVerification>;
+  certifying: (key: string) => Certifying | null;
+  captures: Record<string, PageCapture | null>;
+  browser: IBrowser;
+  failedVerificationId: string;
+}): Promise<HoldPlan> {
+  const plan: HoldPlan = { upsert: [], remove: [], readings: {} };
+  for (const field of args.fields.filter((f) => args.keys.includes(f.key))) {
+    if (resultPasses(args.outcome[field.key])) { plan.remove.push(field.key); continue; }
+    const c = args.certifying(field.key);
+    // A hold is only ever made from a result that passes (Task 3 review).
+    if (!c || !resultPasses(c.result) || !c.fieldHashes.includes(fieldHash(field, args.set))) { plan.remove.push(field.key); continue; }
+    const readings = await readingsOf(args.browser, field, c.result.certified, args.captures);
+    plan.readings[field.key] = readings;
+    if (!stillExtracts(c.result, readings)) { plan.remove.push(field.key); continue; }
+    plan.upsert.push({ fieldKey: field.key, result: c.result, verificationId: c.verificationId, verifiedAt: c.verifiedAt, failedVerificationId: args.failedVerificationId, fieldHashes: c.fieldHashes });
+  }
+  return plan;
+}
+
+/**
+ * Writes a plan's holds and deletes its ended ones — call inside the Verify's own transaction. A hold whose
+ * result does not pass is never written, whoever built the plan.
+ */
+export async function writeHolds(db: HoldsDb, sourceId: string, plan: Pick<HoldPlan, 'upsert' | 'remove'>): Promise<void> {
+  for (const h of plan.upsert) {
+    if (!resultPasses(h.result)) {
+      console.error(`[holds] refused a hold for ${sourceId}/${h.fieldKey}: its result does not pass`);
+      continue;
+    }
+    const values = { result: h.result, verificationId: h.verificationId, verifiedAt: h.verifiedAt, failedVerificationId: h.failedVerificationId, fieldHashes: h.fieldHashes, updatedAt: new Date() };
+    await db.insert(fieldHolds).values({ sourceId, fieldKey: h.fieldKey, ...values })
+      .onConflictDoUpdate({ target: [fieldHolds.sourceId, fieldHolds.fieldKey], set: values });
+  }
+  if (plan.remove.length > 0) await db.delete(fieldHolds).where(and(eq(fieldHolds.sourceId, sourceId), inArray(fieldHolds.fieldKey, plan.remove)));
+}
+
+/**
+ * Spec 2026-10-21 §8: the hold rule applied after the fact to one named website's latest completed, clean
+ * Verify — what it would have kept had this code run then. Callers name each website (the ten approved
+ * ones); nothing here walks every website. A field's certifying result is its newest earlier pass at
+ * today's hash; the pages are the latest Verify's stored capture files (read whatever their age, no page
+ * load, never a model call). Fields the latest Verify passed, and fields already held, are left alone, so
+ * it is idempotent. With `write`, writes the holds (never deletes one).
+ */
+export async function backfillHolds(
+  db: Database,
+  browser: IBrowser,
+  sourceId: string,
+  opts: { write?: boolean } = {},
+): Promise<HoldPlan & { certifying: Record<string, Certifying>; latestId: string | null; passing: string[] }> {
+  const empty = { upsert: [], remove: [], readings: {}, certifying: {}, latestId: null, passing: [] };
+  const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, verificationSet: true } });
+  if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return empty;
+  const fields = source.schemaDefinition as SchemaDefinitionField[];
+  const set = source.verificationSet as VerificationSet;
+  const runs = await db.query.sourceVerifications.findMany({
+    where: and(eq(sourceVerifications.sourceId, sourceId), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)),
+    orderBy: [desc(sourceVerifications.completedAt), desc(sourceVerifications.id)],
+    limit: 30,
+  });
+  const latest = runs[0];
+  if (!latest) return empty;
+  const latestResults = (latest.results ?? {}) as Record<string, FieldVerification>;
+  const existing = await loadHolds(db, sourceId);
+  const certifying: Record<string, Certifying> = {};
+  const keys = fields.filter((f) => !resultPasses(latestResults[f.key]) && !existing.some((h) => h.fieldKey === f.key)).map((f) => f.key);
+  for (const key of keys) {
+    const field = fields.find((f) => f.key === key)!;
+    const now = fieldHash(field, set);
+    const good = runs.slice(1).find((r) => {
+      const x = ((r.results ?? {}) as Record<string, FieldVerification>)[key];
+      return resultPasses(x) && x!.fieldHash === now;
+    });
+    if (good) certifying[key] = { result: (good.results as Record<string, FieldVerification>)[key]!, verificationId: good.id, verifiedAt: good.completedAt!, fieldHashes: [now] };
+  }
+  const captures: Record<string, PageCapture | null> = {};
+  for (const [url, ref] of Object.entries((latest.captures ?? {}) as Record<string, StoredCaptureRef>)) {
+    if (url === '_stage' || !set.urls.includes(url)) continue;
+    captures[url] = ref.captureId ? await readCaptureFile(ref.captureId) : null;
+  }
+  const plan = await decideHolds({ fields, set, keys: Object.keys(certifying), outcome: latestResults, certifying: (k) => certifying[k] ?? null, captures, browser, failedVerificationId: latest.id });
+  if (opts.write) await writeHolds(db, sourceId, { upsert: plan.upsert, remove: [] });
+  const passing = fields.filter((f) => resultPasses(latestResults[f.key])).map((f) => f.key);
+  return { ...plan, certifying, latestId: latest.id, passing };
 }
