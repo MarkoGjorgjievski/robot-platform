@@ -12,6 +12,10 @@ import {
   driftNoticeLines,
   encodeOpsOverviewState,
   fieldFlag,
+  heldFlag,
+  refreshOpsLines,
+  refreshRefusalText,
+  refreshRefusals,
   isDrifted,
   isOpsPath,
   lastRunFailed,
@@ -46,6 +50,7 @@ function row(over: Partial<OpsWebsiteRow> & { sourceId: string }): OpsWebsiteRow
     website: { name: over.sourceId, slug: over.sourceId.toLowerCase(), host: `${over.sourceId.toLowerCase()}.example.com` },
     fields: 4,
     currentFields: 4,
+    held: 0,
     drifted: 0,
     lastRun: null,
     spentThisMonthUsd: 0,
@@ -359,20 +364,20 @@ describe('backupsSummary', () => {
 
 describe('fieldFlag', () => {
   it('ranks drift above changed-since-verified above a shared source above a weak first path, and is null otherwise', () => {
-    expect(fieldFlag({ drifted: true, changed: 'binding', oneSource: true, firstPathPct: 40 })).toBe('Stopped extracting');
-    expect(fieldFlag({ drifted: false, changed: 'binding', oneSource: true, firstPathPct: 40 })).toBe('Changed since verified');
-    expect(fieldFlag({ drifted: false, changed: false, oneSource: true, firstPathPct: 40 })).toBe('Backups share one source');
-    expect(fieldFlag({ drifted: false, changed: false, oneSource: false, firstPathPct: 40 })).toBe('First path finds it on 40 %');
-    expect(fieldFlag({ drifted: false, changed: false, oneSource: false, firstPathPct: 90 })).toBeNull();
-    expect(fieldFlag({ drifted: false, changed: false, oneSource: false, firstPathPct: null })).toBeNull();
+    expect(fieldFlag({ drifted: true, held: null, changed: 'binding', oneSource: true, firstPathPct: 40 })).toBe('Stopped extracting');
+    expect(fieldFlag({ drifted: false, held: null, changed: 'binding', oneSource: true, firstPathPct: 40 })).toBe('Changed since verified');
+    expect(fieldFlag({ drifted: false, held: null, changed: false, oneSource: true, firstPathPct: 40 })).toBe('Backups share one source');
+    expect(fieldFlag({ drifted: false, held: null, changed: false, oneSource: false, firstPathPct: 40 })).toBe('First path finds it on 40 %');
+    expect(fieldFlag({ drifted: false, held: null, changed: false, oneSource: false, firstPathPct: 90 })).toBeNull();
+    expect(fieldFlag({ drifted: false, held: null, changed: false, oneSource: false, firstPathPct: null })).toBeNull();
   });
 
   // Final review M6: 'changed' used to be a single boolean covering both a
   // true hash mismatch and "same hash, but the result failed" — the two now
   // get different words, and drift still outranks both.
   it("labels a same-hash failure \"Didn't pass verification\", distinct from a hash mismatch, and still below drift", () => {
-    expect(fieldFlag({ drifted: false, changed: 'failed', oneSource: true, firstPathPct: 40 })).toBe("Didn't pass verification");
-    expect(fieldFlag({ drifted: true, changed: 'failed', oneSource: true, firstPathPct: 40 })).toBe('Stopped extracting');
+    expect(fieldFlag({ drifted: false, held: null, changed: 'failed', oneSource: true, firstPathPct: 40 })).toBe("Didn't pass verification");
+    expect(fieldFlag({ drifted: true, held: null, changed: 'failed', oneSource: true, firstPathPct: 40 })).toBe('Stopped extracting');
   });
 });
 
@@ -534,5 +539,38 @@ describe('oneSourceWarning skips a multi-layout cover (review, 2026-10-21)', () 
     const p = (path: string, provenOn?: string[]) => ({ source: 'xpath' as const, path, uses: 0, hits: 0, ...(provenOn ? { provenOn } : {}) });
     expect(oneSourceWarning([p('//a', ['u1']), p('//b', ['u2'])])).toBeNull();
     expect(oneSourceWarning([p('//a'), p('//b')])).not.toBeNull();
+  });
+});
+
+describe('holds and automatic updates in ops (spec 2026-10-21 §6)', () => {
+  it('the held flag and the overview’s held count', () => {
+    expect(heldFlag(new Date(2026, 9, 12).toISOString())).toBe('Held — runs use the paths verified 12 Oct');
+    expect(fieldFlag({ drifted: false, held: new Date(2026, 9, 12).toISOString(), changed: 'failed', oneSource: false, firstPathPct: null })).toBe('Held — runs use the paths verified 12 Oct');
+    expect(fieldFlag({ drifted: true, held: new Date(2026, 9, 12).toISOString(), changed: false, oneSource: false, firstPathPct: null })).toBe('Stopped extracting');
+    expect(verifiedText(6, 8, 2)).toBe('6 of 8 fields · 2 held');
+    expect(verifiedText(6, 8)).toBe('6 of 8 fields');
+    expect(verifiedText(0, 8, 2)).toBe('Not verified · 2 held');
+  });
+  it('one line per refreshed page, newest refresh first, with the path that read it', () => {
+    const urls = ['u1', 'u2'];
+    const lines = refreshOpsLines([
+      { at: new Date(2026, 9, 24).toISOString(), key: 'price', name: 'Price', pages: { u2: { was: '435.00', now: '440.00', path: { source: 'json-ld', path: 'offers.price' } } } },
+      { at: new Date(2026, 9, 21).toISOString(), key: 'rating', name: 'Rating', pages: { u1: { was: '4', now: '4.2', path: { source: 'xpath', path: '//span[1]' } } } },
+    ], urls);
+    expect(lines).toEqual([
+      '24 Oct · Price · product 2: 435.00 → 440.00 · Page data offers.price',
+      '21 Oct · Rating · product 1: 4 → 4.2 · Page element //span[1]',
+    ]);
+  });
+  it('why a changed value was not taken automatically, in plain words', () => {
+    expect(refreshRefusalText('not-shown')).toBe('Not updated automatically: the page does not show the new value');
+    expect(refreshRefusalText('fixed-variant')).toBe('Not updated automatically: reads a fixed variant');
+    expect(refreshRefusalText('busy')).toBe('Not updated automatically: a Verify was running');
+    expect(refreshRefusalText(undefined)).toBeNull();
+  });
+  it('one refusal line per field the latest check did not refresh', () => {
+    const results = { fields: { price: { refresh: { applied: false, reason: 'not-shown' } }, rating: { refresh: { applied: true } }, title: {} } };
+    expect(refreshRefusals(results)).toEqual({ price: 'Not updated automatically: the page does not show the new value' });
+    expect(refreshRefusals(null)).toEqual({});
   });
 });

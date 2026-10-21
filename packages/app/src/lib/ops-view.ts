@@ -15,6 +15,8 @@ export type OpsWebsiteRow = {
   website: { name: string; slug: string; host: string };
   fields: number;
   currentFields: number;
+  /** Fields read from their last good result (spec 2026-10-21 §3.1). */
+  held: number;
   drifted: number;
   lastRun: { status: string; at: string } | null;
   spentThisMonthUsd: number;
@@ -79,9 +81,11 @@ export function opsRowOrder(rows: readonly OpsWebsiteRow[]): OpsWebsiteRow[] {
  * The Verified cell's text (Global Constraints): "{c} of {n} fields" whether
  * that is every field (the pass rail) or only some (the warn rail) — the
  * rail colour, not the words, says which — and "Not verified" for zero.
+ * Held fields (spec 2026-10-21 §6) are appended: "6 of 8 fields · 2 held".
  */
-export function verifiedText(currentFields: number, fields: number): string {
-  return currentFields === 0 ? 'Not verified' : `${currentFields} of ${fields} fields`;
+export function verifiedText(currentFields: number, fields: number, held = 0): string {
+  const base = currentFields === 0 ? 'Not verified' : `${currentFields} of ${fields} fields`;
+  return held > 0 ? `${base} · ${held} held` : base;
 }
 
 /** The Verified cell's rail colour, matching `verifiedText`'s own cases. */
@@ -170,10 +174,14 @@ export type OpsFieldPath = { source: OpsPathSource; path: string; provenOn?: str
  * the binding moved, the run just failed). Both show their (possibly
  * stale) paths, flagged. `none` — no result at all: "Not verified yet"
  * (reviewer fix round 1).
+ * `held` — not current, read from its last passing result while its paths
+ * still extract (spec 2026-10-21 §3.1); its paths are the hold's.
  */
-export type OpsFieldState = 'current' | 'changed' | 'failed' | 'none';
+export type OpsFieldState = 'current' | 'held' | 'changed' | 'failed' | 'none';
 export type OpsField = {
   key: string; name: string; type: string; state: OpsFieldState; paths: OpsFieldPath[];
+  /** When the held result passed (ISO), on a `held` field only (spec 2026-10-21 §6). */
+  heldSince?: string;
   /** The website's default for this field (spec 2026-10-13 §7), when one is set. */
   defaultValue?: string;
   /** This field is certified default-only — every product gets the default, no path (spec 2026-10-13 §7). */
@@ -303,8 +311,10 @@ export function backupsSummary(paths: ReadonlyArray<Pick<OpsFieldPath, 'source'>
  * (final review M6: "Didn't pass verification", not "Changed since
  * verified" — the binding never moved), or `false` for neither.
  */
-export function fieldFlag(args: { drifted: boolean; changed: 'binding' | 'failed' | false; oneSource: boolean; firstPathPct: number | null }): string | null {
+export function fieldFlag(args: { drifted: boolean; held: string | null; changed: 'binding' | 'failed' | false; oneSource: boolean; firstPathPct: number | null }): string | null {
   if (args.drifted) return 'Stopped extracting';
+  // Spec 2026-10-21 §6: a held field says so (with the date its paths passed) before why the latest Verify did not pass.
+  if (args.held) return heldFlag(args.held);
   if (args.changed === 'binding') return 'Changed since verified';
   if (args.changed === 'failed') return "Didn't pass verification";
   if (args.oneSource) return 'Backups share one source';
@@ -441,4 +451,57 @@ export function decodeOpsOverviewState(raw: string | undefined): OpsOverviewStat
     customer: customer && customer.length > 0 ? customer : undefined,
     sort: OPS_SORT_KEYS.includes(sort as OpsSortKey) ? (sort as OpsSortKey) : undefined,
   };
+}
+
+// ─── Holds and automatic updates (spec 2026-10-21 §6) ──────────────────────
+
+const OPS_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const opsDay = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getDate()} ${OPS_MONTHS[d.getMonth()]}`;
+};
+
+/** Spec 2026-10-21 §6: a held field's flag. */
+export function heldFlag(heldSince: string): string {
+  return `Held — runs use the paths verified ${opsDay(heldSince)}`;
+}
+
+/** One row of `ops.website.refreshes`: an automatic update of a field's expected values, per proof page. */
+export type OpsRefresh = { at: string; key: string; name: string; pages: Record<string, { was: string; now: string; path: { source: OpsPathSource; path: string } }> };
+
+/** Spec §6's Automatic updates list: one line per refreshed page, in the order given (newest first), pages in product order. */
+export function refreshOpsLines(refreshes: readonly OpsRefresh[], proofUrls: readonly string[]): string[] {
+  return refreshes.flatMap((r) => proofUrls.flatMap((u, i) => {
+    const p = r.pages[u];
+    return p ? [`${opsDay(r.at)} · ${r.name} · product ${i + 1}: ${p.was} → ${p.now} · ${pathKind(p.path.source)} ${p.path.path}`] : [];
+  }));
+}
+
+const REFUSAL_WORDS: Record<string, string> = {
+  empty: 'a page reads nothing',
+  'too-few-pages': 'fewer than two pages read',
+  'not-same-place': 'read from another place than verified',
+  'fixed-variant': 'reads a fixed variant',
+  'not-shown': 'the page does not show the new value',
+  'out-of-range': 'the new value is out of range',
+  busy: 'a Verify was running',
+  moved: 'the value was edited meanwhile',
+  'not-applied': 'it could not be saved',
+};
+
+/** Spec §6: why a check did not take a by-nature field's changed value by itself; null when there is nothing to say. */
+export function refreshRefusalText(reason: string | undefined): string | null {
+  const words = reason ? REFUSAL_WORDS[reason] : undefined;
+  return words ? `Not updated automatically: ${words}` : null;
+}
+
+/** The latest check's refusal line per field key (only fields it did not refresh). `results` is `ops.website.drift.results`, untyped in the app. */
+export function refreshRefusals(results: unknown): Record<string, string> {
+  const fields = (results as { fields?: Record<string, { refresh?: { applied: boolean; reason?: string } }> } | null | undefined)?.fields ?? {};
+  const out: Record<string, string> = {};
+  for (const [key, r] of Object.entries(fields)) {
+    const text = r.refresh && !r.refresh.applied ? refreshRefusalText(r.refresh.reason) : null;
+    if (text) out[key] = text;
+  }
+  return out;
 }

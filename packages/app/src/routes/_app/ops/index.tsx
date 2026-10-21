@@ -343,7 +343,7 @@ function OpsRow({ row, from, onCustomerClick }: { row: OpsWebsiteRow; from: OpsO
       </td>
       <td className="py-2.5 pr-3 pl-3 whitespace-nowrap">
         <span className={`inline-block border-l-2 pl-2.5 ${VERIFIED_RAIL[verifiedState(row.currentFields, row.fields)]}`}>
-          {verifiedText(row.currentFields, row.fields)}
+          {verifiedText(row.currentFields, row.fields, row.held)}
         </span>
       </td>
       <td className="px-3 py-2.5 text-right whitespace-nowrap">
