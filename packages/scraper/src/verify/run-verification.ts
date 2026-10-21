@@ -195,8 +195,8 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       const namedVariant = Object.values(caps).some((c) => c?.pageVariant?.named === true);
       // Spec 2026-10-20 one-source §3.4: nor one that reads one source with two or more paths (Ikea's API
       // siblings): search again — free, the AI is asked only when nothing certifies — so another source can
-      // join as a backup. Where the pages offer no other source the result is the same pair. An all-XPath
-      // certification is kept as today (controller ruling: the page's HTML is not a capped source).
+      // join as a backup. Where the pages offer no other source the result is the same pair. Two or more
+      // XPaths alone read one source too — the page's HTML (spec 2026-10-21 xpath-cap).
       if (r.certified.length > 0 && !r.certified.some(isVolatilePath) && !(namedVariant && r.certified.some(readsFixedVariant)) && !readsOneSource(r.certified)) result = r;
     }
     let candidates: CandidatePath[] = [];

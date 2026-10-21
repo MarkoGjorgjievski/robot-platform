@@ -1082,12 +1082,6 @@ describe('spreadAcrossSources (spec 2026-10-20 one-source §3.2)', () => {
     expect(spreadAcrossSources(['a1', 'a2', 'a3', 'b1', 'b2'], key, (c) => c === 'a2' || c === 'a3')).toEqual(['a2', 'a3', 'b1', 'b2']);
     expect(spreadAcrossSources(['a3', 'a1', 'a2', 'b1', 'c1', 'c2', 'd1'], key, (c) => c === 'a3')).toEqual(['a3', 'b1', 'c1', 'd1', 'a1']);
   });
-  it('an uncapped source keeps every path, after the rounds, in rank order; five at most', () => {
-    const x = (k: string) => k === 'x';
-    expect(spreadAcrossSources(['x1', 'x2', 'x3', 'x4', 'x5', 'x6'], key, () => false, x)).toEqual(['x1', 'x2', 'x3', 'x4', 'x5']);
-    expect(spreadAcrossSources(['a1', 'a2', 'a3', 'x1', 'x2', 'x3'], key, () => false, x)).toEqual(['a1', 'x1', 'a2', 'x2', 'x3']);
-    expect(spreadAcrossSources(['a1', 'b1', 'b2', 'b3', 'x1', 'x2', 'x3'], key, () => false, x)).toEqual(['a1', 'b1', 'x1', 'b2', 'x2']);
-  });
 });
 
 describe('sourceKey / readsOneSource (spec 2026-10-20 one-source §3.1)', () => {
@@ -1098,13 +1092,13 @@ describe('sourceKey / readsOneSource (spec 2026-10-20 one-source §3.1)', () => 
     expect(sourceKey(p('json-ld'))).toBe('json-ld');
     expect(sourceKey(p('xpath'))).toBe('xpath');
   });
-  it('two or more paths, all one source; the page\'s HTML never counts (controller ruling: XPaths are not capped)', () => {
+  it('two or more paths, all one source; the page\'s HTML counts like any other (spec 2026-10-21 xpath-cap)', () => {
     expect(readsOneSource([p('api', 'https://a.example/x')])).toBe(false);
     expect(readsOneSource([p('api', 'https://a.example/x'), p('api', 'https://a.example/x')])).toBe(true);
     expect(readsOneSource([p('api', 'https://a.example/x'), p('api', 'https://a.example/y')])).toBe(false);
     expect(readsOneSource([p('json-ld'), p('json-ld')])).toBe(true);
     expect(readsOneSource([p('meta'), p('meta')])).toBe(true);
-    expect(readsOneSource([p('xpath'), p('xpath')])).toBe(false);
+    expect(readsOneSource([p('xpath'), p('xpath')])).toBe(true);
     expect(readsOneSource([p('api', 'https://a.example/x'), p('json-ld')])).toBe(false);
   });
 
@@ -1116,7 +1110,7 @@ describe('sourceKey / readsOneSource (spec 2026-10-20 one-source §3.1)', () => 
     ['all API, two responses', [{ source: 'api', container: R }, { source: 'api', container: S }], false],
     ['API and JSON-LD', [{ source: 'api', container: R }, { source: 'json-ld' }], false],
     ['all meta', [{ source: 'meta' }, { source: 'meta' }], true],
-    ['all XPath', [{ source: 'xpath' }, { source: 'xpath' }, { source: 'xpath' }], false],
+    ['all XPath', [{ source: 'xpath' }, { source: 'xpath' }, { source: 'xpath' }], true],
     ['one response and XPaths', [{ source: 'api', container: R }, { source: 'api', container: R }, { source: 'xpath' }], false],
     ['old rows: API paths with no container', [{ source: 'api' }, { source: 'api' }], true],
   ];
@@ -1207,17 +1201,30 @@ describe('certify — backups from more than one source (spec 2026-10-20 one-sou
     expect(readsOneSource(r.certified)).toBe(true);
   });
 
-  it('XPaths only: up to five kept in rank order, as today (controller ruling: the page\'s HTML is not capped)', async () => {
+  it('XPaths only: the page\'s HTML is one source, so its two best are kept (spec 2026-10-21 xpath-cap)', async () => {
     const caps = pages((i) => ({ requests: [], ld: [], html: `${P[i]}.00` }));
     const r = await certify({ field: price, expected: exp, captures: caps, candidates: [xp('//*[@id="t"]'), xp('//h1'), xp('//div/h1'), xp('//h2'), xp('//div/h2'), xp('//main//h1')] }, htmlXPaths);
-    expect(ids(r.certified)).toEqual(['xpath //h1', 'xpath //h2', 'xpath //div/h1', 'xpath //div/h2', 'xpath //main//h1']);
-    expect(readsOneSource(r.certified)).toBe(false);
+    expect(ids(r.certified)).toEqual(['xpath //h1', 'xpath //h2']);
+    expect(readsOneSource(r.certified)).toBe(true);
+    for (const u of I) expect(r.cells[u]).toMatchObject({ status: 'pass', path: { source: 'xpath', path: '//h1' } });
   });
 
-  it('XPaths beside one API response: the XPaths are not capped, the response still is', async () => {
+  it('a cover of four XPaths, one per layout, is never capped (spec 2026-10-21 xpath-cap)', async () => {
+    // Five proof pages in four layouts (A, A, B, C, D); `//X` reads the price on a layout-X page only.
+    const L = ['A', 'A', 'B', 'C', 'D'];
+    const urls = L.map((_, i) => `https://shop.example/p/${i + 1}`);
+    const caps = Object.fromEntries(urls.map((u, i) => [u, { url: u, html: `${L[i]}:${(i + 1) * 10}`, structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [] } as unknown as CaptureLike]));
+    const e = Object.fromEntries(urls.map((u, i) => [u, String((i + 1) * 10)]));
+    const perLayout = { evalXPaths: async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, html.startsWith(`${x.slice(2)}:`) ? html.slice(2) : null])) };
+    const r = await certify({ field: price, expected: e, captures: caps, candidates: ['A', 'B', 'C', 'D'].map((k) => xp(`//${k}`)) }, perLayout);
+    expect(ids(r.certified)).toEqual(['xpath //A', 'xpath //B', 'xpath //C', 'xpath //D']);
+    for (const u of urls) expect(r.cells[u]!.status).toBe('pass');
+  });
+
+  it('XPaths beside one API response: two from each, the best first (spec 2026-10-21 xpath-cap)', async () => {
     const caps = pages((i) => ({ ld: [], html: `${P[i]}.00` }));
     const r = await certify({ field: price, expected: exp, captures: caps, candidates: [...SIBLINGS, xp('//h1'), xp('//h2'), xp('//div/h1')] }, htmlXPaths);
-    expect(ids(r.certified)).toEqual(['api price', 'xpath //h1', 'api priceExclTax', 'xpath //h2', 'xpath //div/h1']);
+    expect(ids(r.certified)).toEqual(['api price', 'xpath //h1', 'api priceExclTax', 'xpath //h2']);
   });
 
   it('a [page] path still comes before its fixed-index twin, which takes its source\'s second place', async () => {

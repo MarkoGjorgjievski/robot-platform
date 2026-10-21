@@ -306,9 +306,9 @@ describe('oneSourceWarning', () => {
     expect(oneSourceWarning([path({ source: 'api' }), path({ source: 'json-ld' })])).toBeNull();
   });
 
-  it('fires for two meta paths; is exempt for two XPaths (controller ruling 2026-10-20: the page\'s HTML is exempt from the one-source rule)', () => {
+  it('fires for two meta paths and for two XPaths (spec 2026-10-21 xpath-cap: the page\'s HTML is one source)', () => {
     expect(oneSourceWarning([path({ source: 'meta' }), path({ source: 'meta' })])).toBe(ONE_SOURCE_WARNING);
-    expect(oneSourceWarning([path({ source: 'xpath' }), path({ source: 'xpath' })])).toBeNull();
+    expect(oneSourceWarning([path({ source: 'xpath' }), path({ source: 'xpath' })])).toBe(ONE_SOURCE_WARNING);
   });
 
   it('is null for one response plus the page, and for meta plus JSON-LD', () => {
@@ -329,7 +329,7 @@ describe('oneSourceWarning', () => {
     ['all API, two responses', [{ source: 'api', container: R }, { source: 'api', container: S }], false],
     ['API and JSON-LD', [{ source: 'api', container: R }, { source: 'json-ld' }], false],
     ['all meta', [{ source: 'meta' }, { source: 'meta' }], true],
-    ['all XPath', [{ source: 'xpath' }, { source: 'xpath' }, { source: 'xpath' }], false],
+    ['all XPath', [{ source: 'xpath' }, { source: 'xpath' }, { source: 'xpath' }], true],
     ['one response and XPaths', [{ source: 'api', container: R }, { source: 'api', container: R }, { source: 'xpath' }], false],
     ['old rows: API paths with no container', [{ source: 'api' }, { source: 'api' }], true],
   ];

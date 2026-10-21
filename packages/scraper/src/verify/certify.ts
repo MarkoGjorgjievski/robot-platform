@@ -87,27 +87,20 @@ export function sourceKey(p: Pick<CertifiedPath, 'source' | 'container'>): strin
   return p.source === 'api' ? `api ${p.container ?? ''}` : p.source;
 }
 
-/**
- * Controller ruling 2026-10-20 (overrides spec §3.2/§4): the page's HTML is exempt from the
- * per-source cap — XPath backups keep today's places — so it never counts as "one source" either.
- */
-const isUncappedSource = (key: string) => key === 'xpath';
-
-/** Two or more paths, all from one capped source (spec 2026-10-20 one-source §3.2, §3.4). All-XPath fields are exempt (controller ruling). */
+/** Two or more paths, all from one source (spec 2026-10-20 one-source §3.2, §3.4) — the page's HTML included (spec 2026-10-21 xpath-cap). */
 export function readsOneSource(paths: ReadonlyArray<Pick<CertifiedPath, 'source' | 'container'>>): boolean {
-  const keys = new Set(paths.map(sourceKey));
-  return paths.length >= 2 && keys.size === 1 && !isUncappedSource([...keys][0]!);
+  return paths.length >= 2 && new Set(paths.map(sourceKey)).size === 1;
 }
 
 /**
  * Spec 2026-10-20 one-source §3.2: from a ranked list, the pinned (confirmed) paths first, in their
  * order and never capped; then round 1 takes the best remaining path of every source holding fewer
  * than one, round 2 the next of every source holding fewer than two — sources in the order of their
- * best path in `ranked` — then every remaining path of an `uncapped` source, in rank order; and the
- * first MAX_CERTIFIED_PATHS are kept. So the first path is always `ranked[0]`, and no capped source
- * holds more than MAX_PATHS_PER_SOURCE unpinned places.
+ * best path in `ranked`; and the first MAX_CERTIFIED_PATHS are kept. So the first path is always
+ * `ranked[0]`, and no source — the page's HTML included (spec 2026-10-21 xpath-cap) — holds more than
+ * MAX_PATHS_PER_SOURCE unpinned places.
  */
-export function spreadAcrossSources<T>(ranked: T[], keyOf: (c: T) => string, pinned: (c: T) => boolean, uncapped: (key: string) => boolean = () => false): T[] {
+export function spreadAcrossSources<T>(ranked: T[], keyOf: (c: T) => string, pinned: (c: T) => boolean): T[] {
   const out = ranked.filter(pinned);
   const queues = new Map<string, T[]>();
   for (const c of ranked) {
@@ -121,8 +114,6 @@ export function spreadAcrossSources<T>(ranked: T[], keyOf: (c: T) => string, pin
       if (queue.length > 0 && held(k) < round) out.push(queue.shift()!);
     }
   }
-  const rest = new Set([...queues].filter(([k]) => uncapped(k)).flatMap(([, q]) => q));
-  out.push(...ranked.filter((c) => rest.has(c)));
   return out.slice(0, MAX_CERTIFIED_PATHS);
 }
 
@@ -412,9 +403,9 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   // layout (alone or riding along); it goes to the cover, which wants one path proven on two pages.
   const provenCount = (c: CandidatePath) => capturedUrls.filter((u) => !absentSet.has(u) && isProven(c, u)).length;
   const oneLayoutPool = defaultValue === undefined ? correctOnAllCaptured : correctOnAllCaptured.filter((c) => provenCount(c) >= 2);
-  // Spec 2026-10-20 one-source §3.2: backups spread across sources, at most two from any one but the
-  // page's HTML (controller ruling: XPaths uncapped); the first path is today's.
-  const oneLayout = complete ? spreadAcrossSources(rank(oneLayoutPool), keyOf, pinned, isUncappedSource) : [];
+  // Spec 2026-10-20 one-source §3.2: backups spread across sources, at most two from any one — the
+  // page's HTML included (spec 2026-10-21 xpath-cap); the first path is today's.
+  const oneLayout = complete ? spreadAcrossSources(rank(oneLayoutPool), keyOf, pinned) : [];
   // One layout: exactly today's result, no provenOn. Otherwise a cover, each path stamped with its pages.
   const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, absentSet, isCorrect, isProven, rank, defaultValue === undefined ? undefined : defaultCells) : [];
   // provenOn (and so thinEvidence) counts the pages with a value only: an absent page proves nothing about a path.

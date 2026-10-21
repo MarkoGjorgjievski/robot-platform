@@ -3,8 +3,8 @@ export const VERIFY_URL_MAX = 6;
 export const MAX_CERTIFIED_PATHS = 5;
 /**
  * Spec 2026-10-20 one-source §3: a one-layout field keeps at most this many certified paths from any one
- * source (confirmed paths excepted). The page's HTML (XPath paths) is exempt by controller ruling
- * (2026-10-20): XPath backups keep today's places, capped only by MAX_CERTIFIED_PATHS.
+ * source (confirmed paths excepted) — the page's HTML (XPath paths) included, since spec 2026-10-21
+ * xpath-cap. A multi-layout cover is never capped.
  */
 export const MAX_PATHS_PER_SOURCE = 2;
 export const CAPTURE_REUSE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
