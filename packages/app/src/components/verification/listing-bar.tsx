@@ -5,6 +5,8 @@ import { Input } from '../ui/input';
 import { trpc } from '../../lib/trpc';
 import type { Card } from '../../lib/site/verification-model';
 import { NO_PRODUCTS_FOUND } from '../../lib/site/extract-view';
+import { captureWords } from '../../lib/capture-words';
+import { useStaffDetail } from '../../lib/use-staff-detail';
 
 /**
  * The Verification tab's top bar (spec §2.1): one page load finds a listing
@@ -30,6 +32,8 @@ export function ListingBar({
   problem?: string | null;
 }) {
   const [url, setUrl] = useState(listingUrl);
+  // Spec 2026-10-21: a customer reads a failed capture in customer words; staff read it as stored.
+  const staff = useStaffDetail();
   const [found, setFound] = useState<{ productLinks: number; pagerSeen: boolean; message: string | null } | null>(null);
   const check = trpc.sources.checkListingPage.useMutation();
 
@@ -104,7 +108,7 @@ export function ListingBar({
         // refusal is never reported as "no products found".
         found.message ? (
           <p role="alert" className="text-sm text-warn">
-            {found.message}
+            {captureWords(found.message, staff)}
           </p>
         ) : found.productLinks === 0 ? (
           <p className="text-sm text-muted-foreground">{NO_PRODUCTS_FOUND} Paste product pages below.</p>
@@ -121,7 +125,7 @@ export function ListingBar({
 
       {check.error ? (
         <p role="alert" className="text-sm text-fail">
-          {check.error.message}
+          {captureWords(check.error.message, staff)}
         </p>
       ) : null}
     </div>

@@ -5,6 +5,7 @@ import { Textarea } from '../ui/textarea';
 import { listingCheckLabel, type ExtractMode } from '../../lib/site/extract-view';
 import { productCountsSentence } from '../../lib/site/extract-screen-view';
 import { parseUrlLines } from '../../lib/site/parse-url-lines';
+import { useStaffDetail } from '../../lib/use-staff-detail';
 
 /**
  * Step 1: where the products come from.
@@ -74,6 +75,7 @@ export function ExtractPages({
   saving: boolean;
   readOnly: boolean;
 }) {
+  const staff = useStaffDetail();
   const [draft, setDraft] = useState('');
   const [rejected, setRejected] = useState<string[]>([]);
 
@@ -173,7 +175,7 @@ export function ExtractPages({
                 <tbody>
                   {listing.map((url) => {
                     const check = checks[url] ?? null;
-                    const label = listingCheckLabel(check);
+                    const label = listingCheckLabel(check, staff);
                     // A page is checked when someone asks. Never on load: the
                     // check is a real page load on the api-server, and opening
                     // the tab must not spend one per saved page. Anything but

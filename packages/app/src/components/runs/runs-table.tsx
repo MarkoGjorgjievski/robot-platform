@@ -2,6 +2,8 @@ import { Link } from '@tanstack/react-router';
 import { RunDot } from '../run-dot';
 import { Skeleton } from '../ui/skeleton';
 import type { RunView } from '../../lib/runs-view';
+import { captureWords } from '../../lib/capture-words';
+import { useStaffDetail } from '../../lib/use-staff-detail';
 
 /**
  * A website's extraction history: one row per run, newest first. The Extract
@@ -22,6 +24,7 @@ export function RunsTable({
   runs: RunView[];
   loading: boolean;
 }) {
+  const staff = useStaffDetail();
   return (
     <div className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
       {/* Below `md` the table keeps its real width and the container scrolls
@@ -60,7 +63,7 @@ export function RunsTable({
                     >
                       {run.startedLabel}
                     </Link>
-                    {run.error ? <div className="mt-0.5 text-sm text-fail">{run.error}</div> : null}
+                    {run.error ? <div className="mt-0.5 text-sm text-fail">{captureWords(run.error, staff)}</div> : null}
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <span className="inline-flex items-center gap-2">

@@ -3,6 +3,7 @@ import { useRouteContext } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { showsMoney } from '../../lib/money-visibility';
+import { captureWords } from '../../lib/capture-words';
 import { trpc } from '../../lib/trpc';
 import { probeEvidence } from '../../lib/site/probe-evidence';
 import { emptyCellNote, sampleFacts, type ExtractMode } from '../../lib/site/extract-view';
@@ -169,7 +170,7 @@ export function ExtractSample({
 
       {statusQuery.data?.errorMessage ? (
         <p role="alert" className="text-base text-fail">
-          {statusQuery.data.errorMessage}
+          {captureWords(statusQuery.data.errorMessage, showMoney)}
         </p>
       ) : null}
 

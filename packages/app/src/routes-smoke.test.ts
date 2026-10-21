@@ -913,7 +913,8 @@ describe.skipIf(!ENABLED)('app shell', () => {
     // read its address. The line sits under the listing bar, which needs
     // fields, so it is read here rather than on Add website's landing (no
     // fields yet there). The shop's host has seen no wall yet: that test is last.
-    await expect.poll(() => page.locator('main').innerText(), { timeout: 30_000 }).toContain(`Reached ${WEBSITE_HOST} (HTTP 200).`);
+    // In customer words (spec 2026-10-21): no host, no HTTP code.
+    await expect.poll(() => page.locator('main').innerText(), { timeout: 30_000 }).toContain('This website opens normally.');
     await shootBothThemes(page, 'empty');
 
     // 1. The listing: one page load, three column heads named by the
@@ -2088,7 +2089,9 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await page.getByRole('button', { name: 'Find products' }).click();
     await expect
       .poll(() => page.locator('main').innerText(), { timeout: 60_000 })
-      .toContain(`${host} refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet.`);
+      .toContain("This website turned us away, so we can't read it yet.");
+    // Customer words (spec 2026-10-21): the wall's alert names no host, no HTTP code and no vendor.
+    expect((await page.locator('main [role="alert"]').allInnerTexts()).join(' '), 'the wall named the host').not.toContain(host);
     expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No products found');
     await shoot(page, 'app-site-verification-wall-refused.png', false);
     // Find products again, on another page of the same host, now backing off:
@@ -2098,7 +2101,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect
       .poll(() => page.locator('main').innerText(), { timeout: 30_000 })
       .toContain(
-        `${host} refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet. Waiting 2 min before trying again.`,
+        "This website turned us away, so we can't read it yet. Waiting 2 min before trying again.",
       );
     expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No products found');
     await shoot(page, 'app-site-verification-wall-backoff.png', false);

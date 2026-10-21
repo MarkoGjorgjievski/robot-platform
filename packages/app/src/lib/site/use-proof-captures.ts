@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import { trpc, API_URL } from '../trpc';
+import { useStaffDetail } from '../use-staff-detail';
 import { proofCaptureState, type ProofCapture } from './proof-capture-state';
 
 export type { ProofCapture } from './proof-capture-state';
@@ -33,6 +34,8 @@ export function useProofCaptures(
   urls: string[],
 ): { byUrl: Record<string, ProofCapture | undefined>; captureIds: Record<string, string | null>; retry(url: string): void } {
   const enabled = !!sourceId && urls.length > 0;
+  // Spec 2026-10-21: staff read a failed capture's stored sentence, a customer its customer words.
+  const staff = useStaffDetail();
   // A stable string to key the start-effect on, since `urls` is a fresh array
   // reference from the caller on every render.
   const urlsKey = urls.join('\n');
@@ -125,6 +128,7 @@ export function useProofCaptures(
       ...(url in startErrors ? { startError: startErrors[url]! } : {}),
       captureId: id,
       ...(poll ? { poll: { data: poll.data, isError: poll.isError } } : {}),
+      staff,
     });
   }
 

@@ -10,6 +10,8 @@
 // change over there is a `grep` away from being caught here rather than
 // silently going stale.
 
+import { BLOCKED_SENTENCE, captureWords } from '../capture-words';
+
 export type DiagnosisSeverity = 'blocked' | 'wrong-page' | 'pagination' | 'dead-link' | 'extraction';
 
 export type Diagnosis = {
@@ -24,6 +26,12 @@ export type DiagnoseRunInput = {
   blockedReason?: string | null;
   rowsFound?: number | null;
   itemFailures: Array<{ url: string; error: string | null }>;
+  /**
+   * `showsMoney` (spec 2026-10-21): staff read the stored evidence and the
+   * proxy line; a customer reads each detail in customer words. The matching
+   * below always reads the stored text.
+   */
+  staff?: boolean;
 };
 
 // Source: packages/scraper/src/extraction-orchestrator.ts —
@@ -86,7 +94,9 @@ const THIN_WALK_RE_SERVING = /re-serving page 1/i;
  * verified or not needed, no dead links, no item failures — returns [].
  */
 export function diagnoseRun(input: DiagnoseRunInput): Diagnosis[] {
-  const { warnings, errors, blockedReason, rowsFound, itemFailures } = input;
+  const { warnings, errors, blockedReason, rowsFound, itemFailures, staff = false } = input;
+  const blockedDetail = (reason: string) =>
+    staff ? `${reason} — wait and retry; long-term this needs the proxy line item.` : captureWords(reason, false, BLOCKED_SENTENCE);
   const errorMessages = errors.map((e) => e.message);
   const itemErrorMessages = itemFailures
     .map((f) => f.error)
@@ -100,7 +110,7 @@ export function diagnoseRun(input: DiagnoseRunInput): Diagnosis[] {
     return [{
       severity: 'blocked',
       title: 'Site blocked our requests',
-      detail: `${blockedReason} — wait and retry; long-term this needs the proxy line item.`,
+      detail: blockedDetail(blockedReason),
     }];
   }
   // Ruling R4: a "Page blocked or unusable" wrapper is only genuinely
@@ -118,7 +128,7 @@ export function diagnoseRun(input: DiagnoseRunInput): Diagnosis[] {
     return [{
       severity: 'blocked',
       title: 'Site blocked our requests',
-      detail: `${blockedMatch} — wait and retry; long-term this needs the proxy line item.`,
+      detail: blockedDetail(blockedMatch),
     }];
   }
 
@@ -161,7 +171,7 @@ export function diagnoseRun(input: DiagnoseRunInput): Diagnosis[] {
     return [{
       severity: 'dead-link',
       title: 'Link appears dead',
-      detail: `The link appears dead (${deadLinkMatch}).`,
+      detail: staff ? `The link appears dead (${deadLinkMatch}).` : 'The link appears dead. Check the address.',
     }];
   }
 
@@ -169,5 +179,5 @@ export function diagnoseRun(input: DiagnoseRunInput): Diagnosis[] {
   // one diagnosis entry per item.
   return itemFailures
     .filter((f): f is { url: string; error: string } => f.error != null)
-    .map((f) => ({ severity: 'extraction' as const, title: f.url, detail: f.error }));
+    .map((f) => ({ severity: 'extraction' as const, title: f.url, detail: captureWords(f.error, staff) }));
 }

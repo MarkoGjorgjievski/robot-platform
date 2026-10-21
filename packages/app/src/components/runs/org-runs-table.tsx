@@ -2,6 +2,8 @@ import { Link } from '@tanstack/react-router';
 import { RunDot } from '../run-dot';
 import { Skeleton } from '../ui/skeleton';
 import type { OrgRunView } from '../../lib/org-runs-view';
+import { captureWords } from '../../lib/capture-words';
+import { useStaffDetail } from '../../lib/use-staff-detail';
 
 /**
  * Every run in the organisation (spec §5 `/runs`): the website's Runs table
@@ -10,6 +12,7 @@ import type { OrgRunView } from '../../lib/org-runs-view';
  * running", so the pulse must be the first thing in each row after its age.
  */
 export function OrgRunsTable({ runs, loading }: { runs: OrgRunView[]; loading: boolean }) {
+  const staff = useStaffDetail();
   return (
     <div className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
       {/* Below `md` the table keeps its real width and the container scrolls (spec §3). */}
@@ -46,7 +49,7 @@ export function OrgRunsTable({ runs, loading }: { runs: OrgRunView[]; loading: b
                     >
                       {run.startedLabel}
                     </Link>
-                    {run.error ? <div className="mt-0.5 text-sm text-fail">{run.error}</div> : null}
+                    {run.error ? <div className="mt-0.5 text-sm text-fail">{captureWords(run.error, staff)}</div> : null}
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <span className="inline-flex items-center gap-2">
