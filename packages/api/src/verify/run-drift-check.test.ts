@@ -8,7 +8,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { and, eq, count } from 'drizzle-orm';
-import { db, captures, driftChecks, jevReadings, sources, sourceVerifications } from '@robot/db';
+import { db, captures, driftChecks, jevReadings, sources, sourceVerifications, valueRefreshes } from '@robot/db';
 import { CaptureError, BROWSER_UNAVAILABLE, PlaywrightBrowser, type IBrowser, type PageCapture } from '@robot/browser';
 import {
   buildBoxMapScript, fieldHash,
@@ -276,6 +276,96 @@ describe('runDriftCheck', () => {
       expect(await checkRow(checkId)).toMatchObject({ status: 'failed', error: 'browser gone' });
     } finally { await f.cleanup(); }
   });
+
+  /** p2's price moved from 219.99 to 229.99, everywhere the page has it (JSON-LD, meta, API, visible text). */
+  function priceMovedOnP2(): Record<string, PageCapture> {
+    const out: Record<string, PageCapture> = { [U[0]!]: clone(PAGES[U[0]!]!), [U[2]!]: clone(PAGES[U[2]!]!) };
+    const p2 = PAGES[U[1]!]!;
+    const moved = JSON.parse(JSON.stringify({ ...p2, screenshot: undefined, screenshotTiles: undefined }).replaceAll('219.99', '229.99').replaceAll('21999', '22999')) as PageCapture;
+    out[U[1]!] = { ...moved, screenshot: p2.screenshot, screenshotTiles: p2.screenshotTiles };
+    return out;
+  }
+
+  it('a by-nature field whose path reads a new value in the same place is refreshed and re-verified, free', async () => {
+    const f = await certifiedWebsite('drift-refresh');
+    try {
+      const pages = priceMovedOnP2();
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(pages[u]!)] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const startRefreshVerify = vi.fn(async () => null);
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price, f.keyOf.name] });
+      await runDriftCheck(checkId, { capture, startRefreshVerify });
+      const results = (await checkRow(checkId))!.results as DriftCheckResults;
+      expect(results.fields[f.keyOf.price]!.refresh).toEqual({ applied: true });
+      const src = (await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) }))!;
+      expect((src.verificationSet as VerificationSet).expected[f.keyOf.price]![U[1]!]).toBe('229.99');
+      expect(startRefreshVerify).toHaveBeenCalledWith(f.sourceId, [f.keyOf.price], results.captures);
+      expect(await db.query.valueRefreshes.findFirst({ where: eq(valueRefreshes.sourceId, f.sourceId) })).toMatchObject({ fieldKey: f.keyOf.price, driftCheckId: checkId });
+      expect(agentCtor).not.toHaveBeenCalled();
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('the refresh log names the re-verify it started; a refresh that throws leaves the check done with not-applied', async () => {
+    const f = await certifiedWebsite('drift-refresh-log');
+    try {
+      const pages = priceMovedOnP2();
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(pages[u]!)] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const startRefreshVerify = vi.fn(async (sourceId: string) => {
+        // Left in flight, as a just-started re-verify is: a completed row with no results would end the certification.
+        const [row] = await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'x' }).returning({ id: sourceVerifications.id });
+        return row!.id;
+      });
+      const first = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price] });
+      await runDriftCheck(first.checkId, { capture, startRefreshVerify });
+      const id = await startRefreshVerify.mock.results[0]!.value;
+      expect(await db.query.valueRefreshes.findFirst({ where: eq(valueRefreshes.driftCheckId, first.checkId) })).toMatchObject({ verificationId: id });
+
+      const second = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price] });
+      const failing = vi.fn(async () => { throw new Error('db gone'); });
+      // The stored price is 229.99 now; p1 moves too, so there is something to refresh.
+      const p1 = clone(PAGES[U[0]!]!);
+      const moved = JSON.parse(JSON.stringify({ ...p1, screenshot: undefined, screenshotTiles: undefined }).replaceAll('129.99', '139.99').replaceAll('12999', '13999')) as PageCapture;
+      recs[U[0]!] = await record({ ...moved, screenshot: p1.screenshot, screenshotTiles: p1.screenshotTiles });
+      await runDriftCheck(second.checkId, { capture, applyRefreshes: failing, startRefreshVerify });
+      const row = (await checkRow(second.checkId))!;
+      expect(row.status).toBe('done');
+      expect((row.results as DriftCheckResults).fields[f.keyOf.price]!.refresh).toEqual({ applied: false, reason: 'not-applied' });
+      expect(startRefreshVerify).toHaveBeenCalledTimes(1);
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('a price the page does not show is refused, and nothing is written', async () => {
+    const f = await certifiedWebsite('drift-no-refresh');
+    try {
+      // p2's page data says 229.99, but its visible text no longer shows any price.
+      const hidden = priceMovedOnP2()[U[1]!]!;
+      hidden.html = hidden.html.replaceAll('229.99', '');
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(u === U[1] ? hidden : clone(PAGES[u]!))] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const startRefreshVerify = vi.fn(async () => null);
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price] });
+      await runDriftCheck(checkId, { capture, startRefreshVerify });
+      const results = (await checkRow(checkId))!.results as DriftCheckResults;
+      expect(results.fields[f.keyOf.price]!.refresh).toEqual({ applied: false, reason: 'not-shown' });
+      expect(startRefreshVerify).not.toHaveBeenCalled();
+      const src = (await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) }))!;
+      expect((src.verificationSet as VerificationSet).expected[f.keyOf.price]![U[1]!]).toBe('219.99');
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('a changed text field records no refresh at all', async () => {
+    const f = await certifiedWebsite('drift-name');
+    try {
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(driftedPages()[u]!)] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.name] });
+      await runDriftCheck(checkId, { capture, startRefreshVerify: vi.fn(async () => null) });
+      const results = (await checkRow(checkId))!.results as DriftCheckResults;
+      expect(results.fields[f.keyOf.name]!.result).toBe('changed');
+      expect(results.fields[f.keyOf.name]!.refresh).toBeUndefined();
+    } finally { await f.cleanup(); }
+  }, 120_000);
 });
 
 describe('startDriftCheck (Review Focus 1)', () => {
