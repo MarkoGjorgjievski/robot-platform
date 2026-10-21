@@ -5,20 +5,21 @@
 // page-gone or not-checked per page it could not use. Page loads and code only: no agent is constructed and no model is
 // called, ever.
 //
-// It changes nothing by itself. The only rows it writes are its own
-// `drift_checks` row and the proof-page `captures` rows the capture function
-// takes (the same captures the Verification tab takes). Never
-// `verificationSet`, `schemaDefinition`, `driftedFields`,
-// `source_verifications` or the domain cache — only a completed Verify does
-// that.
+// It writes its own `drift_checks` row, the proof-page `captures` rows the
+// capture function takes (the same captures the Verification tab takes) and
+// the website's `next_check_at`. One exception changes the website (spec
+// 2026-10-21 §3.2): a field that changes by nature and passes the refresh rule
+// (`planRefresh`) gets its new expected values, a hold and a `value_refreshes`
+// row (refresh-values.ts), and a free re-verify of it starts. Never
+// `schemaDefinition`, `driftedFields`, marks or the domain cache.
 //
 // Follows run-source-verification.ts's fire-and-forget rule: the caller never
 // awaits `runDriftCheck`, so it never rejects and always leaves the row
 // terminal.
-import { and, desc, eq } from 'drizzle-orm';
-import { db, captures as captureRows, driftChecks, runs, sources } from '@robot/db';
+import { and, desc, eq, inArray } from 'drizzle-orm';
+import { db, captures as captureRows, driftChecks, runs, sources, valueRefreshes } from '@robot/db';
 import {
-  buildDomSearchScript, buildXPathProbeScript, classifyDrift, markPaths,
+  buildDomSearchScript, buildXPathProbeScript, classifyDrift, fieldHash, markPaths, planRefresh,
   type Box, type ConfirmedPath, type DomHit, type DomNeedle, type DriftCapture, type DriftCheckResults, type DriftFieldResult,
   type DriftTrigger, type PathReading, type SchemaDefinitionField, type VerificationSet, type XPathProbeResult,
 } from '@robot/scraper';
@@ -26,7 +27,8 @@ import type { PageCapture } from '@robot/browser';
 import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { runEmptyShares } from '../crawl/drift.js';
-import { loadCurrentCertification } from './current-certification.js';
+import { certifyingResult, loadCurrentCertification, loadFieldCurrency } from './current-certification.js';
+import { applyRefreshes, startRefreshVerify, type RefreshRequest } from './refresh-values.js';
 import { startProofPageCapture, runProofPageCaptureInSlot, loadProofPageCaptureById, type ProofPageMeta } from './proof-page-capture.js';
 import { readCaptureFile, type StoredCaptureRef } from './capture-store.js';
 import { readingsOf } from './holds.js';
@@ -156,8 +158,51 @@ function confirmedPathsOf(set: VerificationSet, key: string): ConfirmedPath[] {
   return all.filter((p, i) => all.findIndex((q) => q.source === p.source && q.path === p.path) === i).map((p) => ({ source: p.source, path: p.path }));
 }
 
+/**
+ * Plans each classified field's refresh from what its certified paths read now (`planRefresh`), applies the
+ * planned ones, and fills each field's `refresh` in `out`. Returns the keys refreshed. A failure to apply
+ * never fails the check: those fields read `not-applied`.
+ */
+async function refreshByNature(
+  checkId: string,
+  sourceId: string,
+  toClassify: SchemaDefinitionField[],
+  set: VerificationSet,
+  readingsByKey: Record<string, Record<string, PathReading>>,
+  out: Record<string, DriftFieldResult>,
+  apply: typeof applyRefreshes,
+): Promise<string[]> {
+  if (toClassify.length === 0) return [];
+  const currency = await loadFieldCurrency(db, sourceId);
+  const requests: RefreshRequest[] = [];
+  for (const field of toClassify) {
+    const certifying = certifyingResult(currency, field.key);
+    const readings = readingsByKey[field.key];
+    if (!certifying || !readings) continue;
+    const provenOn = Object.fromEntries(Object.entries(certifying.result.cells).map(([u, c]) => [u, c.status === 'pass' ? c.path : undefined]));
+    const plan = planRefresh({ field, expected: set.expected[field.key] ?? {}, provenOn, readings });
+    if (plan.kind === 'refresh') requests.push({ key: field.key, pages: plan.pages, basisHash: fieldHash(field, set) });
+    else if (plan.kind === 'refused' && plan.reason !== 'not-by-nature') out[field.key] = { ...out[field.key]!, refresh: { applied: false, reason: plan.reason } };
+  }
+  if (requests.length === 0) return [];
+  try {
+    const outcome = await apply(sourceId, checkId, requests);
+    for (const r of requests) {
+      out[r.key] = { ...out[r.key]!, refresh: outcome.applied.includes(r.key) ? { applied: true } : { applied: false, reason: outcome.skipped[r.key] ?? 'busy' } };
+    }
+    return outcome.applied;
+  } catch (err) {
+    console.error(`[drift] check ${checkId}: refreshing failed:`, err);
+    for (const r of requests) out[r.key] = { ...out[r.key]!, refresh: { applied: false, reason: 'not-applied' } };
+    return [];
+  }
+}
+
 /** Never rejects: a throw anywhere leaves the row `failed` with its error. */
-export async function runDriftCheck(checkId: string, deps: { capture?: CaptureProofPagesFn; session?: Session } = {}): Promise<void> {
+export async function runDriftCheck(
+  checkId: string,
+  deps: { capture?: CaptureProofPagesFn; session?: Session; applyRefreshes?: typeof applyRefreshes; startRefreshVerify?: typeof startRefreshVerify } = {},
+): Promise<void> {
   const capture = deps.capture ?? defaultCaptureProofPages;
   const session = deps.session ?? withBrowserSession;
   try {
@@ -233,13 +278,22 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
       if (typeof share === 'number') out[key] = { ...out[key]!, emptyShare: share };
     }
 
-    void readingsByKey;
+    // Spec 2026-10-21 §3.2: refresh what changed by nature, all or nothing per field. A field that is not
+    // by nature records nothing; a refusal's reason code is staff-only.
+    const refreshed = await refreshByNature(checkId, check.sourceId, toClassify, set, readingsByKey, out, deps.applyRefreshes ?? applyRefreshes);
+
     const results: DriftCheckResults = { runId: check.runId, fields: out, trigger, ...(upKeys ? { keys: upKeys } : {}), captures: refs };
     await db.update(driftChecks)
       .set({ status: 'done', results, completedAt: new Date() })
       .where(and(eq(driftChecks.id, checkId), eq(driftChecks.status, 'running')));
     // The pages were just read: the scheduled check need not read them again for a while (spec §3.3).
     await db.update(sources).set({ nextCheckAt: nextCheckAt() }).where(eq(sources.id, check.sourceId));
+    // The refreshed fields are verified again, free, on the pages this check just read. That re-verify is
+    // refresh-origin, so it never starts another check (spec §7.6).
+    if (refreshed.length > 0) {
+      const id = await (deps.startRefreshVerify ?? startRefreshVerify)(check.sourceId, refreshed, refs);
+      if (id) await db.update(valueRefreshes).set({ verificationId: id }).where(and(eq(valueRefreshes.driftCheckId, checkId), inArray(valueRefreshes.fieldKey, refreshed)));
+    }
   } catch (err) {
     console.error(`[drift] check ${checkId} failed:`, err);
     try {
