@@ -29,9 +29,12 @@ describe('stillExtracts', () => {
   it('is false when every captured page reads nothing', () => {
     expect(stillExtracts(withPath, { a: { value: null, path: null, shown: null } })).toBe(false);
   });
-  it('is true when nothing was captured (nothing learned) or the result has no paths', () => {
-    expect(stillExtracts(withPath, {})).toBe(true);
+  it('Fix wave 1, item 1: no evidence, no hold — no page read is not "still extracts"', () => {
+    expect(stillExtracts(withPath, {})).toBe(false);
+  });
+  it('is true when the result has no paths (default only, not on this website)', () => {
     expect(stillExtracts({ certified: [] }, { a: { value: null, path: null, shown: null } })).toBe(true);
+    expect(stillExtracts({ certified: [] }, {})).toBe(true);
   });
 });
 
@@ -86,8 +89,31 @@ describe('decideHolds (spec 2026-10-21 §3.1)', () => {
     expect(plan.upsert).toEqual([]);
     expect(plan.remove).toEqual(['price']);
   });
+  it('Fix wave 1, item 1: captures {} -> not held (no evidence)', async () => {
+    const plan = await decideHolds({ ...base, captures: {}, outcome: { price: failed }, certifying: certifying([now(price)]) });
+    expect(plan.upsert).toEqual([]);
+    expect(plan.remove).toEqual(['price']);
+    expect(plan.why.price).toBe('no-evidence');
+  });
+  it('Fix wave 1, item 1: pages that did not load (null captures) are no evidence either', async () => {
+    const plan = await decideHolds({ ...base, captures: { [U[0]!]: null, [U[1]!]: null }, outcome: { price: failed }, certifying: certifying([now(price)]) });
+    expect(plan.upsert).toEqual([]);
+    expect(plan.why.price).toBe('no-evidence');
+  });
+  it('spec §3.1: a live Verify that could capture no page keeps the hold only when it asks to (nothing learned)', async () => {
+    const plan = await decideHolds({ ...base, captures: { [U[0]!]: null }, outcome: { price: failed }, certifying: certifying([now(price)]), nothingCaptured: 'hold' });
+    expect(plan.upsert.map((h) => h.fieldKey)).toEqual(['price']);
+    expect(plan.why.price).toBe('held');
+  });
+  it('says why for every field: passed, held, no certifying result, reads nothing', async () => {
+    expect((await decideHolds({ ...base, outcome: { price: passed }, certifying: certifying([now(price)]) })).why).toEqual({ price: 'passed' });
+    expect((await decideHolds({ ...base, outcome: { price: failed }, certifying: certifying([now(price)]) })).why).toEqual({ price: 'held' });
+    expect((await decideHolds({ ...base, outcome: { price: failed }, certifying: () => null })).why).toEqual({ price: 'no-certifying' });
+    const gone = { source: 'json-ld' as const, path: 'offers.nothing', transform: 'identity' as const };
+    expect((await decideHolds({ ...base, outcome: { price: failed }, certifying: certifying([now(price)], { ...passed, certified: [gone] }) })).why).toEqual({ price: 'reads-nothing' });
+  });
   it('touches only the fields this Verify checked', async () => {
     const plan = await decideHolds({ ...base, keys: [], outcome: { price: failed }, certifying: certifying([now(price)]) });
-    expect(plan).toEqual({ upsert: [], remove: [], readings: {} });
+    expect(plan).toEqual({ upsert: [], remove: [], readings: {}, why: {} });
   });
 });

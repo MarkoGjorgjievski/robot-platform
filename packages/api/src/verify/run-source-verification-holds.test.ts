@@ -95,6 +95,24 @@ describe('a Verify keeps the last good certification (spec 2026-10-21 §3.1)', (
     } finally { await s.cleanup(); }
   });
 
+  it('spec §3.1: a live Verify that could capture no page at all learned nothing — the field is held', async () => {
+    const s = await certified('none-captured');
+    try {
+      await verify(s.sourceId, { price: failing(s.urls, s.hash) }, Object.fromEntries(s.urls.map((u) => [u, null])));
+      expect(await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, s.sourceId) })).toMatchObject({ fieldKey: 'price' });
+    } finally { await s.cleanup(); }
+  });
+
+  it('Fix wave 1, item 1: a live Verify whose pages loaded but none could be read for the field is not "nothing captured"', async () => {
+    const s = await certified('some-captured');
+    try {
+      // One page loaded (reads nothing), the others did not load: evidence that the path no longer reads.
+      const caps: Record<string, PageCapture | null> = { [s.urls[0]!]: page(s.urls[0]!, null), [s.urls[1]!]: null, [s.urls[2]!]: null };
+      await verify(s.sourceId, { price: failing(s.urls, s.hash) }, caps);
+      expect(await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, s.sourceId) })).toBeUndefined();
+    } finally { await s.cleanup(); }
+  });
+
   it('a passing Verify ends the hold', async () => {
     const s = await certified('end');
     try {
@@ -175,17 +193,47 @@ describe('backfillHolds (spec 2026-10-21 §8)', () => {
     } finally { await s.cleanup(); }
   });
 
-  it('without write it writes nothing; with no earlier pass there is nothing to hold', async () => {
-    const s = await certified('backfill-dry');
+  it('Fix wave 1, item 1: no stored capture (captures {}) is no evidence — nothing held, and it says so', async () => {
+    const s = await certified('backfill-noevidence');
     try {
       await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: false, results: { price: failing(s.urls, s.hash) }, captures: {} });
+      const out = await backfillHolds(db, noPageLoad, s.sourceId, { write: true });
+      expect(out.upsert).toEqual([]);
+      expect(out.fields).toEqual({ price: { held: false, reason: 'no-evidence' } });
+      expect(await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, s.sourceId) })).toBeUndefined();
+    } finally { await s.cleanup(); }
+  });
+
+  it('Fix wave 1, item 1: capture files pruned from disk are no evidence', async () => {
+    const s = await certified('backfill-pruned');
+    try {
+      const refs = Object.fromEntries(s.urls.map((u, i) => [u, { captureId: `4444444${i}-4444-4444-4444-444444444444`, capturedAt: new Date().toISOString() }]));
+      await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: false, results: { price: failing(s.urls, s.hash) }, captures: refs });
+      const out = await backfillHolds(db, noPageLoad, s.sourceId, { write: true });
+      expect(out.upsert).toEqual([]);
+      expect(out.fields.price).toEqual({ held: false, reason: 'no-evidence' });
+    } finally { await s.cleanup(); }
+  });
+
+  it('without write it writes nothing; with no earlier pass there is nothing to hold; it says why per field', async () => {
+    const s = await certified('backfill-dry');
+    try {
+      const refs: Record<string, { captureId: string; capturedAt: string }> = {};
+      for (const [i, u] of s.urls.entries()) {
+        const id = `5555555${i}-5555-5555-5555-555555555555`;
+        await writeCaptureFile(id, page(u, String(1.5 + i)));
+        refs[u] = { captureId: id, capturedAt: new Date().toISOString() };
+      }
+      await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: false, results: { price: failing(s.urls, s.hash) }, captures: refs });
       const dry = await backfillHolds(db, noPageLoad, s.sourceId);
       expect(dry.upsert.map((h) => h.fieldKey)).toEqual(['price']);
+      expect(dry.fields).toEqual({ price: { held: true } });
       expect(dry.passing).toEqual([]);
       expect(await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, s.sourceId) })).toBeUndefined();
       await db.delete(sourceVerifications).where(eq(sourceVerifications.id, s.goodId));
       const none = await backfillHolds(db, noPageLoad, s.sourceId, { write: true });
       expect(none.upsert).toEqual([]);
+      expect(none.fields).toEqual({ price: { held: false, reason: 'no-earlier-pass' } });
       expect(await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, s.sourceId) })).toBeUndefined();
     } finally { await s.cleanup(); }
   });
