@@ -195,6 +195,7 @@ which every hour (first sweep 10 minutes after start) claims up to six due websi
   skipped for three days when the website is not certified (nothing to keep running);
 - the check runs, awaited, then — when the website has a listing page — the coverage check (§3.4), awaited;
 - `WEBSITE_CHECKS=off` turns the timer off (the isolated smoke pair sets it; tests never start it).
+- *Amended 2026-10-21:* a refresh-started Verify starts no coverage check, so this one is the scheduled check's only listing sample; a field with nothing to compare (blank expected everywhere) is judged by what a run writes, never "lost" for that alone — `docs/superpowers/specs/2026-10-21-websites-change-followups-design.md` §2, §3.
 
 All of it is free: page loads in the three proof-page slots the Verification tab already uses, code only, no
 Jev reading (`jev: false` as today), no AI.
@@ -223,6 +224,8 @@ A website **needs attention** when any of these is true (`websiteAttention`, ser
 
 `fields` lists those fields in contract order; `goneProducts` the gone pages' product numbers; `heldSince` the
 oldest held field's `verified_at`; `findings` each listed field's check result (the drift rows read it).
+
+*Amended 2026-10-21:* a current field's finding stands until a newer check or a newer Verify of that field; a refresh's re-verify verifies only the fields it refreshed — `docs/superpowers/specs/2026-10-21-websites-change-followups-design.md` §1.
 
 ## 4. Changes
 
@@ -338,7 +341,7 @@ full on the ops website page:
    moved since the check read it, and never while a Verify is in flight.
 5. No AI anywhere in this spec: refresh-started Verifies are `free`, checks construct no agent, and no Jev
    reading is taken (the check's captures use `jev: false`; re-verifies reuse captures).
-6. A refresh-started Verify never starts a check, so refreshes cannot loop.
+6. A refresh-started Verify never starts a check, so refreshes cannot loop — nor the coverage check (amended 2026-10-21, `docs/superpowers/specs/2026-10-21-websites-change-followups-design.md` §2).
 7. Two api-servers on one database never check the same website at once (`SKIP LOCKED` claim).
 8. Every automatic change is recorded (`value_refreshes`) and visible to the customer (the refreshed line) and
    to staff (ops); customer copy names no internals and no money.
