@@ -37,6 +37,9 @@ export async function seedAttention(sourceId: string, args: { heldKey: string; r
   if (!url) throw new Error('seedAttention: the website has no proof pages');
 
   const heldSince = new Date(Date.now() - 2 * 86_400_000);
+  // The check is newer than the failed Verify, so it speaks for the held field (attention.ts, final review M3).
+  const failedAt = new Date();
+  const checkedAt = new Date(failedAt.getTime() + 1000);
   const lastClean = await db.query.sourceVerifications.findFirst({
     where: and(eq(sourceVerifications.sourceId, sourceId), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)),
     orderBy: [desc(sourceVerifications.completedAt), desc(sourceVerifications.id)],
@@ -57,7 +60,7 @@ export async function seedAttention(sourceId: string, args: { heldKey: string; r
   const failedHeld = { ...pass(held), certified: [], cells: Object.fromEntries(set.urls.map((u) => [u, { status: 'fail', reason: 'different_value', found: 'New' }])) };
   // Completed now: any check seeded earlier on this website (the smoke's drift test) is older than this Verify, so it says nothing about a current field.
   const [failed] = await db.insert(sourceVerifications)
-    .values({ sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: false, results: { ...passing, [held.key]: failedHeld }, variantResults })
+    .values({ sourceId, definitionHash: 'x', completedAt: failedAt, allPassed: false, results: { ...passing, [held.key]: failedHeld }, variantResults })
     .returning({ id: sourceVerifications.id });
   await db.insert(fieldHolds).values({
     sourceId, fieldKey: held.key, result: pass(held), verificationId: passed!.id, verifiedAt: heldSince, failedVerificationId: failed!.id, fieldHashes: [pass(held).fieldHash],
@@ -69,7 +72,7 @@ export async function seedAttention(sourceId: string, args: { heldKey: string; r
     runId: null, trigger: 'schedule',
     fields: { [held.key]: { key: held.key, result: 'changed', path, pages: { [url]: { status: 'ok', value: 'New', changed: true, was: 'Old' } } } },
   };
-  await db.insert(driftChecks).values({ sourceId, status: 'done', trigger: 'schedule', results, completedAt: new Date() });
+  await db.insert(driftChecks).values({ sourceId, status: 'done', trigger: 'schedule', results, createdAt: checkedAt, completedAt: checkedAt });
   await db.update(sources).set({ driftedFields: null }).where(eq(sources.id, sourceId));
   return { heldSince };
 }
