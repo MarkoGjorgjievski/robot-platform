@@ -303,7 +303,7 @@ describe('variantCountLines', () => {
       '13 variants from 5 products',
       '1 product without variants',
       '2 products with partial variants',
-      '4 variant pages skipped for the budget',
+      '4 variant pages skipped for the page limit',
     ]);
     expect(variantCountLines(summary({ variantsSkippedForBudget: 0 }))).toHaveLength(3);
   });
@@ -317,7 +317,7 @@ describe('variantCountLines', () => {
       '1 variant from 1 product',
       '1 product without variants',
       '1 product with partial variants',
-      '1 variant page skipped for the budget',
+      '1 variant page skipped for the page limit',
     ]);
   });
 });

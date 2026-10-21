@@ -92,8 +92,9 @@ describe('the sentence table', () => {
 
   it.each([
     ['crawl.plan', { sourceId: 's', probe: true }, { runId: 'r' }, undefined, 'Tried a sample on Nike'],
-    ['crawl.plan', { sourceId: 's' }, { runId: 'r' }, { budget: 50 }, 'Planned an extraction on Nike (budget 50 products)'],
-    ['crawl.plan', { sourceId: 's' }, { runId: 'r' }, { budget: 'all' }, 'Planned an extraction on Nike (budget all products)'],
+    ['crawl.plan', { sourceId: 's' }, { runId: 'r' }, { budget: 50 }, 'Planned an extraction on Nike (up to 50 products)'],
+    ['crawl.plan', { sourceId: 's' }, { runId: 'r' }, { budget: 'all' }, 'Planned an extraction on Nike (all products)'],
+    ['crawl.plan', { sourceId: 's' }, { runId: 'r' }, {}, 'Planned an extraction on Nike'],
     ['crawl.probeAndSample', { sourceId: 's' }, undefined, undefined, 'Ran a sample on Nike'],
     ['crawl.execute', { runId: 'r' }, undefined, undefined, 'Ran an extraction on Nike'],
     ['crawl.execute', { runId: 'r', retryFailed: true }, undefined, undefined, 'Retried the failed pages of a run on Nike'],

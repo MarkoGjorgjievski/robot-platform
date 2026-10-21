@@ -64,6 +64,14 @@ export type StaffEntryView = {
   run: { id: string; costUsd: number } | null;
 };
 
+/** A staff-activity summary in customer words (spec 2026-10-21 §4): rows written before it said "(budget n products)". */
+export function limitWords(summary: string): string {
+  return summary
+    .replace(/ \(budget all products\)/, ' (all products)')
+    .replace(/ \(budget (\d+) products\)/, ' (up to $1 products)')
+    .replace(/ \(budget \? products\)/, '');
+}
+
 /**
  * One row of the staff activity table (Global Constraints): `who` is the
  * name or, when the account is gone, the email (`whoDetail` is always the
@@ -79,7 +87,7 @@ export function formatStaffEntry(e: StaffEntryView, now: Date = new Date(), show
     who: e.actor.name ?? e.actor.email,
     whoDetail: e.actor.email,
     website: e.website?.name ?? '—',
-    sentence: e.summary,
+    sentence: limitWords(e.summary),
     cost: showMoney && e.run && e.run.costUsd > 0 ? `$${e.run.costUsd.toFixed(2)}` : null,
   };
 }

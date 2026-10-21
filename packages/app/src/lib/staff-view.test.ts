@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STAFF_BLOCKED, STAFF_SESSION_ENDED, bannerText, confirmCopy, dedupeStaffByEmail, expiryToast, formatStaffEntry, isStaffSessionEnded, mustGoToOps, staffBlockedNote } from './staff-view';
+import { STAFF_BLOCKED, STAFF_SESSION_ENDED, bannerText, confirmCopy, dedupeStaffByEmail, expiryToast, formatStaffEntry, isStaffSessionEnded, limitWords, mustGoToOps, staffBlockedNote } from './staff-view';
 
 describe('staff-view (spec 2026-10-07 §2.2-2.3)', () => {
   it('copy is exact', () => {
@@ -74,5 +74,18 @@ describe('isStaffSessionEnded (final review, 2026-10-07)', () => {
     expect(isStaffSessionEnded(new Error('Your staff session ended.'))).toBe(false);
     expect(isStaffSessionEnded(null)).toBe(false);
     expect(isStaffSessionEnded('Your staff session ended')).toBe(false);
+  });
+});
+
+describe('limitWords (spec 2026-10-21 §4)', () => {
+  it('rewords a stored "budget" bracket', () => {
+    expect(limitWords('Planned an extraction on Nike (budget 50 products)')).toBe('Planned an extraction on Nike (up to 50 products)');
+    expect(limitWords('Planned an extraction on Nike (budget all products)')).toBe('Planned an extraction on Nike (all products)');
+    expect(limitWords('Planned an extraction on Nike (budget ? products)')).toBe('Planned an extraction on Nike');
+    expect(limitWords('Ran a sample on Nike')).toBe('Ran a sample on Nike');
+  });
+  it('formatStaffEntry shows the reworded sentence', () => {
+    const e = { id: '1', at: new Date(), actor: { name: 'A', email: 'a@x' }, org: { id: 'o', name: 'O' }, project: null, website: null, summary: 'Planned an extraction on Nike (budget 50 products)', run: null };
+    expect(formatStaffEntry(e).sentence).toBe('Planned an extraction on Nike (up to 50 products)');
   });
 });
