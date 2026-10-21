@@ -7,29 +7,30 @@ reason and goes on to the next.
 
 ## Next
 
-*(Empty — add the next items here.)*
+1. **Capture-failure sentences in customer words** — the honest-verdict sentences (2026-10-09) name
+   the host and an HTTP code ("…refused the browser (HTTP 403…)"); reword every customer-visible
+   capture verdict so it names neither, staff/ops keep the detail. *Done when:* no customer string
+   has a host or an HTTP code (a test sweeps them), route smoke passes. (Marko: yes, 2026-10-21.)
+2. **"Budget" becomes "Page limit"** — on the run page and in Settings, everywhere a customer reads
+   "budget" meaning a page limit. *Done when:* no customer string says "budget"; tests, smoke.
+   (Marko: yes, 2026-10-21.)
+3. **Cap XPath backups too** — the page's HTML counts as one source under the two-per-source cap
+   (drop the 2026-10-20 exemption); ops warns on all-XPath fields. *Done when:* certification and
+   ops treat XPath like the other sources; tests. (Marko: yes, 2026-10-21.)
+4. **Re-verify the one-source websites** — after item 3: re-verify, free and keyless, the websites
+   the one-source check flagged (both Ikea websites, Lookfantastic, the rest in
+   `docs/testing/results/2026-10-20-one-source/recertify.md`); `pg_dump` first; record before/after.
+   (Marko: yes, 2026-10-21; the two first-path switches are accepted.)
+5. **Jev's agreement** — count the websites verified with Jev readings; with about 20, run the
+   agreement report and write up spec 2026-10-16 §9's decision for Marko; with fewer, record the
+   count and move it back to Needs Marko. (Marko: yes, 2026-10-21.)
+6. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+7. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+   websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
 
-- **Two fields change their first path at their next Verify** — Competitor prices / Ikea "In stock"
-  (API → HTML) and Lookfantastic SKU (see `docs/testing/results/2026-10-20-one-source/recertify.md`).
-  Fine as is, or check them after re-verifying?
-- **Re-verify the one-source websites?** Both Ikea websites (Acne / Ikea, Competitor prices / Ikea)
-  keep their five same-response Price paths until their next Verify. Re-verifying changes customer
-  data: staff do it, or prompt the customer? (2026-10-20, one-source backups.)
-- **Cap XPath backups too?** The one-source cap (two paths per source) leaves the page's HTML out,
-  so XPath-only websites keep up to five XPath paths as before. Cap them as one source, or keep the
-  exemption? (2026-10-20.)
-- **Capture-failure sentences show the host and an HTTP code** — e.g. "…refused the browser (HTTP
-  403…)" (honest verdicts, 2026-10-09). Customer copy should not name internals; reword them?
-  (Found while planning silent failures, 2026-10-20; that branch keeps them unchanged.)
-- **Verification tab UX polish** — waiting for Marko's notes (plan 2026-10-17, Task 9).
-- **"Budget" wording** — on the run page and in Settings it means a page limit; a customer may
-  read it as money. Keep, or rename (e.g. "Page limit")?
-- **Jev's agreement** — read it once ~20 websites are verified with readings, then decide spec
-  2026-10-16 §9.
-- **Tabs in captures** — off by default (2026-10-19); turning them on needs a free replay of the
-  certified sources first.
+*(Nothing waiting — items 6 and 7 above need Marko only for the UX notes.)*
 
 ## Done
 
