@@ -22,6 +22,8 @@ import {
   pathKind,
   pathPercent,
   provenText,
+  refreshOpsLines,
+  refreshRefusals,
   responseText,
   runStatsText,
   siteLastRunText,
@@ -30,6 +32,7 @@ import {
   type OpsDriftResults,
   type OpsField,
   type OpsFieldPath,
+  type OpsRefresh,
 } from '../../../../lib/ops-view';
 import { trpc } from '../../../../lib/trpc';
 import { useUnauthorizedRedirect } from '../../../../lib/use-unauthorized-redirect';
@@ -70,6 +73,8 @@ type OpsWebsiteData = {
   driftRunAt: string | null;
   lastRun: { status: string; at: string; rows: number | null } | null;
   proofUrls: string[];
+  /** Every automatic update, newest first (spec 2026-10-21 §6). */
+  refreshes: OpsRefresh[];
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -99,7 +104,7 @@ function fieldRowInfo(field: OpsField, driftedFieldNames: readonly string[]) {
   // since verified"), or the binding is untouched and the result simply
   // failed ('failed' — "Didn't pass verification", final review M6).
   const changed = field.state === 'changed' ? 'binding' : field.state === 'failed' ? 'failed' : false;
-  const flag = fieldFlag({ drifted, changed, oneSource: !!warn, firstPathPct });
+  const flag = fieldFlag({ drifted, held: field.state === 'held' ? field.heldSince ?? null : null, changed, oneSource: !!warn, firstPathPct });
   return { firstPathPct, warn, drifted, changed, flag };
 }
 
@@ -146,6 +151,8 @@ function OpsWebsitePage() {
 
   const data = query.data as OpsWebsiteData | undefined;
   const loading = !data;
+  // Spec 2026-10-21 §6: why the latest check did not take a changed value by itself, per field (staff words).
+  const refusals = refreshRefusals(data?.drift?.results);
 
   function isExpanded(field: OpsField): boolean {
     return overrides[field.key] ?? !!fieldRowInfo(field, data?.driftedFieldNames ?? []).flag;
@@ -212,12 +219,24 @@ function OpsWebsitePage() {
                   field={field}
                   proofUrls={data.proofUrls}
                   driftedFieldNames={data.driftedFieldNames}
+                  refusal={refusals[field.key] ?? null}
                   expanded={isExpanded(field)}
                   onToggle={() => setOverrides((o) => ({ ...o, [field.key]: !isExpanded(field) }))}
                 />
               ))}
             </div>
           </section>
+
+          {data.refreshes.length > 0 ? (
+            <section aria-labelledby="ops-refreshes-heading" className="rise mb-4">
+              <h2 id="ops-refreshes-heading" className="text-lg font-medium">Automatic updates</h2>
+              <ul className="mt-2 space-y-1 font-mono text-sm">
+                {refreshOpsLines(data.refreshes, data.proofUrls).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section className="rise">
             <h2 className="text-lg font-medium">Proof pages</h2>
@@ -338,7 +357,7 @@ function SummaryStrip({ data }: { data: OpsWebsiteData }) {
       {cell(
         'Verified',
         <span className={`inline-block border-l-2 pl-2.5 ${VERIFIED_RAIL[vState]}`}>
-          {verifiedText(data.verified.current, data.verified.total)}
+          {verifiedText(data.verified.current, data.verified.total, data.fields.filter((f) => f.state === 'held').length)}
         </span>,
       )}
       {cell(
@@ -403,12 +422,15 @@ function FieldRow({
   field,
   proofUrls,
   driftedFieldNames,
+  refusal,
   expanded,
   onToggle,
 }: {
   field: OpsField;
   proofUrls: string[];
   driftedFieldNames: string[];
+  /** Why the latest check did not refresh this field's changed value (staff words), or null. */
+  refusal: string | null;
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -448,6 +470,7 @@ function FieldRow({
         </span>
         <span className={`text-sm whitespace-nowrap ${info.flag ? 'text-warn' : ''}`}>{info.flag}</span>
       </button>
+      {refusal ? <p className="px-4 pb-2 text-sm text-muted-foreground">{refusal}</p> : null}
 
       {/* Kept in the DOM and toggled with `hidden` rather than unmounted, so
           the button's `aria-controls` always names an element that exists
