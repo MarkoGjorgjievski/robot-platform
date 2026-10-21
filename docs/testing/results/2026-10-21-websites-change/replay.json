@@ -1,0 +1,413 @@
+{
+  "at": "2026-10-21T13:18:45.949Z",
+  "report": [
+    {
+      "website": "Barnesandnoble",
+      "sourceId": "ae6fa0b3-4e5f-4028-8d35-993ce85b1d76",
+      "runnableBefore": false,
+      "runnableAfter": true,
+      "fields": [
+        {
+          "name": "Rating",
+          "held": true,
+          "refresh": "refused: not-shown",
+          "reads": {
+            "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "4.6",
+            "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "4.3",
+            "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "4.4"
+          },
+          "expected": {
+            "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "4.5",
+            "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "4.3",
+            "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "4.4"
+          }
+        },
+        {
+          "name": "Description",
+          "held": true,
+          "refresh": "refused: not-by-nature",
+          "reads": {
+            "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "THE #1 NEW YORK TIMES BESTSELLING PHENOMENON A Katie Couric Book Club Pick • A Jen Hatmaker Book Club Pick “[A] word-of-mouth smash hit.” —The New York Times “A treasure.” —Hoda KotbOne spring morning, a stranger named Theo arrives in the small Southern city of Golden. He doesn’t explain much about where he came from or why he’s there—but when he visits the local coffeehouse, where pencil portraits of the people of Golden hang on the walls, he begins purchasing them, one at a time, and giving each portrait to the person depicted. In exchange, he asks only for the person’s story. And so portrait by portrait, person by person, secrets are revealed, regrets are shared, and ordinary lives are profoundly altered. A story of giving and receiving, of seeing and being seen, Theo of Golden is an unforgettable novel about the power of generosity, the importance of connection, and the quiet miracles that happen when we choose kindness and wonder.",
+            "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "Welcome to Threshing Day, the brutal, high-stakes trial where would-be riders at Basgiath War College fight to earn the bond of a dragon or die trying. Amid ruthless competition and dragon fire, these thirteen cadets must survive a battlefield where desperate rivals will do anything to gain an advantage and dragons decide one’s ultimate fate—and where a single choice can forge a rider...or destroy them.Xaden Riorson, the powerful leader. Rhiannon Matthias, the clever friend. Dain Aetos, the dutiful rule-follower. Liam Mairi, the kindhearted protector. Ridoc Gamlyn, the jokester. Sawyer Henrick, the underdog. Garrick Tavis, the dependable aide. Imogen Cardulo, the impulsive fighter. Bodhi Durran, the second-in-command. Mira Sorrengail, the fearless rider. Brennan Sorrengail, the brilliant tactician. Aaric Graycastle, the restless royal. Sloane Mairi, the determined sister.On Threshing Day, there’s only one rule: don’t die.The standard edition of Threshing Day features sixteen beautiful original black-and-white illustrations by artist Joe Requeza. The Empyrean series is best enjoyed in order.Reading Order:Book #1 Fourth WingBook #2 Iron FlameBook #3 Onyx StormThough Threshing Day can be enjoyed as an introduction to the series, due to contained spoilers, it is best read after Onyx Storm.",
+            "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "NEW YORK TIMES BESTSELLER • John Grisham delivers a gripping, suspenseful page-turner about a Paris honeymoon gone horribly wrong—and the nightmare that follows.After Paul and Chelsea Tanner’s fairytale wedding, their future is full of promise. But their honeymoon to Paris takes a dark, shocking turn when they are kidnapped while on a day trip to the French countryside. Who would target them, and why? It turns out this is not the first crime of its kind. The search for clues soon stretches across borders, with the FBI, CIA, and French Intelligence trying to work together to put the pieces of the puzzle together. Struggling to find answers, a young lawyer is recruited to be the bait in an elaborate CIA operation.Propulsive and surprising, The French Illusion is an unmistakable Grisham thrill ride—gripping and impossible to put down."
+          },
+          "expected": {
+            "https://www.barnesandnoble.com/w/theo-of-golden-allen-levi/1143923011": "THE #1 NEW YORK TIMES BESTSELLING PHENOMENON A Katie Couric Book Club Pick • A Jen Hatmaker Book Club Pick “[A] word-of-mouth smash hit.” —The New York Times “A treasure.” —Hoda KotbOne spring morning, a stranger named Theo arrives in the small Southern city of Golden. He doesn’t explain much about where he came from or why he’s there—but when he visits the local coffeehouse, where pencil portraits of the people of Golden hang on the walls, he begins purchasing them, one at a time, and giving each portrait to the person depicted. In exchange, he asks only for the person’s story. And so portrait by portrait, person by person, secrets are revealed, regrets are shared, and ordinary lives are profoundly altered. A story of giving and receiving, of seeing and being seen, Theo of Golden is an unforgettable novel about the power of generosity, the importance of connection, and the quiet miracles that happen when we choose kindness and wonder.",
+            "https://www.barnesandnoble.com/w/threshing-day-rebecca-yarros/1150799611": "Welcome to Threshing Day, the brutal, high-stakes trial where would-be riders at Basgiath War College fight to earn the bond of a dragon or die trying. Amid ruthless competition and dragon fire, these thirteen cadets must survive a battlefield where desperate rivals will do anything to gain an advantage and dragons decide one's ultimate fate-and where a single choice can forge a rider...or destroy them.Xaden Riorson, the powerful leader. Rhiannon Matthias, the clever friend. Dain Aetos, the dutiful rule-follower. Liam Mairi, the kindhearted protector. Ridoc Gamlyn, the jokester. Sawyer Henrick, the underdog. Garrick Tavis, the dependable aide. Imogen Cardulo, the impulsive fighter. Bodhi Durran, the second-in-command. Mira Sorrengail, the fearless rider. Brennan Sorrengail, the brilliant tactician. Aaric Graycastle, the restless royal. Sloane Mairi, the determined sister.On Threshing Day, there's only one rule: don't die.The ebook edition of Threshing Day features fifteen beautiful original black-and-white illustrations by artist Joe Requeza. The Empyrean series is best enjoyed in order.Reading Order:Book #1 Fourth WingBook #2 Iron FlameBook #3 Onyx StormThough Threshing Day can be enjoyed as an introduction to the series, due to contained spoilers, it is best read after Onyx Storm.",
+            "https://www.barnesandnoble.com/w/the-french-illusion-john-grisham/1149667428": "NEW YORK TIMES BESTSELLER • John Grisham delivers a gripping, suspenseful page-turner about a Paris honeymoon gone horribly wrong—and the nightmare that follows.After Paul and Chelsea Tanner’s fairytale wedding, their future is full of promise. But their honeymoon to Paris takes a dark, shocking turn when they are kidnapped while on a day trip to the French countryside. Who would target them, and why? It turns out this is not the first crime of its kind. The search for clues soon stretches across borders, with the FBI, CIA, and French Intelligence trying to work together to put the pieces of the puzzle together. Struggling to find answers, a young lawyer is recruited to be the bait in an elaborate CIA operation.Propulsive and surprising, The French Illusion is an unmistakable Grisham thrill ride—gripping and impossible to put down."
+          }
+        }
+      ]
+    },
+    {
+      "website": "Acne / Ikea",
+      "sourceId": "b4648622-bfa9-4d90-91b4-5a88ed288cd9",
+      "runnableBefore": false,
+      "runnableAfter": true,
+      "fields": [
+        {
+          "name": "Total reviews",
+          "held": true,
+          "refresh": "refresh: 149 → 150, 62 → 64, 45 → 46",
+          "reads": {
+            "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "150",
+            "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "64",
+            "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "46"
+          },
+          "expected": {
+            "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "149",
+            "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "62",
+            "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "45"
+          }
+        },
+        {
+          "name": "Average rating",
+          "held": true,
+          "refresh": "refresh: 4.8 → 4.7",
+          "reads": {
+            "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "4.8",
+            "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "4.7",
+            "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "4.7"
+          },
+          "expected": {
+            "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/": "4.8",
+            "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/": "4.7",
+            "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/": "4.8"
+          }
+        }
+      ]
+    },
+    {
+      "website": "Madeincookware",
+      "sourceId": "5cb04b47-53cf-4aac-9d66-d9ac5bf4c2de",
+      "runnableBefore": false,
+      "runnableAfter": true,
+      "fields": [
+        {
+          "name": "Price",
+          "held": true,
+          "refresh": "refused: fixed-variant",
+          "reads": {
+            "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "2050",
+            "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "4050",
+            "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "1300"
+          },
+          "expected": {
+            "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "2050.00",
+            "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "4051.41",
+            "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "1300.00"
+          }
+        },
+        {
+          "name": "SKU",
+          "held": true,
+          "refresh": "refused: not-by-nature",
+          "reads": {
+            "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "KIT-5-FSS-ISS",
+            "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "KIT-10-ISS-V2-GOLD",
+            "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "KIT-2-FRY-ISS-V2"
+          },
+          "expected": {
+            "https://madeincookware.com/products/small-spaces-set/5-piece-stainless": "KIT-5-FSS-ISS-R7",
+            "https://madeincookware.com/products/le-stainless-sets/10-piece-antique-brass-finish": "KIT-10-ISS-V2-GOLD",
+            "https://madeincookware.com/products/stainless-clad-frying-pan-set/2-piece-stainless-handle": "KIT-2-FRY-ISS-V2"
+          }
+        }
+      ]
+    },
+    {
+      "website": "Everlane",
+      "sourceId": "b571fbfb-92e0-40af-bd87-e8b3f2d88a8a",
+      "runnableBefore": false,
+      "runnableAfter": true,
+      "fields": [
+        {
+          "name": "Price",
+          "held": true,
+          "refresh": "refused: fixed-variant",
+          "reads": {
+            "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "180",
+            "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "125",
+            "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "200"
+          },
+          "expected": {
+            "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "125.00",
+            "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "125.00",
+            "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "140.00"
+          }
+        },
+        {
+          "name": "In stock",
+          "held": true,
+          "refresh": "refused: fixed-variant",
+          "reads": {
+            "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "false",
+            "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "false",
+            "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "false"
+          },
+          "expected": {
+            "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white": "http://schema.org/InStock",
+            "https://www.everlane.com/products/mens-essential-organic-dyed-crew-agave-green": "http://schema.org/OutOfStock",
+            "https://www.everlane.com/products/mens-archive-cotton-relaxed-fit-crew-heathered-oatmeal": "http://schema.org/InStock"
+          }
+        }
+      ]
+    },
+    {
+      "website": "Mejuri",
+      "sourceId": "7d6ce510-4452-4a43-ad9c-4d66f18ea2f0",
+      "runnableBefore": false,
+      "runnableAfter": true,
+      "fields": [
+        {
+          "name": "Price",
+          "held": true,
+          "refresh": "refresh: 615.00 → 625.00, 435.00 → 440.00, 3250.00 → 3300.00",
+          "reads": {
+            "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "625",
+            "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "440",
+            "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "3300"
+          },
+          "expected": {
+            "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold": "615.00",
+            "https://mejuri.com/my/en/products/duo-beaded-stacker-ring?Material=18k+Gold+Vermeil": "435.00",
+            "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond": "3250.00"
+          }
+        }
+      ]
+    },
+    {
+      "website": "Gymshark",
+      "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
+      "runnableBefore": false,
+      "runnableAfter": true,
+      "fields": [
+        {
+          "name": "Rating",
+          "held": true,
+          "refresh": "refresh: 4 → 4.2",
+          "reads": {
+            "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "4.2",
+            "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": null,
+            "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "3.4",
+            "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "3.5"
+          },
+          "expected": {
+            "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26": "4",
+            "https://www.gymshark.com/products/gymshark-adapt-solid-sports-bra-sports-bras-black-aw26": "",
+            "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26": "3.4",
+            "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25": "3.5"
+          }
+        }
+      ]
+    },
+    {
+      "website": "Ridge",
+      "sourceId": "c716c55b-cd64-4930-87d0-01feec19bcab",
+      "runnableBefore": false,
+      "runnableAfter": true,
+      "fields": [
+        {
+          "name": "In stock",
+          "held": true,
+          "refresh": "refused: fixed-variant",
+          "reads": {
+            "https://ridge.com/products/carbon-fiber": "false",
+            "https://ridge.com/products/aluminum-black": "false",
+            "https://ridge.com/products/magsafe-wallet-neon-tiger": "false",
+            "https://ridge.com/products/american-traditional?variant=43765981675594": "false"
+          },
+          "expected": {
+            "https://ridge.com/products/carbon-fiber": "http://schema.org/InStock",
+            "https://ridge.com/products/aluminum-black": "http://schema.org/InStock",
+            "https://ridge.com/products/magsafe-wallet-neon-tiger": "http://schema.org/InStock",
+            "https://ridge.com/products/american-traditional?variant=43765981675594": "http://schema.org/InStock"
+          }
+        }
+      ]
+    },
+    {
+      "website": "Oliverbonas",
+      "sourceId": "3406d1ae-81b2-42fa-95f2-e7a3f4393b6e",
+      "runnableBefore": false,
+      "runnableAfter": true,
+      "fields": [
+        {
+          "name": "Rating",
+          "held": true,
+          "refresh": "refused: not-shown",
+          "reads": {
+            "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "4.5",
+            "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "4.9",
+            "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": null,
+            "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "5"
+          },
+          "expected": {
+            "https://www.oliverbonas.com/fashion/red-embriodered-tie-waist-strappy-midi-dress-409184": "4",
+            "https://www.oliverbonas.com/fashion/red-orange-floral-v-neck-tie-waist-midi-dress-409016": "4.85",
+            "https://www.oliverbonas.com/fashion/white-brown-polka-dot-scallop-collar-cotton-midi-dress-410935": "",
+            "https://www.oliverbonas.com/fashion/black-floral-embroidered-frill-collar-tiered-midi-dress-409216": "5"
+          }
+        }
+      ]
+    },
+    {
+      "website": "Burrow",
+      "sourceId": "c8d2a589-f342-4e4a-8787-96ebc9a0d27a",
+      "runnableBefore": false,
+      "runnableAfter": true,
+      "fields": [
+        {
+          "name": "Price",
+          "held": true,
+          "refresh": "refused: fixed-variant",
+          "reads": {
+            "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "1619",
+            "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "2009",
+            "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "1859"
+          },
+          "expected": {
+            "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "1133.0",
+            "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "1306.0",
+            "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "1301.0"
+          }
+        },
+        {
+          "name": "Rating",
+          "held": true,
+          "refresh": "refused: not-shown",
+          "reads": {
+            "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "4.74",
+            "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "4.74",
+            "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "4.74"
+          },
+          "expected": {
+            "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "4.78",
+            "https://burrow.com/products/range-plus-4-piece-one-arm-sofa-lounger?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal": "4.78",
+            "https://burrow.com/products/range-plus-3-piece-one-arm-sofa-with-table?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Table+Finish=Oak+Legs+and+Table": "4.78"
+          }
+        }
+      ]
+    },
+    {
+      "website": "Skullcandy",
+      "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
+      "runnableBefore": false,
+      "runnableAfter": true,
+      "fields": [
+        {
+          "name": "Title",
+          "held": true,
+          "refresh": "nothing moved",
+          "reads": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "Grom® Wireless",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "Crusher® Evo"
+          },
+          "expected": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "Grom® Wireless",
+            "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "SLYR® Pro",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "Crusher® Evo"
+          }
+        },
+        {
+          "name": "Price",
+          "held": true,
+          "refresh": "nothing moved",
+          "reads": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "36.99",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "209.99"
+          },
+          "expected": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "36.99",
+            "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "104.99",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "209.99"
+          }
+        },
+        {
+          "name": "Main image",
+          "held": true,
+          "refresh": "nothing moved",
+          "reads": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "https://www.skullcandy.com/cdn/shop/files/grom_wireless_buy_box_black_1.png?v=1709649642&width=1080",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "https://www.skullcandy.com/cdn/shop/files/CrusherEvo_TrueBlack_1_6e2c71c7-a278-4d0e-b579-c6314f7930cc.png?v=1768942094"
+          },
+          "expected": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "https://www.skullcandy.com/cdn/shop/files/grom_wireless_buy_box_black_1.png?v=1709649642&width=1080",
+            "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "https://www.skullcandy.com/cdn/shop/files/slyr_pro_buy_box_blue_digi_hype_2.png?v=1759957751&width=1080",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "https://www.skullcandy.com/cdn/shop/files/CrusherEvo_TrueBlack_1_6e2c71c7-a278-4d0e-b579-c6314f7930cc.png?v=1768942094&width=2000"
+          }
+        },
+        {
+          "name": "SKU",
+          "held": true,
+          "refresh": "nothing moved",
+          "reads": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "S6KBW-R740",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "S6EVW-N740"
+          },
+          "expected": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "S6KBW-R740",
+            "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "S6SPY-Q766",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "S6EVW-N740"
+          }
+        },
+        {
+          "name": "Brand",
+          "held": true,
+          "refresh": "nothing moved",
+          "reads": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "Skullcandy US",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "Skullcandy US"
+          },
+          "expected": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "Skullcandy US",
+            "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "Skullcandy US",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "Skullcandy US"
+          }
+        },
+        {
+          "name": "In stock",
+          "held": true,
+          "refresh": "nothing moved",
+          "reads": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "false",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "true"
+          },
+          "expected": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "Out of stock",
+            "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "Out of stock",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "http://schema.org/InStock"
+          }
+        },
+        {
+          "name": "Rating",
+          "held": true,
+          "refresh": "nothing moved",
+          "reads": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "4.3",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "4.6"
+          },
+          "expected": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "4.3",
+            "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "4.3",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "4.6"
+          }
+        },
+        {
+          "name": "Description",
+          "held": true,
+          "refresh": "nothing moved",
+          "reads": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "KID-FRIENDLY SOUND AND WIRELESS FREEDOM. Grom Wireless gives kids the quality and features of premium headphones, plus total wireless freedom. With Skullcandy Supreme Sound, intuitive earcup controls, 45 hours of battery, a fit designed specifically for kids and sophisticated, modern styling, Grom Wireless puts many brands’ high-end offerings to shame.",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "CRUSH THE ORDINARY WITH MIND-BENDING BASS Ready to feel your music? Crusher Evo brings the brain-rattling, soul-shaking power of adjustable Crusher Bass to your daily grind. It’s everything you need to crush commutes, couch sessions, and life in between. With up to 40 hours of battery life and Rapid Charge, you’ll never get caught without the vibes. And thanks to Personal Sound, it’s tuned just for you. Because your ears deserve better."
+          },
+          "expected": {
+            "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids": "KID-FRIENDLY SOUND AND WIRELESS FREEDOM. \nGrom Wireless gives kids the quality and features of premium headphones, plus total wireless freedom. With Skullcandy Supreme Sound, intuitive earcup controls, 45 hours of battery, a fit designed specifically for kids and sophisticated, modern styling, Grom Wireless puts many brands’ high-end offerings to shame.",
+            "https://www.skullcandy.com/products/slyr-pro-multi-platform-wired-gaming-headset": "ADVANCED GAMING TUNED TO YOU. \nSLYR Pro takes your game to the next level with advanced features you just can’t get in other wireless headsets. Skullcandy Supreme Sound delivers full, rich audio and our advanced Clear Voice Smart Mic uses A.I. to isolate your voice for ultra-clear communication. Game/chat mix, custom EQs and sidetone can be accessed through the Skull-HQ App. The icing on the cake is our exclusive Enhanced Sound Perception feature, which utilizes a hearing test in the app to optimize the sound to your unique hearing.",
+            "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound": "CRUSH THE ORDINARY WITH MIND-BENDING BASS\nReady to feel your music? Crusher Evo brings the brain-rattling, soul-shaking power of adjustable Crusher Bass to your daily grind. It’s everything you need to crush commutes, couch sessions, and life in between. With up to 40 hours of battery life and Rapid Charge, you’ll never get caught without the vibes. And thanks to Personal Sound, it’s tuned just for you. Because your ears deserve better."
+          }
+        }
+      ]
+    }
+  ]
+}
