@@ -27,7 +27,7 @@ export function driftBadge(driftedFields: string[] | null): string | null {
 }
 
 /** "a", "a and b", "a, b and c" — no Oxford comma (matches the badge's own field list). */
-function joinList(items: string[]): string {
+export function joinList(items: string[]): string {
   if (items.length <= 1) return items[0] ?? '';
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
@@ -36,7 +36,7 @@ function joinList(items: string[]): string {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** `d MMM`, e.g. "26 Sep" — locale-free, like the rest of the app's dates. */
-function formatDMMM(d: Date): string {
+export function formatDMMM(d: Date): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
@@ -97,6 +97,8 @@ export type DriftFieldResultLike = {
   /** `not-checked`: no page could be read now — the field gets no row of its own, only its pages' lines (and the banner). */
   result: 'other-layout' | 'moved' | 'changed' | 'lost' | 'not-checked';
   pages: Record<string, DriftPageLike>;
+  /** What a run writes on each captured page from the field's certified paths, null for nothing (spec 2026-10-21 §3.3); absent on older checks. */
+  reads?: Record<string, string | null>;
 };
 
 /** `sources.driftCheck`'s `results` once the check is `done` (`DriftCheckResults`). */
@@ -219,9 +221,14 @@ export function driftRows(args: {
           runId: results.runId,
         });
         break;
-      case 'lost':
-        rows.push({ kind: 'lost', text: 'Not found on the page — Mark it again' });
+      case 'lost': {
+        // Spec 2026-10-21 §3.4: read on some products and not others — name the ones that read nothing.
+        const missing = urls.flatMap((u, i) => (r.reads && u in r.reads && r.reads[u] === null ? [i + 1] : []));
+        const someRead = urls.some((u) => r.reads?.[u] != null);
+        const where = missing.length === 1 ? `product ${missing[0]}` : `products ${joinList(missing.map(String))}`;
+        rows.push({ kind: 'lost', text: someRead && missing.length > 0 ? `Not found on ${where} — Mark it again` : 'Not found on the page — Mark it again' });
         break;
+      }
     }
 
     const gone = pageRows(r.pages, urls, staff);

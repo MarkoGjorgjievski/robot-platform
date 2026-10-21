@@ -5,7 +5,7 @@ const NOW = new Date('2026-09-21T12:00:00Z');
 function row(over: Partial<WebsiteRow> & { name: string }): WebsiteRow {
   return {
     id: over.name, slug: over.name.toLowerCase(), url: `https://${over.name.toLowerCase()}.example.com/`,
-    verifiedFields: 0, lastRun: null, driftedFields: null, ...over,
+    verifiedFields: 0, lastRun: null, driftedFields: null, needsAttention: false, ...over,
   };
 }
 
@@ -44,5 +44,12 @@ describe('websitesView', () => {
   it('carries the drift badge (plan 2026-10-05 Task 3)', () => {
     const [v] = websitesView([row({ name: 'A', driftedFields: ['price'] })], 2, NOW);
     expect(v!.driftBadge).toBe('1 field stopped extracting');
+  });
+
+  it('says Needs attention when nothing stopped extracting but something needs the customer (spec 2026-10-21 §5)', () => {
+    const [v] = websitesView([row({ name: 'A', driftedFields: null, needsAttention: true })], 2, NOW);
+    expect(v!.driftBadge).toBe('Needs attention');
+    const [w] = websitesView([row({ name: 'B', driftedFields: ['price'], needsAttention: true })], 2, NOW);
+    expect(w!.driftBadge).toBe('1 field stopped extracting');
   });
 });

@@ -341,21 +341,21 @@ describe('stripColumnsFromProduct', () => {
 
 describe('extractEnabled', () => {
   it('locked until fields are current and passed', () => {
-    expect(extractEnabled({ current: false, allPassed: true, variants: null })).toBe(false);
-    expect(extractEnabled({ current: true, allPassed: false, variants: null })).toBe(false);
+    expect(extractEnabled({ runnable: false, variants: null })).toBe(false);
+    expect(extractEnabled({ runnable: false, variants: { current: true, passed: true } })).toBe(false);
   });
 
   it('unlocked with fields done and variants null (ignore mode)', () => {
-    expect(extractEnabled({ current: true, allPassed: true, variants: null })).toBe(true);
+    expect(extractEnabled({ runnable: true, variants: null })).toBe(true);
   });
 
   it('locked until variants are current and passed', () => {
-    expect(extractEnabled({ current: true, allPassed: true, variants: { current: false, passed: false } })).toBe(false);
-    expect(extractEnabled({ current: true, allPassed: true, variants: { current: true, passed: false } })).toBe(false);
+    expect(extractEnabled({ runnable: true, variants: { current: false, passed: false } })).toBe(false);
+    expect(extractEnabled({ runnable: true, variants: { current: true, passed: false } })).toBe(false);
   });
 
   it('unlocked once variants are done and passed', () => {
-    expect(extractEnabled({ current: true, allPassed: true, variants: { current: true, passed: true } })).toBe(true);
+    expect(extractEnabled({ runnable: true, variants: { current: true, passed: true } })).toBe(true);
   });
 });
 

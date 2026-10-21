@@ -78,6 +78,7 @@ import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { showsMoney } from '../../../../../../lib/money-visibility';
 import { captureWords } from '../../../../../../lib/capture-words';
+import { attentionBanner, heldWord, refreshLine } from '../../../../../../lib/site/attention-view';
 import { useStaffDetail } from '../../../../../../lib/use-staff-detail';
 import { blockedReasons, cellHint, verificationState, type PageVariantLike, type VerificationResults } from '../../../../../../lib/site/verification-view';
 import { notCheckedText, refusalFromError, stageText, verifyMessage } from '../../../../../../lib/site/verify-messages';
@@ -406,6 +407,11 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     : null;
   const fieldNames = useMemo(() => Object.fromEntries(fields.map((f) => [f.key, f.name])), [fields]);
 
+  // Spec 2026-10-21 §3.5: what needs the customer when no run flagged drift, and each field's automatic update.
+  const attentionQuery = trpc.sources.attention.useQuery({ sourceId });
+  const attention = attentionQuery.data ?? null;
+  const refreshByKey = useMemo(() => Object.fromEntries((attention?.refreshes ?? []).map((r) => [r.key, r])), [attention?.refreshes]);
+
   // --- Coverage (spec 2026-10-10 §A5): the background check a passing Verify
   // kicks off, polled only while it is still running — same rule as `driftCheckQuery`.
   const coverageQuery = trpc.sources.coverage.useQuery(
@@ -438,6 +444,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       // pick up its first row on the next poll rather than waiting out whatever
       // `refetchInterval` was last computed from (likely `false`, pre-check).
       void coverageQuery.refetch();
+      // A Verify settles holds and findings (spec 2026-10-21 §3.5): the banner and row words follow it.
+      void attentionQuery.refetch();
     }
   }, [active]);
 
@@ -448,14 +456,20 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const driftByField = useMemo(
     () =>
       driftRows({
-        fieldKeys: driftedKeys,
+        // With nothing drifted, the rows are what needs the customer (spec 2026-10-21 §3.5): `sources.attention`'s findings.
+        fieldKeys: driftedKeys.length > 0 ? driftedKeys : attention?.fields ?? [],
         urls,
-        results: (driftCheckQuery.data?.results as DriftCheckResultsLike | undefined) ?? null,
+        results:
+          driftedKeys.length > 0
+            ? ((driftCheckQuery.data?.results as DriftCheckResultsLike | undefined) ?? null)
+            : attention
+              ? ({ runId: null, fields: attention.findings } as unknown as DriftCheckResultsLike)
+              : null,
         values: driftValues,
         staff,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [driftedKeys.join(','), urls, driftCheckQuery.data?.results, driftValues, staff],
+    [driftedKeys.join(','), urls, driftCheckQuery.data?.results, driftValues, staff, attention?.fields.join(','), attention?.findings],
   );
   const captures = useProofCaptures(sourceId, urls);
   // A card added by URL (run page, coverage line, paste) keeps its address as
@@ -1202,8 +1216,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
    */
   function driftLinesFor(f: Field): DriftLine[] | undefined {
     const rows = driftByField[f.key];
-    if (!rows) return undefined;
-    return rows.map((row): DriftLine => {
+    const lines = (rows ?? []).map((row): DriftLine => {
       switch (row.kind) {
         case 'moved':
           // No mark on any page: nothing to accept, so no button (final review M5).
@@ -1247,6 +1260,10 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           };
       }
     });
+    // Spec 2026-10-21 §5: a value the website changed by nature, updated automatically — said first, nothing to act on.
+    const refreshed = refreshLine(refreshByKey[f.key], urls);
+    if (refreshed) lines.unshift({ kind: 'refreshed', text: refreshed });
+    return lines.length > 0 ? lines : undefined;
   }
 
   // Coverage (spec 2026-10-10 §A5): six proof pages leaves nothing more to add,
@@ -1354,7 +1371,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         isDefault: isDefaultCell(board, f, live, c.url),
       })),
       hasDefault: defaultOf(board, f.key) !== undefined,
-      defaultOnlyWord: defaultOnlyWord(results, f.key, unchangedKeys) ?? notOnWebsiteWord(results, f.key, unchangedKeys),
+      // Spec 2026-10-21 §5: a held field says runs use what was verified, and when.
+      defaultOnlyWord: heldWord(status?.held?.[f.key]?.verifiedAt) ?? defaultOnlyWord(results, f.key, unchangedKeys) ?? notOnWebsiteWord(results, f.key, unchangedKeys),
       addressWarning: addressWarning(f.key, results, board.cards, pageVariants),
       onReverifyField: () => void reverifyField(f.key),
       // Spec 2026-10-16 §6: a variant note only under a field whose certified or suggested path reads a variant list.
@@ -1543,7 +1561,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         saveState={saveState}
         saveError={saveError}
         extract={{
-          enabled: !!status && extractEnabled({ current: status.current, allPassed: !!status.allPassed, variants: variantsStatus }),
+          enabled: !!status && extractEnabled({ runnable: !!status.runnable, variants: variantsStatus }),
           project: projectSlug,
           site: siteSlug,
           variants: !!variantsStatus,
@@ -1551,7 +1569,23 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         stage={coverageStage(stage, coverage)}
       />
 
-      <DriftBanner driftedFields={source.driftedFields} fieldNames={fieldNames} check={driftCheck} />
+      <DriftBanner
+        driftedFields={source.driftedFields}
+        fieldNames={fieldNames}
+        check={driftCheck}
+        attention={
+          attention
+            ? attentionBanner({
+                driftedFields: source.driftedFields,
+                fields: attention.fields,
+                fieldNames,
+                goneProducts: attention.goneProducts,
+                heldSince: attention.heldSince,
+                runnable: attention.runnable,
+              })
+            : null
+        }
+      />
 
       {board.cards.length > 0 ? (
         <div className="space-y-2">

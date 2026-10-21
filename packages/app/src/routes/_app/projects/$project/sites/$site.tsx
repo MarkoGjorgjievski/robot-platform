@@ -88,7 +88,7 @@ function SiteLayout() {
       site={siteSlug}
       website={
         site.data
-          ? { id: site.data.id, name: site.data.name, hostname: site.data.hostname, driftedFields: site.data.driftedFields }
+          ? { id: site.data.id, name: site.data.name, hostname: site.data.hostname, driftedFields: site.data.driftedFields, needsAttention: site.data.needsAttention }
           : null
       }
     >
