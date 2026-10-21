@@ -48,7 +48,7 @@ Every customer-visible capture text, old → new. `{host}` is the requested URL'
 | Kind (source) | Old (stored, staff still read it) | New (customer) |
 |---|---|---|
 | `ok` (reachability line) | Reached {host} (HTTP {status}). | This website opens normally. |
-| `refused` | {host} refused the browser (HTTP {status}[, {vendor}]). We can't read this website from here yet. | This website turned us away, so we can't read it yet. Contact us if you need it. |
+| `refused` | {host} refused the browser (HTTP {status}[, {vendor}]). We can't read this website from here yet. | This website turned us away, so we can't read it yet. (Ruling 2026-10-21: no contact line — there is no contact route.) |
 | `challenge` | {host} asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check. | This website asked for a human check. Wait a few minutes and try again; its other pages are behind the same check. |
 | `not-found` | That page doesn't exist on {host} (404). Check the address. | That page doesn't exist. Check the address. |
 | `redirected` (off-site) | That address led to {to}. Paste a page on {host}. | That address opened a page on another website. Paste a page from this website. |
@@ -60,8 +60,11 @@ Every customer-visible capture text, old → new. `{host}` is the requested URL'
 | same-site redirect (`capture-check.ts`) | redirected to {url} | That address opened a different page. Check the link, or use another product. |
 | backoff answer (domain-lock, reachability) | {sentence} Waiting {n} min before trying again. | {new sentence} Waiting {n} min before trying again. |
 | run item not tried (record-outcome) | Not tried: {sentence} | Not tried: {new sentence} |
+| execute refused after a failed plan (`crawl/execute-guard.ts`, Extract tab) | This run failed while planning: {sentence} | This run failed while planning: {new sentence} |
+| orchestrator wrapper (`extraction-orchestrator.ts`) | Page blocked or unusable: {sentence} | {new sentence} (the wrapper is dropped; an inner text that is not a verdict takes the generic sentence) |
 | `BROWSER_UNAVAILABLE` | We couldn't open a browser to read this page. Try again in a minute. | unchanged |
-| any other capture text holding a host, an address, an HTTP code, a vendor or library text | as stored | We couldn't read this page. Try again. |
+| any other capture text holding a host, an address, an IP address, an HTTP code, a vendor, a system error code (ECONNREFUSED…), "browser" or library text (Playwright's `page.x:` / `browserType` / "Target closed" / "crashed!") | as stored | We couldn't read this page. Try again. |
+| a failed mutation on a customer screen (`lib/mutation-error.ts`: execute, cancel, backfill, confirm) | as sent | the api's own sentence for PRECONDITION_FAILED / BAD_REQUEST / FORBIDDEN (through the mapper); anything else, or one holding library text or an id: Something went wrong. Try again. |
 | blocked-run diagnosis (`diagnose-run.ts`, run page) | {reason} — wait and retry; long-term this needs the proxy line item. | {new sentence} (no tail: the sentence already says what to do) |
 | dead-link diagnosis | The link appears dead ({message}). | The link appears dead. Check the address. |
 | failed-item diagnosis rows | {item error} | {new sentence} |
@@ -86,9 +89,9 @@ Ops (`/ops/…`, `ops-view.ts`) is unchanged: staff detail.
 
 | Where | Old | New |
 |---|---|---|
-| Website Settings row label | Budget | Page limit |
-| Website Settings button | Save budget | Save page limit |
-| Website Settings save error | That budget could not be saved. | That page limit could not be saved. |
+| Website Settings row label (it holds a products count and a pages count) | Budget | Run limits |
+| Website Settings button | Save budget | Save limits |
+| Website Settings save error | That budget could not be saved. | Those limits could not be saved. |
 | Run page variant line | {n} variant pages skipped for the budget | {n} variant pages skipped for the page limit |
 | Staff activity (customer Settings + ops), new rows (`staff-actions.ts`) | Planned an extraction on {site} (budget {n} products) | Planned an extraction on {site} (up to {n} products); `all` → (all products); unknown → no bracket |
 | Staff activity, rows already stored | (budget {n} products) | mapped the same way at display (`staff-activity-list.tsx`) |
@@ -118,8 +121,9 @@ column) stay. Comments stay. Scraper log warnings ("budget reached: …") are no
   `verdict-copy.ts` that the mapper no longer recognises fails the test instead of leaking.
 - **The sweep (copy).** `customer-copy-sweep.test.ts` parses every non-test `.ts`/`.tsx` under
   `packages/app/src` with the TypeScript compiler, collects string literals, template text and JSX
-  text, and fails on `budget`, `HTTP \d` or `refused the browser` outside
-  `routes/_app/ops/`, `components/ops/` and `lib/ops-view.ts` (staff screens).
+  text, and fails on `budget`, `HTTP \d`, `refused the browser` or `CAPTCHA` outside
+  `routes/_app/ops/`, `components/ops/` and `lib/ops-view.ts` (staff screens) and
+  `lib/capture-words.ts` (the mapper's rules match the stored sentences).
 - **Staff unchanged.** `captureWords(text, true) === text` for every case in the table; ops is not
   touched.
 - **Smoke.** The route smoke's three verdict assertions change to the new sentences (it signs in as
