@@ -23,6 +23,9 @@ import {
 } from '@robot/scraper';
 import type { VariantSetup } from '../contract.js';
 import { variantsRequired, currentVariantHash, type VariantsRequired } from './variant-check.js';
+import { loadHolds, loadHoldsBatch, resultPasses, type Certifying, type Hold } from './holds.js';
+
+export { resultPasses } from './holds.js';
 
 export type Certification = {
   verificationId: string;
@@ -50,6 +53,8 @@ export type Certification = {
    * `loadCertificationState`; optional only so older fakes compile.
    */
   defaults?: Record<string, string>;
+  /** Spec 2026-10-21 §3.1: the fields read from their hold (the last passing result) because the latest Verify did not pass them. Set only when some are. */
+  held?: string[];
 };
 
 export function sourceDefinitionHash(source: { schemaDefinition: unknown; verificationSet: unknown }): string | null {
@@ -61,16 +66,25 @@ export type FieldCurrency = {
   latest: { id: string; completedAt: Date; results: Record<string, FieldVerification>; variantResults: VariantVerification | null } | null;
   currentKeys: string[];
   unchangedKeys: string[];
+  /** Spec 2026-10-21 §3.1: fields not current whose hold stands for today's hash. Runs read the hold's paths. */
+  heldKeys: string[];
+  held: Record<string, Hold>;
 };
+
+/** A fresh empty currency each time: callers may keep and extend the arrays. */
+const none = (): FieldCurrency => ({ latest: null, currentKeys: [], unchangedKeys: [], heldKeys: [], held: {} });
 
 /**
  * Spec 2026-10-17 §2: the fields whose current result says they are not on this website. Such a
  * field is left empty on every product and never blocks or flags one, so a run's coverage, misses,
  * dead-field classification, backfill targets and the Extract sample's empty-cell note leave it out.
- * Current only: once a cell gets a value the field's hash moves and it counts again.
+ * Current only: once a cell gets a value the field's hash moves and it counts again. A held field
+ * (spec 2026-10-21 §3.1) is read from its hold, so its hold's result decides.
  */
-export function notOnWebsiteKeys(currency: Pick<FieldCurrency, 'latest' | 'currentKeys'>): string[] {
-  return currency.currentKeys.filter((k) => currency.latest?.results[k]?.notOnWebsite === true);
+export function notOnWebsiteKeys(currency: Pick<FieldCurrency, 'latest' | 'currentKeys'> & Partial<Pick<FieldCurrency, 'heldKeys' | 'held'>>): string[] {
+  const current = currency.currentKeys.filter((k) => currency.latest?.results[k]?.notOnWebsite === true);
+  const held = (currency.heldKeys ?? []).filter((k) => currency.held?.[k]?.result.notOnWebsite === true);
+  return [...current, ...held];
 }
 
 /**
@@ -106,12 +120,12 @@ type CleanRunRow = { id: string; completedAt: Date | null; results: unknown; var
  * failed. It is what tells "fails on product 2" apart from "changed since
  * verified" — a failing field is never current, but it can be unchanged.
  */
-function currencyOf(source: { schemaDefinition: unknown; verificationSet: unknown } | undefined, row: CleanRunRow | undefined): FieldCurrency {
-  if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return { latest: null, currentKeys: [], unchangedKeys: [] };
+function currencyOf(source: { schemaDefinition: unknown; verificationSet: unknown } | undefined, row: CleanRunRow | undefined, holds: Hold[] = []): FieldCurrency {
+  if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return none();
   const fields = source.schemaDefinition as SchemaDefinitionField[];
   const set = source.verificationSet as VerificationSet;
 
-  if (!row || !row.completedAt) return { latest: null, currentKeys: [], unchangedKeys: [] };
+  if (!row || !row.completedAt) return none();
   const results = row.results as Record<string, FieldVerification>;
 
   const unchangedKeys = fields
@@ -122,14 +136,20 @@ function currencyOf(source: { schemaDefinition: unknown; verificationSet: unknow
     .map((f) => f.key);
 
   const currentKeys = unchangedKeys.filter((key) => {
-    const r = results[key]!;
     // A field passed by its default alone (spec 2026-10-13 §4) is current with no path.
     // A field not on this website (spec 2026-10-17 §2) is current with no path.
-    return (r.certified.length > 0 || r.defaultOnly === true || r.notOnWebsite === true) && Object.values(r.cells).length > 0 && Object.values(r.cells).every((c) => c.status === 'pass');
+    return resultPasses(results[key]);
   });
 
+  // Spec 2026-10-21 §3.1: a field not current is held while its hold stands for today's hash.
+  // Only the customer's edit moves the hash off the hold's list, so only it ends a hold.
+  const heldKeys = fields
+    .filter((f) => !currentKeys.includes(f.key) && holds.some((h) => h.fieldKey === f.key && h.fieldHashes.includes(fieldHash(f, set))))
+    .map((f) => f.key);
+  const held = Object.fromEntries(heldKeys.map((k) => [k, holds.find((h) => h.fieldKey === k)!]));
+
   const variantResults = (row.variantResults as VariantVerification | null | undefined) ?? null;
-  return { latest: { id: row.id, completedAt: row.completedAt, results, variantResults }, currentKeys, unchangedKeys };
+  return { latest: { id: row.id, completedAt: row.completedAt, results, variantResults }, currentKeys, unchangedKeys, heldKeys, held };
 }
 
 /**
@@ -146,9 +166,9 @@ export async function loadFieldCurrency(db: Database, sourceId: string): Promise
 
 /** `loadFieldCurrency` on a source row the caller already read. */
 async function fieldCurrencyOf(db: Database, sourceId: string, source: { schemaDefinition: unknown; verificationSet: unknown } | undefined): Promise<FieldCurrency> {
-  if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return { latest: null, currentKeys: [], unchangedKeys: [] };
-  const row = await latestCleanRun(db, sourceId);
-  return currencyOf(source, row ?? undefined);
+  if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return none();
+  const [row, holds] = await Promise.all([latestCleanRun(db, sourceId), loadHolds(db, sourceId)]);
+  return currencyOf(source, row ?? undefined, holds);
 }
 
 /**
@@ -180,8 +200,9 @@ export async function loadFieldCurrencyBatch(
         .orderBy(sourceVerifications.sourceId, desc(sourceVerifications.completedAt), desc(sourceVerifications.id))
     : [];
   const rowBySource = new Map(rows.map((r) => [r.sourceId, r]));
+  const holdsBySource = await loadHoldsBatch(db, ids);
 
-  return new Map(sourcesIn.map((s) => [s.id, currencyOf(s, rowBySource.get(s.id) ?? undefined)]));
+  return new Map(sourcesIn.map((s) => [s.id, currencyOf(s, rowBySource.get(s.id) ?? undefined, holdsBySource.get(s.id) ?? [])]));
 }
 
 export type VariantCurrency = { required: VariantsRequired; current: boolean; passed: boolean; result: VariantVerification | null };
@@ -224,13 +245,14 @@ export async function loadCertificationState(db: Database, sourceId: string): Pr
   // ONE read of the source row, passed down, so the field half and the variant half always
   // describe the same binding state (final review M6).
   const source = await loadSourceRow(db, sourceId);
-  const { latest, currentKeys } = await fieldCurrencyOf(db, sourceId, source);
+  const { latest, currentKeys, heldKeys, held } = await fieldCurrencyOf(db, sourceId, source);
   const variants = variantCurrencyOf(source, latest?.variantResults ?? null);
 
   if (!source || !Array.isArray(source.schemaDefinition) || source.schemaDefinition.length === 0 || !source.verificationSet) return { cert: null, variants };
   const fields = source.schemaDefinition as SchemaDefinitionField[];
   const set = source.verificationSet as VerificationSet;
-  if (!latest || currentKeys.length !== fields.length) return { cert: null, variants };
+  // Spec 2026-10-21 §3.1: every field current or held.
+  if (!latest || currentKeys.length + heldKeys.length !== fields.length) return { cert: null, variants };
 
   // A certification with no usable hostname is not a certification: the
   // hostname IS the domain_intelligence row the certified paths live in and
@@ -252,10 +274,11 @@ export async function loadCertificationState(db: Database, sourceId: string): Pr
     cert: {
       verificationId: latest.id,
       completedAt: latest.completedAt,
-      paths: Object.fromEntries(fields.map((f) => [f.key, latest.results[f.key]?.certified ?? []])),
+      paths: Object.fromEntries(fields.map((f) => [f.key, held[f.key]?.result.certified ?? latest.results[f.key]?.certified ?? []])),
       concepts: Object.fromEntries(fields.map((f) => [f.key, f.concept])),
       hostname,
       defaults: Object.fromEntries(fields.flatMap((f) => { const d = (set.defaults?.[f.key] ?? '').trim(); return d ? [[f.key, d] as const] : []; })),
+      ...(heldKeys.length > 0 ? { held: heldKeys } : {}),
       ...(variants.required === 'yes' && variants.passed && variants.result ? { variants: variants.result } : {}),
     },
     variants,
@@ -272,4 +295,21 @@ export async function loadVariantCurrency(db: Database, sourceId: string): Promi
   const source = await loadSourceRow(db, sourceId);
   const row = await latestCleanRun(db, sourceId);
   return variantCurrencyOf(source, (row?.variantResults as VariantVerification | null | undefined) ?? null);
+}
+
+/** The result runs read for `key` now — its current result, else its hold — or null (spec 2026-10-21 §3.1). */
+export function certifyingResult(currency: FieldCurrency, key: string): Certifying | null {
+  if (currency.latest && currency.currentKeys.includes(key)) {
+    const r = currency.latest.results[key]!;
+    return { result: r, verificationId: currency.latest.id, verifiedAt: currency.latest.completedAt, fieldHashes: r.fieldHash ? [r.fieldHash] : [] };
+  }
+  const h = currency.held[key];
+  return h ? { result: h.result, verificationId: h.verificationId, verifiedAt: h.verifiedAt, fieldHashes: h.fieldHashes } : null;
+}
+
+/** May this website run? `requireCertification`'s rule, as a boolean: a certification, and the variants it needs. */
+export function runnableOf(state: { cert: Certification | null; variants: VariantCurrency }): boolean {
+  if (!state.cert) return false;
+  if (state.variants.required === 'setup-missing') return false;
+  return state.variants.required !== 'yes' || (state.variants.current && state.variants.passed);
 }

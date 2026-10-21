@@ -1,9 +1,9 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, sources, sourceVerifications } from '@robot/db';
+import { db, sources, sourceVerifications, fieldHolds } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
-import { loadCurrentCertification, loadFieldCurrency, loadFieldCurrencyBatch, notOnWebsiteKeys, sourceDefinitionHash } from './current-certification.js';
+import { loadCurrentCertification, loadFieldCurrency, loadFieldCurrencyBatch, notOnWebsiteKeys, sourceDefinitionHash, certifyingResult } from './current-certification.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 
 // A throwaway signed-in identity: every customer procedure needs a session
@@ -376,6 +376,13 @@ describe('a field passed by default only (spec 2026-10-13 §4/§5)', () => {
     expect(notOnWebsiteKeys({ latest, currentKeys: ['price'] })).toEqual(['price']);
     expect(notOnWebsiteKeys({ latest: null, currentKeys: ['price'] })).toEqual([]);
   });
+  it('notOnWebsiteKeys: a held field whose hold says not on this website stays quiet (spec 2026-10-21 §3.1)', () => {
+    const notOn = { key: 'price', cells: {}, certified: [], weakEvidence: false, aiCalled: false, incomplete: false, notOnWebsite: true as const };
+    const latest = { id: 'v', completedAt: new Date(), results: { price: { ...notOn, notOnWebsite: undefined } }, variantResults: null };
+    const hold = { fieldKey: 'price', result: notOn, verificationId: null, verifiedAt: new Date(), failedVerificationId: null, fieldHashes: ['h'] };
+    expect(notOnWebsiteKeys({ latest, currentKeys: [], heldKeys: ['price'], held: { price: hold } })).toEqual(['price']);
+    expect(notOnWebsiteKeys({ latest, currentKeys: [], heldKeys: ['price'], held: { price: { ...hold, result: { ...notOn, notOnWebsite: undefined } } } })).toEqual([]);
+  });
   it('a failed result with no path and no defaultOnly is still not current', async () => {
     const s = await makeSchemaSource('no-path');
     try {
@@ -385,6 +392,76 @@ describe('a field passed by default only (spec 2026-10-13 §4/§5)', () => {
       await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: false, results: { price: fieldVerification([], { fieldHash: fieldHash(fields[0]!, set), cells }) } });
       expect((await loadFieldCurrency(db, s.sourceId)).currentKeys).toEqual([]);
       expect((await loadCurrentCertification(db, s.sourceId))?.defaults ?? {}).toEqual({});
+    } finally { await s.cleanup(); }
+  });
+});
+
+describe('holds (spec 2026-10-21 §3.1)', () => {
+  const heldPath: CertifiedPath[] = [{ source: 'json-ld', path: 'offers.price', transform: 'identity' }];
+  const failing = (fieldHashValue: string) => fieldVerification([], { fieldHash: fieldHashValue, cells: { x: { status: 'fail', reason: 'different_value', found: '9' } } });
+
+  async function heldWebsite(tag: string, hashes: (now: string) => string[]) {
+    const s = await makeSchemaSource(tag);
+    const set = s.source.verificationSet as VerificationSet;
+    const now = fieldHash((s.source.schemaDefinition as SchemaDefinitionField[])[0]!, set);
+    const passed = currentPriceVerification(s.source, s.urls, heldPath);
+    const verifiedAt = new Date(Date.now() - 86_400_000);
+    await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: verifiedAt, allPassed: true, results: { price: passed } });
+    await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: false, results: { price: failing(now) } });
+    await db.insert(fieldHolds).values({ sourceId: s.sourceId, fieldKey: 'price', result: passed, verifiedAt, fieldHashes: hashes(now) });
+    return { ...s, now, verifiedAt };
+  }
+
+  it('a held field keeps the website certified on the hold’s paths', async () => {
+    const s = await heldWebsite('held', (now) => [now]);
+    try {
+      const currency = await loadFieldCurrency(db, s.sourceId);
+      expect(currency.currentKeys).toEqual([]);
+      expect(currency.heldKeys).toEqual(['price']);
+      const cert = await loadCurrentCertification(db, s.sourceId);
+      expect(cert).not.toBeNull();
+      expect(cert!.paths).toEqual({ price: heldPath });
+      expect(cert!.held).toEqual(['price']);
+      expect(certifyingResult(currency, 'price')!.verifiedAt.toISOString()).toBe(s.verifiedAt.toISOString());
+    } finally { await s.cleanup(); }
+  });
+
+  it('the customer’s own edit (a hash outside the hold’s list) ends it', async () => {
+    const s = await heldWebsite('held-edited', () => ['some-older-hash']);
+    try {
+      expect((await loadFieldCurrency(db, s.sourceId)).heldKeys).toEqual([]);
+      expect(await loadCurrentCertification(db, s.sourceId)).toBeNull();
+    } finally { await s.cleanup(); }
+  });
+
+  it('a hold that stands for an old and a refreshed hash counts on either', async () => {
+    const s = await heldWebsite('held-two', (now) => ['before-the-refresh', now]);
+    try {
+      expect(await loadCurrentCertification(db, s.sourceId)).not.toBeNull();
+    } finally { await s.cleanup(); }
+  });
+
+  it('a current field wins over a stale hold, and the batch read agrees', async () => {
+    const s = await makeSchemaSource('held-current');
+    try {
+      const fresh: CertifiedPath[] = [{ source: 'api', path: 'item.price', transform: 'identity' }];
+      await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true, results: { price: currentPriceVerification(s.source, s.urls, fresh) } });
+      const set = s.source.verificationSet as VerificationSet;
+      await db.insert(fieldHolds).values({ sourceId: s.sourceId, fieldKey: 'price', result: currentPriceVerification(s.source, s.urls, heldPath), verifiedAt: new Date(), fieldHashes: [fieldHash((s.source.schemaDefinition as SchemaDefinitionField[])[0]!, set)] });
+      const cert = await loadCurrentCertification(db, s.sourceId);
+      expect(cert!.paths).toEqual({ price: fresh });
+      expect(cert!.held).toBeUndefined();
+      const batch = await loadFieldCurrencyBatch(db, [{ id: s.sourceId, schemaDefinition: s.source.schemaDefinition, verificationSet: s.source.verificationSet }]);
+      expect(batch.get(s.sourceId)!.heldKeys).toEqual([]);
+      expect(batch.get(s.sourceId)!.currentKeys).toEqual(['price']);
+    } finally { await s.cleanup(); }
+  });
+
+  it('the batch read counts a hold the same way the single read does', async () => {
+    const s = await heldWebsite('held-batch', (now) => [now]);
+    try {
+      const batch = await loadFieldCurrencyBatch(db, [{ id: s.sourceId, schemaDefinition: s.source.schemaDefinition, verificationSet: s.source.verificationSet }]);
+      expect(batch.get(s.sourceId)!.heldKeys).toEqual(['price']);
     } finally { await s.cleanup(); }
   });
 });
