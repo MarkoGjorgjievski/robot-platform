@@ -7,10 +7,10 @@
 // Websites are named by their org/project/website NAMES as the database has them (not slugs) —
 // this is Marko's own test data, so the names are the readable identifier.
 //
-// Controller ruling 2026-10-20 (packages/scraper/src/verify/certify.ts `isUncappedSource`): XPath
-// paths are exempt from the 2-per-source cap and never flagged as "one source" — already true of
-// the old rule below too, since an all-XPath field never matches `every(source === 'api')` or
-// `every(source === 'json-ld')`. No code change needed; reported for the record.
+// Written under the controller ruling of 2026-10-20 (XPath paths exempt from the 2-per-source cap),
+// so the old rule below selects all-API and all-JSON-LD fields only. Since spec 2026-10-21 xpath-cap
+// the page's HTML is one capped source too and all-XPath fields re-certify at their next Verify;
+// this one-off check does not select them.
 //
 //   cd packages/api && CAPTURES_DIR=/c/Users/Marko/Documents/projects/robot-platform/packages/api-server/public/captures npx tsx src/scripts/one-source-recertify.ts
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';

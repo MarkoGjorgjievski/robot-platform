@@ -705,20 +705,53 @@ describe('runVerification — a cached certification that reads one source (spec
     expect(ids(run.outcome.fields.price!.certified)).toEqual(['api price']);
   });
 
-  it('cached XPaths alone are kept without a search (controller ruling: the page\'s HTML is not one capped source)', async () => {
-    const XPS = ['//h1', '//h2', '//div/h1'];
+  // Spec 2026-10-21 xpath-cap: the page's HTML is one source like any other, so two or more cached
+  // XPaths are searched again — free: the AI is asked only when nothing certifies.
+  const XPS = ['//h1', '//h2', '//div/h1'];
+  const cachedXPaths = async () => XPS.map((path) => ({ source: 'xpath' as const, path, transform: 'identity' as const }));
+  // The XPath probe reads the page's html as every XPath's value; any other script is the DOM search, which finds nothing.
+  const probeOrSearch = (search: () => void) => ({
+    setContentEvaluate: async (html: string, script: string) => {
+      const list = /for \(const xp of (\[.*?\])\)/.exec(script)?.[1];
+      if (list && script === buildXPathProbeScript(JSON.parse(list) as string[])) return Object.fromEntries((JSON.parse(list) as string[]).map((x) => [x, html]));
+      search();
+      return [];
+    },
+  }) as unknown as IBrowser;
+
+  it('cached XPaths alone: the pages are searched again, free, and the two best XPaths stay when the pages offer nothing else', async () => {
     const htmlOnly = Object.fromEntries(U.map((u, i) => [u, { ...emptyCapture(u), html: `${P[i]}.00` }])) as unknown as Record<string, import('@robot/browser').PageCapture>;
-    // The XPath probe reads the page's html as every cached XPath's value; any other script (the DOM search) fails the test.
-    const probeOnly = {
-      setContentEvaluate: async (html: string, script: string) => {
-        if (script === buildXPathProbeScript(XPS)) return Object.fromEntries(XPS.map((x) => [x, html]));
-        throw new Error('searched the pages although the cached certification is all XPath');
-      },
-    } as unknown as IBrowser;
+    const search = vi.fn();
+    const agent = { proposePaths: vi.fn(async () => { throw new Error('the AI must not be called'); }) };
+    const run = await runVerification({ fields: [price], verificationSet: priceSet }, { browser: probeOrSearch(search), agent, captures: htmlOnly, cachedPaths: cachedXPaths });
+    expect(search).toHaveBeenCalled();
+    expect(ids(run.outcome.fields.price!.certified)).toEqual(['xpath //h1', 'xpath //h2']);
+    expect(run.outcome.aiCalls).toBe(0);
+    expect(agent.proposePaths).not.toHaveBeenCalled();
+  });
+
+  it('cached XPaths alone, JSON-LD on the pages: JSON-LD joins, two XPaths stay as backups', async () => {
+    const withLd = Object.fromEntries(U.map((u, i) => [u, {
+      ...emptyCapture(u), html: `${P[i]}.00`,
+      structuredData: { ldJson: [{ '@type': 'Product', offers: { price: `${P[i]}.00` } }], nextData: null, initialState: null, meta: {} },
+    }])) as unknown as Record<string, import('@robot/browser').PageCapture>;
+    const search = vi.fn();
+    const agent = { proposePaths: vi.fn(async () => { throw new Error('the AI must not be called'); }) };
+    const run = await runVerification({ fields: [price], verificationSet: priceSet }, { browser: probeOrSearch(search), agent, captures: withLd, cachedPaths: cachedXPaths });
+    expect(search).toHaveBeenCalled();
+    expect(ids(run.outcome.fields.price!.certified)).toEqual(['json-ld offers.price', 'xpath //h1', 'xpath //h2']);
+    expect(agent.proposePaths).not.toHaveBeenCalled();
+  });
+
+  it('a cached XPath beside a JSON-LD path is kept without a search', async () => {
+    const withLd = Object.fromEntries(U.map((u, i) => [u, {
+      ...emptyCapture(u), html: `${P[i]}.00`,
+      structuredData: { ldJson: [{ '@type': 'Product', offers: { price: `${P[i]}.00` } }], nextData: null, initialState: null, meta: {} },
+    }])) as unknown as Record<string, import('@robot/browser').PageCapture>;
     const run = await runVerification({ fields: [price], verificationSet: priceSet }, {
-      browser: probeOnly, agent: null, captures: htmlOnly,
-      cachedPaths: async () => XPS.map((path) => ({ source: 'xpath' as const, path, transform: 'identity' as const })),
+      browser: probeOrSearch(() => { throw new Error('searched the pages although the cached certification reads two sources'); }), agent: null, captures: withLd,
+      cachedPaths: async () => [ldPrice, { source: 'xpath' as const, path: '//h1', transform: 'identity' as const }],
     });
-    expect(ids(run.outcome.fields.price!.certified)).toEqual(['xpath //h1', 'xpath //h2', 'xpath //div/h1']);
+    expect(ids(run.outcome.fields.price!.certified)).toEqual(['json-ld offers.price', 'xpath //h1']);
   });
 });

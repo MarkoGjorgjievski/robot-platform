@@ -259,25 +259,17 @@ function sourceOf(p: Pick<OpsFieldPath, 'source' | 'container'>): string {
 }
 
 /**
- * Controller ruling 2026-10-20 (mirrors `@robot/scraper`'s `certify.ts`
- * `isUncappedSource`): the page's HTML is exempt from the one-source rule —
- * an all-XPath field never warns.
- */
-const isUncappedSource = (key: string) => key === 'xpath';
-
-/**
- * The one-source warning (Global Constraints, controller ruling 2026-10-20):
- * a field with two or more certified paths, all reading one source, never an
- * all-XPath field. Certification keeps at most two paths per source, so on a
- * result certified since 2026-10-20 this fires only when the proof pages
- * offered one source; on an older result it is the all-API / all-JSON-LD
- * case it always was (an API path with no recorded `container` reads as the
- * same response as any other).
+ * The one-source warning (Global Constraints; mirrors `@robot/scraper`'s
+ * `readsOneSource`): a field with two or more certified paths, all reading one
+ * source — the page's HTML included, so an all-XPath field warns too (spec
+ * 2026-10-21 xpath-cap). Certification keeps at most two paths per source, so
+ * on a result certified since then this fires only when the proof pages
+ * offered one source; on an older result it is the all-API / all-JSON-LD /
+ * all-XPath case (an API path with no recorded `container` reads as the same
+ * response as any other).
  */
 export function oneSourceWarning(paths: ReadonlyArray<Pick<OpsFieldPath, 'source' | 'container'>>): string | null {
-  if (paths.length < 2) return null;
-  const keys = new Set(paths.map(sourceOf));
-  return keys.size === 1 && !isUncappedSource([...keys][0]!) ? ONE_SOURCE_WARNING : null;
+  return paths.length >= 2 && new Set(paths.map(sourceOf)).size === 1 ? ONE_SOURCE_WARNING : null;
 }
 
 /** Under an API path on the ops website page: the response it reads, without its scheme (spec 2026-10-20 one-source §4). */
