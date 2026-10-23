@@ -7,7 +7,7 @@ reason and goes on to the next.
 
 ## Next
 
-1. **The whole stack in Docker Compose** — app, api, worker, Postgres from one command, plus a nightly pg_dump with a tested restore. *Done when:* `docker compose up` serves the app locally end to end; a restore test passes.
+1. **Align the Playwright versions** — `@robot/browser` declares playwright 1.58.2 but launches through playwright-extra, which resolves playwright-core 1.62.1; the worker image had to match 1.62.1. Declare one version everywhere. *Done when:* one Playwright version in the lockfile for launches; the worker image and dev agree; tests.
 2. **Run speed** — lean captures on certified runs and several websites in parallel through the queue (design: docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md). *Done when:* a measured 1,000-page-equivalent run is an order of magnitude faster with the same values.
 3. **Recurring extraction** — a schedule per website (e.g. every Monday 06:00); each run produces a downloadable file and a webhook on completion. *Done when:* a scheduled run fires, writes its file and posts its webhook; tests, smoke.
 4. **Email, with a local catcher** — SMTP sending (Mailpit in Docker for local) for "Needs attention", failed runs and account messages. *Done when:* each message is sent and seen in Mailpit; a real provider is a config change.
@@ -34,6 +34,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-23 — The whole stack in Docker Compose, with nightly backups and a tested restore (`feat/docker-compose`).
 - 2026-10-23 — Capture worker and job queue (`7d94500`). After merge: stop dev:all, pnpm install, restart.
 - 2026-10-21 — Websites change follow-ups (`5ec19af`): a refresh no longer hides other findings, never starts a listing sample, and a default-backed field is judged against its default. Gymshark re-checked: all 8 fields read as working (15:49); a later re-check could not open a browser (low memory) and is recorded as failed.
 - 2026-10-21 — Websites change: keep running, re-check, tell the customer (`d595283`); applied to the 10 websites — all 10 run again (report in docs/testing/results/2026-10-21-websites-change-apply/).
