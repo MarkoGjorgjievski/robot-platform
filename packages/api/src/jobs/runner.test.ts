@@ -89,6 +89,26 @@ describe('startJobRunner', () => {
     expect(await get(id)).toMatchObject({ status: 'queued', attempts: 0, lockedBy: null });
   });
 
+  it('shutdown closes a given-back job\'s browsers before the job can be claimed again', async () => {
+    const { id } = await enqueueJob(db, { type: 'long', payload: {}, maxAttempts: 2 });
+    const alive = new Set<string>();
+    let statusWhenClosed: string | undefined;
+    const browsers = {
+      closeJob: async (jobId: string) => {
+        await new Promise((r) => setTimeout(r, 100));     // Chromium takes a moment to go
+        statusWhenClosed = (await get(jobId)).status;
+        alive.delete(jobId);
+      },
+      closeAll: async () => { alive.clear(); },
+    };
+    const r = start({ long: { policy: policy({ maxAttempts: 2 }), run: (_p, ctx) => { alive.add(ctx.jobId); return new Promise((_, reject) => ctx.signal.addEventListener('abort', () => reject(new Error('stopped')))); } } }, { browsers });
+    await until(async () => (await get(id)).status === 'running');
+    await r.stop(50);
+    expect(statusWhenClosed).toBe('running');              // closed while the job was still this worker's
+    expect(alive.size).toBe(0);
+    expect(await get(id)).toMatchObject({ status: 'queued', attempts: 0 });
+  });
+
   it('a crashed worker\'s job is reaped and finished by another (in-process)', async () => {
     const { id } = await enqueueJob(db, { type: 'echo', payload: { n: 1 }, maxAttempts: 2 });
     await claimJob({ queue: q(), workerId: 'dead:1', types: ['echo'], leaseMs: 50 });   // claimed, then nobody renews
