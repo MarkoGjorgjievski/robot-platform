@@ -1,7 +1,7 @@
 // packages/api/src/crawl/extract-item.test.ts
 import { describe, it, expect, vi } from 'vitest';
 import { verdictSentence, type CaptureVerdict, type IBrowser, type PageCapture } from '@robot/browser';
-import { CaptureProblemError, _resetBackoffForTests, type VerifiedField, type VerifiedExtractionResult, type VariantRunPlan } from '@robot/scraper';
+import { CaptureProblemError, _resetBackoffForTests, type VerifiedField, type VerifiedExtractionResult, type VariantRunPlan, newLeanRunState } from '@robot/scraper';
 import { extractItem } from './extract-item.js';
 import type { ClaimedItem } from './claim-item.js';
 import type { Certification } from '../verify/current-certification.js';
@@ -301,6 +301,45 @@ describe('extractItem — with a certification', () => {
     });
 
     expect(metadata).toEqual({ capture: { navigateMs: 1700, readyMs: 400, readyState: 'ready', totalMs: 6900 } });
+  });
+
+  it('hands the run\'s lean state to the extraction and records its outcome beside the timings', async () => {
+    const state = newLeanRunState();
+    let given: unknown;
+    const extractVerified = async (_req: { url: string; fields: VerifiedField[] }, deps: { lean?: unknown }): Promise<VerifiedExtractionResult> => {
+      given = deps.lean;
+      return {
+        data: { price: 129.99 }, stats: [], capture: null, shown: {}, defaulted: [],
+        timings: { navigateMs: 900, readyMs: 10, readyState: 'ready', totalMs: 2100 },
+        lean: { mode: 'lean+full', reason: 'miss', fields: ['price'], leanMs: 2100 },
+      };
+    };
+    let metadata: unknown;
+    const db = {
+      insert: () => ({ values: (v: Record<string, unknown>) => { if ('metadata' in v) metadata = v.metadata; return { returning: async () => [{ id: 'x' }] }; } }),
+    } as never;
+    await extractItem(db, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats: async () => {}, lean: state,
+    });
+    expect(given).toBe(state);
+    expect(metadata).toEqual({
+      capture: { navigateMs: 900, readyMs: 10, readyState: 'ready', totalMs: 2100 },
+      lean: { mode: 'lean+full', reason: 'miss', fields: ['price'], leanMs: 2100 },
+    });
+  });
+
+  it('without a lean state passes none, and the capture row is as before', async () => {
+    let given: unknown = 'unset';
+    const extractVerified = async (_req: { url: string; fields: VerifiedField[] }, deps: { lean?: unknown }): Promise<VerifiedExtractionResult> => {
+      given = deps.lean;
+      return { data: { price: 129.99 }, stats: [], timings: null, capture: null, shown: {}, defaulted: [] };
+    };
+    await extractItem(fakeDb, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats: async () => {},
+    });
+    expect(given).toBeUndefined();
   });
 
   function captureConfidence() {

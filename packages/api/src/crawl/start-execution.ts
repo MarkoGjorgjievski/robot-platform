@@ -7,7 +7,7 @@
 
 import { eq } from 'drizzle-orm';
 import { SchemaAgent, snapshotUsage } from '@robot/agent';
-import { HARD_ITEM_CEILING, type OriginField, type SchemaDefinitionField, type VariantRunPlan } from '@robot/scraper';
+import { HARD_ITEM_CEILING, leanRunStateFromEnv, leanSummary, type OriginField, type SchemaDefinitionField, type VariantRunPlan } from '@robot/scraper';
 import { db, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
@@ -187,10 +187,12 @@ export async function startExecution(
       // limit of 5,000 pages — planning of products still uses the source budget.
       const runItemCap = HARD_ITEM_CEILING;
       const onDone = buildOnDone(db, opts?.mergeToParent, { variantPlan });
+      // Spec 2026-10-23 run speed §3.4: one lean state per execution of a certified run; RUN_CAPTURE=full turns it off.
+      const lean = certification ? leanRunStateFromEnv() : undefined;
 
       await executeRun(runId, {
         claim: (id) => claimNextItem(db, id),
-        extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema, certification, schemaDefinition, variantPlan, itemCap: runItemCap }),
+        extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema, certification, schemaDefinition, variantPlan, itemCap: runItemCap, ...(lean ? { lean } : {}) }),
         onDone: async (...args) => { await onDone(...args); hooks?.onItem?.(); },
         onFailed: async (itemId, message) => { await markItemFailed(db, itemId, message); hooks?.onItem?.(); },
         ...(hooks?.aborted ? { aborted: hooks.aborted } : {}),
@@ -206,6 +208,7 @@ export async function startExecution(
         // 'cancelled'/'partial' instead of leaving it stuck at 'extracting'.
         finalise: buildFinalise(db, runId, sourceId, certification),
       }, { limit });
+      if (lean) console.log(`[crawl] ${leanSummary(runId, lean)}`);
     });
   } catch (err) {
     console.error(`[crawl] execution of run ${runId} failed:`, err);
