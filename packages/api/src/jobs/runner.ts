@@ -67,6 +67,9 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   /** The claim's owner: every write of a hold passes it, so none reaches a later claim of the job. */
   const owner = (job: JobRow) => job.lockedBy!;
 
+  /** An outcome write that found the job no longer this hold's (reaped, and maybe claimed again): nothing written. */
+  const lostBefore = (job: JobRow, what: string) => log(`lost the lease on ${job.type} ${job.id} before ${what}`);
+
   const count = (pred: (a: Active) => boolean) => [...active.values()].filter(pred).length;
 
   /** Ends a job's hold here: the slot is free at once, whatever its handler still does. */
@@ -94,20 +97,19 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
         finish(a);
         track((async () => {
           if (job.attempts < job.maxAttempts) {
-            await retryJob(job.id, owner(job), msg(err), backoff(job.attempts));
-            log(`retry ${job.type} ${job.id} after: ${msg(err)}`);
-          } else {
-            await failJobTerminal(job.id, { owner: owner(job) }, serializeError(err), runSentenceFor(job.type));
+            if (await retryJob(job.id, owner(job), msg(err), backoff(job.attempts))) log(`retry ${job.type} ${job.id} after: ${msg(err)}`);
+            else lostBefore(job, `its failure was recorded: ${msg(err)}`);
+          } else if (await failJobTerminal(job.id, { owner: owner(job) }, serializeError(err), runSentenceFor(job.type))) {
             log(`failed ${job.type} ${job.id}: ${msg(err)}`);
-          }
+          } else lostBefore(job, `its failure was recorded: ${msg(err)}`);
         })().catch((recordErr) => log(`could not record the failure of ${job.id}: ${msg(recordErr)}`)));
         return;
       }
       if (a.over) return;
       finish(a);
       track((async () => {
-        await completeJob(job.id, owner(job), value ?? null);
-        log(`done ${job.type} ${job.id}`);
+        if (await completeJob(job.id, owner(job), value ?? null)) log(`done ${job.type} ${job.id}`);
+        else lostBefore(job, 'its answer was recorded');
       })().catch((recordErr) => log(`could not record the answer of ${job.id}: ${msg(recordErr)}`)));
     })();
   };
@@ -151,9 +153,11 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       a.controller.abort('stuck');
       track((async () => {
         await opts.browsers?.closeJob(owner(a.job)).catch(() => {});
-        if (a.def.policy.retryOnStuck && a.job.attempts < a.job.maxAttempts) await retryJob(a.job.id, owner(a.job), 'stuck', backoff(a.job.attempts));
-        else await failJobTerminal(a.job.id, { owner: owner(a.job) }, { kind: 'unavailable', message: 'stalled' }, runSentenceFor(a.job.type));
-        log(`stuck ${a.job.type} ${a.job.id}: no progress for ${a.def.policy.stuckMs} ms`);
+        const recorded = a.def.policy.retryOnStuck && a.job.attempts < a.job.maxAttempts
+          ? await retryJob(a.job.id, owner(a.job), 'stuck', backoff(a.job.attempts))
+          : await failJobTerminal(a.job.id, { owner: owner(a.job) }, { kind: 'unavailable', message: 'stalled' }, runSentenceFor(a.job.type));
+        if (recorded) log(`stuck ${a.job.type} ${a.job.id}: no progress for ${a.def.policy.stuckMs} ms`);
+        else lostBefore(a.job, 'it was stopped as stuck');
       })().catch((err) => log(`could not stop ${a.job.id}: ${msg(err)}`)));
     }
   }, opts.stuckCheckMs ?? 5000);
