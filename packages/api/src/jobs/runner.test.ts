@@ -1,10 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, jobs, sourceVerifications, driftChecks } from '@robot/db';
+import { db, jobs, sourceVerifications, driftChecks, runs } from '@robot/db';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
 import { enqueueJob, claimJob, releaseJob, jobQueueName } from './queue.js';
 import { startJobRunner, type Registry, type JobRunner } from './runner.js';
-import type { JobPolicy } from './types.js';
+import { PLAN_STOPPED, type JobPolicy } from './types.js';
 import { testJobDefinitions } from './test-jobs.js';
 import { runQueuedJobs, jobsOf } from '../test-helpers/jobs.js';
 
@@ -196,6 +196,17 @@ describe('startJobRunner', () => {
     expect(lines).toContain(`lost the lease on stolen-bad ${bad.id} before its failure was recorded: late`);
     expect(lines.some((l) => l.startsWith('done ') || l.startsWith('failed '))).toBe(false);
     expect(await get(ok.id)).toMatchObject({ status: 'running', lockedBy: 'other:9#00000000' });
+  });
+
+  it('a run row closes with its job type sentence from the one table awaitJob reads too', async () => {
+    const sourceId = await createTestSource({ schema: [] });
+    try {
+      const { id } = await enqueueJob(db, { type: 'plan', payload: {} });
+      const [run] = await db.insert(runs).values({ sourceId, status: 'planning', jobId: id }).returning();
+      start({ plan: { policy: policy(), run: async () => { throw new Error('the database went away'); } } });
+      await until(async () => (await get(id)).status === 'failed');
+      expect(await db.query.runs.findFirst({ where: eq(runs.id, run!.id) })).toMatchObject({ status: 'failed', errorMessage: PLAN_STOPPED });
+    } finally { await deleteTestSource(sourceId); }
   });
 
   it('claims nothing while free memory is low', async () => {

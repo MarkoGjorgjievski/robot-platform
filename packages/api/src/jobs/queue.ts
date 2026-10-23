@@ -8,7 +8,7 @@ import { db } from '@robot/db';
 import type { Database } from '@robot/db';
 import { closeJobRows } from './rows.js';
 import { JobUnavailableError, rebuildError, type SerializedError } from './errors.js';
-import { JOB_POLICIES, RUN_STOPPED } from './types.js';
+import { runSentenceFor } from './types.js';
 
 /** The database or a transaction on it. */
 export type DbOrTx = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -146,7 +146,7 @@ export async function releaseJob(id: string, owner: string): Promise<void> {
     WHERE id = ${id} AND locked_by = ${owner} AND status = 'running'`);
 }
 
-export async function reapJobs(queue: string, opts: { retryBaseMs: number; runSentenceFor: (type: string) => string }): Promise<{ retried: string[]; failed: string[]; expired: string[] }> {
+export async function reapJobs(queue: string, opts: { retryBaseMs: number }): Promise<{ retried: string[]; failed: string[]; expired: string[] }> {
   const out = { retried: [] as string[], failed: [] as string[], expired: [] as string[] };
   const lapsed = rows<{ id: string; type: string; attempts: number; max_attempts: number }>(await db.execute(sql`
     SELECT id, type, attempts, max_attempts FROM jobs
@@ -158,14 +158,14 @@ export async function reapJobs(queue: string, opts: { retryBaseMs: number; runSe
           locked_until = NULL, ${requeuedAt(sql`now() + make_interval(secs => ${secs(delay)})`)}
         WHERE id = ${j.id} AND status = 'running' AND locked_until < now() RETURNING id`));
       if (r.length) out.retried.push(j.id);
-    } else if (await failJobTerminal(j.id, 'lapsed', { kind: 'unavailable', message: 'stalled' }, opts.runSentenceFor(j.type))) {
+    } else if (await failJobTerminal(j.id, 'lapsed', { kind: 'unavailable', message: 'stalled' }, runSentenceFor(j.type))) {
       out.failed.push(j.id);
     }
   }
   const late = rows<{ id: string; type: string }>(await db.execute(sql`
     SELECT id, type FROM jobs WHERE queue = ${queue} AND status = 'queued' AND expires_at < now() ORDER BY created_at`));
   for (const j of late) {
-    if (await failJobTerminal(j.id, 'queued', { kind: 'unavailable', message: 'expired' }, opts.runSentenceFor(j.type))) out.expired.push(j.id);
+    if (await failJobTerminal(j.id, 'queued', { kind: 'unavailable', message: 'expired' }, runSentenceFor(j.type))) out.expired.push(j.id);
   }
   return out;
 }
@@ -209,9 +209,8 @@ export async function awaitJob(id: string, ceilingMs: number, pollMs = 150): Pro
     if (row.status === 'done') return row.result?.value ?? null;
     if (row.status === 'failed') throw rebuildError(row.result?.error ?? { kind: 'unavailable', message: row.error ?? 'failed' });
     if (row.status === 'queued' && row.expired) {
-      // An awaited job's rows (a plan's run) close with its policy's sentence.
-      const sentence = (JOB_POLICIES as Record<string, { runSentence?: string }>)[row.type]?.runSentence ?? RUN_STOPPED;
-      await failJobTerminal(id, 'queued', { kind: 'unavailable', message: 'expired' }, sentence);
+      // An awaited job's rows (a plan's run) close with its type's sentence.
+      await failJobTerminal(id, 'queued', { kind: 'unavailable', message: 'expired' }, runSentenceFor(row.type));
       throw new JobUnavailableError('expired');
     }
     if (Date.now() >= until) throw new JobUnavailableError('no answer in time');
