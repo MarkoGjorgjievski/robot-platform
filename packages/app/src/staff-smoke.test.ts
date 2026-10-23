@@ -12,10 +12,17 @@
 // the operator address has to be in that api-server's `OPS_EMAILS`, and nobody
 // should be made an operator on Marko's own server for a test. So:
 //
-//   # api-server on :4100, keyless, with a throwaway operator, accepting :3100
+//   # api-server on :4100, keyless, with a throwaway operator, accepting :3100,
+//   # enqueueing on its own job queue (never the dev worker's `default`)
 //   cd packages/api-server
 //   ANTHROPIC_API_KEY= PORT=4100 OPS_EMAILS=staff-smoke-op@example.com \
-//     APP_ORIGINS=http://localhost:3100 pnpm exec tsx src/index.ts
+//     APP_ORIGINS=http://localhost:3100 JOB_QUEUE=isolated-4100 WEBSITE_CHECKS=off \
+//     pnpm exec tsx src/index.ts
+//   # its worker: every page load runs here (the api-server starts no browser);
+//   # stop it by creating the stop file — it gives its jobs back and closes its browsers
+//   cd packages/worker
+//   ANTHROPIC_API_KEY= JEV_SHADOW= TYPESAFE_API_KEY= WEBSITE_CHECKS=off JOB_QUEUE=isolated-4100 \
+//     WORKER_STOP_FILE=<a temp file> npx tsx src/index.ts
 //   # the app on :3100, pointed at it
 //   cd packages/app && VITE_API_URL=http://localhost:4100 pnpm exec vite dev --port 3100
 //   # then, from the repo root

@@ -38,7 +38,8 @@
 // The shop also serves two walls (honest page verdicts, 2026-10-09): `/blocked`,
 // a 403 Cloudflare page, and `/captcha`, a 200 human check. The last test
 // pastes `/blocked` as the listing and reads its one sentence. That wall puts
-// the shop's host (127.0.0.1) on backoff in the api-server for 2 minutes
+// the shop's host (127.0.0.1) on backoff in the worker (the isolated pair's own;
+// see staff-smoke.test.ts for the three commands) for 2 minutes
 // (`BACKOFF_FIRST_MS`), and while it lasts every interactive path — Find
 // products, a proof-page capture, the new-website reachability line — answers
 // from the backoff without loading the page: the wall's own sentence and
