@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db, jobs, sourceVerifications, driftChecks, runs } from '@robot/db';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
 import { enqueueJob, claimJob, releaseJob, jobQueueName } from './queue.js';
@@ -207,6 +207,32 @@ describe('startJobRunner', () => {
       await until(async () => (await get(id)).status === 'failed');
       expect(await db.query.runs.findFirst({ where: eq(runs.id, run!.id) })).toMatchObject({ status: 'failed', errorMessage: PLAN_STOPPED });
     } finally { await deleteTestSource(sourceId); }
+  });
+
+  it('a claim that lands after stop() began is given back unstarted: never run, attempt unspent, not a retry next time', async () => {
+    const { id } = await enqueueJob(db, { type: 'late', payload: {}, maxAttempts: 2 });
+    let calls = 0;
+    const registry: Registry = { late: { policy: policy({ maxAttempts: 2 }), run: async () => { calls++; return 'ran'; } } };
+    let stopped: Promise<void> | undefined;
+    // Hold the claim's UPDATE behind a table lock until stop() has begun.
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`LOCK TABLE jobs IN SHARE ROW EXCLUSIVE MODE`);
+      const r = start(registry);
+      await new Promise((res) => setTimeout(res, 150));
+      stopped = r.stop(2000);
+      await new Promise((res) => setTimeout(res, 50));
+    });
+    await stopped;
+    expect(calls).toBe(0);
+    expect(await get(id)).toMatchObject({ status: 'queued', attempts: 0, lockedBy: null, startedAt: null });
+    expect((await claimJob({ queue: q(), workerId: 'next:1', types: ['late'], leaseMs: 60_000 }))!.startedBefore).toBe(false);
+  });
+
+  it('a runner purges the long-finished jobs of its queue jobs when it starts', async () => {
+    const { id } = await enqueueJob(db, { type: 'old', payload: {} });
+    await db.update(jobs).set({ status: 'done', finishedAt: new Date(Date.now() - 8 * 86_400_000) }).where(eq(jobs.id, id));
+    start({}, { reapEveryMs: 60_000 });
+    await until(async () => (await db.query.jobs.findFirst({ where: eq(jobs.id, id) })) === undefined);
   });
 
   it('claims nothing while free memory is low', async () => {
