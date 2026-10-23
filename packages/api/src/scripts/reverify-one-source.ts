@@ -28,6 +28,7 @@ import { runProofPageCaptureInSlot, startProofPageCapture } from '../verify/proo
 import { runSourceVerification } from '../verify/run-source-verification.js';
 import { runCoverageCheck, startCoverageCheck } from '../verify/run-coverage-check.js';
 import { jevEnabled } from '../verify/jev-reading.js';
+import { startInlineJobs } from '../jobs/inline.js';
 
 const DRY = process.argv.includes('--dry-run');
 const OUT_DIR = process.argv.find((a) => a.startsWith('--out='))?.slice(6) ?? '../../docs/testing/results/2026-10-21-reverify-one-source';
@@ -49,7 +50,9 @@ if (resume) {
   process.exit(0);
 }
 
-const oldRule = (ps: CertifiedPath[]) => ps.length >= 2 && (ps.every((p) => p.source === 'api') || ps.every((p) => p.source === 'json-ld'));
+// Inline (spec 2026-10-23 §3.4): what a Verify enqueues on the way (the check after its holds) runs on
+// this script's own queue, in this process, and is waited for before the script exits.
+const inline = await startInlineJobs('reverify-one-source');const oldRule = (ps: CertifiedPath[]) => ps.length >= 2 && (ps.every((p) => p.source === 'api') || ps.every((p) => p.source === 'json-ld'));
 const label = (p: CertifiedPath) => `${p.source} ${p.path}${p.container ? ` @ ${p.container}` : ''}`;
 const pathIdentity = (p: CertifiedPath) => `${p.source} ${p.path} ${p.transform}`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -239,4 +242,5 @@ const finalSpent = (await jevSpentSinceStart()) - jevBaseline;
 console.log(`\nDone. Jev spend this run: $${finalSpent.toFixed(6)}`);
 save();
 writeFileSync(`${OUT_DIR}/results.json`, JSON.stringify({ startedAt, finishedAt: new Date(), dry: DRY, jevSpentUsd: finalSpent, sites: reports }, null, 2));
+await inline.drain();
 process.exit(0);
