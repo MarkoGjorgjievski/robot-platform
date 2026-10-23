@@ -87,18 +87,23 @@ export async function enqueueJob(dbOrTx: DbOrTx, spec: EnqueueSpec): Promise<{ i
 export async function claimJob(opts: { queue: string; workerId: string; types: string[]; leaseMs: number }): Promise<JobRow | null> {
   if (opts.types.length === 0) return null;
   const types = sql.join(opts.types.map((t) => sql`${t}`), sql`, `);
+  // The pick is a MATERIALIZED CTE: evaluated once. As a subquery in FROM, a nested-loop plan rescans it per
+  // row of `jobs` — and each rescan skips the row this statement already locked and updated, so one claim
+  // took a second job (and a third…) that nothing then ran, under a lock no hold of this worker knew.
   const claimed = rows<RawJob>(await db.execute(sql`
-    UPDATE jobs AS j SET status = 'running', attempts = j.attempts + 1, locked_by = ${`${opts.workerId}#${randomUUID().slice(0, 8)}`},
-           locked_until = now() + make_interval(secs => ${secs(opts.leaseMs)}), started_at = now()
-      FROM (
+    WITH prev AS MATERIALIZED (
        SELECT id, started_at FROM jobs
         WHERE queue = ${opts.queue} AND status = 'queued' AND type IN (${types})
           AND run_after <= now() AND (expires_at IS NULL OR expires_at > now())
         ORDER BY priority, run_after, created_at
         LIMIT 1
-        FOR UPDATE SKIP LOCKED) AS prev
+        FOR UPDATE SKIP LOCKED)
+    UPDATE jobs AS j SET status = 'running', attempts = j.attempts + 1, locked_by = ${`${opts.workerId}#${randomUUID().slice(0, 8)}`},
+           locked_until = now() + make_interval(secs => ${secs(opts.leaseMs)}), started_at = now()
+      FROM prev
      WHERE j.id = prev.id
     RETURNING j.*, prev.started_at IS NOT NULL AS started_before`));
+  if (claimed.length > 1) throw new Error(`a claim took ${claimed.length} jobs`);
   return claimed[0] ? toJob(claimed[0]) : null;
 }
 
