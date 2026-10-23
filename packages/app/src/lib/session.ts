@@ -59,11 +59,14 @@ async function trpcResult<T>(res: Response): Promise<T | undefined> {
 export const getSession = createServerFn().handler(async (): Promise<Session | null> => {
   const cookie = getRequestHeader('cookie');
   if (!cookie) return null;
+  // In Docker the app's server cannot reach the api-server at the browser's address (spec 2026-10-23
+  // docker-compose §3): API_INTERNAL_URL is the api-server as this server sees it; unset, the same address.
+  const api = process.env.API_INTERNAL_URL?.trim() || API_URL;
 
   try {
     const [me, ops] = await Promise.all([
-      fetch(`${API_URL}/trpc/auth.me`, { headers: { cookie } }).then((r) => trpcResult<Omit<Session, 'isOperator'>>(r)),
-      fetch(`${API_URL}/trpc/ops.me`, { headers: { cookie } }).then((r) => trpcResult<{ isOperator: boolean }>(r)),
+      fetch(`${api}/trpc/auth.me`, { headers: { cookie } }).then((r) => trpcResult<Omit<Session, 'isOperator'>>(r)),
+      fetch(`${api}/trpc/ops.me`, { headers: { cookie } }).then((r) => trpcResult<{ isOperator: boolean }>(r)),
     ]);
     if (!me) return null;
     return { ...me, isOperator: ops?.isOperator ?? false };
