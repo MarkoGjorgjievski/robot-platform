@@ -4,9 +4,9 @@
 **/.turbo
 **/*.tsbuildinfo
 **/*.log
-.env
-.env.*
-stack.env
+**/.env
+**/.env.*
+**/stack.env
 .git
 .claude
 .superpowers
