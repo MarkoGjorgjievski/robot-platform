@@ -380,10 +380,13 @@ export const captures = pgTable('captures', {
   markdown: text('markdown'),
   screenshotPath: text('screenshot_path'),
   metadata: jsonb('metadata').default({}),
+  // The job working on this row (spec 2026-10-23 §4.5); null for rows written outside the queue.
+  jobId: uuid('job_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('captures_source_id_idx').on(table.sourceId),
   index('captures_run_id_idx').on(table.runId),
+  index('captures_job_id_idx').on(table.jobId),
 ]);
 
 export const capturesRelations = relations(captures, ({ one, many }) => ({
@@ -418,10 +421,13 @@ export const sourceVerifications = pgTable('source_verifications', {
   aiCalls: integer('ai_calls').notNull().default(0),
   costUsd: numeric('cost_usd', { precision: 10, scale: 4 }).notNull().default('0'),
   errorMessage: text('error_message'),
+  // The job working on this row (spec 2026-10-23 §4.5); null for rows written outside the queue.
+  jobId: uuid('job_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('source_verifications_source_id_idx').on(table.sourceId),
   index('source_verifications_source_completed_idx').on(table.sourceId, table.completedAt),
+  index('source_verifications_job_id_idx').on(table.jobId),
 ]);
 
 export const sourceVerificationsRelations = relations(sourceVerifications, ({ one }) => ({
@@ -446,10 +452,13 @@ export const driftChecks = pgTable('drift_checks', {
   // DriftCheckResults (@robot/scraper verify/drift-classify.ts)
   results: jsonb('results'),
   error: text('error'),
+  // The job working on this row (spec 2026-10-23 §4.5); null for rows written outside the queue.
+  jobId: uuid('job_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
 }, (table) => [
   index('drift_checks_source_id_idx').on(table.sourceId),
+  index('drift_checks_job_id_idx').on(table.jobId),
 ]);
 
 export const driftChecksRelations = relations(driftChecks, ({ one }) => ({
@@ -473,16 +482,55 @@ export const coverageChecks = pgTable('coverage_checks', {
   // CoverageResults (@robot/api verify/run-coverage-check.ts)
   results: jsonb('results'),
   error: text('error'),
+  // The job working on this row (spec 2026-10-23 §4.5); null for rows written outside the queue.
+  jobId: uuid('job_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
 }, (table) => [
   index('coverage_checks_source_id_idx').on(table.sourceId),
+  index('coverage_checks_job_id_idx').on(table.jobId),
 ]);
 
 export const coverageChecksRelations = relations(coverageChecks, ({ one }) => ({
   source: one(sources, { fields: [coverageChecks.sourceId], references: [sources.id] }),
   verification: one(sourceVerifications, { fields: [coverageChecks.verificationId], references: [sourceVerifications.id] }),
 }));
+
+// ─── Jobs (2026-10-23) ──────────────────────────────────────────────────────
+// The work queue every page load goes through (spec 2026-10-23 capture worker §4.1). The api-server
+// enqueues in the transaction that writes the status row; @robot/worker claims with FOR UPDATE SKIP
+// LOCKED and holds a lease it renews. `queue` namespaces workers: tests and the isolated smoke pair use
+// their own. A status row names its job in `job_id` (no foreign key: finished jobs are purged).
+export const jobs = pgTable('jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  queue: varchar('queue', { length: 64 }).notNull().default('default'),
+  type: varchar('type', { length: 40 }).notNull(),
+  // One queued or running job per (queue, key); null never collides.
+  key: varchar('key', { length: 200 }),
+  payload: jsonb('payload').notNull().default({}),
+  // 'queued' | 'running' | 'done' | 'failed'
+  status: varchar('status', { length: 12 }).notNull().default('queued'),
+  // Lower runs first.
+  priority: integer('priority').notNull().default(10),
+  attempts: integer('attempts').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(1),
+  runAfter: timestamp('run_after', { withTimezone: true }).defaultNow().notNull(),
+  // Not started by then: failed 'expired' and its rows closed.
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  lockedBy: varchar('locked_by', { length: 200 }),
+  lockedUntil: timestamp('locked_until', { withTimezone: true }),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  // Done: `{ value }`; failed: `{ error: SerializedError }` (@robot/api jobs/errors.ts).
+  result: jsonb('result'),
+  error: text('error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('jobs_claim_idx').on(table.queue, table.status, table.priority, table.runAfter),
+  index('jobs_lease_idx').on(table.status, table.lockedUntil),
+  uniqueIndex('jobs_active_key_idx').on(table.queue, table.key)
+    .where(sql`${table.status} in ('queued', 'running') and ${table.key} is not null`),
+]);
 
 // ─── Field holds and value refreshes (2026-10-21) ───────────────────────────
 // Websites change (spec 2026-10-21 §3.1–§3.2): a hold keeps a field's last
@@ -625,12 +673,15 @@ export const runs = pgTable('runs', {
   // VariantRunSummary (@robot/scraper verify/variant-rows.ts): set only when this run's
   // extractions hold any variant row (spec 2026-10-02-variants-plan3). Null otherwise.
   variantSummary: jsonb('variant_summary'),
+  // The job working on this row (spec 2026-10-23 §4.5); null for rows written outside the queue.
+  jobId: uuid('job_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('runs_extractor_id_idx').on(table.extractorId),
   index('runs_source_id_idx').on(table.sourceId),
   index('runs_status_idx').on(table.status),
   index('runs_parent_run_id_idx').on(table.parentRunId),
+  index('runs_job_id_idx').on(table.jobId),
 ]);
 
 export const runsRelations = relations(runs, ({ one, many }) => ({

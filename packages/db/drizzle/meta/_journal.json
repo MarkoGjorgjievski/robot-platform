@@ -141,6 +141,13 @@
       "when": 1792583045433,
       "tag": "0019_websites_change",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792745434775,
+      "tag": "0020_capture_jobs",
+      "breakpoints": true
     }
   ]
 }

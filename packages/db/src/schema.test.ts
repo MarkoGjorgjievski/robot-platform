@@ -1,7 +1,7 @@
 // packages/db/src/schema.test.ts
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions, driftChecks, fieldHolds, valueRefreshes } from './index.js';
+import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions, driftChecks, coverageChecks, fieldHolds, valueRefreshes, jobs } from './index.js';
 
 const SLUG = 'test-repair-engine-columns';
 
@@ -148,5 +148,41 @@ describe('websites change (spec 2026-10-21 §4)', () => {
     await db.update(sources).set({ nextCheckAt: at }).where(eq(sources.id, source.id));
     const [s] = await db.select().from(sources).where(eq(sources.id, source.id));
     expect(s!.nextCheckAt?.toISOString()).toBe(at.toISOString());
+  });
+});
+
+describe('jobs (2026-10-23)', () => {
+  const queue = `schema-test-${Date.now()}`;
+  afterEach(async () => { await db.delete(jobs).where(eq(jobs.queue, queue)); });
+
+  it('stores a job with its defaults', async () => {
+    const [row] = await db.insert(jobs).values({ queue, type: 'verify', payload: { a: 1 } }).returning();
+    expect(row).toMatchObject({ queue, type: 'verify', status: 'queued', priority: 10, attempts: 0, maxAttempts: 1, key: null, lockedBy: null, result: null });
+    expect(row!.runAfter).toBeInstanceOf(Date);
+  });
+
+  it('allows one queued or running job per key, and a new one once it finished', async () => {
+    await db.insert(jobs).values({ queue, type: 'verify', key: 'verify:x' });
+    await expect(db.insert(jobs).values({ queue, type: 'verify', key: 'verify:x' })).rejects.toThrow();
+    await db.update(jobs).set({ status: 'done' }).where(eq(jobs.queue, queue));
+    await expect(db.insert(jobs).values({ queue, type: 'verify', key: 'verify:x' })).resolves.toBeDefined();
+    // Jobs without a key never collide.
+    await db.insert(jobs).values({ queue, type: 'verify' });
+    await db.insert(jobs).values({ queue, type: 'verify' });
+  });
+
+  it('every status-row table carries a nullable job_id', async () => {
+    const { orgId: seededOrgId, source } = await seedSource();
+    orgId = seededOrgId;
+    const jobId = '00000000-0000-4000-8000-000000000001';
+    const [v] = await db.insert(sourceVerifications).values({ sourceId: source.id, definitionHash: 'h', jobId }).returning();
+    const [d] = await db.insert(driftChecks).values({ sourceId: source.id, jobId }).returning();
+    const [cc] = await db.insert(coverageChecks).values({ sourceId: source.id, jobId }).returning();
+    const [c] = await db.insert(captures).values({ sourceId: source.id, url: 'https://x.test/', jobId }).returning();
+    const [r] = await db.insert(runs).values({ sourceId: source.id, jobId }).returning();
+    expect([v!.jobId, d!.jobId, c!.jobId, r!.jobId]).toEqual([jobId, jobId, jobId, jobId]);
+    expect(cc!.jobId).toBe(jobId);
+    const [none] = await db.insert(runs).values({ sourceId: source.id }).returning();
+    expect(none!.jobId).toBeNull();
   });
 });
