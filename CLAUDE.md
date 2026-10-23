@@ -21,7 +21,8 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 | `@robot/app` | The customer app — login, org switcher, projects, and a project's websites, Fields and Output, a website's Verification / Extract / Runs / Settings, and the organisation's Runs, Usage, Settings and Account; plus a read-only ops mode for staff at `/ops`, from which staff can also work inside a customer's org; :3000 | TanStack Start + Router/Query (SSR), Tailwind v4, shadcn/ui + Base UI |
 | `@robot/db` | Database schema + migrations | Drizzle ORM, PostgreSQL |
 | `@robot/api` | Type-safe API | tRPC v11, Zod, superjson |
-| `@robot/api-server` | HTTP host — mounts the tRPC routers over HTTP, serves captures | Hono |
+| `@robot/api-server` | HTTP host — mounts the tRPC routers over HTTP, serves captures; never starts a browser | Hono |
+| `@robot/worker` | The capture worker — claims jobs from the Postgres `jobs` queue and owns every browser (Verify, proof-page captures, checks, runs, planning, request-time page reads) | Playwright via `@robot/api` jobs |
 
 ## Extraction Chain (priority order)
 
@@ -107,6 +108,7 @@ Variables already set in the shell take precedence over `.env`.
 - Backups from more than one source (2026-10-20): Verify keeps at most two certified paths per source (one API response, the page's JSON-LD, its meta tags) and fills the rest from other sources; the page's HTML (XPath) counts as one source too (2026-10-21); a multi-layout cover is never capped or warned on; certified API paths carry an optional `container` (the response they read), shown in ops; ops warns only when every path still reads one source; a Verify's certified paths always stay in the domain store.
 - Customer copy (2026-10-21): stored capture sentences stay as they are (drift and diagnosis read them); the app rewords them at display time with `captureWords(text, staff)` so a customer never reads a host, an address, an HTTP code, "CAPTCHA" or a library error, while staff (`showsMoney`) see the stored text; failed buttons show `mutationErrorText`; "budget" is "Run limits" / "page limit"; a sweep test fails on those words in shipped customer copy.
 - Websites change (2026-10-21): a failed re-verify never stops a website whose last good paths still read its proof pages — the field is held (`field_holds`) until the customer edits it or a Verify passes; price, rating, review count and stock refresh their expected values automatically when the same certified path reads a valid, shown, in-range value on two or more pages (`value_refreshes`, then a free re-verify; never AI; never title/brand/SKU/description); a free check runs after a failed Verify and, with `WEBSITE_CHECKS=on`, every few days; the customer sees "Needs attention" and one sentence naming what needs them; staff see holds and automatic updates in ops.
+- Capture worker (2026-10-23): all browser work runs as jobs in the `jobs` table (`@robot/api` `src/jobs`), claimed by `@robot/worker` with leases, retries and lanes (interactive / background / runs; one browser always kept for interactive work); the api-server cannot launch a browser; status rows carry `job_id` and stall rules ask the job; tests use a per-file `JOB_QUEUE`.
 - Popup auto-dismissal — up to 4 rounds of whole-name and close-word clicks (each counts only if it worked) and a removal pass every round, then one more pass just before the screenshot (2026-10-19)
 - Provider abstraction — Anthropic and Ollama supported, auto-detected from env
 - `"type": "module"` in all packages

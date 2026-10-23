@@ -35,7 +35,9 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Websites change (2026-10-21)](#websites-change-keep-running-re-check-tell-the-customer-2026-10-21).** A website whose pages changed keeps running on its last good paths, by-nature values refresh themselves, and the customer is told what needs them. Merged 2026-10-21 after the full gate.
+**Newest: [Capture worker and job queue (2026-10-23)](#capture-worker-and-job-queue-2026-10-23).** All page loads run in a separate worker fed by a Postgres job queue, with leases, retries and one browser kept for interactive work; the api-server never starts a browser. Merged 2026-10-23 after the full gate.
+
+**Before it: [Websites change (2026-10-21)](#websites-change-keep-running-re-check-tell-the-customer-2026-10-21).** A website whose pages changed keeps running on its last good paths, by-nature values refresh themselves, and the customer is told what needs them. Merged 2026-10-21 after the full gate.
 
 **Before it: [HTML backups capped too (2026-10-21)](#html-backups-capped-too-2026-10-21).** XPath backups count as one source under the two-per-source cap; multi-layout covers are left alone. Merged 2026-10-21.
 
@@ -110,6 +112,30 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Capture worker and job queue (2026-10-23)
+
+Spec `docs/superpowers/specs/2026-10-23-capture-worker-design.md`, plan
+`docs/superpowers/plans/2026-10-23-capture-worker.md`. First of the ten local pre-launch items.
+
+**What changed.** Every page load now happens in a new `@robot/worker` process, never in the
+api-server. The api-server adds a job to the `jobs` table (Verify, proof-page screenshots, drift,
+coverage and scheduled checks, runs, planning, and the reads a request waits on); the worker claims
+it with a lease, renews it while it runs, retries after a crash and closes the job's rows with the
+existing customer sentences if it cannot finish. One place caps browsers (`WORKER_BROWSERS`, 3) and
+waits for free memory; one browser is always kept for interactive work, so a run never holds up a
+Verify or a screenshot. Two new customer sentences: "This run stopped before it finished. Extract
+again to pick up where it left off." and "Finding the products stopped before it finished. Try
+again."
+
+**How it was proven.** Ten reviewed tasks, a foundation review and a whole-branch review, two fix
+waves (incl. a claim query that could take two jobs at once — the real cause of flaky tests). Gate:
+api 1310 tests in three serial runs, all green; route smoke 28 of 28 with the isolated pair's own
+worker; crash recovery across real processes tested; no Chromium left running.
+
+**For Marko.** `pnpm dev:all` now starts the worker too. After this merge: stop `dev:all`, run
+`pnpm install` (new package), start it again. With 3 browsers, long jobs share 2; set
+`WORKER_BROWSERS=4` for more throughput if memory allows.
 
 ## Websites change: keep running, re-check, tell the customer (2026-10-21)
 

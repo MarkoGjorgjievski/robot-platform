@@ -4,6 +4,17 @@
 "start"). Plan: `docs/superpowers/plans/2026-10-23-capture-worker.md`. Branch `feat/capture-worker` from `main`
 @ `fda4506b`, worktree `C:\Users\Marko\Documents\projects\robot-platform-worker`.
 
+
+**Status:** implemented on `feat/capture-worker` (ten tasks). Reviews: the queue foundation
+(Tasks 1-4) and the whole branch, each on the most capable model; two fix waves. They fixed a start
+window that outlived the start, shutdown releasing jobs before closing their browsers, retry
+clean-up after a give-back, a per-claim token (a reclaimed job had leaked its browser), handlers
+writing after their job was stopped, one browser kept for interactive work, URL job keys hashed,
+and a claim query that could take two jobs under one lock (a production bug behind the flaky
+tests). Gate: api 1310 (three serial runs, all green), app 1074, worker 9, api-server 56, browser 304
+tests, tsc clean; route smoke 28 of 28 on the isolated pair with its own worker; no Chromium left
+running. Deploy: stop `pnpm dev:all`, merge, `pnpm install`, restart (§8 corrected: the api-server
+reloads under `tsx watch` at once, so work queues until the worker runs; nothing is lost).
 ## 1. Why
 
 Every page load today happens inside the api-server process, started as an un-awaited promise
