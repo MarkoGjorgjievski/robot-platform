@@ -61,6 +61,52 @@ describe('createBrowserGate', () => {
   });
 });
 
+describe('createBrowserGate — one browser kept for interactive work (final review I2)', () => {
+  it('background and runs together hold at most max-1 browsers; an interactive job gets the last one at once', async () => {
+    const gate = createBrowserGate({ max: 3 });
+    const b1 = await runInJob(ctx('b1', 'background'), () => gate.acquire());
+    const r1 = await runInJob(ctx('r1', 'runs'), () => gate.acquire());
+    let second = false;
+    const b2 = runInJob(ctx('b2', 'background'), () => gate.acquire()).then((rel) => { second = true; return rel; });
+    await tick();
+    expect(second).toBe(false);                                   // two non-interactive browsers already: it waits
+    const i1 = await runInJob(ctx('i1', 'interactive'), () => gate.acquire());   // the kept one, at once
+    i1();
+    await tick();
+    expect(second).toBe(false);                                   // the freed one is still kept for interactive
+    b1();
+    (await b2)();
+    expect(second).toBe(true);
+    r1();
+  });
+
+  it('with one browser in all, nothing is kept back', async () => {
+    const gate = createBrowserGate({ max: 1 });
+    (await runInJob(ctx('r', 'runs'), () => gate.acquire()))();
+  });
+
+  it('time spent waiting for a browser or for memory is progress, not a stuck job', async () => {
+    let free = 900;
+    const gate = createBrowserGate({ max: 2, minFreeMb: 500, freeMb: () => free, memoryWaitMs: 5000, pollMs: 10 });
+    const hold = await runInJob(ctx('b', 'background'), () => gate.acquire());
+    const queued = vi.fn();
+    const waiting = runInJob({ ...ctx('r', 'runs'), progress: queued }, () => gate.acquire());
+    await new Promise((r) => setTimeout(r, 60));
+    const whileQueued = queued.mock.calls.length;
+    expect(whileQueued).toBeGreaterThan(1);                          // in the queue (the one non-interactive slot is held)
+    hold();
+    (await waiting)();
+    expect(queued.mock.calls.length).toBeGreaterThan(whileQueued);   // and once more when it is granted
+
+    free = 100;
+    const starved = vi.fn();
+    const forMemory = runInJob({ ...ctx('m', 'background'), progress: starved }, () => gate.acquire());
+    await new Promise((r) => setTimeout(r, 60));
+    expect(starved.mock.calls.length).toBeGreaterThan(1);            // waiting for free memory
+    free = 900;
+    (await forMemory)();
+  });
+});
 describe('createBrowserGate — stopped or failing jobs give their place back', () => {
   it('a job stopped while waiting for free memory gets no browser, and frees its slot', async () => {
     let free = 100;

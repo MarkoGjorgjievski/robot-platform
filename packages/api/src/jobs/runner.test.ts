@@ -6,6 +6,7 @@ import { enqueueJob, claimJob, releaseJob, jobQueueName } from './queue.js';
 import { startJobRunner, type Registry, type JobRunner } from './runner.js';
 import { PLAN_STOPPED, type JobPolicy } from './types.js';
 import { testJobDefinitions } from './test-jobs.js';
+import { createBrowserGate } from './browser-gate.js';
 import { runQueuedJobs, jobsOf } from '../test-helpers/jobs.js';
 
 const q = () => jobQueueName();
@@ -76,6 +77,18 @@ describe('startJobRunner', () => {
     expect(attempt).toBe(2);
   });
 
+  it('a job waiting for a browser past its stuck limit is not stuck: the wait is not its work (final review I2)', async () => {
+    const gate = createBrowserGate({ max: 1, pollMs: 20 });
+    const held = await gate.acquire();                      // another job's browser, for longer than the stuck limit
+    const { id } = await enqueueJob(db, { type: 'waits', payload: {} });
+    start({ waits: { policy: policy({ stuckMs: 150 }), run: async () => { (await gate.acquire())(); return 'got one'; } } }, { browsers: gate });
+    await until(async () => (await get(id)).status === 'running');
+    await new Promise((r) => setTimeout(r, 400));
+    expect((await get(id)).status).toBe('running');
+    held();
+    await until(async () => (await get(id)).status === 'done');
+    expect((await get(id)).result).toEqual({ value: 'got one' });
+  });
   it('a job with progress is not stuck', async () => {
     const { id } = await enqueueJob(db, { type: 'busy', payload: {} });
     start({ busy: { policy: policy({ stuckMs: 100 }), run: async (_p, ctx) => { for (let i = 0; i < 6; i++) { await new Promise((r) => setTimeout(r, 50)); ctx.progress(); } return 'ok'; } } });
