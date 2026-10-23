@@ -80,10 +80,11 @@ Variables already set in the shell take precedence over `.env`.
 - `JEV_DAILY_READINGS` — readings per UTC day across the worker, which takes every proof-page capture (one reading per capture); default 2000
 - `WEBSITE_CHECKS` — set to `on` to run the free scheduled website checks every hour (proof pages + listing sample, no AI); off by default; read by the worker (it owns the schedule)
 - `JOB_QUEUE` — the queue the api-server enqueues to and the worker claims from; default `default`. Tests use their own per file; the isolated smoke pair uses `isolated-4100`
-- `WORKER_BROWSERS` — at most this many Chromium processes in the worker at once; default 3 (at least 1)
+- `WORKER_BROWSERS` — at most this many Chromium processes in the worker at once; default 3 (at least 1); one is kept for interactive work and, with 3 or more, one for background work. Raising it (with `WORKER_RUNS`, e.g. 6 / 4) runs more websites at once
 - `WORKER_INTERACTIVE` — interactive-lane slots (proof-page captures, reachability, listing check, planning…); default 3
 - `WORKER_CONCURRENCY` — background-lane slots (Verify, drift, coverage, website checks); default 2
-- `WORKER_RUNS` — runs extracted at once; default 1
+- `WORKER_RUNS` — runs extracted at once, each a website, each one page at a time; default 1 (the gate lets runs hold at most `WORKER_BROWSERS − 2` when `WORKER_BROWSERS ≥ 3`, else today's `WORKER_BROWSERS − 1` rule, so a browser always stays free for a customer's Verify)
+- `RUN_CAPTURE` — `full` makes certified runs take today's full capture (no lean captures; pictures still off); unset: lean (spec 2026-10-23 run speed)
 - `WORKER_MIN_FREE_MB` — no job claimed and no browser started while free memory is under this; default 1024
 - `WORKER_LEASE_MS` — a claimed job's lease, renewed every quarter lease; a crashed worker's job is reaped once it lapses; default 60000
 - `WORKER_SHUTDOWN_MS` — how long a stopping worker waits for running jobs before it gives them back; default 25000
