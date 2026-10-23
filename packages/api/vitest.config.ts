@@ -8,5 +8,6 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     env: { JEV_SHADOW: '' },
+    setupFiles: ['./src/test-setup/job-queue.ts'],
   },
 });
