@@ -13,8 +13,12 @@
 // 69.8 s → 7.0 s per product page for identical data). It also takes the
 // per-domain politeness lock the analysis chain takes, which this path used
 // to bypass.
+//
+// A run passes its lean state (spec 2026-10-23 run speed): a lean capture first — no popup rounds, no pictures,
+// the XPaths in the live tab — and today's full capture of the same page when a field is missing, a value is not
+// shown, the verdict is not ok (a wall excepted), or the run is still checking that lean reads as full does.
 
-import { pageVariantFrom, verdictSentence, type CaptureTimings, type IBrowser, type PageCapture, type PageVariant, type ReadyCheck, type ReadySnapshot } from '@robot/browser';
+import { pageVariantFrom, verdictSentence, type CaptureOptions, type CaptureTimings, type IBrowser, type PageCapture, type PageVariant, type ReadyCheck, type ReadySnapshot } from '@robot/browser';
 import { acquireDomainLock, reportVerdict } from '../domain-lock.js';
 import { CaptureProblemError } from './capture-check.js';
 import { normalize, renderValue } from './normalize.js';
@@ -25,6 +29,7 @@ import { buildXPathProbeScript, type XPathProbeResult } from './dom-scripts.js';
 import { buildSelectionScript } from './variant-dom.js';
 import { pageTextOf, shownOnPage, type Shown } from './shown-on-page.js';
 import type { CertifiedPath, CustomerFieldType } from './types.js';
+import { LEAN_FIRST_PATH_MS, fallbackFor, learn, recordOutcome, type FieldReading, type LeanOutcome, type LeanReason, type LeanRunState } from './lean-run.js';
 
 export type VerifiedField = {
   key: string; type: CustomerFieldType; concept: string; paths: CertifiedPath[];
@@ -44,6 +49,8 @@ export type VerifiedExtractionResult = {
   shown: Record<string, Shown>;
   /** The field keys the website's default filled (spec §5): every certified path missed there. `[]` on a run with no defaults. */
   defaulted: string[];
+  /** What the run's lean state chose for this page (spec 2026-10-23 run speed §3.5); absent without a lean state. */
+  lean?: LeanOutcome;
 };
 
 type Structured = Pick<PageCapture, 'structuredData' | 'interceptedRequests'>;
@@ -97,42 +104,49 @@ function certifiedXPaths(fields: VerifiedField[]): string[] {
  * has one: then the check waits for those fields' paths instead. A `[page]`
  * path reads by `pageVariant` (spec 2026-10-14 §4); before the capture only
  * the address's part of it is known; an index path whose `[page]` twin
- * is certified is skipped on a named page, as the extraction skips it. */
-export function buildReadyCheck(fields: VerifiedField[], pageUrl: string, pageVariant?: PageVariant): ReadyCheck {
+ * is certified is skipped on a named page, as the extraction skips it.
+ * With `opts.preferFirstPathMs` (lean captures), it then waits up to that long for each field's first path. */
+export function buildReadyCheck(
+  fields: VerifiedField[],
+  pageUrl: string,
+  pageVariant?: PageVariant,
+  opts: { preferFirstPathMs?: number; now?: () => number } = {},
+): ReadyCheck {
   const withPaths = fields.filter((f) => f.paths.length > 0);
   // Spec 2026-10-13 §5: a field with a default never blocks readiness — its paths may legitimately never resolve on this product — unless no other field would wait at all.
   const blocking = withPaths.filter((f) => f.defaultValue === undefined);
   const certified = blocking.length > 0 ? blocking : withPaths;
   const ctx = { pageUrl, pageVariant };
+  const now = opts.now ?? Date.now;
+  // Spec 2026-10-23 run speed §3.2: a lean capture reads at once, so a later, higher-ranked path (an API that
+  // lands after the JSON-LD) would lose to a lower one it beats on a full capture. With preferFirstPathMs the
+  // check, once it would pass, waits up to that long for every field's FIRST path. Per capture: a fresh check each time.
+  let basicSince: number | null = null;
   return {
     script: buildXPathProbeScript(certifiedXPaths(fields)),
     isReady: (s: ReadySnapshot) => {
       const probe = (s.probe ?? {}) as XPathProbeResult;
-      return certified.every((f) => pathsFor(f, pageVariant).some((p) => evaluatePath(f, p, s, probe, ctx) !== null));
+      if (!certified.every((f) => pathsFor(f, pageVariant).some((p) => evaluatePath(f, p, s, probe, ctx) !== null))) return false;
+      if (!opts.preferFirstPathMs) return true;
+      const firstPaths = withPaths.every((f) => {
+        const first = pathsFor(f, pageVariant)[0];
+        return first === undefined || evaluatePath(f, first, s, probe, ctx) !== null;
+      });
+      if (firstPaths) return true;
+      basicSince ??= now();
+      return now() - basicSince >= opts.preferFirstPathMs;
     },
   };
 }
 
-export async function runVerifiedExtraction(
-  req: { url: string; fields: VerifiedField[] },
-  deps: { browser: IBrowser; capture?: PageCapture; acquireLock?: typeof acquireDomainLock },
-): Promise<VerifiedExtractionResult> {
-  const capture = deps.capture ?? await captureUnderLock(req, deps);
-  // A page that is not the product page (a wall, a 404, an empty page, another
-  // site) is a failed item with its one sentence, never a row of misses: no
-  // path is evaluated, so no certified path's hit rate counts a wall against
-  // it (review C1, 2026-10-09). Thrown after captureUnderLock reported the
-  // verdict, so the host's backoff still learns. A capture the caller supplied
-  // (variant-check's proof page) was already judged by its own taker.
-  if (!deps.capture && capture.verdict.kind !== 'ok') {
-    throw new CaptureProblemError(verdictSentence(capture.verdict, req.url), capture.verdict);
-  }
-  const xpaths = certifiedXPaths(req.fields);
-  const probe: XPathProbeResult = xpaths.length ? await deps.browser.setContentEvaluate<XPathProbeResult>(capture.html, buildXPathProbeScript(xpaths)) : {};
+type Evaluated = { data: Record<string, unknown>; stats: VerifiedExtractionResult['stats']; shown: Record<string, Shown> };
+
+/** Every field from one capture and its XPath probe — the first certified path that reads wins — and the shown flags. `data` is before defaults. */
+function evaluateCapture(fields: VerifiedField[], capture: PageCapture, probe: XPathProbeResult): Evaluated {
   const ctx = { pageUrl: capture.url, pageVariant: capture.pageVariant };
   const data: Record<string, unknown> = {};
   const stats: VerifiedExtractionResult['stats'] = [];
-  for (const f of req.fields) {
+  for (const f of fields) {
     data[f.key] = null;
     for (const p of pathsFor(f, capture.pageVariant)) {
       const value = evaluatePath(f, p, capture, probe, ctx);
@@ -142,33 +156,113 @@ export async function runVerifiedExtraction(
       break;
     }
   }
-  const applied = applyDefaults(data, req.fields);
   const pageText = pageTextOf(capture.html);
   const shown: Record<string, Shown> = {};
-  for (const f of req.fields) {
+  for (const f of fields) {
     const hit = stats.find((s) => s.key === f.key && s.hit);
     shown[f.key] = hit ? shownOnPage(f, hit.path, hit.value, pageText) : null;
   }
-  return { data: applied.row, stats, timings: deps.capture ? null : capture.timings ?? null, capture, shown, defaulted: applied.defaulted };
+  return { data, stats, shown };
+}
+
+const readingsOf = (fields: VerifiedField[], ev: Evaluated): FieldReading[] =>
+  fields.map((f) => ({ key: f.key, value: ev.data[f.key] ?? null, shown: ev.shown[f.key] ?? null, hasPaths: f.paths.length > 0 }));
+
+function finish(fields: VerifiedField[], ev: Evaluated, capture: PageCapture, timings: CaptureTimings | null, lean?: LeanOutcome): VerifiedExtractionResult {
+  const applied = applyDefaults(ev.data, fields);
+  return { data: applied.row, stats: ev.stats, timings, capture, shown: ev.shown, defaulted: applied.defaulted, ...(lean ? { lean } : {}) };
+}
+
+/**
+ * A page that is not the product page (a wall, a 404, an empty page, another site) is a failed item with its one
+ * sentence, never a row of misses: no path is evaluated, so no certified path's hit rate counts a wall against it
+ * (review C1, 2026-10-09). Thrown after captureUnderLock reported the verdict, so the host's backoff still learns.
+ */
+function throwUnlessOk(capture: PageCapture, url: string): void {
+  if (capture.verdict.kind !== 'ok') throw new CaptureProblemError(verdictSentence(capture.verdict, url), capture.verdict);
+}
+
+export async function runVerifiedExtraction(
+  req: { url: string; fields: VerifiedField[] },
+  deps: { browser: IBrowser; capture?: PageCapture; acquireLock?: typeof acquireDomainLock; lean?: LeanRunState },
+): Promise<VerifiedExtractionResult> {
+  const xpaths = certifiedXPaths(req.fields);
+  // Today's evaluation: the saved HTML rendered again, offline, and the certified XPaths run there.
+  const renderedProbe = async (c: PageCapture): Promise<XPathProbeResult> =>
+    xpaths.length ? await deps.browser.setContentEvaluate<XPathProbeResult>(c.html, buildXPathProbeScript(xpaths)) : {};
+
+  // A capture the caller supplied (variant-check's proof page, holds) was already judged by its own taker.
+  if (deps.capture) return finish(req.fields, evaluateCapture(req.fields, deps.capture, await renderedProbe(deps.capture)), deps.capture, null);
+
+  const state = deps.lean;
+  const takeFull = async () => {
+    const capture = await captureUnderLock(req, deps, state ? 'full-no-pictures' : 'full');
+    throwUnlessOk(capture, req.url);
+    return { capture, ev: evaluateCapture(req.fields, capture, await renderedProbe(capture)) };
+  };
+
+  if (!state || state.mode === 'full') {
+    const { capture, ev } = await takeFull();
+    const outcome = state ? recordOutcome(state, { mode: 'full', reason: state.why, fields: [], leanMs: null }) : undefined;
+    return finish(req.fields, ev, capture, capture.timings ?? null, outcome);
+  }
+
+  // Spec 2026-10-23 run speed §3.3: the lean capture first; today's full capture only when the rules say so.
+  const leanCapture = await captureUnderLock(req, deps, 'lean');
+  const leanMs = leanCapture.timings?.totalMs ?? null;
+  const kind = leanCapture.verdict.kind;
+  // A wall is never loaded twice: its sentence now, its verdict already fed to the host's backoff.
+  if (kind === 'challenge' || kind === 'refused') throwUnlessOk(leanCapture, req.url);
+
+  let reason: LeanReason = 'verdict';
+  let fields: string[] = [];
+  let leanReadings: FieldReading[] | null = null;
+  if (kind === 'ok') {
+    const ev = evaluateCapture(req.fields, leanCapture, (leanCapture.probe ?? {}) as XPathProbeResult);
+    leanReadings = readingsOf(req.fields, ev);
+    const fallback = fallbackFor(state, leanReadings);
+    if (!fallback) return finish(req.fields, ev, leanCapture, leanCapture.timings ?? null, recordOutcome(state, { mode: 'lean', reason: null, fields: [], leanMs }));
+    reason = fallback.reason;
+    fields = fallback.fields;
+  }
+
+  // Everything written comes from the full capture: data, shown, defaults, path stats (a rescued miss never
+  // counts against a healthy path) and the capture variants read.
+  const { capture, ev } = await takeFull();
+  if (leanReadings) {
+    const learned = learn(state, leanReadings, readingsOf(req.fields, ev), { check: reason === 'check', url: req.url });
+    if (reason === 'check') fields = learned.disagreed;
+  }
+  return finish(req.fields, ev, capture, capture.timings ?? null, recordOutcome(state, { mode: 'lean+full', reason, fields, leanMs }));
 }
 
 async function captureUnderLock(
   req: { url: string; fields: VerifiedField[] },
   deps: { browser: IBrowser; acquireLock?: typeof acquireDomainLock },
+  kind: 'full' | 'full-no-pictures' | 'lean',
 ): Promise<PageCapture> {
   const host = new URL(req.url).hostname;
+  // The picker's selection is unknown until the page is captured; the address's part is what `[page]` needs on a Shopify `?variant=` page.
+  const pageVariant = pageVariantFrom(req.url, null, {});
+  const xpaths = certifiedXPaths(req.fields);
+  const options: CaptureOptions = {
+    waitUntil: 'load',
+    interceptNetworkRequests: true,
+    // The picker's selection, read into `capture.pageVariant` (spec 2026-10-14 §3).
+    selection: buildSelectionScript(),
+    ...(kind === 'lean'
+      ? {
+        ready: buildReadyCheck(req.fields, req.url, pageVariant, { preferFirstPathMs: LEAN_FIRST_PATH_MS }),
+        // The certified XPaths in the live tab: no second render (spec 2026-10-23 run speed §3.1).
+        finalProbe: buildXPathProbeScript(xpaths),
+        lean: { expand: xpaths.length > 0 },
+      }
+      : { ready: buildReadyCheck(req.fields, req.url, pageVariant), ...(kind === 'full-no-pictures' ? { pictures: false } : {}) }),
+  };
   const release = await (deps.acquireLock ?? acquireDomainLock)(host);
   try {
-    const capture = await deps.browser.capture(req.url, {
-      waitUntil: 'load',
-      interceptNetworkRequests: true,
-      // The picker's selection is unknown until the page is captured; the address's part is what `[page]` needs on a Shopify `?variant=` page.
-      ready: buildReadyCheck(req.fields, req.url, pageVariantFrom(req.url, null, {})),
-      // The picker's selection, read into `capture.pageVariant` (spec 2026-10-14 §3).
-      selection: buildSelectionScript(),
-    });
-    // Feed the verdict back to the host's pacing (a challenge or refusal
-    // backs the next acquire off; an ok clears it).
+    const capture = await deps.browser.capture(req.url, options);
+    // Feed the verdict back to the host's pacing (a challenge or refusal backs the next acquire off; an ok clears it).
     reportVerdict(host, capture.verdict);
     return capture;
   } finally {
