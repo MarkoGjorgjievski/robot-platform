@@ -9,6 +9,7 @@ import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
+import { urlKey } from '../jobs/enqueue.js';
 
 // The Extract tab's free per-row listing check and Add website's reachability line answer from the
 // worker (spec 2026-10-23 §4.4): their bodies' behaviour is tested in jobs/handlers/interactive.test.ts;
@@ -47,14 +48,17 @@ describe('sources.checkListingPage', () => {
     const anchors = Array.from({ length: 12 }, (_, i) => ({ href: `/p/air-${i}-123456789012`, text: `Air ${i}`, levels: [{ d: 1, img: true, price: true, len: 30 }] }));
     withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
       fn({ capture: vi.fn().mockResolvedValue({ html, verdict: { kind: 'ok', status: 200 }, annotation: { anchors, itemList: [] } }) }));
-    const listingUrl = 'https://test-check-listing.example.com/c/shoes';
+    // Longer than the 200 characters a job key holds (final review I3): the key is the address's hash.
+    const listingUrl = `https://test-check-listing.example.com/c/shoes?${'filter=size-42-wide&'.repeat(14)}x=1`;
+    expect(listingUrl.length).toBeGreaterThan(300);
 
     const answer = await withJobRunner(() => caller.sources.checkListingPage({ listingUrl }));
 
     expect(answer).toMatchObject({ productLinks: 12, pagerSeen: true, verdict: { kind: 'ok', status: 200 }, message: null });
     expect(answer.sample).toHaveLength(10);
     const job = (await jobsOf('listing-check')).find((j) => (j.payload as { listingUrl: string }).listingUrl === listingUrl);
-    expect(job).toMatchObject({ status: 'done', key: `listing:${listingUrl}`, payload: { listingUrl } });
+    expect(job).toMatchObject({ status: 'done', key: urlKey('listing', listingUrl), payload: { listingUrl } });
+    expect(urlKey('listing', listingUrl)).toMatch(/^listing:[0-9a-f]{40}$/);
   });
 
   it('with no worker, the listing check says the browser could not open', async () => {
@@ -86,7 +90,8 @@ describe('sources.checkListingPage', () => {
 
 describe('sources.reachability', () => {
   it('answers through the worker', async () => {
-    const url = 'https://www.test-reach.example.com/shop';
+    const url = `https://www.test-reach.example.com/shop?${'utm_campaign=autumn-sale-2026&'.repeat(10)}x=1`;
+    expect(url.length).toBeGreaterThan(300);
     withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
       fn({ capture: vi.fn().mockResolvedValue({ url, html: '<html></html>', verdict: { kind: 'ok', status: 200 } }) }));
 
@@ -94,7 +99,7 @@ describe('sources.reachability', () => {
 
     expect(answer).toMatchObject({ verdict: { kind: 'ok', status: 200 }, message: 'Reached test-reach.example.com (HTTP 200).', finalUrl: url });
     const job = (await jobsOf('reachability')).find((j) => (j.payload as { url: string }).url === url);
-    expect(job).toMatchObject({ status: 'done', key: `reachability:${url}`, payload: { url } });
+    expect(job).toMatchObject({ status: 'done', key: urlKey('reachability', url), payload: { url } });
   });
 
   it('with no worker, the reachability line says the browser could not open', async () => {

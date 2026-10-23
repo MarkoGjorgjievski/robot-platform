@@ -136,8 +136,8 @@ another namespace's jobs, so Marko's worker never runs a test's job and the isol
 | Type | Lane | Priority | Attempts | Stuck after (no progress) | Must start within | Key | Rows it owns |
 |---|---|---|---|---|---|---|---|
 | `proof-page-capture` | interactive | 10 | 2 | 3 min | 5 min | `capture:<id>` | the capture |
-| `reachability` | interactive | 0 | 1 | 60 s | 60 s | `reachability:<url>` | — (awaited) |
-| `listing-check` | interactive | 0 | 1 | 90 s | 60 s | `listing:<url>` | — (awaited) |
+| `reachability` | interactive | 0 | 1 | 60 s | 60 s | `reachability:<sha1(url)>` | — (awaited) |
+| `listing-check` | interactive | 0 | 1 | 90 s | 60 s | `listing:<sha1(url)>` | — (awaited) |
 | `transfer-marks` | interactive | 0 | 1 | 60 s | 60 s | — | — (awaited) |
 | `detect-variants` | interactive | 0 | 1 | 60 s | 60 s | `detect-variants:<sourceId>` | — (awaited) |
 | `variant-links-near` | interactive | 0 | 1 | 30 s | 60 s | — | — (awaited) |

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { db, jobs } from '@robot/db';
-import { enqueue, ceilingOf, runAndWait } from './enqueue.js';
+import { enqueue, ceilingOf, runAndWait, urlKey } from './enqueue.js';
 import { jobQueueName } from './queue.js';
 import { JOB_POLICIES } from './types.js';
 import { withJobRunner } from '../test-helpers/jobs.js';
@@ -23,7 +23,21 @@ describe('enqueue', () => {
   });
 });
 
-describe('ceilingOf', () => {
+describe('urlKey (final review I3)', () => {
+  it('keys a job by its address\'s hash: one length whatever the address, the same address the same key', () => {
+    const long = `https://shop.example/c/${'a'.repeat(300)}`;
+    expect(urlKey('listing', long)).toMatch(/^listing:[0-9a-f]{40}$/);
+    expect(urlKey('listing', long)).toBe(urlKey('listing', long));
+    expect(urlKey('listing', long)).not.toBe(urlKey('listing', `${long}b`));
+    expect(urlKey('reachability', long)).not.toBe(urlKey('listing', long));
+  });
+
+  it('a 300-character address enqueues, and dedupes on its key', async () => {
+    const key = urlKey('reachability', `https://shop.example/${'p'.repeat(300)}`);
+    const a = await enqueue(db, 'reachability', { url: 'x' }, { key });
+    expect(await enqueue(db, 'reachability', { url: 'x' }, { key })).toBe(a);
+  });
+});describe('ceilingOf', () => {
   it('is the start window, the stuck limit and ten seconds; JOB_AWAIT_MAX_MS caps it', () => {
     expect(ceilingOf('listing-check', {})).toBe(60_000 + 90_000 + 10_000);
     expect(ceilingOf('run', {})).toBe(15 * 60_000 + 10_000);           // no window
