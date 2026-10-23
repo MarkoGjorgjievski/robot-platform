@@ -1,0 +1,2240 @@
+{
+ "label": "before",
+ "commit": "d2ed37bb",
+ "at": "2026-10-23T15:15:15.007Z",
+ "config": {
+  "sites": 2,
+  "pages": 50,
+  "runs": 1,
+  "browsers": 3,
+  "latency": "realistic"
+ },
+ "wallMs": 744972,
+ "per1000Ms": 7449720,
+ "done": 100,
+ "failed": 0,
+ "cycleMs": {
+  "median": 6391,
+  "p90": 14292,
+  "mean": 7441
+ },
+ "captureMs": {
+  "median": 4276,
+  "p90": 12211,
+  "mean": 5367
+ },
+ "modes": {
+  "none": 100
+ },
+ "memory": {
+  "chromiumPeakMb": 912,
+  "nodePeakMb": 235,
+  "samples": 132
+ },
+ "truth": {
+  "checked": 800,
+  "mismatches": []
+ },
+ "values": {
+  "0/1": {
+   "data": {
+    "Title": "Fixture 0-1 Lamp",
+    "SKU": "FX-0-1",
+    "Price": 16.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 3.1,
+    "Description": "Lamp 0-1, short and sweet.",
+    "Materials": "Steel 13%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/2": {
+   "data": {
+    "Title": "Fixture 0-2 Lamp",
+    "SKU": "FX-0-2",
+    "Price": 23.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 3.2,
+    "Description": "Lamp 0-2, short and sweet.",
+    "Materials": "Steel 26%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/3": {
+   "data": {
+    "Title": "Fixture 0-3 Lamp",
+    "SKU": "FX-0-3",
+    "Price": 30.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 3.3,
+    "Description": "The long story of lamp 0-3, told in full once you ask for it.",
+    "Materials": "Steel 39%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/4": {
+   "data": {
+    "Title": "Fixture 0-4 Lamp",
+    "SKU": "FX-0-4",
+    "Price": 37.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 3.4,
+    "Description": "Lamp 0-4, short and sweet.",
+    "Materials": "Steel 52%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/5": {
+   "data": {
+    "Title": "Fixture 0-5 Lamp",
+    "SKU": "FX-0-5",
+    "Price": 44.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 3.5,
+    "Description": "Lamp 0-5, short and sweet.",
+    "Materials": "Steel 65%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/6": {
+   "data": {
+    "Title": "Fixture 0-6 Lamp",
+    "SKU": "FX-0-6",
+    "Price": 51.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 3.6,
+    "Description": "The long story of lamp 0-6, told in full once you ask for it.",
+    "Materials": "Steel 78%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/7": {
+   "data": {
+    "Title": "Fixture 0-7 Lamp",
+    "SKU": "FX-0-7",
+    "Price": 58.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": null,
+    "Description": "Lamp 0-7, short and sweet.",
+    "Materials": "Steel 91%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": null,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/8": {
+   "data": {
+    "Title": "Fixture 0-8 Lamp",
+    "SKU": "FX-0-8",
+    "Price": 65.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 3.8,
+    "Description": "Lamp 0-8, short and sweet.",
+    "Materials": "Steel 4%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/9": {
+   "data": {
+    "Title": "Fixture 0-9 Lamp",
+    "SKU": "FX-0-9",
+    "Price": 72.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 3.9,
+    "Description": "The long story of lamp 0-9, told in full once you ask for it.",
+    "Materials": "Steel 17%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/10": {
+   "data": {
+    "Title": "Fixture 0-10 Lamp",
+    "SKU": "FX-0-10",
+    "Price": 79.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 4,
+    "Description": "Lamp 0-10, short and sweet.",
+    "Materials": "Steel 30%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/11": {
+   "data": {
+    "Title": "Fixture 0-11 Lamp",
+    "SKU": "FX-0-11",
+    "Price": 86.99,
+    "Brand": "Brand 4",
+    "Stock": "Sold out",
+    "Rating": 4.1,
+    "Description": "Lamp 0-11, short and sweet.",
+    "Materials": "Steel 43%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/12": {
+   "data": {
+    "Title": "Fixture 0-12 Lamp",
+    "SKU": "FX-0-12",
+    "Price": 93.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 4.2,
+    "Description": "The long story of lamp 0-12, told in full once you ask for it.",
+    "Materials": "Steel 56%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/13": {
+   "data": {
+    "Title": "Fixture 0-13 Lamp",
+    "SKU": "FX-0-13",
+    "Price": 100.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 4.3,
+    "Description": "Lamp 0-13, short and sweet.",
+    "Materials": "Steel 69%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/14": {
+   "data": {
+    "Title": "Fixture 0-14 Lamp",
+    "SKU": "FX-0-14",
+    "Price": 107.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 4.4,
+    "Description": "Lamp 0-14, short and sweet.",
+    "Materials": "Steel 82%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/15": {
+   "data": {
+    "Title": "Fixture 0-15 Lamp",
+    "SKU": "FX-0-15",
+    "Price": 114.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 4.5,
+    "Description": "The long story of lamp 0-15, told in full once you ask for it.",
+    "Materials": "Steel 95%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/16": {
+   "data": {
+    "Title": "Fixture 0-16 Lamp",
+    "SKU": "FX-0-16",
+    "Price": 121.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 4.6,
+    "Description": "Lamp 0-16, short and sweet.",
+    "Materials": "Steel 8%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/17": {
+   "data": {
+    "Title": "Fixture 0-17 Lamp",
+    "SKU": "FX-0-17",
+    "Price": 128.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": null,
+    "Description": "Lamp 0-17, short and sweet.",
+    "Materials": "Steel 21%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": null,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/18": {
+   "data": {
+    "Title": "Fixture 0-18 Lamp",
+    "SKU": "FX-0-18",
+    "Price": 135.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 4.8,
+    "Description": "The long story of lamp 0-18, told in full once you ask for it.",
+    "Materials": "Steel 34%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/19": {
+   "data": {
+    "Title": "Fixture 0-19 Lamp",
+    "SKU": "FX-0-19",
+    "Price": 142.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 4.9,
+    "Description": "Lamp 0-19, short and sweet.",
+    "Materials": "Steel 47%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/20": {
+   "data": {
+    "Title": "Fixture 0-20 Lamp",
+    "SKU": "FX-0-20",
+    "Price": 149.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 3,
+    "Description": "Lamp 0-20, short and sweet.",
+    "Materials": "Steel 60%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/21": {
+   "data": {
+    "Title": "Fixture 0-21 Lamp",
+    "SKU": "FX-0-21",
+    "Price": 156.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 3.1,
+    "Description": "The long story of lamp 0-21, told in full once you ask for it.",
+    "Materials": "Steel 73%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/22": {
+   "data": {
+    "Title": "Fixture 0-22 Lamp",
+    "SKU": "FX-0-22",
+    "Price": 163.99,
+    "Brand": "Brand 1",
+    "Stock": "Sold out",
+    "Rating": 3.2,
+    "Description": "Lamp 0-22, short and sweet.",
+    "Materials": "Steel 86%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/23": {
+   "data": {
+    "Title": "Fixture 0-23 Lamp",
+    "SKU": "FX-0-23",
+    "Price": 170.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 3.3,
+    "Description": "Lamp 0-23, short and sweet.",
+    "Materials": "Steel 99%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/24": {
+   "data": {
+    "Title": "Fixture 0-24 Lamp",
+    "SKU": "FX-0-24",
+    "Price": 177.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 3.4,
+    "Description": "The long story of lamp 0-24, told in full once you ask for it.",
+    "Materials": "Steel 12%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/25": {
+   "data": {
+    "Title": "Fixture 0-25 Lamp",
+    "SKU": "FX-0-25",
+    "Price": 184.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 3.5,
+    "Description": "Lamp 0-25, short and sweet.",
+    "Materials": "Steel 25%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/26": {
+   "data": {
+    "Title": "Fixture 0-26 Lamp",
+    "SKU": "FX-0-26",
+    "Price": 191.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 3.6,
+    "Description": "Lamp 0-26, short and sweet.",
+    "Materials": "Steel 38%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/27": {
+   "data": {
+    "Title": "Fixture 0-27 Lamp",
+    "SKU": "FX-0-27",
+    "Price": 198.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": null,
+    "Description": "The long story of lamp 0-27, told in full once you ask for it.",
+    "Materials": "Steel 51%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": null,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/28": {
+   "data": {
+    "Title": "Fixture 0-28 Lamp",
+    "SKU": "FX-0-28",
+    "Price": 205.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 3.8,
+    "Description": "Lamp 0-28, short and sweet.",
+    "Materials": "Steel 64%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/29": {
+   "data": {
+    "Title": "Fixture 0-29 Lamp",
+    "SKU": "FX-0-29",
+    "Price": 12.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 3.9,
+    "Description": "Lamp 0-29, short and sweet.",
+    "Materials": "Steel 77%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/30": {
+   "data": {
+    "Title": "Fixture 0-30 Lamp",
+    "SKU": "FX-0-30",
+    "Price": 19.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 4,
+    "Description": "The long story of lamp 0-30, told in full once you ask for it.",
+    "Materials": "Steel 90%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/31": {
+   "data": {
+    "Title": "Fixture 0-31 Lamp",
+    "SKU": "FX-0-31",
+    "Price": 26.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 4.1,
+    "Description": "Lamp 0-31, short and sweet.",
+    "Materials": "Steel 3%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/32": {
+   "data": {
+    "Title": "Fixture 0-32 Lamp",
+    "SKU": "FX-0-32",
+    "Price": 33.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 4.2,
+    "Description": "Lamp 0-32, short and sweet.",
+    "Materials": "Steel 16%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/33": {
+   "data": {
+    "Title": "Fixture 0-33 Lamp",
+    "SKU": "FX-0-33",
+    "Price": 40.99,
+    "Brand": "Brand 5",
+    "Stock": "Sold out",
+    "Rating": 4.3,
+    "Description": "The long story of lamp 0-33, told in full once you ask for it.",
+    "Materials": "Steel 29%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/34": {
+   "data": {
+    "Title": "Fixture 0-34 Lamp",
+    "SKU": "FX-0-34",
+    "Price": 47.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 4.4,
+    "Description": "Lamp 0-34, short and sweet.",
+    "Materials": "Steel 42%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/35": {
+   "data": {
+    "Title": "Fixture 0-35 Lamp",
+    "SKU": "FX-0-35",
+    "Price": 54.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 4.5,
+    "Description": "Lamp 0-35, short and sweet.",
+    "Materials": "Steel 55%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/36": {
+   "data": {
+    "Title": "Fixture 0-36 Lamp",
+    "SKU": "FX-0-36",
+    "Price": 61.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 4.6,
+    "Description": "The long story of lamp 0-36, told in full once you ask for it.",
+    "Materials": "Steel 68%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/37": {
+   "data": {
+    "Title": "Fixture 0-37 Lamp",
+    "SKU": "FX-0-37",
+    "Price": 68.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": null,
+    "Description": "Lamp 0-37, short and sweet.",
+    "Materials": "Steel 81%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": null,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/38": {
+   "data": {
+    "Title": "Fixture 0-38 Lamp",
+    "SKU": "FX-0-38",
+    "Price": 75.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 4.8,
+    "Description": "Lamp 0-38, short and sweet.",
+    "Materials": "Steel 94%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/39": {
+   "data": {
+    "Title": "Fixture 0-39 Lamp",
+    "SKU": "FX-0-39",
+    "Price": 82.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 4.9,
+    "Description": "The long story of lamp 0-39, told in full once you ask for it.",
+    "Materials": "Steel 7%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/40": {
+   "data": {
+    "Title": "Fixture 0-40 Lamp",
+    "SKU": "FX-0-40",
+    "Price": 89.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 3,
+    "Description": "Lamp 0-40, short and sweet.",
+    "Materials": "Steel 20%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/41": {
+   "data": {
+    "Title": "Fixture 0-41 Lamp",
+    "SKU": "FX-0-41",
+    "Price": 96.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 3.1,
+    "Description": "Lamp 0-41, short and sweet.",
+    "Materials": "Steel 33%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/42": {
+   "data": {
+    "Title": "Fixture 0-42 Lamp",
+    "SKU": "FX-0-42",
+    "Price": 103.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 3.2,
+    "Description": "The long story of lamp 0-42, told in full once you ask for it.",
+    "Materials": "Steel 46%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/43": {
+   "data": {
+    "Title": "Fixture 0-43 Lamp",
+    "SKU": "FX-0-43",
+    "Price": 110.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 3.3,
+    "Description": "Lamp 0-43, short and sweet.",
+    "Materials": "Steel 59%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/44": {
+   "data": {
+    "Title": "Fixture 0-44 Lamp",
+    "SKU": "FX-0-44",
+    "Price": 117.99,
+    "Brand": "Brand 2",
+    "Stock": "Sold out",
+    "Rating": 3.4,
+    "Description": "Lamp 0-44, short and sweet.",
+    "Materials": "Steel 72%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/45": {
+   "data": {
+    "Title": "Fixture 0-45 Lamp",
+    "SKU": "FX-0-45",
+    "Price": 124.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 3.5,
+    "Description": "The long story of lamp 0-45, told in full once you ask for it.",
+    "Materials": "Steel 85%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/46": {
+   "data": {
+    "Title": "Fixture 0-46 Lamp",
+    "SKU": "FX-0-46",
+    "Price": 131.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 3.6,
+    "Description": "Lamp 0-46, short and sweet.",
+    "Materials": "Steel 98%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/47": {
+   "data": {
+    "Title": "Fixture 0-47 Lamp",
+    "SKU": "FX-0-47",
+    "Price": 138.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": null,
+    "Description": "Lamp 0-47, short and sweet.",
+    "Materials": "Steel 11%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": null,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/48": {
+   "data": {
+    "Title": "Fixture 0-48 Lamp",
+    "SKU": "FX-0-48",
+    "Price": 145.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 3.8,
+    "Description": "The long story of lamp 0-48, told in full once you ask for it.",
+    "Materials": "Steel 24%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/49": {
+   "data": {
+    "Title": "Fixture 0-49 Lamp",
+    "SKU": "FX-0-49",
+    "Price": 152.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 3.9,
+    "Description": "Lamp 0-49, short and sweet.",
+    "Materials": "Steel 37%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "0/50": {
+   "data": {
+    "Title": "Fixture 0-50 Lamp",
+    "SKU": "FX-0-50",
+    "Price": 159.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 4,
+    "Description": "Lamp 0-50, short and sweet.",
+    "Materials": "Steel 50%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/1": {
+   "data": {
+    "Title": "Fixture 1-1 Lamp",
+    "SKU": "FX-1-1",
+    "Price": 47.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 3.2,
+    "Description": "Lamp 1-1, short and sweet.",
+    "Materials": "Steel 13%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/2": {
+   "data": {
+    "Title": "Fixture 1-2 Lamp",
+    "SKU": "FX-1-2",
+    "Price": 54.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 3.3,
+    "Description": "Lamp 1-2, short and sweet.",
+    "Materials": "Steel 26%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/3": {
+   "data": {
+    "Title": "Fixture 1-3 Lamp",
+    "SKU": "FX-1-3",
+    "Price": 61.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 3.4,
+    "Description": "The long story of lamp 1-3, told in full once you ask for it.",
+    "Materials": "Steel 39%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/4": {
+   "data": {
+    "Title": "Fixture 1-4 Lamp",
+    "SKU": "FX-1-4",
+    "Price": 68.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 3.5,
+    "Description": "Lamp 1-4, short and sweet.",
+    "Materials": "Steel 52%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/5": {
+   "data": {
+    "Title": "Fixture 1-5 Lamp",
+    "SKU": "FX-1-5",
+    "Price": 75.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 3.6,
+    "Description": "Lamp 1-5, short and sweet.",
+    "Materials": "Steel 65%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/6": {
+   "data": {
+    "Title": "Fixture 1-6 Lamp",
+    "SKU": "FX-1-6",
+    "Price": 82.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 3.7,
+    "Description": "The long story of lamp 1-6, told in full once you ask for it.",
+    "Materials": "Steel 78%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/7": {
+   "data": {
+    "Title": "Fixture 1-7 Lamp",
+    "SKU": "FX-1-7",
+    "Price": 89.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": null,
+    "Description": "Lamp 1-7, short and sweet.",
+    "Materials": "Steel 91%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": null,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/8": {
+   "data": {
+    "Title": "Fixture 1-8 Lamp",
+    "SKU": "FX-1-8",
+    "Price": 96.99,
+    "Brand": "Brand 2",
+    "Stock": "Sold out",
+    "Rating": 3.9,
+    "Description": "Lamp 1-8, short and sweet.",
+    "Materials": "Steel 4%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/9": {
+   "data": {
+    "Title": "Fixture 1-9 Lamp",
+    "SKU": "FX-1-9",
+    "Price": 103.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 4,
+    "Description": "The long story of lamp 1-9, told in full once you ask for it.",
+    "Materials": "Steel 17%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/10": {
+   "data": {
+    "Title": "Fixture 1-10 Lamp",
+    "SKU": "FX-1-10",
+    "Price": 110.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 4.1,
+    "Description": "Lamp 1-10, short and sweet.",
+    "Materials": "Steel 30%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/11": {
+   "data": {
+    "Title": "Fixture 1-11 Lamp",
+    "SKU": "FX-1-11",
+    "Price": 117.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 4.2,
+    "Description": "Lamp 1-11, short and sweet.",
+    "Materials": "Steel 43%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/12": {
+   "data": {
+    "Title": "Fixture 1-12 Lamp",
+    "SKU": "FX-1-12",
+    "Price": 124.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 4.3,
+    "Description": "The long story of lamp 1-12, told in full once you ask for it.",
+    "Materials": "Steel 56%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/13": {
+   "data": {
+    "Title": "Fixture 1-13 Lamp",
+    "SKU": "FX-1-13",
+    "Price": 131.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 4.4,
+    "Description": "Lamp 1-13, short and sweet.",
+    "Materials": "Steel 69%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/14": {
+   "data": {
+    "Title": "Fixture 1-14 Lamp",
+    "SKU": "FX-1-14",
+    "Price": 138.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 4.5,
+    "Description": "Lamp 1-14, short and sweet.",
+    "Materials": "Steel 82%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/15": {
+   "data": {
+    "Title": "Fixture 1-15 Lamp",
+    "SKU": "FX-1-15",
+    "Price": 145.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 4.6,
+    "Description": "The long story of lamp 1-15, told in full once you ask for it.",
+    "Materials": "Steel 95%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/16": {
+   "data": {
+    "Title": "Fixture 1-16 Lamp",
+    "SKU": "FX-1-16",
+    "Price": 152.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 4.7,
+    "Description": "Lamp 1-16, short and sweet.",
+    "Materials": "Steel 8%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/17": {
+   "data": {
+    "Title": "Fixture 1-17 Lamp",
+    "SKU": "FX-1-17",
+    "Price": 159.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": null,
+    "Description": "Lamp 1-17, short and sweet.",
+    "Materials": "Steel 21%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": null,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/18": {
+   "data": {
+    "Title": "Fixture 1-18 Lamp",
+    "SKU": "FX-1-18",
+    "Price": 166.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 4.9,
+    "Description": "The long story of lamp 1-18, told in full once you ask for it.",
+    "Materials": "Steel 34%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/19": {
+   "data": {
+    "Title": "Fixture 1-19 Lamp",
+    "SKU": "FX-1-19",
+    "Price": 173.99,
+    "Brand": "Brand 6",
+    "Stock": "Sold out",
+    "Rating": 3,
+    "Description": "Lamp 1-19, short and sweet.",
+    "Materials": "Steel 47%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/20": {
+   "data": {
+    "Title": "Fixture 1-20 Lamp",
+    "SKU": "FX-1-20",
+    "Price": 180.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 3.1,
+    "Description": "Lamp 1-20, short and sweet.",
+    "Materials": "Steel 60%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/21": {
+   "data": {
+    "Title": "Fixture 1-21 Lamp",
+    "SKU": "FX-1-21",
+    "Price": 187.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 3.2,
+    "Description": "The long story of lamp 1-21, told in full once you ask for it.",
+    "Materials": "Steel 73%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/22": {
+   "data": {
+    "Title": "Fixture 1-22 Lamp",
+    "SKU": "FX-1-22",
+    "Price": 194.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 3.3,
+    "Description": "Lamp 1-22, short and sweet.",
+    "Materials": "Steel 86%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/23": {
+   "data": {
+    "Title": "Fixture 1-23 Lamp",
+    "SKU": "FX-1-23",
+    "Price": 201.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 3.4,
+    "Description": "Lamp 1-23, short and sweet.",
+    "Materials": "Steel 99%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/24": {
+   "data": {
+    "Title": "Fixture 1-24 Lamp",
+    "SKU": "FX-1-24",
+    "Price": 208.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 3.5,
+    "Description": "The long story of lamp 1-24, told in full once you ask for it.",
+    "Materials": "Steel 12%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/25": {
+   "data": {
+    "Title": "Fixture 1-25 Lamp",
+    "SKU": "FX-1-25",
+    "Price": 15.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 3.6,
+    "Description": "Lamp 1-25, short and sweet.",
+    "Materials": "Steel 25%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/26": {
+   "data": {
+    "Title": "Fixture 1-26 Lamp",
+    "SKU": "FX-1-26",
+    "Price": 22.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 3.7,
+    "Description": "Lamp 1-26, short and sweet.",
+    "Materials": "Steel 38%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/27": {
+   "data": {
+    "Title": "Fixture 1-27 Lamp",
+    "SKU": "FX-1-27",
+    "Price": 29.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": null,
+    "Description": "The long story of lamp 1-27, told in full once you ask for it.",
+    "Materials": "Steel 51%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": null,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/28": {
+   "data": {
+    "Title": "Fixture 1-28 Lamp",
+    "SKU": "FX-1-28",
+    "Price": 36.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 3.9,
+    "Description": "Lamp 1-28, short and sweet.",
+    "Materials": "Steel 64%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/29": {
+   "data": {
+    "Title": "Fixture 1-29 Lamp",
+    "SKU": "FX-1-29",
+    "Price": 43.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 4,
+    "Description": "Lamp 1-29, short and sweet.",
+    "Materials": "Steel 77%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/30": {
+   "data": {
+    "Title": "Fixture 1-30 Lamp",
+    "SKU": "FX-1-30",
+    "Price": 50.99,
+    "Brand": "Brand 3",
+    "Stock": "Sold out",
+    "Rating": 4.1,
+    "Description": "The long story of lamp 1-30, told in full once you ask for it.",
+    "Materials": "Steel 90%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/31": {
+   "data": {
+    "Title": "Fixture 1-31 Lamp",
+    "SKU": "FX-1-31",
+    "Price": 57.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 4.2,
+    "Description": "Lamp 1-31, short and sweet.",
+    "Materials": "Steel 3%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/32": {
+   "data": {
+    "Title": "Fixture 1-32 Lamp",
+    "SKU": "FX-1-32",
+    "Price": 64.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 4.3,
+    "Description": "Lamp 1-32, short and sweet.",
+    "Materials": "Steel 16%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/33": {
+   "data": {
+    "Title": "Fixture 1-33 Lamp",
+    "SKU": "FX-1-33",
+    "Price": 71.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 4.4,
+    "Description": "The long story of lamp 1-33, told in full once you ask for it.",
+    "Materials": "Steel 29%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/34": {
+   "data": {
+    "Title": "Fixture 1-34 Lamp",
+    "SKU": "FX-1-34",
+    "Price": 78.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 4.5,
+    "Description": "Lamp 1-34, short and sweet.",
+    "Materials": "Steel 42%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/35": {
+   "data": {
+    "Title": "Fixture 1-35 Lamp",
+    "SKU": "FX-1-35",
+    "Price": 85.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 4.6,
+    "Description": "Lamp 1-35, short and sweet.",
+    "Materials": "Steel 55%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/36": {
+   "data": {
+    "Title": "Fixture 1-36 Lamp",
+    "SKU": "FX-1-36",
+    "Price": 92.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 4.7,
+    "Description": "The long story of lamp 1-36, told in full once you ask for it.",
+    "Materials": "Steel 68%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/37": {
+   "data": {
+    "Title": "Fixture 1-37 Lamp",
+    "SKU": "FX-1-37",
+    "Price": 99.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": null,
+    "Description": "Lamp 1-37, short and sweet.",
+    "Materials": "Steel 81%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": null,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/38": {
+   "data": {
+    "Title": "Fixture 1-38 Lamp",
+    "SKU": "FX-1-38",
+    "Price": 106.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 4.9,
+    "Description": "Lamp 1-38, short and sweet.",
+    "Materials": "Steel 94%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/39": {
+   "data": {
+    "Title": "Fixture 1-39 Lamp",
+    "SKU": "FX-1-39",
+    "Price": 113.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 3,
+    "Description": "The long story of lamp 1-39, told in full once you ask for it.",
+    "Materials": "Steel 7%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/40": {
+   "data": {
+    "Title": "Fixture 1-40 Lamp",
+    "SKU": "FX-1-40",
+    "Price": 120.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": 3.1,
+    "Description": "Lamp 1-40, short and sweet.",
+    "Materials": "Steel 20%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/41": {
+   "data": {
+    "Title": "Fixture 1-41 Lamp",
+    "SKU": "FX-1-41",
+    "Price": 127.99,
+    "Brand": "Brand 0",
+    "Stock": "Sold out",
+    "Rating": 3.2,
+    "Description": "Lamp 1-41, short and sweet.",
+    "Materials": "Steel 33%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/42": {
+   "data": {
+    "Title": "Fixture 1-42 Lamp",
+    "SKU": "FX-1-42",
+    "Price": 134.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 3.3,
+    "Description": "The long story of lamp 1-42, told in full once you ask for it.",
+    "Materials": "Steel 46%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/43": {
+   "data": {
+    "Title": "Fixture 1-43 Lamp",
+    "SKU": "FX-1-43",
+    "Price": 141.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 3.4,
+    "Description": "Lamp 1-43, short and sweet.",
+    "Materials": "Steel 59%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/44": {
+   "data": {
+    "Title": "Fixture 1-44 Lamp",
+    "SKU": "FX-1-44",
+    "Price": 148.99,
+    "Brand": "Brand 3",
+    "Stock": "In stock",
+    "Rating": 3.5,
+    "Description": "Lamp 1-44, short and sweet.",
+    "Materials": "Steel 72%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/45": {
+   "data": {
+    "Title": "Fixture 1-45 Lamp",
+    "SKU": "FX-1-45",
+    "Price": 155.99,
+    "Brand": "Brand 4",
+    "Stock": "In stock",
+    "Rating": 3.6,
+    "Description": "The long story of lamp 1-45, told in full once you ask for it.",
+    "Materials": "Steel 85%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/46": {
+   "data": {
+    "Title": "Fixture 1-46 Lamp",
+    "SKU": "FX-1-46",
+    "Price": 162.99,
+    "Brand": "Brand 5",
+    "Stock": "In stock",
+    "Rating": 3.7,
+    "Description": "Lamp 1-46, short and sweet.",
+    "Materials": "Steel 98%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/47": {
+   "data": {
+    "Title": "Fixture 1-47 Lamp",
+    "SKU": "FX-1-47",
+    "Price": 169.99,
+    "Brand": "Brand 6",
+    "Stock": "In stock",
+    "Rating": null,
+    "Description": "Lamp 1-47, short and sweet.",
+    "Materials": "Steel 11%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": null,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/48": {
+   "data": {
+    "Title": "Fixture 1-48 Lamp",
+    "SKU": "FX-1-48",
+    "Price": 176.99,
+    "Brand": "Brand 0",
+    "Stock": "In stock",
+    "Rating": 3.9,
+    "Description": "The long story of lamp 1-48, told in full once you ask for it.",
+    "Materials": "Steel 24%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/49": {
+   "data": {
+    "Title": "Fixture 1-49 Lamp",
+    "SKU": "FX-1-49",
+    "Price": 183.99,
+    "Brand": "Brand 1",
+    "Stock": "In stock",
+    "Rating": 4,
+    "Description": "Lamp 1-49, short and sweet.",
+    "Materials": "Steel 37%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  },
+  "1/50": {
+   "data": {
+    "Title": "Fixture 1-50 Lamp",
+    "SKU": "FX-1-50",
+    "Price": 190.99,
+    "Brand": "Brand 2",
+    "Stock": "In stock",
+    "Rating": 4.1,
+    "Description": "Lamp 1-50, short and sweet.",
+    "Materials": "Steel 50%, glass"
+   },
+   "shown": {
+    "Title": true,
+    "SKU": true,
+    "Price": true,
+    "Brand": true,
+    "Stock": true,
+    "Rating": true,
+    "Description": true,
+    "Materials": true
+   }
+  }
+ }
+}

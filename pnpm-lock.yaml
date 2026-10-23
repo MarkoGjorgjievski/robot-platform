@@ -327,9 +327,15 @@ importers:
       '@robot/db':
         specifier: workspace:*
         version: link:../db
+      '@robot/scraper':
+        specifier: workspace:*
+        version: link:../scraper
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(postgres@3.4.8)
+      postgres:
+        specifier: ^3.4.0
+        version: 3.4.8
     devDependencies:
       '@types/node':
         specifier: ^25.3.3

@@ -13,7 +13,9 @@
     "@robot/api": "workspace:*",
     "@robot/browser": "workspace:*",
     "@robot/db": "workspace:*",
-    "drizzle-orm": "^0.44.0"
+    "@robot/scraper": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "postgres": "^3.4.0"
   },
   "devDependencies": {
     "@types/node": "^25.3.3",
