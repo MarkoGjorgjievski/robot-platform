@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
+import { CaptureProblemError } from '@robot/scraper';
 import { db, jobs, sourceVerifications, runs } from '@robot/db';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
 import {
@@ -43,6 +44,16 @@ describe('enqueueJob', () => {
     expect((await get(plain.id)).runAfter.getTime()).toBe((await get(plain.id)).createdAt.getTime());
   });
 
+  it('two enqueues of one key at once make one job', async () => {
+    const [a, b] = await Promise.all([
+      db.transaction((tx) => enqueueJob(tx, { type: 't', payload: { n: 1 }, key: 'same' })),
+      db.transaction((tx) => enqueueJob(tx, { type: 't', payload: { n: 2 }, key: 'same' })),
+    ]);
+    expect(a!.id).toBe(b!.id);
+    expect([a!.created, b!.created].sort()).toEqual([false, true]);
+    expect(await db.query.jobs.findMany({ where: eq(jobs.queue, q()) })).toHaveLength(1);
+  });
+
   it('inside a transaction that rolls back, leaves no job', async () => {
     await expect(db.transaction(async (tx) => {
       await enqueueJob(tx, { type: 't', payload: {} });
@@ -62,6 +73,14 @@ describe('claimJob', () => {
     expect((await claim())!.id).toBe(urgent.id);
     expect((await claim())!.id).toBe(late.id);
     expect(await claim()).toBeNull();
+  });
+
+  it('claimers at once each get a different job', async () => {
+    for (let i = 0; i < 6; i++) await enqueueJob(db, { type: 't', payload: { i } });
+    const got = await Promise.all(Array.from({ length: 8 }, (_, i) => claimJob({ queue: q(), workerId: `w${i}`, types: ['t'], leaseMs: 60_000 })));
+    const ids = got.filter((j) => j !== null).map((j) => j!.id);
+    expect(ids).toHaveLength(6);
+    expect(new Set(ids).size).toBe(6);
   });
 
   it('never claims another queue', async () => {
@@ -188,6 +207,20 @@ describe('reapJobs', () => {
     expect(await get(late.id)).toMatchObject({ status: 'failed', error: 'expired' });
   });
 
+  it('a lapsed job is retried after the base delay doubled per attempt spent', async () => {
+    const { id } = await enqueueJob(db, { type: 't', payload: {}, maxAttempts: 3 });
+    const dueIn = async () => { const r = await get(id); return r.runAfter.getTime() - Date.now(); };
+    await claim(['t'], 1);
+    await new Promise((r) => setTimeout(r, 20));
+    await reapJobs(q(), { retryBaseMs: 60_000 });                 // attempt 1 spent: 60 s
+    expect(await dueIn()).toBeGreaterThan(55_000); expect(await dueIn()).toBeLessThan(61_000);
+    await db.update(jobs).set({ runAfter: new Date(Date.now() - 1000) }).where(eq(jobs.id, id));
+    await claim(['t'], 1);
+    await new Promise((r) => setTimeout(r, 20));
+    await reapJobs(q(), { retryBaseMs: 60_000 });                 // attempt 2 spent: 120 s
+    expect(await dueIn()).toBeGreaterThan(115_000); expect(await dueIn()).toBeLessThan(121_000);
+  });
+
   it('purge deletes finished jobs older than the window only', async () => {
     const old = await enqueueJob(db, { type: 't', payload: {} });
     const fresh = await enqueueJob(db, { type: 't', payload: {} });
@@ -225,6 +258,16 @@ describe('awaitJob', () => {
     await claim();
     await failJobTerminal(bad.id, { owner: O }, serializeError(new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Mark page 1 first' })), RUN_STOPPED);
     await expect(awaitJob(bad.id, 1000)).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'Mark page 1 first' });
+  });
+
+  it('a capture problem comes back as a CaptureProblemError with its customer sentence and verdict', async () => {
+    const { id } = await enqueueJob(db, { type: 't', payload: {} });
+    await claim();
+    const problem = new CaptureProblemError('The page asked to prove you are human. Try again later.', { kind: 'challenge', status: 403, vendor: 'cloudflare' });
+    await failJobTerminal(id, { owner: O }, serializeError(problem), RUN_STOPPED);
+    const err = await awaitJob(id, 1000).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CaptureProblemError);
+    expect(err).toMatchObject({ message: problem.message, verdict: problem.verdict });
   });
 
   it('a queued job past its window, or the ceiling, is unavailable', async () => {
