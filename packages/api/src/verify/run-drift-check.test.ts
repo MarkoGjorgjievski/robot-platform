@@ -21,6 +21,10 @@ import { startRefreshVerify as realStartRefreshVerify } from './refresh-values.j
 import type { CheckedPage } from './run-drift-check.js';
 import { startProofPageCapture, runProofPageCaptureInSlot, type ProofPageCaptureRecord } from './proof-page-capture.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { jobsOf } from '../test-helpers/jobs.js';
+import { jobRegistry } from '../jobs/handlers.js';
+import { runInJob } from '../jobs/context.js';
+import { enqueueJob } from '../jobs/queue.js';
 
 // The Jev test turns the switch on with this fake client: never a real TypeSafe request.
 const { jevAsk } = vi.hoisted(() => ({
@@ -44,7 +48,7 @@ vi.mock('../../../scraper/src/verify/ai-fallback.ts', async (importOriginal) => 
 });
 
 const scraper = await import('@robot/scraper');
-const { startDriftCheck, runDriftCheck, captureProofPagesWith, outcomeOfFailedCapture, storedCaptures, DRIFT_CHECK_STALL_MS } = await import('./run-drift-check.js');
+const { startDriftCheck, runDriftCheck, captureProofPagesWith, outcomeOfFailedCapture, storedCaptures, latestDriftCheck, DRIFT_CHECK_STALL_MS } = await import('./run-drift-check.js');
 
 // A throwaway signed-in identity: every customer procedure needs a session
 // and works in its org only, so nothing here touches the seeded `default` org.
@@ -523,6 +527,114 @@ describe('startDriftCheck (Review Focus 1)', () => {
       expect((await checkRow(old!.id))!.completedAt).not.toBeNull();
     } finally { await f.cleanup(); }
   });
+});
+
+describe('drift checks through the queue (spec 2026-10-23)', () => {
+  const jobOfCheck = async (checkId: string) => (await jobsOf('drift-check')).find((j) => j.key === `drift:${checkId}`);
+
+  it('a fired start enqueues the check with its stored refs; the row names the job', async () => {
+    const f = await certifiedWebsite('drift-q-fire');
+    try {
+      const refs = { [U[0]!]: { captureId: '', capturedAt: new Date().toISOString(), blockedReason: 'x' } };
+      const { checkId } = await startDriftCheck(f.sourceId, null, { trigger: 'verify', keys: [f.keyOf.price], storedRefs: refs });
+      const job = await jobOfCheck(checkId);
+      expect(job).toMatchObject({ key: `drift:${checkId}`, payload: { checkId, storedRefs: refs } });
+      expect((await checkRow(checkId))!.jobId).toBe(job!.id);
+    } finally { await f.cleanup(); }
+  });
+
+  it('the registered drift-check job runs a fired check on its stored refs, loading no page', async () => {
+    const f = await certifiedWebsite('drift-q-run');
+    try {
+      const refs = Object.fromEntries(U.map((u) => [u, { captureId: '', capturedAt: new Date().toISOString(), blockedReason: 'walled' }]));
+      const { checkId } = await startDriftCheck(f.sourceId, null, { trigger: 'verify', keys: [f.keyOf.price], storedRefs: refs });
+      const job = (await jobOfCheck(checkId))!;
+      // The handler the worker would call, on this job's payload (other tests' queued jobs are left alone).
+      const def = jobRegistry()['drift-check']!;
+      expect(def.subject!(job.payload)).toEqual({ table: 'drift_checks', id: checkId });
+      const ctx = { jobId: job.id, claim: 'test', type: 'drift-check', lane: 'background' as const, attempt: 1, retry: false, signal: new AbortController().signal, progress: () => {} };
+      await runInJob(ctx, () => def.run(job.payload, ctx) as Promise<void>);
+      const row = (await checkRow(checkId))!;
+      expect(row.status).toBe('done');
+      expect((row.results as DriftCheckResults).fields[f.keyOf.price]!.result).toBe('not-checked');
+      expect((row.results as DriftCheckResults).fields[f.keyOf.price]!.pages[U[0]!]).toEqual({ status: 'not-checked', reason: 'walled' });
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('a capture function cannot be fired', async () => {
+    const f = await certifiedWebsite('drift-q-inline');
+    try {
+      await expect(startDriftCheck(f.sourceId, null, { capture: async () => ({}) })).rejects.toThrow(/inline/);
+      expect(await db.query.driftChecks.findFirst({ where: eq(driftChecks.sourceId, f.sourceId) })).toBeUndefined();
+    } finally { await f.cleanup(); }
+  });
+
+  it('a running check older than the window whose job is live is in progress, not stalled', async () => {
+    const f = await certifiedWebsite('drift-q-live');
+    try {
+      const { id: jobId } = await enqueueJob(db, { type: 'drift-check', payload: {} });
+      const [row] = await db.insert(driftChecks).values({ sourceId: f.sourceId, status: 'running', jobId, createdAt: new Date(Date.now() - DRIFT_CHECK_STALL_MS - 60_000) }).returning();
+      expect(await startDriftCheck(f.sourceId, null, { fire: false })).toEqual({ checkId: row!.id, status: 'in-progress' });
+      expect((await latestDriftCheck(f.sourceId))!.status).toBe('running');
+    } finally { await f.cleanup(); }
+  });
+
+  it('a check that is no longer running is not run again', async () => {
+    const f = await certifiedWebsite('drift-q-closed');
+    try {
+      const [row] = await db.insert(driftChecks).values({ sourceId: f.sourceId, status: 'failed', error: 'stalled' }).returning();
+      const capture = vi.fn();
+      await runDriftCheck(row!.id, { capture });
+      expect(capture).not.toHaveBeenCalled();
+      expect(await checkRow(row!.id)).toMatchObject({ status: 'failed', error: 'stalled' });
+    } finally { await f.cleanup(); }
+  });
+
+  /** p2's price moved to 229.99 everywhere on the page (the refresh test's pages). */
+  async function refreshSetup(tag: string) {
+    const f = await certifiedWebsite(tag);
+    const p2 = PAGES[U[1]!]!;
+    const moved = JSON.parse(JSON.stringify({ ...p2, screenshot: undefined, screenshotTiles: undefined }).replaceAll('219.99', '229.99').replaceAll('21999', '22999')) as PageCapture;
+    const pages: Record<string, PageCapture> = { [U[0]!]: clone(PAGES[U[0]!]!), [U[1]!]: { ...moved, screenshot: p2.screenshot, screenshotTiles: p2.screenshotTiles }, [U[2]!]: clone(PAGES[U[2]!]!) };
+    const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(pages[u]!)] as const)));
+    const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+    return { f, capture };
+  }
+
+  it('a retried check re-verifies the refreshes an earlier attempt applied but never linked', async () => {
+    const { f, capture } = await refreshSetup('drift-q-retry');
+    try {
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price] });
+      // The earlier attempt: the refresh committed, then the process died before its re-verify was linked.
+      await runDriftCheck(checkId, { capture, startRefreshVerify: async () => { throw new Error('crash'); } });
+      expect(await db.query.valueRefreshes.findFirst({ where: eq(valueRefreshes.driftCheckId, checkId) })).toMatchObject({ fieldKey: f.keyOf.price, verificationId: null });
+      await db.update(driftChecks).set({ status: 'running', error: null, completedAt: null }).where(eq(driftChecks.id, checkId));
+
+      const spy = vi.fn(async () => null);
+      await runDriftCheck(checkId, { capture, startRefreshVerify: spy });
+      expect(spy).toHaveBeenCalledWith(f.sourceId, [f.keyOf.price], expect.any(Object), { checkId });
+      expect((await checkRow(checkId))!.status).toBe('done');
+      // Nothing new was planned: the stored price already reads what the page shows.
+      expect((await db.select({ n: count() }).from(valueRefreshes).where(eq(valueRefreshes.driftCheckId, checkId)))[0]!.n).toBe(1);
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('a retried check that had finished before its re-verify was linked starts that re-verify, reading nothing again', async () => {
+    const { f, capture } = await refreshSetup('drift-q-retry-done');
+    try {
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price] });
+      await runDriftCheck(checkId, { capture, startRefreshVerify: async () => { throw new Error('crash'); } });
+      const done = (await checkRow(checkId))!;
+      expect(done.status).toBe('done');
+
+      const again = vi.fn(capture);
+      const spy = vi.fn(async () => null);
+      await runDriftCheck(checkId, { capture: again, startRefreshVerify: spy });
+      expect(again).not.toHaveBeenCalled();
+      expect(spy).toHaveBeenCalledWith(f.sourceId, [f.keyOf.price], (done.results as DriftCheckResults).captures, { checkId });
+      expect(await checkRow(checkId)).toMatchObject({ status: 'done', completedAt: done.completedAt });
+    } finally { await f.cleanup(); }
+  }, 120_000);
 });
 
 describe('the default capture function', () => {

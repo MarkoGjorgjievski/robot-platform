@@ -91,8 +91,9 @@ export type StartVerifyCheck = (sourceId: string, keys: string[], refs: Record<s
  */
 const startVerifyCheck: StartVerifyCheck = async (sourceId, keys, refs) => {
   // Imported when needed: the refresh (spec §3.2) makes run-drift-check reach this module, so a static import would be a cycle.
-  const { startDriftCheck, storedCaptures } = await import('./run-drift-check.js');
-  return startDriftCheck(sourceId, null, { trigger: 'verify', keys, capture: storedCaptures(refs) });
+  const { startDriftCheck } = await import('./run-drift-check.js');
+  // Enqueued with the stored refs (spec 2026-10-23 §4.4): the worker's job reads the same files.
+  return startDriftCheck(sourceId, null, { trigger: 'verify', keys, storedRefs: refs });
 };
 
 export async function runSourceVerification(

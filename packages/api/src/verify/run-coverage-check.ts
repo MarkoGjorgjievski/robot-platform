@@ -5,7 +5,9 @@
 // Page loads and code only: no model, ever. Writes only its own
 // `coverage_checks` row — no captures, no verification set, no path stats,
 // no domain cache (spec A4). Follows run-drift-check.ts: fire-and-forget,
-// never rejects, always leaves its row terminal.
+// never rejects, always leaves its row terminal. It runs as the `coverage-check`
+// job (spec 2026-10-23 §4.4), or inline inside a `website-check` job.
+import { randomUUID } from 'node:crypto';
 import { and, desc, eq } from 'drizzle-orm';
 import { db, coverageChecks, sources } from '@robot/db';
 import { CaptureError, verdictSentence } from '@robot/browser';
@@ -18,6 +20,10 @@ import { safeErrorMessage } from '../crawl/plan-source.js';
 import { loadCurrentCertification } from './current-certification.js';
 import { loadProofPageCaptures } from './proof-page-capture.js';
 import { sampleListing } from './coverage-sampler.js';
+import { lockSource } from './in-flight.js';
+import { enqueue } from '../jobs/enqueue.js';
+import { currentJobId } from '../jobs/context.js';
+import { isJobLive } from '../jobs/queue.js';
 import { summariseCoverage, stageLine, COVERAGE_STALLED, type CoverageResults, type SampledPage, type FieldCoverage } from './coverage-summary.js';
 
 /** A check is twenty page loads, three at a time at most — well inside ten minutes; an older `running` row is a crash leftover (the drift check's rule). */
@@ -110,24 +116,31 @@ export async function startCoverageCheck(
   verificationId: string | null,
   opts: { fire?: boolean } & CoverageDeps = {},
 ): Promise<{ checkId: string; status: 'started' | 'in-progress' }> {
-  const running = await db.query.coverageChecks.findFirst({
-    where: and(eq(coverageChecks.sourceId, sourceId), eq(coverageChecks.status, 'running')),
-    orderBy: [desc(coverageChecks.createdAt)],
-    columns: { id: true, createdAt: true, verificationId: true },
-  });
-  if (running) {
-    const stalled = Date.now() - running.createdAt.getTime() >= COVERAGE_CHECK_STALL_MS;
-    const superseded = verificationId !== null && running.verificationId !== verificationId;
-    if (!stalled && !superseded) return { checkId: running.id, status: 'in-progress' };
-    await db.update(coverageChecks)
-      .set({ status: 'failed', error: stalled ? 'stalled' : 'superseded', completedAt: new Date() })
-      .where(and(eq(coverageChecks.id, running.id), eq(coverageChecks.status, 'running')));
-  }
-  const [row] = await db.insert(coverageChecks).values({ sourceId, verificationId, status: 'running' }).returning({ id: coverageChecks.id });
-  const checkId = row!.id;
   const { fire, ...deps } = opts;
-  if (fire ?? true) void runCoverageCheck(checkId, deps);
-  return { checkId, status: 'started' };
+  // Fired (the default), the `coverage-check` job is enqueued with the row and the worker runs it (spec 2026-10-23
+  // §4.4): injected deps cannot cross to the worker. `fire: false`: the caller runs it; the row is its job's.
+  if ((fire ?? true) && Object.values(deps).some((d) => d !== undefined)) throw new Error('Coverage deps run inline only (fire: false).');
+  // Under the website row lock (Verify's start, in-flight.ts): two starts never both find none running.
+  return db.transaction(async (tx) => {
+    await lockSource(tx, sourceId);
+    const [running] = await tx.select({ id: coverageChecks.id, createdAt: coverageChecks.createdAt, verificationId: coverageChecks.verificationId, jobId: coverageChecks.jobId })
+      .from(coverageChecks)
+      .where(and(eq(coverageChecks.sourceId, sourceId), eq(coverageChecks.status, 'running')))
+      .orderBy(desc(coverageChecks.createdAt)).limit(1);
+    if (running) {
+      // A check whose job is queued or working is never stalled, however long it waited (spec 2026-10-23 §4.5).
+      const stalled = Date.now() - running.createdAt.getTime() >= COVERAGE_CHECK_STALL_MS && !(await isJobLive(tx, running.jobId));
+      const superseded = verificationId !== null && running.verificationId !== verificationId;
+      if (!stalled && !superseded) return { checkId: running.id, status: 'in-progress' as const };
+      await tx.update(coverageChecks)
+        .set({ status: 'failed', error: stalled ? 'stalled' : 'superseded', completedAt: new Date() })
+        .where(and(eq(coverageChecks.id, running.id), eq(coverageChecks.status, 'running')));
+    }
+    const checkId = randomUUID();
+    const jobId = (fire ?? true) ? await enqueue(tx, 'coverage-check', { checkId }, { key: `coverage:${checkId}` }) : currentJobId();
+    await tx.insert(coverageChecks).values({ id: checkId, sourceId, verificationId, status: 'running', jobId });
+    return { checkId, status: 'started' as const };
+  });
 }
 
 const isEmpty = (v: unknown) => v === null || v === undefined || v === '';
@@ -139,7 +152,8 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
   const proofShapes = deps.proofShapes ?? defaultProofShapes;
   try {
     const check = await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.id, checkId) });
-    if (!check) return;
+    // A check closed meanwhile (stalled, superseded, or a retry of one that finished) is not run again.
+    if (!check || check.status !== 'running') return;
     const source = await db.query.sources.findFirst({ where: eq(sources.id, check.sourceId), columns: { schemaDefinition: true, verificationSet: true } });
     if (!source) throw new Error(`Website ${check.sourceId} not found`);
     const set = (source.verificationSet ?? { urls: [], expected: {} }) as VerificationSet;
@@ -235,7 +249,7 @@ export type LatestCoverageCheck = {
 export async function latestCoverageCheck(sourceId: string): Promise<LatestCoverageCheck | null> {
   let row = await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.sourceId, sourceId), orderBy: [desc(coverageChecks.createdAt)] });
   if (!row) return null;
-  if (row.status === 'running' && Date.now() - row.createdAt.getTime() >= COVERAGE_CHECK_STALL_MS) {
+  if (row.status === 'running' && Date.now() - row.createdAt.getTime() >= COVERAGE_CHECK_STALL_MS && !(await isJobLive(db, row.jobId))) {
     const [closed] = await db.update(coverageChecks)
       .set({ status: 'failed', error: 'stalled', completedAt: new Date() })
       .where(and(eq(coverageChecks.id, row.id), eq(coverageChecks.status, 'running')))

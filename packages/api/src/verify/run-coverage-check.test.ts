@@ -9,6 +9,8 @@ import { db, captures, coverageChecks, domainIntelligence, sources, sourceVerifi
 import { _resetBackoffForTests, fieldHash, reportVerdict, type CertifiedPath, type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { jobsOf } from '../test-helpers/jobs.js';
+import { enqueueJob } from '../jobs/queue.js';
 import { COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_PROOF_PAGES, ALL_ANSWERED, type CoverageResults } from './coverage-summary.js';
 
 // No agent, ever: constructing one fails the file.
@@ -489,5 +491,48 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
       const results = row.results as CoverageResults;
       expect(results.sampled.map((p) => ('empty' in p ? p.empty : p.unread))).toEqual([[w.keyOf.title], [w.keyOf.title], [w.keyOf.title]]);
     } finally { await w.cleanup(); }
+  });
+});
+
+describe('coverage checks through the queue (spec 2026-10-23)', () => {
+  it('a fired start enqueues the check; the row names the job', async () => {
+    const f = await certifiedWebsite('cov-q-fire');
+    try {
+      const { checkId, status } = await startCoverageCheck(f.sourceId, null);
+      expect(status).toBe('started');
+      const job = (await jobsOf('coverage-check')).find((j) => j.key === `coverage:${checkId}`);
+      expect(job).toMatchObject({ key: `coverage:${checkId}`, payload: { checkId } });
+      expect((await checkRow(checkId)).jobId).toBe(job!.id);
+    } finally { await f.cleanup(); }
+  });
+
+  it('deps cannot be fired', async () => {
+    const f = await certifiedWebsite('cov-q-inline');
+    try {
+      await expect(startCoverageCheck(f.sourceId, null, { listing: listing(3) })).rejects.toThrow(/inline/);
+      expect(await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.sourceId, f.sourceId) })).toBeUndefined();
+    } finally { await f.cleanup(); }
+  });
+
+  it('a running check older than the window whose job is live is in progress, not stalled', async () => {
+    const f = await certifiedWebsite('cov-q-live');
+    try {
+      const { id: jobId } = await enqueueJob(db, { type: 'coverage-check', payload: {} });
+      const [row] = await db.insert(coverageChecks).values({ sourceId: f.sourceId, status: 'running', jobId, createdAt: new Date(Date.now() - COVERAGE_CHECK_STALL_MS - 60_000) }).returning();
+      expect(await startCoverageCheck(f.sourceId, null, { fire: false })).toEqual({ checkId: row!.id, status: 'in-progress' });
+      expect((await latestCoverageCheck(f.sourceId))!.status).toBe('running');
+      expect((await checkRow(row!.id)).status).toBe('running');
+    } finally { await f.cleanup(); }
+  });
+
+  it('a check that is no longer running is not run again', async () => {
+    const f = await certifiedWebsite('cov-q-closed');
+    try {
+      const [row] = await db.insert(coverageChecks).values({ sourceId: f.sourceId, status: 'failed', error: 'stalled' }).returning();
+      const list = listing(3);
+      await runCoverageCheck(row!.id, { listing: list, extract: extractWith(f.keyOf, () => false), proofShapes });
+      expect(list).not.toHaveBeenCalled();
+      expect(await checkRow(row!.id)).toMatchObject({ status: 'failed', error: 'stalled' });
+    } finally { await f.cleanup(); }
   });
 });
