@@ -65,7 +65,7 @@ only). On a low-memory machine build one target at a time (`docker compose build
 - **Restore:** `restore.sh <dump> <new-db>` restores into a new database (refuses an existing name);
   `restore.sh --replace <dump>` restores into a new database first, then swaps names, keeping the old database as
   `robot_platform_before_<stamp>` — stop `api` and `worker` first.
-- **Restore test:** `restore-test.sh [dump]` takes a fresh dump (or the given one), restores it into
+- **Restore test:** `restore-test.sh` takes a fresh dump; `restore-test.sh <dump>` instead checks the given dump against the *current* database (it passes only if nothing changed since that dump). Either way it restores the dump into
   `restore_test_<stamp>`, and compares every table in `public` and `drizzle` — row count and an md5 of the
   ordered rows — with the source (read before and after the dump, so a write during the dump is named, not
   hidden). Exits 0 only when every table matches; the test database is always dropped. (The content hash reads

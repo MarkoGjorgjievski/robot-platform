@@ -1,8 +1,12 @@
 #!/bin/sh
-# The restore test: dumps $PGDATABASE (or takes the dump given), restores it into a fresh database, and
-# compares every table's row count and content hash with the source. Exits 0 only when all match; the
-# test database is always dropped. Run it in the backup service:
-#   docker compose exec backup sh /scripts/restore-test.sh [dump]
+# The restore test. Run it in the backup service:
+#   docker compose exec backup sh /scripts/restore-test.sh          takes a fresh dump of $PGDATABASE, restores it
+#                                                                into a fresh database and compares every table's
+#                                                                row count and content hash with the source.
+#   docker compose exec backup sh /scripts/restore-test.sh <dump>   checks that dump against the CURRENT database:
+#                                                                it passes only if nothing changed since the dump
+#                                                                (a mismatch names the tables that did).
+# Exits 0 only when every table matches; the test database is always dropped.
 set -eu
 db=${PGDATABASE:?PGDATABASE is not set}
 dir=${BACKUP_DIR:-/backups}
