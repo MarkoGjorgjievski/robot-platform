@@ -6,6 +6,10 @@ set -eu
 dir=${BACKUP_DIR:-/backups}
 keep=${BACKUP_KEEP:-14}
 db=${PGDATABASE:?PGDATABASE is not set}
+# A keep of 0, empty or not a number would prune every dump, the new one included.
+case $keep in
+  ""|*[!0-9]*|0) echo "[backup] BACKUP_KEEP must be a whole number of at least 1 (got '$keep')" >&2; exit 2 ;;
+esac
 mkdir -p "$dir"
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 out="$dir/$db-$stamp.dump"
