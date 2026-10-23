@@ -122,3 +122,44 @@ describe('createBrowserGate — stopped or failing jobs give their place back', 
     expect(Date.now() - t0).toBeLessThan(500);
   });
 });
+
+describe('createBrowserGate — a browser kept for background work too (spec 2026-10-23 run speed §3.8)', () => {
+  it('runs hold at most max − 2: a background job still gets a browser, and so does an interactive one', async () => {
+    const gate = createBrowserGate({ max: 6 });
+    const runs = await Promise.all(['r1', 'r2', 'r3', 'r4'].map((id) => runInJob(ctx(id, 'runs'), () => gate.acquire())));
+    let fifth = false;
+    const fifthRun = runInJob(ctx('r5', 'runs'), async () => { const rel = await gate.acquire(); fifth = true; return rel; });
+    await tick();
+    expect(fifth).toBe(false);
+    const bg = await runInJob(ctx('v', 'background'), () => gate.acquire());
+    const inter = await runInJob(ctx('i', 'interactive'), () => gate.acquire());
+    runs[0]!();
+    const rel5 = await fifthRun;
+    expect(fifth).toBe(true);
+    for (const r of [...runs.slice(1), bg, inter, rel5]) r();
+  });
+
+  it('with three browsers, one run at a time', async () => {
+    const gate = createBrowserGate({ max: 3 });
+    const first = await runInJob(ctx('r1', 'runs'), () => gate.acquire());
+    let second = false;
+    const p = runInJob(ctx('r2', 'runs'), async () => { const rel = await gate.acquire(); second = true; return rel; });
+    await tick();
+    expect(second).toBe(false);
+    first();
+    (await p)();
+    expect(second).toBe(true);
+  });
+
+  it('with two browsers the rule is today\'s: one long job, one kept for interactive', async () => {
+    const gate = createBrowserGate({ max: 2 });
+    const run = await runInJob(ctx('r1', 'runs'), () => gate.acquire());
+    let bg = false;
+    const p = runInJob(ctx('v', 'background'), async () => { const rel = await gate.acquire(); bg = true; return rel; });
+    await tick();
+    expect(bg).toBe(false);
+    run();
+    (await p)();
+    expect(bg).toBe(true);
+  });
+});

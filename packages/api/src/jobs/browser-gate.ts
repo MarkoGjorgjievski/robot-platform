@@ -5,8 +5,9 @@
 //
 // Interactive work never waits behind long jobs (final review I2): background and runs together hold at
 // most `max - 1` browsers, so one is always free for a customer's capture or check (with `max` 1 there is
-// nothing to keep back). A job waiting here — for a browser or for memory — is making progress: the wait
-// never counts toward its stuck limit.
+// nothing to keep back). Runs hold at most `max − 2` when `max ≥ 3`, so a background job (a customer's
+// Verify) is never queued behind hours of runs (spec 2026-10-23 run speed §3.8). A job waiting here — for
+// a browser or for memory — is making progress: the wait never counts toward its stuck limit.
 import os from 'node:os';
 import type { IBrowser } from '@robot/browser';
 import type { BrowserGate } from '../browser-session.js';
@@ -20,8 +21,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function createBrowserGate(opts: { max: number; minFreeMb?: number; freeMb?: () => number; memoryWaitMs?: number; pollMs?: number }): WorkerBrowserGate {
   /** Browsers background and runs may hold together: all but one, kept for interactive work. */
   const longMax = opts.max > 1 ? opts.max - 1 : opts.max;
+  /** Browsers runs may hold: with three or more, one more is kept back for background work (a customer's Verify) — spec 2026-10-23 run speed §3.8. */
+  const runsMax = opts.max >= 3 ? opts.max - 2 : longMax;
   let inUse = 0;
   let longInUse = 0;
+  let runsInUse = 0;
   let seq = 0;
   const waiters: Array<{ rank: number; seq: number; wake: () => void }> = [];
   const open = new Map<IBrowser, string | null>();
@@ -34,9 +38,11 @@ export function createBrowserGate(opts: { max: number; minFreeMb?: number; freeM
       const next = waiters[0]!;
       const long = next.rank > 0;
       if (long && longInUse >= longMax) break;
+      if (next.rank === RANK.runs && runsInUse >= runsMax) break;
       waiters.shift();
       inUse++;
       if (long) longInUse++;
+      if (next.rank === RANK.runs) runsInUse++;
       next.wake();
     }
   };
@@ -45,8 +51,9 @@ export function createBrowserGate(opts: { max: number; minFreeMb?: number; freeM
       const job = currentJob();
       const rank = RANK[job?.lane ?? 'background'];
       const long = rank > 0;
+      const isRun = rank === RANK.runs;
       let released = false;
-      const release = () => { if (released) return; released = true; inUse--; if (long) longInUse--; pump(); };
+      const release = () => { if (released) return; released = true; inUse--; if (long) longInUse--; if (isRun) runsInUse--; pump(); };
       // Waiting in the queue is progress: the job's stuck clock does not run while the gate holds it back.
       const ticking = job ? setInterval(() => job.progress(), pollMs) : undefined;
       try {
