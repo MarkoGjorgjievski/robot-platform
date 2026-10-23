@@ -97,6 +97,25 @@ describe('buildReadyCheck', () => {
     const both = snapshot({ structuredData: ldOnly.structuredData, interceptedRequests: [apiRequest({ item: { priceCents: 12999 } })] });
     expect(buildReadyCheck([PRICE2], PAGE_URL, undefined, { preferFirstPathMs: 1500, now: () => 0 }).isReady(both)).toBe(true);
   });
+
+  it('with preferFirstPathMs, the wait starts again when the basic check stops passing', () => {
+    let t = 0;
+    const PRICE2: VerifiedField = { key: 'price', type: 'money', concept: 'price', paths: [
+      { source: 'api', path: 'item.priceCents', transform: 'cents_to_units' },
+      { source: 'json-ld', path: 'offers.price', transform: 'identity' },
+    ] };
+    const check = buildReadyCheck([PRICE2], PAGE_URL, undefined, { preferFirstPathMs: 1500, now: () => t });
+    const ldOnly = snapshot({ structuredData: { ...EMPTY_STRUCTURED, ldJson: [{ offers: { price: '129.99' } }] } });
+    expect(check.isReady(ldOnly)).toBe(false);
+    t = 1000;
+    expect(check.isReady(snapshot())).toBe(false);   // the value went away (a re-render)
+    t = 1400;
+    expect(check.isReady(ldOnly)).toBe(false);
+    t = 1600;
+    expect(check.isReady(ldOnly)).toBe(false);       // 200 ms since it passed again, not 1600
+    t = 2900;
+    expect(check.isReady(ldOnly)).toBe(true);
+  });
 });
 
 function fakeBrowser(capture: PageCapture, log: string[]): IBrowser & { captureOptions: unknown[] } {

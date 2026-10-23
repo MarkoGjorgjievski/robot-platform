@@ -1,7 +1,7 @@
 // runVerifiedExtraction with a run's lean state (spec 2026-10-23 run speed §3.3): a lean capture first, today's
 // full capture when the rules say so, and everything written from the capture that was used. No Chromium: a fake
 // browser answers each capture from a script and records what it was asked.
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { CaptureOptions, IBrowser, PageCapture, CaptureVerdict } from '@robot/browser';
 import { runVerifiedExtraction, type VerifiedField } from './verified-extraction.js';
 import { newLeanRunState } from './lean-run.js';
@@ -16,10 +16,11 @@ const DESCRIPTION: VerifiedField = { key: 'description', type: 'text', concept: 
 const RATING_F: VerifiedField = { key: 'rating', type: 'number', concept: 'rating', paths: [{ source: 'xpath', path: RATING, transform: 'identity' }] };
 const FIELDS = [NAME, DESCRIPTION, RATING_F];
 
-type Page = { probe: Record<string, string | null>; text: string; verdict?: CaptureVerdict };
+/** `probe` undefined: the live final probe threw. */
+type Page = { probe: Record<string, string | null> | undefined; text: string; heading?: string; verdict?: CaptureVerdict };
 function capture(p: Page, mode: 'lean' | 'full'): PageCapture {
   return {
-    url: URL_, html: `<html><body><h1>Lamp</h1><p>${p.text}</p></body></html>`, markdown: '', screenshot: Buffer.alloc(0), screenshotTiles: [],
+    url: URL_, html: `<html><body><h1>${p.heading ?? 'Lamp'}</h1><p>${p.text}</p></body></html>`, markdown: '', screenshot: Buffer.alloc(0), screenshotTiles: [],
     title: 'Lamp', timestamp: 0, structuredData: { ldJson: [{ name: 'Lamp' }], nextData: null, initialState: null, meta: {} },
     interceptedRequests: [], verdict: p.verdict ?? { kind: 'ok', status: 200 }, mode,
     timings: { navigateMs: 1, readyMs: 0, readyState: 'ready', totalMs: mode === 'lean' ? 2000 : 6000 },
@@ -38,7 +39,8 @@ function fakeBrowser(lean: Page, full: Page) {
 const noLock = async () => () => {};
 const agreed: Page = { probe: { [DESC]: 'Long text', [RATING]: '4.1' }, text: 'Lamp Long text 4.1' };
 
-beforeEach(() => _resetBackoffForTests());
+beforeEach(() => { _resetBackoffForTests(); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+afterEach(() => { vi.restoreAllMocks(); });
 
 describe('runVerifiedExtraction — lean', () => {
   it('past its checks, a complete lean read is written alone: one capture, no second render', async () => {
@@ -100,6 +102,49 @@ describe('runVerifiedExtraction — lean', () => {
     const r = await runVerifiedExtraction({ url: URL_, fields: FIELDS }, { browser, acquireLock: noLock, lean: newLeanRunState({ checks: 0 }) });
     expect(asked).toHaveLength(2);
     expect(r.lean).toEqual({ mode: 'lean+full', reason: 'verdict', fields: [], leanMs: 2000 });
+  });
+
+  it('a lean probe that threw takes the full capture, even for a field whose lean miss is trusted', async () => {
+    const { browser, asked } = fakeBrowser({ probe: undefined, text: 'Lamp' }, agreed);
+    const state = newLeanRunState({ checks: 0 });
+    state.confirmed.set('rating', 3);
+    const r = await runVerifiedExtraction({ url: URL_, fields: FIELDS }, { browser, acquireLock: noLock, lean: state });
+    expect(asked).toHaveLength(2);
+    expect(r.data).toEqual({ name: 'Lamp', description: 'Long text', rating: 4.1 });
+    expect(r.lean).toEqual({ mode: 'lean+full', reason: 'miss', fields: ['description', 'rating'], leanMs: 2000 });
+    // A failed probe read nothing: it is not evidence about any field.
+    expect(state.confirmed.get('rating')).toBe(3);
+    expect(state.mode).toBe('lean');
+  });
+
+  it('a lean value the page does not show takes the full capture (unshown)', async () => {
+    // The JSON-LD name is not on the lean page's text (XPath values always count as shown).
+    const lean: Page = { probe: agreed.probe, text: 'Long text 4.1', heading: 'Offer' };
+    const { browser, asked } = fakeBrowser(lean, agreed);
+    const r = await runVerifiedExtraction({ url: URL_, fields: FIELDS }, { browser, acquireLock: noLock, lean: newLeanRunState({ checks: 0 }) });
+    expect(asked).toHaveLength(2);
+    expect(r.shown.name).toBe(true);
+    expect(r.lean).toEqual({ mode: 'lean+full', reason: 'unshown', fields: ['name'], leanMs: 2000 });
+  });
+
+  it('a field with a default whose lean read misses takes the full capture, never the default', async () => {
+    const lean: Page = { probe: { [DESC]: 'Long text', [RATING]: null }, text: 'Lamp Long text' };
+    const { browser, asked } = fakeBrowser(lean, agreed);
+    const fields = [NAME, DESCRIPTION, { ...RATING_F, defaultValue: '0' }];
+    const r = await runVerifiedExtraction({ url: URL_, fields }, { browser, acquireLock: noLock, lean: newLeanRunState({ checks: 0 }) });
+    expect(asked).toHaveLength(2);
+    expect(r.data.rating).toBe(4.1);
+    expect(r.defaulted).toEqual([]);
+    expect(r.lean).toEqual({ mode: 'lean+full', reason: 'miss', fields: ['rating'], leanMs: 2000 });
+  });
+
+  it('a miss item that also disagreed names both in its fields', async () => {
+    const lean: Page = { probe: { [DESC]: 'Long te…', [RATING]: null }, text: 'Lamp Long te…' };
+    const { browser } = fakeBrowser(lean, agreed);
+    const state = newLeanRunState({ checks: 0 });
+    const r = await runVerifiedExtraction({ url: URL_, fields: FIELDS }, { browser, acquireLock: noLock, lean: state });
+    expect(r.lean).toEqual({ mode: 'lean+full', reason: 'miss', fields: ['rating', 'description'], leanMs: 2000 });
+    expect(state.mode).toBe('full');
   });
 
   it('RUN_CAPTURE=full: today\'s capture without pictures, nothing lean', async () => {

@@ -126,7 +126,7 @@ export function buildReadyCheck(
     script: buildXPathProbeScript(certifiedXPaths(fields)),
     isReady: (s: ReadySnapshot) => {
       const probe = (s.probe ?? {}) as XPathProbeResult;
-      if (!certified.every((f) => pathsFor(f, pageVariant).some((p) => evaluatePath(f, p, s, probe, ctx) !== null))) return false;
+      if (!certified.every((f) => pathsFor(f, pageVariant).some((p) => evaluatePath(f, p, s, probe, ctx) !== null))) { basicSince = null; return false; }
       if (!opts.preferFirstPathMs) return true;
       const firstPaths = withPaths.every((f) => {
         const first = pathsFor(f, pageVariant)[0];
@@ -217,7 +217,12 @@ export async function runVerifiedExtraction(
   let reason: LeanReason = 'verdict';
   let fields: string[] = [];
   let leanReadings: FieldReading[] | null = null;
-  if (kind === 'ok') {
+  if (kind === 'ok' && xpaths.length > 0 && leanCapture.probe === undefined) {
+    // The live probe threw (spec §3.1): the XPath fields are unknown on this page, not absent. Today's capture
+    // reads them, and nothing is learned from a read that never happened.
+    reason = 'miss';
+    fields = req.fields.filter((f) => f.paths.some((p) => p.source === 'xpath')).map((f) => f.key);
+  } else if (kind === 'ok') {
     const ev = evaluateCapture(req.fields, leanCapture, (leanCapture.probe ?? {}) as XPathProbeResult);
     leanReadings = readingsOf(req.fields, ev);
     const fallback = fallbackFor(state, leanReadings);
@@ -231,7 +236,8 @@ export async function runVerifiedExtraction(
   const { capture, ev } = await takeFull();
   if (leanReadings) {
     const learned = learn(state, leanReadings, readingsOf(req.fields, ev), { check: reason === 'check', url: req.url });
-    if (reason === 'check') fields = learned.disagreed;
+    // Spec §3.5: `fields` names what triggered the fallback and what disagreed (a check item has only the latter).
+    fields = [...new Set([...fields, ...learned.disagreed])];
   }
   return finish(req.fields, ev, capture, capture.timings ?? null, recordOutcome(state, { mode: 'lean+full', reason, fields, leanMs }));
 }
