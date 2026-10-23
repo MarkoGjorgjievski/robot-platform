@@ -1,0 +1,135 @@
+# The whole stack in Docker Compose (spec docs/superpowers/specs/2026-10-23-docker-compose-design.md).
+#   docker compose up -d --build        → app http://localhost:3200, api http://localhost:4200, Postgres 127.0.0.1:5442
+#   docker compose down                 → stop it (add -v to drop its database, captures and nothing else)
+# Its own project name, volumes and ports: it never touches the dev Postgres (robot-platform-db on 5432) or
+# `pnpm dev:all` (:3000/:4000). Keyless unless ./stack.env supplies keys; the dev .env is never read.
+name: robot-stack
+
+x-stack-env: &stack-env
+  env_file:
+    - path: ./stack.env
+      required: false
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: robot_platform
+    ports:
+      - "127.0.0.1:${STACK_DB_PORT:-5442}:5432"
+      - "[::1]:${STACK_DB_PORT:-5442}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d robot_platform"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  # One shot: applies @robot/db's migrations (drizzle-kit migrate), then exits; api and worker wait for it.
+  migrate:
+    build: { context: ., target: api }
+    image: robot-stack/api
+    command: ["pnpm", "--filter", "@robot/db", "exec", "drizzle-kit", "migrate"]
+    working_dir: /repo
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/robot_platform
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    <<: *stack-env
+    build: { context: ., target: api }
+    image: robot-stack/api
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/robot_platform
+      PORT: "4000"
+      APP_ORIGINS: http://localhost:${STACK_APP_PORT:-3200}
+      CAPTURES_DIR: /repo/packages/api-server/public/captures
+    ports:
+      - "127.0.0.1:${STACK_API_PORT:-4200}:4000"
+      - "[::1]:${STACK_API_PORT:-4200}:4000"
+    volumes:
+      - captures:/repo/packages/api-server/public/captures
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    <<: *stack-env
+    build: { context: ., target: worker }
+    image: robot-stack/worker
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/robot_platform
+      CAPTURES_DIR: /repo/packages/api-server/public/captures
+      WORKER_BROWSERS: ${STACK_WORKER_BROWSERS:-2}
+      WORKER_MIN_FREE_MB: ${STACK_WORKER_MIN_FREE_MB:-512}
+      WORKER_NAME: stack-worker
+    volumes:
+      - captures:/repo/packages/api-server/public/captures
+    # Chromium needs more than Docker's 64 MB /dev/shm.
+    shm_size: 1gb
+    init: true
+    stop_grace_period: 30s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      target: app
+      args:
+        # Baked into the browser bundle: the api-server as the browser sees it (the host port).
+        VITE_API_URL: http://localhost:${STACK_API_PORT:-4200}
+    image: robot-stack/app
+    environment:
+      # The app's own server (SSR's session lookup) reaches the api-server on the stack's network.
+      API_INTERNAL_URL: http://api:4000
+    ports:
+      - "127.0.0.1:${STACK_APP_PORT:-3200}:3000"
+      - "[::1]:${STACK_APP_PORT:-3200}:3000"
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+
+  # Nightly pg_dump into ./backups (BACKUP_AT, UTC; keeps BACKUP_KEEP dumps); also runs backup.sh,
+  # restore.sh and restore-test.sh on demand (`docker compose exec backup …`).
+  backup:
+    image: postgres:16
+    entrypoint: ["sh", "/scripts/backup-loop.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: robot_platform
+      BACKUP_DIR: /backups
+      BACKUP_AT: ${STACK_BACKUP_AT:-03:00}
+      BACKUP_KEEP: ${STACK_BACKUP_KEEP:-14}
+    volumes:
+      - ./backups:/backups
+      - ./docker/backup:/scripts:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  # Test profile only: a static product page inside the stack, so a check needs no outside website.
+  fixture:
+    profiles: ["test"]
+    image: busybox:1.36
+    command: ["httpd", "-f", "-v", "-p", "8080", "-h", "/www"]
+    volumes:
+      - ./docker/fixture:/www:ro
+
+volumes:
+  pgdata:
+  captures:
