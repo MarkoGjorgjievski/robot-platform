@@ -6,6 +6,7 @@ import { classifyVerdict, classifyNavigationError } from './verdict.js';
 import { pageVariantFrom, selectedInPageData, wrongVariant, type Selection } from './page-variant.js';
 import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
+import { assertBrowserLaunchAllowed } from './launch-guard.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
 import { rankInterceptedRequests } from './rank-requests.js';
 import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
@@ -117,6 +118,7 @@ export class PlaywrightBrowser implements IBrowser {
   private context: BrowserContext | null = null;
 
   async launch(options: BrowserOptions = {}): Promise<void> {
+    assertBrowserLaunchAllowed();
     // Stealth is ON by default. A headless Chromium announces itself through a
     // dozen small tells (navigator.webdriver, missing plugin arrays, a headless
     // UA string), and the sites we most want are the ones checking. Measured

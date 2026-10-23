@@ -9,9 +9,29 @@
 //
 // Making this structural instead of a convention means a new browser-owning
 // procedure gets the close for free instead of needing to remember it.
+//
+// A process may install a gate (the worker does, spec 2026-10-23 §4.3): every
+// session then waits for it, is tracked by it, and may not be opened inside
+// another session.
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IBrowser } from '@robot/browser';
 import { PlaywrightBrowser } from '@robot/browser';
+
+/** The worker's limit on browsers (jobs/browser-gate.ts). Unset: every session launches at once, as before. */
+export type BrowserGate = { acquire(): Promise<() => void>; track(browser: IBrowser): () => void };
+
+let gate: BrowserGate | null = null;
+const inSession = new AsyncLocalStorage<true>();
+
+export function setBrowserGate(next: BrowserGate | null): void { gate = next; }
+
+export class NestedBrowserSessionError extends Error {
+  constructor() {
+    super('A browser session was opened inside another one: a job must never wait for a second browser while holding one.');
+    this.name = 'NestedBrowserSessionError';
+  }
+}
 
 /**
  * Launch a browser, run `fn` with it, and always close it in a `finally` —
@@ -26,7 +46,18 @@ export async function withBrowserSession<T>(
   fn: (browser: IBrowser) => Promise<T>,
   browserFactory: () => IBrowser = () => new PlaywrightBrowser(),
 ): Promise<T> {
-  const browser = browserFactory();
+  const g = gate;
+  if (g && inSession.getStore()) throw new NestedBrowserSessionError();
+  const release = g ? await g.acquire() : () => {};
+  let browser: IBrowser;
+  let untrack: () => void;
+  try {
+    browser = browserFactory();
+    untrack = g ? g.track(browser) : () => {};
+  } catch (err) {
+    release(); // a factory that throws must not keep the gate's place
+    throw err;
+  }
   try {
     // `launch()` belongs INSIDE the try. `PlaywrightBrowser.launch` is two
     // steps — `launcher.launch()` then `newContext()` — so a throw from the
@@ -35,7 +66,7 @@ export async function withBrowserSession<T>(
     // every subsequent call leaked another. `PlaywrightBrowser.close()` is
     // null-safe, so closing a browser that never finished launching is fine.
     await browser.launch({ headless: true });
-    return await fn(browser);
+    return await inSession.run(true, () => fn(browser));
   } finally {
     try {
       await browser.close();
@@ -45,5 +76,7 @@ export async function withBrowserSession<T>(
       // `finally` and mask whatever `fn` actually did.
       console.error('[browser-session] browser.close() failed (non-fatal):', err);
     }
+    untrack();
+    release();
   }
 }
