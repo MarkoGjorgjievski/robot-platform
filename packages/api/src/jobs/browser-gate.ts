@@ -7,7 +7,7 @@ import type { IBrowser } from '@robot/browser';
 import type { BrowserGate } from '../browser-session.js';
 import { currentJob } from './context.js';
 
-export type WorkerBrowserGate = BrowserGate & { open(): number; closeJob(jobId: string): Promise<void>; closeAll(): Promise<void> };
+export type WorkerBrowserGate = BrowserGate & { open(): number; /** Closes the browsers of one hold of a job (`JobContext.claim`), not of a later claim of it. */ closeJob(claim: string): Promise<void>; closeAll(): Promise<void> };
 
 const RANK = { interactive: 0, background: 1, runs: 2 } as const;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -35,12 +35,12 @@ export function createBrowserGate(opts: { max: number; minFreeMb?: number; freeM
       return () => { if (!released) { released = true; release(); } };
     },
     track(browser) {
-      open.set(browser, currentJob()?.jobId ?? null);
+      open.set(browser, currentJob()?.claim ?? null);
       return () => { open.delete(browser); };
     },
     open: () => open.size,
-    async closeJob(jobId) {
-      await Promise.all([...open].filter(([, j]) => j === jobId).map(([b]) => b.close().catch(() => {})));
+    async closeJob(claim) {
+      await Promise.all([...open].filter(([, c]) => c === claim).map(([b]) => b.close().catch(() => {})));
     },
     async closeAll() {
       await Promise.all([...open.keys()].map((b) => b.close().catch(() => {})));

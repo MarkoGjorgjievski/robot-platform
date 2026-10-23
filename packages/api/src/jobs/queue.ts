@@ -74,11 +74,16 @@ export async function enqueueJob(dbOrTx: DbOrTx, spec: EnqueueSpec): Promise<{ i
   throw new Error(`could not enqueue ${spec.type} (${key})`);
 }
 
+/**
+ * Claims the next due job. Its `lockedBy` names this claim — the worker id and a token of the claim — and is
+ * the owner every later write of it passes, so a write left over from an earlier claim (of this worker, too)
+ * never touches a later one.
+ */
 export async function claimJob(opts: { queue: string; workerId: string; types: string[]; leaseMs: number }): Promise<JobRow | null> {
   if (opts.types.length === 0) return null;
   const types = sql.join(opts.types.map((t) => sql`${t}`), sql`, `);
   const claimed = rows<RawJob>(await db.execute(sql`
-    UPDATE jobs AS j SET status = 'running', attempts = j.attempts + 1, locked_by = ${opts.workerId},
+    UPDATE jobs AS j SET status = 'running', attempts = j.attempts + 1, locked_by = ${`${opts.workerId}#${randomUUID().slice(0, 8)}`},
            locked_until = now() + make_interval(secs => ${secs(opts.leaseMs)}), started_at = now()
       FROM (
        SELECT id, started_at FROM jobs
@@ -92,27 +97,27 @@ export async function claimJob(opts: { queue: string; workerId: string; types: s
   return claimed[0] ? toJob(claimed[0]) : null;
 }
 
-export async function renewLease(id: string, workerId: string, leaseMs: number): Promise<boolean> {
+export async function renewLease(id: string, owner: string, leaseMs: number): Promise<boolean> {
   const r = rows(await db.execute(sql`UPDATE jobs SET locked_until = now() + make_interval(secs => ${secs(leaseMs)})
-    WHERE id = ${id} AND locked_by = ${workerId} AND status = 'running' RETURNING id`));
+    WHERE id = ${id} AND locked_by = ${owner} AND status = 'running' RETURNING id`));
   return r.length > 0;
 }
 
-export async function completeJob(id: string, workerId: string, value: unknown): Promise<boolean> {
+export async function completeJob(id: string, owner: string, value: unknown): Promise<boolean> {
   const r = rows(await db.execute(sql`UPDATE jobs SET status = 'done', result = ${JSON.stringify({ value: value ?? null })}::jsonb,
       error = NULL, finished_at = now(), locked_by = NULL, locked_until = NULL
-    WHERE id = ${id} AND locked_by = ${workerId} AND status = 'running' RETURNING id`));
+    WHERE id = ${id} AND locked_by = ${owner} AND status = 'running' RETURNING id`));
   return r.length > 0;
 }
 
-export async function retryJob(id: string, workerId: string, error: string, delayMs: number): Promise<boolean> {
+export async function retryJob(id: string, owner: string, error: string, delayMs: number): Promise<boolean> {
   const r = rows(await db.execute(sql`UPDATE jobs SET status = 'queued', error = ${error.slice(0, 1000)}, locked_by = NULL, locked_until = NULL,
       ${requeuedAt(sql`now() + make_interval(secs => ${secs(delayMs)})`)}
-    WHERE id = ${id} AND locked_by = ${workerId} AND status = 'running' RETURNING id`));
+    WHERE id = ${id} AND locked_by = ${owner} AND status = 'running' RETURNING id`));
   return r.length > 0;
 }
 
-/** Who may fail the job: its owner, a reaper (the lease lapsed), or anyone while it is still queued. */
+/** Who may fail the job: its owner (the claim's `lockedBy`), a reaper (the lease lapsed), or anyone while it is still queued. */
 export type FailGuard = { owner: string } | 'lapsed' | 'queued';
 
 export async function failJobTerminal(id: string, guard: FailGuard, detail: SerializedError, runSentence: string): Promise<boolean> {
@@ -130,10 +135,10 @@ export async function failJobTerminal(id: string, guard: FailGuard, detail: Seri
 }
 
 /** Shutdown: back to the queue at once, its attempt not spent. */
-export async function releaseJob(id: string, workerId: string): Promise<void> {
+export async function releaseJob(id: string, owner: string): Promise<void> {
   await db.execute(sql`UPDATE jobs SET status = 'queued', attempts = GREATEST(attempts - 1, 0), locked_by = NULL,
       locked_until = NULL, ${requeuedAt(sql`now()`)}
-    WHERE id = ${id} AND locked_by = ${workerId} AND status = 'running'`);
+    WHERE id = ${id} AND locked_by = ${owner} AND status = 'running'`);
 }
 
 export async function reapJobs(queue: string, opts: { retryBaseMs: number; runSentenceFor: (type: string) => string }): Promise<{ retried: string[]; failed: string[]; expired: string[] }> {

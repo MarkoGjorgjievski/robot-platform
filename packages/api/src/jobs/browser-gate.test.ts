@@ -3,7 +3,7 @@ import type { IBrowser } from '@robot/browser';
 import { createBrowserGate } from './browser-gate.js';
 import { runInJob, type JobContext } from './context.js';
 
-const ctx = (jobId: string, lane: JobContext['lane']): JobContext => ({ jobId, type: 't', lane, attempt: 1, retry: false, signal: new AbortController().signal, progress: () => {} });
+const ctx = (jobId: string, lane: JobContext['lane']): JobContext => ({ jobId, claim: jobId, type: 't', lane, attempt: 1, retry: false, signal: new AbortController().signal, progress: () => {} });
 const fake = () => ({ close: vi.fn(async () => {}) }) as unknown as IBrowser;
 const tick = () => new Promise((r) => setTimeout(r, 10));
 

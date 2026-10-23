@@ -60,12 +60,13 @@ describe('startJobRunner', () => {
   it('a stuck job is stopped: its signal fires, its browsers close, it fails stalled — or, for work that resumes, is retried', async () => {
     const closed: string[] = [];
     const browsers = { closeJob: async (id: string) => { closed.push(id); }, closeAll: async () => {} };
-    let aborted = false;
+    let aborted = false; let claim = '';
     const { id } = await enqueueJob(db, { type: 'hang', payload: {}, maxAttempts: 2 });
-    start({ hang: { policy: policy({ stuckMs: 100, maxAttempts: 2 }), run: (_p, ctx) => new Promise((_, reject) => ctx.signal.addEventListener('abort', () => { aborted = true; reject(new Error('aborted')); })) } }, { browsers });
+    start({ hang: { policy: policy({ stuckMs: 100, maxAttempts: 2 }), run: (_p, ctx) => { claim = ctx.claim; return new Promise((_, reject) => ctx.signal.addEventListener('abort', () => { aborted = true; reject(new Error('aborted')); })); } } }, { browsers });
     await until(async () => (await get(id)).status === 'failed');
     expect(aborted).toBe(true);
-    expect(closed).toContain(id);
+    expect(claim).toMatch(/#/);
+    expect(closed).toContain(claim);                        // this hold's browsers
     expect(await get(id)).toMatchObject({ error: 'stalled', attempts: 1 });   // never retried in the same process
 
     const r = await enqueueJob(db, { type: 'resumes', payload: {}, maxAttempts: 2 });
@@ -94,14 +95,14 @@ describe('startJobRunner', () => {
     const alive = new Set<string>();
     let statusWhenClosed: string | undefined;
     const browsers = {
-      closeJob: async (jobId: string) => {
+      closeJob: async (claim: string) => {
         await new Promise((r) => setTimeout(r, 100));     // Chromium takes a moment to go
-        statusWhenClosed = (await get(jobId)).status;
-        alive.delete(jobId);
+        statusWhenClosed = (await get(id)).status;
+        alive.delete(claim);
       },
       closeAll: async () => { alive.clear(); },
     };
-    const r = start({ long: { policy: policy({ maxAttempts: 2 }), run: (_p, ctx) => { alive.add(ctx.jobId); return new Promise((_, reject) => ctx.signal.addEventListener('abort', () => reject(new Error('stopped')))); } } }, { browsers });
+    const r = start({ long: { policy: policy({ maxAttempts: 2 }), run: (_p, ctx) => { alive.add(ctx.claim); return new Promise((_, reject) => ctx.signal.addEventListener('abort', () => reject(new Error('stopped')))); } } }, { browsers });
     await until(async () => (await get(id)).status === 'running');
     await r.stop(50);
     expect(statusWhenClosed).toBe('running');              // closed while the job was still this worker's
@@ -137,8 +138,8 @@ describe('startJobRunner', () => {
       const { id } = await enqueueJob(db, { type: 'redo', payload: {}, maxAttempts: 2 });
       const [mine] = await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'h', jobId: id }).returning();
       const [halfDone] = await db.insert(driftChecks).values({ sourceId, jobId: id }).returning();
-      await claimJob({ queue: q(), workerId: 'old:3', types: ['redo'], leaseMs: 60_000 });
-      await releaseJob(id, 'old:3');                        // a shutdown: the attempt is not spent
+      const old = await claimJob({ queue: q(), workerId: 'old:3', types: ['redo'], leaseMs: 60_000 });
+      await releaseJob(id, old!.lockedBy!);                        // a shutdown: the attempt is not spent
       let retry: boolean | undefined;
       start({ redo: { policy: policy({ maxAttempts: 2 }), subject: () => ({ table: 'source_verifications', id: mine!.id }), run: async (_p, ctx) => { retry = ctx.retry; return 'ok'; } } });
       await until(async () => (await get(id)).status === 'done');
@@ -160,6 +161,25 @@ describe('startJobRunner', () => {
       expect(retry).toBe(false);
       expect(await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, own!.id) })).toMatchObject({ status: 'running' });
     } finally { await deleteTestSource(sourceId); }
+  });
+
+  it('a lost lease stops that hold only: the job claimed again here keeps its slot and finishes', async () => {
+    const { id } = await enqueueJob(db, { type: 'twice', payload: {}, maxAttempts: 2 });
+    let calls = 0; let firstStopped = ''; let releaseSecond: (v: unknown) => void = () => {};
+    const r = start({ twice: { policy: policy({ maxAttempts: 2 }), run: (_p, ctx) => {
+      calls++;
+      if (calls === 1) return new Promise((_, reject) => ctx.signal.addEventListener('abort', () => { firstStopped = String(ctx.signal.reason); reject(new Error('stopped')); }));
+      return new Promise((resolve) => { releaseSecond = resolve; });
+    } } }, { leaseMs: 1000, lanes: { interactive: 1, background: 2, runs: 1 } });
+    await until(async () => (await get(id)).status === 'running');
+    // Another worker's reaper took it back (this one looked dead); this worker's free slot claims it again.
+    await db.update(jobs).set({ status: 'queued', lockedBy: null, lockedUntil: null }).where(eq(jobs.id, id));
+    await until(async () => calls === 2 && firstStopped !== '');
+    expect(firstStopped).toBe('lease lost');
+    expect(r.active()).toBe(1);
+    releaseSecond('second');
+    await until(async () => (await get(id)).status === 'done');
+    expect((await get(id)).result).toEqual({ value: 'second' });
   });
 
   it('claims nothing while free memory is low', async () => {
