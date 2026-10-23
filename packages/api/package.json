@@ -11,7 +11,8 @@
     "./website-checks": "./src/verify/website-checks.ts",
     "./jobs": "./src/jobs/index.ts",
     "./test-helpers/identity": "./src/test-helpers/identity.ts",
-    "./test-helpers/customer-source": "./src/test-helpers/customer-source.ts"
+    "./test-helpers/customer-source": "./src/test-helpers/customer-source.ts",
+    "./test-helpers/seed-coverage-check": "./src/test-helpers/seed-coverage-check.ts"
   },
   "scripts": {
     "test": "vitest",
