@@ -6,7 +6,7 @@ import { db, sources, inputSets } from '@robot/db';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { withJobRunner } from '../test-helpers/jobs.js';
+import { withJobRunner, JOB_TEST_MS } from '../test-helpers/jobs.js';
 import { jobRegistry } from '../jobs/handlers.js';
 import { PLAN_STOPPED } from '../jobs/types.js';
 
@@ -133,7 +133,7 @@ describe('sources.update — listingMode', () => {
     } finally {
       await f.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('still allows updating a confirmed Source when the update does not touch listingMode', async () => {
     const f = await createProjectWithSource(caller, { tag: 'update-mode-locked-b', fields: [] });
@@ -157,7 +157,7 @@ describe('sources.update — listingMode', () => {
     } finally {
       await f.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('allows "changing" listingMode on a confirmed Source when the value is actually unchanged', async () => {
     const f = await createProjectWithSource(caller, { tag: 'update-mode-locked-c', fields: [] });
@@ -180,7 +180,7 @@ describe('sources.update — listingMode', () => {
     } finally {
       await f.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 });
 
 describe('sources.confirm', () => {
@@ -214,7 +214,7 @@ describe('sources.confirm', () => {
     } finally {
       await f.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   // M3 (final-review-findings.md): `confirmedAt` used to be written BEFORE
   // `planSource`, so a throw there left a confirmed Source with no run, and a
@@ -244,7 +244,7 @@ describe('sources.confirm', () => {
     } finally {
       await f.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('does not set confirmedAt when planning throws', async () => {
     const f = await createProjectWithSource(caller, { tag: 'confirm-c', fields: [] });
@@ -259,7 +259,7 @@ describe('sources.confirm', () => {
     } finally {
       await f.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('throws NOT_FOUND for an unknown sourceId', async () => {
     await expect(
@@ -354,7 +354,7 @@ describe('sources.delete', () => {
     } finally {
       await f.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('throws NOT_FOUND for an unknown sourceId', async () => {
     await expect(

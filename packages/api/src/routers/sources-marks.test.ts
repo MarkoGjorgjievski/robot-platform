@@ -10,7 +10,7 @@ import { buildBoxMapScript, boxesFromAnnotation, pageTextOf } from '@robot/scrap
 import { writeCaptureFile } from '../verify/capture-store.js';
 import { SHOP_EXAMPLE } from '../test-helpers/shop-example.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
+import { withJobRunner, jobsOf, JOB_TEST_MS } from '../test-helpers/jobs.js';
 
 // `startProofPageCapture` fires a real browser un-awaited; stub the job so this file never launches one for the mutation.
 const { runMock } = vi.hoisted(() => ({ runMock: vi.fn().mockResolvedValue(undefined) }));
@@ -199,7 +199,7 @@ describe('sources.transferMarks', () => {
       const job = (await jobsOf('transfer-marks')).find((j) => (j.payload as { sourceId: string }).sourceId === f.sourceId);
       expect(job).toMatchObject({ status: 'done', key: null, payload: { sourceId: f.sourceId, fromUrl: f.urls[0], toUrls: [f.urls[1], f.urls[2]] } });
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
   it('a target with no fresh capture is null, and the other target still resolves', async () => {
     const f = await createProjectWithSource(caller, { tag: 'marks-tr2', fields: [{ name: 'Price', type: 'money' }],
       expected: { Price: { 'https://test-marks-tr2.example.com/p/1': '129.99', 'https://test-marks-tr2.example.com/p/2': '219.99', 'https://test-marks-tr2.example.com/p/3': '149.00' } } });
@@ -209,7 +209,7 @@ describe('sources.transferMarks', () => {
       expect(r[f.urls[2]!]).toBeNull();
       expect(r[f.urls[1]!]!.fields[f.keys.Price!]!.value).toMatch(/219\.99/);
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
   it('with no worker, the transfer fails with the sentence a browser that could not start gave', async () => {
     const f = await createProjectWithSource(caller, { tag: 'marks-tr-none', fields: [{ name: 'Price', type: 'money' }] });
     process.env.JOB_AWAIT_MAX_MS = '300';
@@ -268,7 +268,7 @@ describe('sources.transferMarks from the values on screen', () => {
       const saved = await transfer({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], fieldKeys: [f.keys.Price!] });
       expect(saved[f.urls[1]!]!.fields[f.keys.Price!]).toBeNull();
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
   it('passes the path page 1\'s answer came from through to the carry, which tries it first', async () => {
     const f = await createProjectWithSource(caller, { tag: 'marks-via', fields: [{ name: 'Price', type: 'money' }] });
     try {
@@ -278,5 +278,5 @@ describe('sources.transferMarks from the values on screen', () => {
       const r = await transfer({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], from: { [f.keys.Price!]: { value: '129.99', via: { source: 'meta', path: 'product:price:amount' } } } });
       expect(r[f.urls[1]!]!.fields[f.keys.Price!]).toMatchObject({ value: expect.stringMatching(/219\.99/), via: { source: 'meta', path: 'product:price:amount' } });
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
 });

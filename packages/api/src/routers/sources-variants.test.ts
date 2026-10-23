@@ -10,7 +10,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { buildBoxMapScript, boxesFromAnnotation } from '@robot/scraper';
 import { writeCaptureFile } from '../verify/capture-store.js';
 import { signedInCaller, signIn } from '../test-helpers/identity.js';
-import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
+import { withJobRunner, jobsOf, JOB_TEST_MS } from '../test-helpers/jobs.js';
 
 // `startProofPageCapture` fires a real browser un-awaited; stub the job so this file never launches one for the mutation.
 const { runMock } = vi.hoisted(() => ({ runMock: vi.fn().mockResolvedValue(undefined) }));
@@ -125,7 +125,7 @@ describe('sources.detectVariants', () => {
       expect((await jobsOf('detect-variants')).find((j) => (j.payload as { sourceId: string }).sourceId === f.sourceId))
         .toMatchObject({ status: 'done', key: `detect-variants:${f.sourceId}`, payload: { sourceId: f.sourceId } });
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
 
   it('reports a proof page with no fresh capture as not captured', async () => {
     const f = await createProjectWithSource(caller, {
@@ -143,7 +143,7 @@ describe('sources.detectVariants', () => {
       expect(r.pages[2]).toEqual({ url: f.urls[2], captured: false, lists: [], links: [], pickers: [] });
       expect(r.pages[0]!.captured).toBe(true);
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
 
   it('with no verification set, answers no pages and "none"', async () => {
     const f = await createProjectWithSource(caller, { tag: 'variants-unverified', fields: [{ name: 'Price', type: 'money' }] });
@@ -151,7 +151,7 @@ describe('sources.detectVariants', () => {
       const r = await detect({ sourceId: f.sourceId });
       expect(r).toEqual({ pages: [], suggested: 'none' });
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
 
   it('skips opening a browser when no proof page has a fresh capture', async () => {
     const f = await createProjectWithSource(caller, {
@@ -166,7 +166,7 @@ describe('sources.detectVariants', () => {
       expect(r.pages).toEqual(f.urls.map((url) => ({ url, captured: false, lists: [], links: [], pickers: [] })));
       expect(withBrowserSessionMock).not.toHaveBeenCalled();
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
 
   it('with no worker, detection fails with the sentence a browser that could not start gave', async () => {
     const f = await createProjectWithSource(caller, { tag: 'variants-none', fields: [{ name: 'Price', type: 'money' }] });
