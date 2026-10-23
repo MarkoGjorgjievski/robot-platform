@@ -13,7 +13,13 @@ import { RUN_STOPPED } from './types.js';
 const W = 'test-worker:1';
 const q = () => jobQueueName();
 const get = async (id: string) => (await db.query.jobs.findFirst({ where: eq(jobs.id, id) }))!;
-const claim = (types = ['t'], leaseMs = 60_000) => claimJob({ queue: q(), workerId: W, types, leaseMs });
+/** The last claim's owner (its lock: the worker id and a token of that claim). */
+let O = '';
+const claim = async (types = ['t'], leaseMs = 60_000) => {
+  const job = await claimJob({ queue: q(), workerId: W, types, leaseMs });
+  if (job) O = job.lockedBy!;
+  return job;
+};
 const reapOpts = { retryBaseMs: 1000, runSentenceFor: () => RUN_STOPPED };
 
 afterEach(async () => { await db.delete(jobs).where(eq(jobs.queue, q())); });
@@ -57,21 +63,37 @@ describe('claimJob', () => {
   it('marks the job running with its owner, a lease and one more attempt', async () => {
     const { id } = await enqueueJob(db, { type: 't', payload: { x: 1 }, maxAttempts: 2 });
     const job = (await claim())!;
-    expect(job).toMatchObject({ id, status: 'running', attempts: 1, maxAttempts: 2, lockedBy: W, payload: { x: 1 } });
+    expect(job).toMatchObject({ id, status: 'running', attempts: 1, maxAttempts: 2, lockedBy: expect.stringMatching(/^test-worker:1#[0-9a-f]{8}$/), payload: { x: 1 } });
     expect(job.lockedUntil!.getTime()).toBeGreaterThan(Date.now() + 50_000);
   });
 });
 
 describe('the lease', () => {
+  it('belongs to one claim: a write of an earlier claim of the same worker does nothing', async () => {
+    const { id } = await enqueueJob(db, { type: 't', payload: {}, maxAttempts: 2 });
+    await claim();
+    const first = O;
+    await releaseJob(id, first);
+    await claim();
+    expect(O).not.toBe(first);
+    expect(await renewLease(id, first, 60_000)).toBe(false);
+    expect(await completeJob(id, first, 'stale')).toBe(false);
+    expect(await retryJob(id, first, 'stale', 1)).toBe(false);
+    expect(await failJobTerminal(id, { owner: first }, { kind: 'error', message: 'stale' }, RUN_STOPPED)).toBe(false);
+    await releaseJob(id, first);
+    expect(await get(id)).toMatchObject({ status: 'running', lockedBy: O });
+    expect(await completeJob(id, O, 'fresh')).toBe(true);
+  });
+
   it('renews for its owner only; completes for its owner only', async () => {
     const { id } = await enqueueJob(db, { type: 't', payload: {} });
     await claim();
-    expect(await renewLease(id, W, 60_000)).toBe(true);
+    expect(await renewLease(id, O, 60_000)).toBe(true);
     expect(await renewLease(id, 'someone-else', 60_000)).toBe(false);
     expect(await completeJob(id, 'someone-else', 1)).toBe(false);
-    expect(await completeJob(id, W, { ok: true })).toBe(true);
+    expect(await completeJob(id, O, { ok: true })).toBe(true);
     expect(await get(id)).toMatchObject({ status: 'done', result: { value: { ok: true } }, lockedBy: null });
-    expect(await renewLease(id, W, 60_000)).toBe(false);
+    expect(await renewLease(id, O, 60_000)).toBe(false);
   });
 });
 
@@ -79,7 +101,7 @@ describe('failures', () => {
   it('a retry puts the job back, later, with its error', async () => {
     const { id } = await enqueueJob(db, { type: 't', payload: {}, maxAttempts: 2 });
     await claim();
-    expect(await retryJob(id, W, 'boom', 30_000)).toBe(true);
+    expect(await retryJob(id, O, 'boom', 30_000)).toBe(true);
     const row = await get(id);
     expect(row).toMatchObject({ status: 'queued', error: 'boom', lockedBy: null, attempts: 1 });
     expect(row.runAfter.getTime()).toBeGreaterThan(Date.now() + 20_000);
@@ -92,7 +114,7 @@ describe('failures', () => {
       const [v] = await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'h', jobId: id }).returning();
       const [r] = await db.insert(runs).values({ sourceId, status: 'extracting', jobId: id }).returning();
       await claim();
-      expect(await failJobTerminal(id, { owner: W }, serializeError(new Error('nope')), RUN_STOPPED)).toBe(true);
+      expect(await failJobTerminal(id, { owner: O }, serializeError(new Error('nope')), RUN_STOPPED)).toBe(true);
       expect(await get(id)).toMatchObject({ status: 'failed', error: 'nope', result: { error: { kind: 'error', message: 'nope' } } });
       expect(await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, v!.id) })).toMatchObject({ errorMessage: 'stalled' });
       expect((await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, v!.id) }))!.completedAt).not.toBeNull();
@@ -103,7 +125,7 @@ describe('failures', () => {
   it('release gives the job back without spending its attempt', async () => {
     const { id } = await enqueueJob(db, { type: 't', payload: {}, maxAttempts: 2 });
     await claim();
-    await releaseJob(id, W);
+    await releaseJob(id, O);
     expect(await get(id)).toMatchObject({ status: 'queued', attempts: 0, lockedBy: null });
   });
 });
@@ -120,7 +142,7 @@ describe('the start window', () => {
 
   it('a job given back at shutdown is still claimable after its first window, never expired', async () => {
     const id = await startedThenLate(60_000);
-    await releaseJob(id, W);
+    await releaseJob(id, O);
     expect(await reapJobs(q(), reapOpts)).toEqual({ retried: [], failed: [], expired: [] });
     expect(await isJobLive(db, id)).toBe(true);
     expect((await claim())!.id).toBe(id);
@@ -136,7 +158,7 @@ describe('the start window', () => {
 
   it('a job given back still has a window: with no worker it expires a window after it was due', async () => {
     const id = await startedThenLate(60_000);
-    await releaseJob(id, W);
+    await releaseJob(id, O);
     await new Promise((r) => setTimeout(r, 500));
     expect(await reapJobs(q(), reapOpts)).toEqual({ retried: [], failed: [], expired: [id] });
   });
@@ -186,12 +208,12 @@ describe('liveness', () => {
 describe('awaitJob', () => {
   it('a done job answers its value; a failed one rethrows its error as the class it was', async () => {
     const ok = await enqueueJob(db, { type: 't', payload: {} });
-    await claim(); await completeJob(ok.id, W, { links: 3 });
+    await claim(); await completeJob(ok.id, O, { links: 3 });
     expect(await awaitJob(ok.id, 1000)).toEqual({ links: 3 });
 
     const bad = await enqueueJob(db, { type: 't', payload: {} });
     await claim();
-    await failJobTerminal(bad.id, { owner: W }, serializeError(new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Mark page 1 first' })), RUN_STOPPED);
+    await failJobTerminal(bad.id, { owner: O }, serializeError(new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Mark page 1 first' })), RUN_STOPPED);
     await expect(awaitJob(bad.id, 1000)).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'Mark page 1 first' });
   });
 

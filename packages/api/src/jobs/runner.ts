@@ -57,24 +57,28 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   const freeMb = opts.freeMb ?? (() => os.freemem() / 1_048_576);
   const backoff = (attempt: number) => retryBase * 2 ** Math.max(attempt - 1, 0);
   const runSentenceFor = (type: string) => opts.registry[type]?.policy.runSentence ?? RUN_STOPPED;
+  /** The jobs held here, by claim (a job reaped from this worker and claimed by it again is a second hold). */
   const active = new Map<string, Active>();
   /** Outcome writes still in flight (a job's slot is free before its row says so); stop waits for them. */
   const settling = new Set<Promise<unknown>>();
   const track = (p: Promise<unknown>) => { settling.add(p); void p.finally(() => settling.delete(p)); };
   let stopping = false;
 
+  /** The claim's owner: every write of a hold passes it, so none reaches a later claim of the job. */
+  const owner = (job: JobRow) => job.lockedBy!;
+
   const count = (pred: (a: Active) => boolean) => [...active.values()].filter(pred).length;
 
   /** Ends a job's hold here: the slot is free at once, whatever its handler still does. */
-  const finish = (a: Active) => { a.over = true; active.delete(a.job.id); };
+  const finish = (a: Active) => { a.over = true; if (active.get(owner(a.job)) === a) active.delete(owner(a.job)); };
 
   const start = (job: JobRow) => {
     const def = opts.registry[job.type]!;
     const controller = new AbortController();
     const a: Active = { job, def, controller, lastProgress: Date.now(), over: false, settled: Promise.resolve() };
-    active.set(job.id, a);
+    active.set(owner(job), a);
     const ctx: JobContext = {
-      jobId: job.id, type: job.type, lane: def.policy.lane, attempt: job.attempts, retry: job.startedBefore ?? job.attempts > 1, signal: controller.signal,
+      jobId: job.id, claim: owner(job), type: job.type, lane: def.policy.lane, attempt: job.attempts, retry: job.startedBefore ?? job.attempts > 1, signal: controller.signal,
       progress: () => { a.lastProgress = Date.now(); },
     };
     log(`claimed ${job.type} ${job.id} (attempt ${job.attempts} of ${job.maxAttempts})`);
@@ -90,10 +94,10 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
         finish(a);
         track((async () => {
           if (job.attempts < job.maxAttempts) {
-            await retryJob(job.id, workerId, msg(err), backoff(job.attempts));
+            await retryJob(job.id, owner(job), msg(err), backoff(job.attempts));
             log(`retry ${job.type} ${job.id} after: ${msg(err)}`);
           } else {
-            await failJobTerminal(job.id, { owner: workerId }, serializeError(err), runSentenceFor(job.type));
+            await failJobTerminal(job.id, { owner: owner(job) }, serializeError(err), runSentenceFor(job.type));
             log(`failed ${job.type} ${job.id}: ${msg(err)}`);
           }
         })().catch((recordErr) => log(`could not record the failure of ${job.id}: ${msg(recordErr)}`)));
@@ -102,7 +106,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       if (a.over) return;
       finish(a);
       track((async () => {
-        await completeJob(job.id, workerId, value ?? null);
+        await completeJob(job.id, owner(job), value ?? null);
         log(`done ${job.type} ${job.id}`);
       })().catch((recordErr) => log(`could not record the answer of ${job.id}: ${msg(recordErr)}`)));
     })();
@@ -122,19 +126,19 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
         log(`claim failed: ${msg(err)}`);
       }
       if (!job) { await sleep(pollMs); continue; }
-      if (stopping) { await releaseJob(job.id, workerId).catch(() => {}); break; }
+      if (stopping) { await releaseJob(job.id, owner(job)).catch(() => {}); break; }
       start(job);
     }
   };
 
   const heartbeat = setInterval(() => {
     for (const a of [...active.values()]) {
-      void renewLease(a.job.id, workerId, leaseMs).then(async (held) => {
+      void renewLease(a.job.id, owner(a.job), leaseMs).then(async (held) => {
         if (held || a.over) return;
         // Another worker reaped it (this one looked dead): stop here; that worker owns the job now.
         finish(a);
         a.controller.abort('lease lost');
-        await opts.browsers?.closeJob(a.job.id);
+        await opts.browsers?.closeJob(owner(a.job));
         log(`lost the lease on ${a.job.type} ${a.job.id}; stopped it here`);
       }).catch(() => { /* a database blip is not a lost lease */ });
     }
@@ -146,9 +150,9 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       finish(a);
       a.controller.abort('stuck');
       track((async () => {
-        await opts.browsers?.closeJob(a.job.id).catch(() => {});
-        if (a.def.policy.retryOnStuck && a.job.attempts < a.job.maxAttempts) await retryJob(a.job.id, workerId, 'stuck', backoff(a.job.attempts));
-        else await failJobTerminal(a.job.id, { owner: workerId }, { kind: 'unavailable', message: 'stalled' }, runSentenceFor(a.job.type));
+        await opts.browsers?.closeJob(owner(a.job)).catch(() => {});
+        if (a.def.policy.retryOnStuck && a.job.attempts < a.job.maxAttempts) await retryJob(a.job.id, owner(a.job), 'stuck', backoff(a.job.attempts));
+        else await failJobTerminal(a.job.id, { owner: owner(a.job) }, { kind: 'unavailable', message: 'stalled' }, runSentenceFor(a.job.type));
         log(`stuck ${a.job.type} ${a.job.id}: no progress for ${a.def.policy.stuckMs} ms`);
       })().catch((err) => log(`could not stop ${a.job.id}: ${msg(err)}`)));
     }
@@ -182,12 +186,12 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       // only then given back — so no browser of this worker still works a job another worker has claimed.
       const left = [...active.values()];
       for (const a of left) { finish(a); a.controller.abort('shutdown'); }
-      await Promise.all(left.map((a) => opts.browsers?.closeJob(a.job.id).catch(() => {})));
+      await Promise.all(left.map((a) => opts.browsers?.closeJob(owner(a.job)).catch(() => {})));
       let unwind: ReturnType<typeof setTimeout> | undefined;
       await Promise.race([Promise.allSettled(left.map((a) => a.settled)), new Promise((r) => { unwind = setTimeout(r, UNWIND_MS); })]);
       clearTimeout(unwind);
       for (const a of left) {
-        await releaseJob(a.job.id, workerId).catch(() => {});
+        await releaseJob(a.job.id, owner(a.job)).catch(() => {});
         log(`gave back ${a.job.type} ${a.job.id} (shutdown)`);
       }
       clearInterval(heartbeat); clearInterval(stuckCheck); clearInterval(reaper);
