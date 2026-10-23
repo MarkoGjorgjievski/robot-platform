@@ -8,7 +8,7 @@ export async function enqueue<T extends JobType>(dbOrTx: DbOrTx, type: T, payloa
   const p = JOB_POLICIES[type];
   const { id } = await enqueueJob(dbOrTx, {
     type, payload, key: opts.key ?? null, priority: opts.priority ?? p.priority, maxAttempts: p.maxAttempts,
-    expiresAt: p.startWithinMs === null ? null : new Date(Date.now() + p.startWithinMs),
+    startWithinMs: p.startWithinMs,
   });
   return id;
 }

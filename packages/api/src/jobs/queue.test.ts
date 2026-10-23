@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { db, jobs, sourceVerifications, runs } from '@robot/db';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
@@ -33,6 +33,16 @@ describe('enqueueJob', () => {
     expect((await enqueueJob(db, { type: 't', payload: {}, key: 'k' })).created).toBe(true);
   });
 
+  it('its delay and start window are reckoned on the database clock, from the moment it is written', async () => {
+    const { id } = await enqueueJob(db, { type: 't', payload: {}, delayMs: 5000, startWithinMs: 60_000 });
+    const plain = await enqueueJob(db, { type: 't', payload: {} });
+    const [row] = (await db.execute(sql`SELECT extract(epoch FROM run_after - created_at) * 1000 AS delay,
+      extract(epoch FROM expires_at - run_after) * 1000 AS window FROM jobs WHERE id = ${id}`)) as unknown as Array<{ delay: string; window: string }>;
+    expect([Number(row!.delay), Number(row!.window)]).toEqual([5000, 60_000]);
+    expect(await get(plain.id)).toMatchObject({ expiresAt: null });
+    expect((await get(plain.id)).runAfter.getTime()).toBe((await get(plain.id)).createdAt.getTime());
+  });
+
   it('inside a transaction that rolls back, leaves no job', async () => {
     await expect(db.transaction(async (tx) => {
       await enqueueJob(tx, { type: 't', payload: {} });
@@ -47,8 +57,8 @@ describe('claimJob', () => {
     const late = await enqueueJob(db, { type: 't', payload: {}, priority: 10 });
     const urgent = await enqueueJob(db, { type: 't', payload: {}, priority: 0 });
     await enqueueJob(db, { type: 'other', payload: {}, priority: 0 });
-    await enqueueJob(db, { type: 't', payload: {}, priority: 0, runAfter: new Date(Date.now() + 60_000) });
-    await enqueueJob(db, { type: 't', payload: {}, priority: 0, expiresAt: new Date(Date.now() - 1000) });
+    await enqueueJob(db, { type: 't', payload: {}, priority: 0, delayMs: 60_000 });
+    await enqueueJob(db, { type: 't', payload: {}, priority: 0, startWithinMs: -1000 });
     expect((await claim())!.id).toBe(urgent.id);
     expect((await claim())!.id).toBe(late.id);
     expect(await claim()).toBeNull();
@@ -134,7 +144,7 @@ describe('the start window', () => {
   // Spec §4.2: "must start within" is a window for the start, not for the work. A job given back
   // (shutdown) or whose worker died has started; it gets its window again from when it is due.
   const startedThenLate = async (leaseMs: number) => {
-    const { id } = await enqueueJob(db, { type: 't', payload: {}, maxAttempts: 2, expiresAt: new Date(Date.now() + 400) });
+    const { id } = await enqueueJob(db, { type: 't', payload: {}, maxAttempts: 2, startWithinMs: 400 });
     expect((await claim(['t'], leaseMs))!.id).toBe(id);
     await new Promise((r) => setTimeout(r, 450));          // the window the job was enqueued with has passed
     return id;
@@ -169,7 +179,7 @@ describe('reapJobs', () => {
     const again = await enqueueJob(db, { type: 't', payload: {}, maxAttempts: 2 });
     const once = await enqueueJob(db, { type: 't', payload: {}, maxAttempts: 1 });
     await claim(['t'], 1); await claim(['t'], 1);           // 1 ms leases: both lapse at once
-    const late = await enqueueJob(db, { type: 'late', payload: {}, expiresAt: new Date(Date.now() - 1000) });
+    const late = await enqueueJob(db, { type: 'late', payload: {}, startWithinMs: -1000 });
     await new Promise((r) => setTimeout(r, 20));
     const out = await reapJobs(q(), reapOpts);
     expect(out).toEqual({ retried: [again.id], failed: [once.id], expired: [late.id] });
@@ -192,7 +202,7 @@ describe('reapJobs', () => {
 describe('liveness', () => {
   it('queued in its window, or running with a lease, is live; anything else is not', async () => {
     const queued = await enqueueJob(db, { type: 't', payload: {} });
-    const expired = await enqueueJob(db, { type: 'x', payload: {}, expiresAt: new Date(Date.now() - 1000) });
+    const expired = await enqueueJob(db, { type: 'x', payload: {}, startWithinMs: -1000 });
     const running = await enqueueJob(db, { type: 'r', payload: {} });
     await claim(['r']);
     const lapsed = await enqueueJob(db, { type: 'l', payload: {} });
@@ -218,7 +228,7 @@ describe('awaitJob', () => {
   });
 
   it('a queued job past its window, or the ceiling, is unavailable', async () => {
-    const expired = await enqueueJob(db, { type: 't', payload: {}, expiresAt: new Date(Date.now() - 1000) });
+    const expired = await enqueueJob(db, { type: 't', payload: {}, startWithinMs: -1000 });
     await expect(awaitJob(expired.id, 1000)).rejects.toBeInstanceOf(JobUnavailableError);
     expect(await get(expired.id)).toMatchObject({ status: 'failed', error: 'expired' });
     const waiting = await enqueueJob(db, { type: 't', payload: {} });
