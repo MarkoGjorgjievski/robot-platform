@@ -7,8 +7,18 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-2. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **A job queue and a separate capture worker** — page capture leaves the api-server for its own worker process, fed by a Postgres-backed queue (Verify, runs, checks, samples); one place limits browsers and memory. *Done when:* the api-server starts no browser; every capture job goes through the queue; a stuck or crashed worker job is retried or failed with a sentence; tests, smoke. (Marko: start, 2026-10-23.)
+2. **The whole stack in Docker Compose** — app, api, worker, Postgres from one command, plus a nightly pg_dump with a tested restore. *Done when:*  serves the app locally end to end; a restore test passes.
+3. **Run speed** — lean captures on certified runs and several websites in parallel through the queue (design: docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md). *Done when:* a measured 1,000-page-equivalent run is an order of magnitude faster with the same values.
+4. **Recurring extraction** — a schedule per website (e.g. every Monday 06:00); each run produces a downloadable file and a webhook on completion. *Done when:* a scheduled run fires, writes its file and posts its webhook; tests, smoke.
+5. **Email, with a local catcher** — SMTP sending (Mailpit in Docker for local) for "Needs attention", failed runs and account messages. *Done when:* each message is sent and seen in Mailpit; a real provider is a config change.
+6. **Tenant isolation audit, as tests** — two organisations, every router and capture-file route called across them, all refused; money fields removed from customer answers; rate limits. *Done when:* the sweep test passes.
+7. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
+8. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
+9. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
+10. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
+11. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+12. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
