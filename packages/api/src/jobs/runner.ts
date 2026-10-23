@@ -153,10 +153,18 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       finish(a);
       a.controller.abort('stuck');
       track((async () => {
-        await opts.browsers?.closeJob(owner(a.job)).catch(() => {});
-        const recorded = a.def.policy.retryOnStuck && a.job.attempts < a.job.maxAttempts
-          ? await retryJob(a.job.id, owner(a.job), 'stuck', backoff(a.job.attempts))
-          : await failJobTerminal(a.job.id, { owner: owner(a.job) }, { kind: 'unavailable', message: 'stalled' }, runSentenceFor(a.job.type));
+        const closeBrowsers = () => opts.browsers?.closeJob(owner(a.job)).catch(() => {});
+        let recorded: boolean;
+        if (a.def.policy.retryOnStuck && a.job.attempts < a.job.maxAttempts) {
+          // Back to the queue only once its browsers are gone: no browser here still works a job another claim has.
+          await closeBrowsers();
+          recorded = await retryJob(a.job.id, owner(a.job), 'stuck', backoff(a.job.attempts));
+        } else {
+          // Failed for good: its rows are closed first (M1), so nothing the closing browser shakes loose can land on them.
+          try {
+            recorded = await failJobTerminal(a.job.id, { owner: owner(a.job) }, { kind: 'unavailable', message: 'stalled' }, runSentenceFor(a.job.type));
+          } finally { await closeBrowsers(); }
+        }
         if (recorded) log(`stuck ${a.job.type} ${a.job.id}: no progress for ${a.def.policy.stuckMs} ms`);
         else lostBefore(a.job, 'it was stopped as stuck');
       })().catch((err) => log(`could not stop ${a.job.id}: ${msg(err)}`)));

@@ -89,6 +89,27 @@ describe('startJobRunner', () => {
     await until(async () => (await get(id)).status === 'done');
     expect((await get(id)).result).toEqual({ value: 'got one' });
   }, JOB_TEST_MS);
+  it('a stuck job failed for good has its rows closed before its browsers (M1); one that resumes is given back only after', async () => {
+    const sourceId = await createTestSource({ schema: [] });
+    try {
+      const seen: Array<{ status: string; row?: string | null }> = [];
+      const { id } = await enqueueJob(db, { type: 'hang', payload: {} });
+      const [v] = await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'h', jobId: id }).returning();
+      const browsers = { closeJob: async () => {
+        seen.push({ status: (await get(id)).status, row: (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, v!.id) }))!.errorMessage });
+      }, closeAll: async () => {} };
+      start({ hang: { policy: policy({ stuckMs: 100 }), run: (_p, ctx) => new Promise((_, reject) => ctx.signal.addEventListener('abort', () => reject(new Error('aborted')))) } }, { browsers });
+      await until(async () => seen.length > 0);
+      expect(seen[0]).toEqual({ status: 'failed', row: 'stalled' });
+
+      const r = await enqueueJob(db, { type: 'resumes', payload: {}, maxAttempts: 2 });
+      const resumed: string[] = [];
+      start({ resumes: { policy: policy({ stuckMs: 100, maxAttempts: 2, retryOnStuck: true }), run: (_p, ctx) => ctx.attempt === 1 ? new Promise(() => {}) : Promise.resolve('resumed') } },
+        { browsers: { closeJob: async () => { resumed.push((await get(r.id)).status); }, closeAll: async () => {} } });
+      await until(async () => resumed.length > 0);
+      expect(resumed[0]).toBe('running');
+    } finally { await deleteTestSource(sourceId); }
+  }, JOB_TEST_MS);
   it('a job with progress is not stuck', async () => {
     const { id } = await enqueueJob(db, { type: 'busy', payload: {} });
     start({ busy: { policy: policy({ stuckMs: 100 }), run: async (_p, ctx) => { for (let i = 0; i < 6; i++) { await new Promise((r) => setTimeout(r, 50)); ctx.progress(); } return 'ok'; } } });
