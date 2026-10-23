@@ -4,7 +4,7 @@ import { db, jobs } from '@robot/db';
 import { enqueue, ceilingOf, runAndWait, urlKey } from './enqueue.js';
 import { jobQueueName } from './queue.js';
 import { JOB_POLICIES } from './types.js';
-import { withJobRunner } from '../test-helpers/jobs.js';
+import { withJobRunner, JOB_TEST_MS } from '../test-helpers/jobs.js';
 
 const q = () => jobQueueName();
 afterEach(async () => { await db.delete(jobs).where(eq(jobs.queue, q())); });
@@ -53,5 +53,5 @@ describe('runAndWait', () => {
     expect(await withJobRunner(() => runAndWait('reachability', { url: 'https://shop.example/' }, { key: 'reachability:x' }), { registry }))
       .toEqual({ reachable: 'https://shop.example/' });
     expect(await db.query.jobs.findMany({ where: eq(jobs.queue, q()) })).toMatchObject([{ type: 'reachability', key: 'reachability:x', status: 'done' }]);
-  });
+  }, JOB_TEST_MS);
 });

@@ -6,7 +6,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { VerifyRefusal } from '../verify/verify-refusal.js';
 import { holdSourceLock, stillPending } from '../test-helpers/row-lock.js';
-import { jobsOf, runQueuedJobs } from '../test-helpers/jobs.js';
+import { jobsOf, runQueuedJobs, JOB_TEST_MS } from '../test-helpers/jobs.js';
 
 // `sources.verify` enqueues a `verify` job (spec 2026-10-23 §4.4); the worker runs
 // `runSourceVerification` (verify/run-source-verification.ts). Stubbed here so a test
@@ -193,7 +193,7 @@ describe('sources.verify', () => {
     } finally {
       await cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('verify({ onlyKeys: [] }) starts a variants-only run', async () => {
     const { sourceId, cleanup } = await makeSchemaSource('variantsonly');

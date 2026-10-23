@@ -36,6 +36,8 @@ export type RunnerOptions = {
   browsers?: Pick<WorkerBrowserGate, 'closeJob' | 'closeAll'>;
   workerName?: string;
   log?: (line: string) => void;
+  /** The claim (default `claimJob`); a test wraps it to hold one claim in flight, touching no other row. */
+  claim?: typeof claimJob;
 };
 
 export type JobRunner = { workerId: string; active(): number; stop(graceMs?: number): Promise<void> };
@@ -122,7 +124,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
         .map(([type]) => type);
       let job: JobRow | null = null;
       try {
-        job = await claimJob({ queue: opts.queue, workerId, types, leaseMs });
+        job = await (opts.claim ?? claimJob)({ queue: opts.queue, workerId, types, leaseMs });
       } catch (err) {
         log(`claim failed: ${msg(err)}`);
       }

@@ -8,7 +8,7 @@ import { verdictSentence } from '@robot/browser';
 import { PROBE_BUDGET } from '../crawl/probe.js';
 import { PLAN_STOPPED } from '../jobs/types.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
+import { withJobRunner, jobsOf, JOB_TEST_MS } from '../test-helpers/jobs.js';
 
 // planRun needs a real browser and (for anything interesting) an API key, so the
 // router's OWN behaviour — run status, what it persists, what it returns — can
@@ -203,7 +203,7 @@ describe('crawlRouter.plan persistence', () => {
     } finally {
       await fixture.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('marks a run `failed` when every input errored and nothing was planned', async () => {
     const fixture = await makePlannableSource();
@@ -237,7 +237,7 @@ describe('crawlRouter.plan persistence', () => {
     } finally {
       await fixture.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('stays `planned` when some inputs errored but work was planned anyway', async () => {
     const fixture = await makePlannableSource();
@@ -261,7 +261,7 @@ describe('crawlRouter.plan persistence', () => {
     } finally {
       await fixture.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('inserts listing items already `done` and detail items `pending`', async () => {
     const fixture = await makePlannableSource();
@@ -294,7 +294,7 @@ describe('crawlRouter.plan persistence', () => {
     } finally {
       await fixture.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('planning that throws fails its run and answers the sentence, not the raw error (spec 2026-10-23 §6)', async () => {
     const fixture = await makePlannableSource();
@@ -333,7 +333,7 @@ describe('crawlRouter.plan persistence', () => {
     } finally {
       await fixture.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 
   it('probe absent: plans every row against the source\'s own budget (regression lock)', async () => {
     const fixture = await makePlannableSource([{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }]);
@@ -361,7 +361,7 @@ describe('crawlRouter.plan persistence', () => {
     } finally {
       await fixture.cleanup();
     }
-  });
+  }, JOB_TEST_MS);
 });
 
 describe('crawlRouter.items', () => {

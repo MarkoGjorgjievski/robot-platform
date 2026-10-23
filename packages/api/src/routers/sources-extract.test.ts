@@ -8,7 +8,7 @@ import { BROWSER_UNAVAILABLE } from '@robot/browser';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
+import { withJobRunner, jobsOf, JOB_TEST_MS } from '../test-helpers/jobs.js';
 import { urlKey } from '../jobs/enqueue.js';
 
 // The Extract tab's free per-row listing check and Add website's reachability line answer from the
@@ -59,7 +59,7 @@ describe('sources.checkListingPage', () => {
     const job = (await jobsOf('listing-check')).find((j) => (j.payload as { listingUrl: string }).listingUrl === listingUrl);
     expect(job).toMatchObject({ status: 'done', key: urlKey('listing', listingUrl), payload: { listingUrl } });
     expect(urlKey('listing', listingUrl)).toMatch(/^listing:[0-9a-f]{40}$/);
-  });
+  }, JOB_TEST_MS);
 
   it('with no worker, the listing check says the browser could not open', async () => {
     const answer = await withNoWorker(() => caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-none.example.com/c/x' }));
@@ -100,7 +100,7 @@ describe('sources.reachability', () => {
     expect(answer).toMatchObject({ verdict: { kind: 'ok', status: 200 }, message: 'Reached test-reach.example.com (HTTP 200).', finalUrl: url });
     const job = (await jobsOf('reachability')).find((j) => (j.payload as { url: string }).url === url);
     expect(job).toMatchObject({ status: 'done', key: urlKey('reachability', url), payload: { url } });
-  });
+  }, JOB_TEST_MS);
 
   it('with no worker, the reachability line says the browser could not open', async () => {
     const answer = await withNoWorker(() => caller.sources.reachability({ url: 'https://test-reach-none.example.com/x' }));

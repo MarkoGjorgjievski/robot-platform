@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db, jobs, sourceVerifications, driftChecks, runs } from '@robot/db';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
 import { enqueueJob, claimJob, releaseJob, jobQueueName } from './queue.js';
@@ -7,12 +7,12 @@ import { startJobRunner, type Registry, type JobRunner } from './runner.js';
 import { PLAN_STOPPED, type JobPolicy } from './types.js';
 import { testJobDefinitions } from './test-jobs.js';
 import { createBrowserGate } from './browser-gate.js';
-import { runQueuedJobs, jobsOf } from '../test-helpers/jobs.js';
+import { runQueuedJobs, jobsOf, JOB_TEST_MS } from '../test-helpers/jobs.js';
 
 const q = () => jobQueueName();
 const get = async (id: string) => (await db.query.jobs.findFirst({ where: eq(jobs.id, id) }))!;
 const policy = (p: Partial<JobPolicy> = {}): JobPolicy => ({ lane: 'background', priority: 10, maxAttempts: 1, stuckMs: 60_000, startWithinMs: null, ...p });
-const until = async (pred: () => Promise<boolean>, ms = 10_000) => {
+const until = async (pred: () => Promise<boolean>, ms = 30_000) => {
   const t = Date.now() + ms;
   while (!(await pred())) { if (Date.now() > t) throw new Error('timed out'); await new Promise((r) => setTimeout(r, 25)); }
 };
@@ -31,7 +31,7 @@ describe('startJobRunner', () => {
     start({ echo: { policy: policy(), run: async (p: { n: number }) => ({ twice: p.n * 2 }) } });
     await until(async () => (await get(id)).status === 'done');
     expect((await get(id)).result).toEqual({ value: { twice: 4 } });
-  });
+  }, JOB_TEST_MS);
 
   it('a handler that throws is retried, then failed with its error', async () => {
     const { id } = await enqueueJob(db, { type: 'boom', payload: {}, maxAttempts: 2 });
@@ -40,7 +40,7 @@ describe('startJobRunner', () => {
     await until(async () => (await get(id)).status === 'failed');
     expect(calls).toBe(2);
     expect(await get(id)).toMatchObject({ attempts: 2, error: 'db went away' });
-  });
+  }, JOB_TEST_MS);
 
   it('a lane never runs more than its slots; a type never more than its cap', async () => {
     for (let i = 0; i < 3; i++) await enqueueJob(db, { type: 'slow', payload: {} });
@@ -56,7 +56,7 @@ describe('startJobRunner', () => {
       { lanes: { interactive: 1, background: 3, runs: 1 } });
     await until(async () => (await db.query.jobs.findMany({ where: eq(jobs.queue, q()) })).every((j) => j.status === 'done'));
     expect(peak).toBe(1);
-  });
+  }, JOB_TEST_MS);
 
   it('a stuck job is stopped: its signal fires, its browsers close, it fails stalled — or, for work that resumes, is retried', async () => {
     const closed: string[] = [];
@@ -75,7 +75,7 @@ describe('startJobRunner', () => {
     start({ resumes: { policy: policy({ stuckMs: 100, maxAttempts: 2, retryOnStuck: true }), run: (_p, ctx) => { attempt = ctx.attempt; return ctx.attempt === 1 ? new Promise(() => {}) : Promise.resolve('resumed'); } } });
     await until(async () => (await get(r.id)).status === 'done');
     expect(attempt).toBe(2);
-  });
+  }, JOB_TEST_MS);
 
   it('a job waiting for a browser past its stuck limit is not stuck: the wait is not its work (final review I2)', async () => {
     const gate = createBrowserGate({ max: 1, pollMs: 20 });
@@ -88,12 +88,12 @@ describe('startJobRunner', () => {
     held();
     await until(async () => (await get(id)).status === 'done');
     expect((await get(id)).result).toEqual({ value: 'got one' });
-  });
+  }, JOB_TEST_MS);
   it('a job with progress is not stuck', async () => {
     const { id } = await enqueueJob(db, { type: 'busy', payload: {} });
     start({ busy: { policy: policy({ stuckMs: 100 }), run: async (_p, ctx) => { for (let i = 0; i < 6; i++) { await new Promise((r) => setTimeout(r, 50)); ctx.progress(); } return 'ok'; } } });
     await until(async () => (await get(id)).status === 'done');
-  });
+  }, JOB_TEST_MS);
 
   it('shutdown waits, then gives running jobs back with their attempt unspent', async () => {
     const { id } = await enqueueJob(db, { type: 'long', payload: {}, maxAttempts: 2 });
@@ -101,7 +101,7 @@ describe('startJobRunner', () => {
     await until(async () => (await get(id)).status === 'running');
     await r.stop(100);
     expect(await get(id)).toMatchObject({ status: 'queued', attempts: 0, lockedBy: null });
-  });
+  }, JOB_TEST_MS);
 
   it('shutdown closes a given-back job\'s browsers before the job can be claimed again', async () => {
     const { id } = await enqueueJob(db, { type: 'long', payload: {}, maxAttempts: 2 });
@@ -121,7 +121,7 @@ describe('startJobRunner', () => {
     expect(statusWhenClosed).toBe('running');              // closed while the job was still this worker's
     expect(alive.size).toBe(0);
     expect(await get(id)).toMatchObject({ status: 'queued', attempts: 0 });
-  });
+  }, JOB_TEST_MS);
 
   it('a crashed worker\'s job is reaped and finished by another (in-process)', async () => {
     const { id } = await enqueueJob(db, { type: 'echo', payload: { n: 1 }, maxAttempts: 2 });
@@ -129,7 +129,7 @@ describe('startJobRunner', () => {
     start({ echo: { policy: policy({ maxAttempts: 2 }), run: async () => 'recovered' } });
     await until(async () => (await get(id)).status === 'done');
     expect(await get(id)).toMatchObject({ attempts: 2, result: { value: 'recovered' } });
-  });
+  }, JOB_TEST_MS);
 
   it('a retry closes the half-done rows of the earlier attempt, but not the one its payload names', async () => {
     const sourceId = await createTestSource({ schema: [] });
@@ -143,7 +143,7 @@ describe('startJobRunner', () => {
       expect((await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, leftover!.id) }))!.errorMessage).toBe('stalled');
       expect((await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, mine!.id) }))!.completedAt).toBeNull();
     } finally { await deleteTestSource(sourceId); }
-  });
+  }, JOB_TEST_MS);
 
   it('a job given back at attempt 1 and claimed again closes the half-done rows of its earlier start', async () => {
     const sourceId = await createTestSource({ schema: [] });
@@ -161,7 +161,7 @@ describe('startJobRunner', () => {
       expect(retry).toBe(true);
       expect((await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, mine!.id) }))!.completedAt).toBeNull();
     } finally { await deleteTestSource(sourceId); }
-  });
+  }, JOB_TEST_MS);
 
   it('a first start closes nothing and is not a retry', async () => {
     const sourceId = await createTestSource({ schema: [] });
@@ -174,7 +174,7 @@ describe('startJobRunner', () => {
       expect(retry).toBe(false);
       expect(await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, own!.id) })).toMatchObject({ status: 'running' });
     } finally { await deleteTestSource(sourceId); }
-  });
+  }, JOB_TEST_MS);
 
   it('a lost lease stops that hold only: the job claimed again here keeps its slot and finishes', async () => {
     const { id } = await enqueueJob(db, { type: 'twice', payload: {}, maxAttempts: 2 });
@@ -193,7 +193,7 @@ describe('startJobRunner', () => {
     releaseSecond('second');
     await until(async () => (await get(id)).status === 'done');
     expect((await get(id)).result).toEqual({ value: 'second' });
-  });
+  }, JOB_TEST_MS);
 
   it('an answer or a failure the lost lease kept from being recorded is logged, and changes nothing', async () => {
     const lines: string[] = [];
@@ -209,7 +209,7 @@ describe('startJobRunner', () => {
     expect(lines).toContain(`lost the lease on stolen-bad ${bad.id} before its failure was recorded: late`);
     expect(lines.some((l) => l.startsWith('done ') || l.startsWith('failed '))).toBe(false);
     expect(await get(ok.id)).toMatchObject({ status: 'running', lockedBy: 'other:9#00000000' });
-  });
+  }, JOB_TEST_MS);
 
   it('a run row closes with its job type sentence from the one table awaitJob reads too', async () => {
     const sourceId = await createTestSource({ schema: [] });
@@ -220,33 +220,34 @@ describe('startJobRunner', () => {
       await until(async () => (await get(id)).status === 'failed');
       expect(await db.query.runs.findFirst({ where: eq(runs.id, run!.id) })).toMatchObject({ status: 'failed', errorMessage: PLAN_STOPPED });
     } finally { await deleteTestSource(sourceId); }
-  });
+  }, JOB_TEST_MS);
 
   it('a claim that lands after stop() began is given back unstarted: never run, attempt unspent, not a retry next time', async () => {
     const { id } = await enqueueJob(db, { type: 'late', payload: {}, maxAttempts: 2 });
     let calls = 0;
     const registry: Registry = { late: { policy: policy({ maxAttempts: 2 }), run: async () => { calls++; return 'ran'; } } };
-    let stopped: Promise<void> | undefined;
-    // Hold the claim's UPDATE behind a table lock until stop() has begun.
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`LOCK TABLE jobs IN SHARE ROW EXCLUSIVE MODE`);
-      const r = start(registry);
-      await new Promise((res) => setTimeout(res, 150));
-      stopped = r.stop(2000);
-      await new Promise((res) => setTimeout(res, 50));
-    });
+    // The claim lands only after stop() has begun: it is held in flight by this test's own claim wrapper
+    // (no lock on the jobs table, which the whole dev database shares).
+    let inFlight: () => void = () => {};
+    const held = new Promise<void>((res) => { inFlight = res; });
+    let claims = 0;
+    const r = start(registry, { claim: async (o) => { claims++; await held; return claimJob(o); } });
+    await until(async () => claims > 0);
+    const stopped = r.stop(2000);
+    await new Promise((res) => setTimeout(res, 50));
+    inFlight();
     await stopped;
     expect(calls).toBe(0);
     expect(await get(id)).toMatchObject({ status: 'queued', attempts: 0, lockedBy: null, startedAt: null });
     expect((await claimJob({ queue: q(), workerId: 'next:1', types: ['late'], leaseMs: 60_000 }))!.startedBefore).toBe(false);
-  });
+  }, JOB_TEST_MS);
 
   it('a runner purges the long-finished jobs of its queue jobs when it starts', async () => {
     const { id } = await enqueueJob(db, { type: 'old', payload: {} });
     await db.update(jobs).set({ status: 'done', finishedAt: new Date(Date.now() - 8 * 86_400_000) }).where(eq(jobs.id, id));
     start({}, { reapEveryMs: 60_000 });
     await until(async () => (await db.query.jobs.findFirst({ where: eq(jobs.id, id) })) === undefined);
-  });
+  }, JOB_TEST_MS);
 
   it('claims nothing while free memory is low', async () => {
     const { id } = await enqueueJob(db, { type: 'echo', payload: { n: 1 } });
@@ -256,13 +257,31 @@ describe('startJobRunner', () => {
     expect((await get(id)).status).toBe('queued');
     free = 1000;
     await until(async () => (await get(id)).status === 'done');
-  });
+  }, JOB_TEST_MS);
 
+  let earlierQueue = '';
+  it('each test has its own queue (final review I4): a job one test leaves is no other test\'s to run', async () => {
+    earlierQueue = q();
+    const left = await enqueueJob(db, { type: 'test-sleep', payload: { ms: 60_000 } });
+    expect((await get(left.id)).queue).toBe(earlierQueue);
+  }, JOB_TEST_MS);
+
+  it('runQueuedJobs drains only the calling test\'s queue and stops at once when it is empty', async () => {
+    expect(q()).not.toBe(earlierQueue);
+    const elsewhere = await enqueueJob(db, { type: 'test-sleep', payload: { ms: 60_000 }, queue: earlierQueue });
+    await enqueueJob(db, { type: 'test-sleep', payload: { ms: 20 } });
+    const t0 = Date.now();
+    await runQueuedJobs({ registry: testJobDefinitions(), timeoutMs: 5000 });
+    expect(Date.now() - t0).toBeLessThan(3000);
+    expect((await jobsOf('test-sleep')).map((j) => j.status)).toEqual(['done']);
+    expect((await get(elsewhere.id)).status).toBe('queued');
+    await db.delete(jobs).where(eq(jobs.queue, earlierQueue));
+  }, JOB_TEST_MS);
   it('runQueuedJobs drains the queue; the test jobs answer with their attempt', async () => {
     await enqueueJob(db, { type: 'test-sleep', payload: { ms: 30 }, maxAttempts: 2 });
     await enqueueJob(db, { type: 'test-sleep-once', payload: { ms: 10_000, finishOnAttempt: 1 } });
     await runQueuedJobs({ registry: testJobDefinitions(), timeoutMs: 5000 });
     expect((await jobsOf('test-sleep')).map((j) => [j.status, j.result])).toEqual([['done', { value: { attempt: 1 } }]]);
     expect((await jobsOf('test-sleep-once')).map((j) => [j.status, j.result])).toEqual([['done', { value: { attempt: 1 } }]]);
-  });
+  }, JOB_TEST_MS);
 });

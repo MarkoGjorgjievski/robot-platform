@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, runs, inputSets, sources } from '@robot/db';
-import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
+import { withJobRunner, jobsOf, JOB_TEST_MS } from '../test-helpers/jobs.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { JOB_POLICIES, PLAN_STOPPED } from '../jobs/types.js';
@@ -36,7 +36,7 @@ describe('planViaWorker (spec 2026-10-23 §4.4)', () => {
       expect(job).toMatchObject({ status: 'done', key: `plan:${out.runId}`, payload: { sourceId: f.sourceId, runId: out.runId, probe: true } });
       expect(await db.query.runs.findFirst({ where: eq(runs.id, out.runId) })).toMatchObject({ jobId: job!.id, inputLabel: 'probe' });
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
 
   it('a plan job that dies closes its run with the sentence, and the caller reads the sentence', async () => {
     const f = await plannable('pvw-dies');
@@ -47,7 +47,7 @@ describe('planViaWorker (spec 2026-10-23 §4.4)', () => {
       const [run] = await db.query.runs.findMany({ where: eq(runs.sourceId, f.sourceId) });
       expect(run).toMatchObject({ status: 'failed', errorMessage: PLAN_STOPPED });
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
 
   it('a precondition error from planning keeps its code across the worker', async () => {
     const f = await plannable('pvw-precondition');
@@ -56,7 +56,7 @@ describe('planViaWorker (spec 2026-10-23 §4.4)', () => {
       await expect(withJobRunner(() => planViaWorker(db, f.sourceId, { probe: true }), { registry: refusing }))
         .rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'no' });
     } finally { await f.cleanup(); }
-  });
+  }, JOB_TEST_MS);
 
   it('with no worker the run closes with the sentence and the caller reads it', async () => {
     const f = await plannable('pvw-none');

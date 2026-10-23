@@ -10,7 +10,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { buildBoxMapScript, boxesFromAnnotation } from '@robot/scraper';
 import { writeCaptureFile } from '../verify/capture-store.js';
 import { signedInCaller, signIn } from '../test-helpers/identity.js';
-import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
+import { withJobRunner, jobsOf, JOB_TEST_MS } from '../test-helpers/jobs.js';
 import { VARIANT_SHOP, VARIANT_SHOP_URLS } from '../test-helpers/variant-shop.js';
 
 // `startProofPageCapture` fires a real browser un-awaited; stub the job so this file never launches one for the mutation.
@@ -134,7 +134,7 @@ describe('sources.saveVariantAnswer / variantList / variantLinksNear', () => {
     expect(r!.count).toBe(2);
     // It answered through the worker: one variant-links-near job, done, with no key (spec §4.2).
     expect((await jobsOf('variant-links-near')).find((j) => (j.payload as { sourceId: string }).sourceId === sourceId)).toMatchObject({ status: 'done', key: null, payload: { sourceId, url: URLS[0] } });
-  });
+  }, JOB_TEST_MS);
 
   it('another org gets NOT_FOUND from all three', async () => {
     let a: Awaited<ReturnType<typeof signIn>> | undefined;

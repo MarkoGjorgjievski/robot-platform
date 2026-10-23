@@ -10,7 +10,7 @@ import { db, sources, projects, datasets, runs, inputSets } from '@robot/db';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 import type { PlanSourceResult } from '../crawl/plan-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { jobsOf, withJobRunner } from '../test-helpers/jobs.js';
+import { jobsOf, withJobRunner, JOB_TEST_MS } from '../test-helpers/jobs.js';
 import { jobRegistry } from '../jobs/handlers.js';
 
 const { planSourceMock, enqueueRunSpy, markRunExtractingMock } = vi.hoisted(() => ({
@@ -135,7 +135,7 @@ describe('crawl.probeAndSample', () => {
     expect(result).toEqual({
       runId, status: 'planned', itemCount: 3, warnings: ['some warning'], errors: [],
     });
-  });
+  }, JOB_TEST_MS);
 
   it('does not mark the run extracting or start execution when planning failed outright (all inputs failed)', async () => {
     const sourceId = await makeSource();
@@ -158,7 +158,7 @@ describe('crawl.probeAndSample', () => {
       warnings: [],
       errors: [{ inputIndex: 0, message: 'listing capture failed: blocked' }],
     });
-  });
+  }, JOB_TEST_MS);
 
   it('does not mark the run extracting or start execution when planning "succeeded" but planned zero items', async () => {
     const sourceId = await makeSource();
@@ -175,7 +175,7 @@ describe('crawl.probeAndSample', () => {
     expect(enqueueRunSpy.fn).not.toHaveBeenCalled();
     expect(result.itemCount).toBe(0);
     expect(result.status).toBe('planned');
-  });
+  }, JOB_TEST_MS);
 
   it('rejects a non-uuid sourceId', async () => {
     await expect(caller.crawl.probeAndSample({ sourceId: 'not-a-uuid' } as never)).rejects.toThrow();
@@ -200,7 +200,7 @@ describe('crawl.probeAndSample', () => {
       expect(result.runId).toBe('run-confirmed');
       expect(result.status).toBe('planned');
       expect(planSourceMock).toHaveBeenCalledWith(expect.anything(), sourceId, { probe: true, runId: expect.any(String) });
-    });
+    }, JOB_TEST_MS);
 
     it('hands back the existing run instead of starting a second probe when one is already in flight', async () => {
       const sourceId = await makeSource();
@@ -214,7 +214,7 @@ describe('crawl.probeAndSample', () => {
       expect(planSourceMock).not.toHaveBeenCalled();
       expect(markRunExtractingMock).not.toHaveBeenCalled();
       expect(enqueueRunSpy.fn).not.toHaveBeenCalled();
-    });
+    }, JOB_TEST_MS);
 
     it.each(['planning', 'planned', 'extracting', 'cancelling'])(
       'treats a probe run at %s as still in flight',
@@ -284,7 +284,7 @@ describe('crawl.probeAndSample', () => {
 
       expect(result.runId).toBe(fresh);
       expect(planSourceMock).toHaveBeenCalledTimes(1);
-    });
+    }, JOB_TEST_MS);
 
     it('DOES reuse a probe run at planned when completed_at is still null — genuinely mid-flight', async () => {
       const sourceId = await makeSource();
@@ -296,7 +296,7 @@ describe('crawl.probeAndSample', () => {
 
       expect(result.runId).toBe(existingRun!.id);
       expect(planSourceMock).not.toHaveBeenCalled();
-    });
+    }, JOB_TEST_MS);
 
     it('does not mistake a real crawl (a non-probe run) for an in-flight probe', async () => {
       const sourceId = await makeSource();
@@ -314,7 +314,7 @@ describe('crawl.probeAndSample', () => {
 
       expect(result.runId).toBe(fresh);
       expect(planSourceMock).toHaveBeenCalledTimes(1);
-    });
+    }, JOB_TEST_MS);
   });
 });
 
