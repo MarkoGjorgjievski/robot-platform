@@ -7,6 +7,7 @@ import { runVerifyJob } from './handlers/verify.js';
 import { runDriftCheck, storedCaptures } from '../verify/run-drift-check.js';
 import { runCoverageCheck } from '../verify/run-coverage-check.js';
 import { checkWebsite } from '../verify/website-checks.js';
+import { runExecuteJob } from './handlers/run.js';
 
 export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
   const registry: Registry = {
@@ -36,6 +37,12 @@ export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
       policy: JOB_POLICIES['website-check'],
       subject: () => null,
       run: (p: JobPayloads['website-check'], ctx) => checkWebsite(p.sourceId, { onPhase: ctx.progress }),
+    },
+    // One executor per run; a retry resumes it (its earlier attempt's `running` items back to pending).
+    run: {
+      policy: JOB_POLICIES.run,
+      subject: (p: JobPayloads['run']) => ({ table: 'runs', id: p.runId }),
+      run: (p: JobPayloads['run'], ctx) => runExecuteJob(p, ctx),
     },
   };
   return opts.testJobs ? { ...registry, ...testJobDefinitions() } : registry;

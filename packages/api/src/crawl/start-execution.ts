@@ -136,26 +136,28 @@ export function buildFinalise(
 }
 
 /**
- * Runs the loop outside the request. Deliberately not awaited: 200 items at
- * ~30s each is ~100 minutes, which no HTTP mutation can hold open. The honest
- * limit of having no job queue is that an api-server restart pauses the run —
- * `run_items` survives, so calling execute again resumes it.
+ * Runs the loop outside the request: 200 items at ~30s each is ~100 minutes,
+ * which no HTTP mutation can hold open. Runs are `run` jobs (spec 2026-10-23
+ * §4.4, jobs/handlers/run.ts): the worker calls this, one executor per run, and
+ * a crash or a stuck attempt resumes the run by itself — `run_items` survives,
+ * and the retry puts the items its earlier attempt held back to pending.
  *
- * This function must never reject in a way that escapes to its caller as an
- * unhandled promise rejection — every caller deliberately does not await it,
- * and under default Node behaviour an unhandled rejection kills the process,
- * taking the whole api-server (and the dashboard it serves) down with it. So
- * every step of the failure path — reading the error, and recording it — is
- * itself guarded; the `.catch()` at each call site is belt-and-braces for
- * anything this function's own guards still missed.
+ * `opts.hooks` is the job's side: `onItem` after each recorded item (the job's
+ * progress), `aborted` when the worker stopped this attempt — the loop stops
+ * between items without finalising and the run is left for the retry.
+ *
+ * This function must never reject: every step of the failure path — reading
+ * the error, and recording it — is itself guarded (the operator CLI still calls
+ * it un-awaited, where an unhandled rejection would kill the process).
  */
 export async function startExecution(
   runId: string,
   sourceId: string,
   schema: OriginField[],
   limit?: number,
-  opts?: { mergeToParent?: boolean },
+  opts?: { mergeToParent?: boolean; hooks?: { onItem?: () => void; aborted?: () => boolean } },
 ): Promise<void> {
+  const hooks = opts?.hooks;
   // Snapshotted outside the try: the cost of a run that failed part-way is
   // still money the customer spent, and Usage must show it.
   const before = snapshotUsage();
@@ -184,12 +186,14 @@ export async function startExecution(
       // budget counts products; variant pages ride along, up to the run's hard
       // limit of 5,000 pages — planning of products still uses the source budget.
       const runItemCap = HARD_ITEM_CEILING;
+      const onDone = buildOnDone(db, opts?.mergeToParent, { variantPlan });
 
       await executeRun(runId, {
         claim: (id) => claimNextItem(db, id),
         extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema, certification, schemaDefinition, variantPlan, itemCap: runItemCap }),
-        onDone: buildOnDone(db, opts?.mergeToParent, { variantPlan }),
-        onFailed: (itemId, message) => markItemFailed(db, itemId, message),
+        onDone: async (...args) => { await onDone(...args); hooks?.onItem?.(); },
+        onFailed: async (itemId, message) => { await markItemFailed(db, itemId, message); hooks?.onItem?.(); },
+        ...(hooks?.aborted ? { aborted: hooks.aborted } : {}),
         // Both `cancelling` (the stop request) and `cancelled` (a stop another
         // loop already carried out) end this loop — see is-cancelled.ts.
         isCancelled: () => isRunCancelled(db, runId),
@@ -205,6 +209,9 @@ export async function startExecution(
     });
   } catch (err) {
     console.error(`[crawl] execution of run ${runId} failed:`, err);
+    // The worker stopped this attempt and closed its browser under it: what threw is the stop, not the
+    // run. The run is left as it is; the job's retry resumes it.
+    if (hooks?.aborted?.()) return;
     try {
       await db.update(runs)
         .set({ status: 'failed', errorMessage: safeErrorMessage(err).slice(0, 1000), completedAt: new Date() })

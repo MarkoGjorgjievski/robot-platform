@@ -18,6 +18,11 @@ export async function closeJobRows(tx: DbOrTx, jobId: string, opts: { runSentenc
   await tx.execute(sql`UPDATE captures SET metadata = jsonb_build_object(
       'kind', 'proof-page', 'status', 'failed', 'url', metadata->>'url', 'startedAt', metadata->>'startedAt', 'error', 'stalled')
     WHERE job_id = ${jobId} AND metadata->>'kind' = 'proof-page' AND metadata->>'status' = 'capturing' ${not('captures')}`);
+  // A run it closes has no executor left: the item it was working goes back to pending, so "Extract again"
+  // picks it up at once rather than after the 30-minute stale rule (spec §6's run sentence promises that).
+  await tx.execute(sql`UPDATE run_items SET status = 'pending', started_at = NULL
+    WHERE kind = 'detail' AND status = 'running' AND run_id IN (
+      SELECT id FROM runs WHERE job_id = ${jobId} AND status IN ('planning', 'extracting', 'cancelling') ${not('runs')})`);
   await tx.execute(sql`UPDATE runs SET
       error_message = CASE WHEN status = 'cancelling' THEN error_message ELSE ${opts.runSentence} END,
       status = CASE WHEN status = 'cancelling' THEN 'cancelled' ELSE 'failed' END,

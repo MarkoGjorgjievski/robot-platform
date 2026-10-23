@@ -323,3 +323,51 @@ describe('startExecution — variant plan wiring', () => {
     }
   });
 });
+
+describe('startExecution — inside a run job (spec 2026-10-23 §4.4)', () => {
+  afterEach(() => {
+    executeRunMock.mockReset();
+    executeRunMock.mockImplementation(async () => ({ extracted: 0, failed: 0, recordingFailures: 0, cancelled: false, limitReached: false, status: 'completed' }));
+    loadCurrentCertificationMock.mockReset();
+    loadVariantRunPlanMock.mockReset();
+  });
+  const RUN_ID = '00000000-0000-0000-0000-00000000a003';
+  const SOURCE_ID = '00000000-0000-0000-0000-00000000a004';
+  const NO_ITEM = '00000000-0000-0000-0000-00000000a005';
+
+  it('reports progress after each recorded item and hands the loop the abort', async () => {
+    const onItem = vi.fn();
+    let stop = false;
+    await startExecution(RUN_ID, SOURCE_ID, [], undefined, { hooks: { onItem, aborted: () => stop } });
+    const execDeps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
+    await execDeps.onDone(NO_ITEM, null, {}, null);
+    await execDeps.onFailed(NO_ITEM, 'blocked');
+    expect(onItem).toHaveBeenCalledTimes(2);
+    expect(execDeps.aborted!()).toBe(false);
+    stop = true;
+    expect(execDeps.aborted!()).toBe(true);
+  });
+
+  it('without hooks the loop has no abort', async () => {
+    await startExecution(RUN_ID, SOURCE_ID, []);
+    expect((executeRunMock.mock.calls[0]![1] as ExecuteDeps).aborted).toBeUndefined();
+  });
+
+  it('an execution that throws after its attempt was stopped leaves the run for the retry, not failed', async () => {
+    const { createTestSource, deleteTestSource } = await import('../test-helpers/source.js');
+    const { runs } = await import('@robot/db');
+    const sourceId = await createTestSource({ schema: [] });
+    try {
+      const [run] = await db.insert(runs).values({ sourceId, status: 'extracting' }).returning();
+      executeRunMock.mockImplementationOnce(async () => { throw new Error('Target page, context or browser has been closed'); });
+      await startExecution(run!.id, sourceId, [], undefined, { hooks: { aborted: () => true } });
+      expect((await db.query.runs.findFirst({ where: eq(runs.id, run!.id) }))!.status).toBe('extracting');
+
+      executeRunMock.mockImplementationOnce(async () => { throw new Error('boom'); });
+      await startExecution(run!.id, sourceId, [], undefined, { hooks: { aborted: () => false } });
+      expect((await db.query.runs.findFirst({ where: eq(runs.id, run!.id) }))!.status).toBe('failed');
+    } finally {
+      await deleteTestSource(sourceId);
+    }
+  });
+});

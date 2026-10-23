@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { db, sourceVerifications, driftChecks, coverageChecks, captures, runs } from '@robot/db';
+import { db, sourceVerifications, driftChecks, coverageChecks, captures, runs, runItems } from '@robot/db';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
 import { closeJobRows } from './rows.js';
 import { RUN_STOPPED } from './types.js';
@@ -59,6 +59,24 @@ describe('closeJobRows', () => {
       await closeJobRows(db, job, { runSentence: RUN_STOPPED, except: { table: 'captures', id: s2!.id } });
       expect((await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, d2!.id) }))!.status).toBe('failed');
       expect(((await db.query.captures.findFirst({ where: eq(captures.id, s2!.id) }))!.metadata as { status: string }).status).toBe('capturing');
+    } finally { await deleteTestSource(sourceId); }
+  });
+
+  it('a run it closes gives its running items back to pending, so "Extract again" picks them up; a run it keeps is left alone', async () => {
+    const sourceId = await createTestSource({ schema: [] });
+    const job = randomUUID();
+    try {
+      const [closed] = await db.insert(runs).values({ sourceId, status: 'extracting', jobId: job }).returning();
+      const [kept] = await db.insert(runs).values({ sourceId, status: 'extracting', jobId: job }).returning();
+      const item = (runId: string, status: string, url: string) => ({ runId, kind: 'detail', url, inputIndex: 0, status, startedAt: new Date() });
+      await db.insert(runItems).values([
+        item(closed!.id, 'running', 'https://x.test/1'), item(closed!.id, 'done', 'https://x.test/2'), item(kept!.id, 'running', 'https://x.test/3'),
+      ]);
+      await closeJobRows(db, job, { runSentence: RUN_STOPPED, except: { table: 'runs', id: kept!.id } });
+      const of = async (runId: string) => (await db.query.runItems.findMany({ where: eq(runItems.runId, runId) }))
+        .map((i) => `${i.url}:${i.status}:${i.startedAt ? 'started' : '-'}`).sort();
+      expect(await of(closed!.id)).toEqual(['https://x.test/1:pending:-', 'https://x.test/2:done:started']);
+      expect(await of(kept!.id)).toEqual(['https://x.test/3:running:started']);
     } finally { await deleteTestSource(sourceId); }
   });
 });
