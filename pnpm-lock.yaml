@@ -113,6 +113,9 @@ importers:
         specifier: ^2.2.0
         version: 2.2.6
     devDependencies:
+      '@robot/browser':
+        specifier: workspace:*
+        version: link:../browser
       '@types/node':
         specifier: ^25.3.3
         version: 25.3.3
