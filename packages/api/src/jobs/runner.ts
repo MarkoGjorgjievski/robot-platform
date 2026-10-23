@@ -40,7 +40,10 @@ export type RunnerOptions = {
 
 export type JobRunner = { workerId: string; active(): number; stop(graceMs?: number): Promise<void> };
 
-type Active = { job: JobRow; def: JobDefinition; controller: AbortController; lastProgress: number; over: boolean };
+type Active = { job: JobRow; def: JobDefinition; controller: AbortController; lastProgress: number; over: boolean; settled: Promise<void> };
+
+/** At shutdown, how long an aborted handler may take to unwind before its job is given back. */
+const UNWIND_MS = 2000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -68,14 +71,14 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   const start = (job: JobRow) => {
     const def = opts.registry[job.type]!;
     const controller = new AbortController();
-    const a: Active = { job, def, controller, lastProgress: Date.now(), over: false };
+    const a: Active = { job, def, controller, lastProgress: Date.now(), over: false, settled: Promise.resolve() };
     active.set(job.id, a);
     const ctx: JobContext = {
       jobId: job.id, type: job.type, lane: def.policy.lane, attempt: job.attempts, signal: controller.signal,
       progress: () => { a.lastProgress = Date.now(); },
     };
     log(`claimed ${job.type} ${job.id} (attempt ${job.attempts} of ${job.maxAttempts})`);
-    void (async () => {
+    a.settled = (async () => {
       let value: unknown;
       try {
         // A retry: the rows an earlier attempt left half-done are closed, except the one the payload names.
@@ -174,9 +177,15 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       stopping = true;
       const deadline = Date.now() + graceMs;
       while (active.size > 0 && Date.now() < deadline) await sleep(50);
-      for (const a of [...active.values()]) {
-        finish(a);
-        a.controller.abort('shutdown');
+      // The rest: stopped here, their browsers closed and their handlers given a moment to unwind, and
+      // only then given back — so no browser of this worker still works a job another worker has claimed.
+      const left = [...active.values()];
+      for (const a of left) { finish(a); a.controller.abort('shutdown'); }
+      await Promise.all(left.map((a) => opts.browsers?.closeJob(a.job.id).catch(() => {})));
+      let unwind: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([Promise.allSettled(left.map((a) => a.settled)), new Promise((r) => { unwind = setTimeout(r, UNWIND_MS); })]);
+      clearTimeout(unwind);
+      for (const a of left) {
         await releaseJob(a.job.id, workerId).catch(() => {});
         log(`gave back ${a.job.type} ${a.job.id} (shutdown)`);
       }
