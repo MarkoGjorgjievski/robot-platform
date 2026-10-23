@@ -38,8 +38,8 @@
 // The shop also serves two walls (honest page verdicts, 2026-10-09): `/blocked`,
 // a 403 Cloudflare page, and `/captcha`, a 200 human check. The last test
 // pastes `/blocked` as the listing and reads its one sentence. That wall puts
-// the shop's host (127.0.0.1) on backoff in the worker (the isolated pair's own;
-// see staff-smoke.test.ts for the three commands) for 2 minutes
+// the shop's host (127.0.0.1) on backoff in the worker that takes the run's page loads (`pnpm dev:all`
+// starts it with the api-server and the app) for 2 minutes
 // (`BACKOFF_FIRST_MS`), and while it lasts every interactive path — Find
 // products, a proof-page capture, the new-website reachability line — answers
 // from the backoff without loading the page: the wall's own sentence and
@@ -47,7 +47,7 @@
 // `/captcha` and reads exactly that answer, not the human check (the
 // classifier's reading of a 200 human check is pinned by @robot/browser's
 // capture-verdict test). The wall test runs LAST, after everything else that
-// touches the shop; and a second run against the same api-server must start
+// touches the shop; and a second run against the same worker must start
 // at least two minutes after the first one ended. Do NOT shorten the backoff
 // (`ROBOT_BACKOFF_FIRST_MS`, read once at import by
 // `packages/scraper/src/domain-lock.ts`) for this smoke: the step asserts
@@ -82,7 +82,7 @@
 // (`page.route`) by a refusal shaped as the api-server sends one, and reads the refusal's
 // sentence: that request never reaches the api-server, so it cannot spend.
 //
-// Needs the api-server and the app up, so it is opt-in:
+// Needs the api-server, the app and the worker up (`pnpm dev:all` starts all three), so it is opt-in:
 //   pnpm dev:all          (in another terminal)
 //   pnpm test:ui:app
 //
