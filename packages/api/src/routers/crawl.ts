@@ -9,7 +9,6 @@ import { db, runs, runItems, sources } from '@robot/db';
 import { router, protectedProcedure } from '../trpc';
 import { runInOrg, sourceInOrg } from '../auth/scope.js';
 import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
-import { markRunExtracting } from '../crawl/mark-extracting.js';
 import { canExecute } from '../crawl/execute-guard.js';
 import { safeErrorMessage, formatPlanLog } from '../crawl/plan-source.js';
 import { planViaWorker } from '../crawl/plan-via-worker.js';
@@ -20,7 +19,7 @@ import { loadCurrentCertification } from '../verify/current-certification.js';
 import {
   classifyFields, deriveBackfillItems, planBackfillRun, EST_AI_COST_PER_PAGE_USD, type BackfillItemPlan,
 } from '../crawl/backfill.js';
-import { enqueueRun } from '../jobs/handlers/run.js';
+import { startRunJob } from '../jobs/handlers/run.js';
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
 // path — re-exported from its new home (`plan-source.ts`, mvp-simplification
@@ -173,9 +172,8 @@ export const crawlRouter = router({
           // browser was, in fact, working it. Called before the run's job is
           // enqueued, exactly as `execute` orders it — the flip is the
           // visible half of starting a loop, persisted before the work begins.
-          await markRunExtracting(ctx.db, outcome.runId);
-          // The worker runs the sample (`run` job, one per run; spec 2026-10-23 §4.4).
-          await enqueueRun(ctx.db, { runId: outcome.runId, limit: PROBE_SAMPLE_LIMIT });
+          // The worker runs the sample (`run` job, one per run; spec 2026-10-23 §4.4); flip and job in one transaction.
+          await startRunJob(ctx.db, { runId: outcome.runId, limit: PROBE_SAMPLE_LIMIT });
         }
       }
 
@@ -372,12 +370,11 @@ export const crawlRouter = router({
       // and a run whose status did NOT flip still gets a loop, because that
       // loop's first between-items check is what finally settles a
       // `cancelling` run whose original loop already died.
-      await markRunExtracting(ctx.db, input.runId);
-
       // The worker runs it (`run` job, one per run: a second execute while one is queued or running
       // adds none); a crash resumes by itself. A backfill run merges into its parent (Finding 1) — the
       // job reads `parentRunId` off the run, for this and every later execution.
-      await enqueueRun(ctx.db, { runId: input.runId, ...(input.limit !== undefined ? { limit: input.limit } : {}) });
+      // The flip and the job in one transaction: never a run that reads extracting with no job to run it.
+      await startRunJob(ctx.db, { runId: input.runId, ...(input.limit !== undefined ? { limit: input.limit } : {}) });
       return { runId: input.runId, started: true, requeued };
     }),
 
@@ -586,8 +583,7 @@ export const crawlRouter = router({
       // above does. The job merges it into the parent's items (it has a parentRunId) and, for a repair
       // sweep, stages it through `runRepairSweep`.
       const backfillRunId = await planBackfillRun(ctx.db, input.runId, parent.source.id, items, targetNames, orderFirst);
-      await markRunExtracting(ctx.db, backfillRunId);
-      await enqueueRun(ctx.db, { runId: backfillRunId, ...(isRepairSweep ? { repairSweep: { deadFields } } : {}) });
+      await startRunJob(ctx.db, { runId: backfillRunId, ...(isRepairSweep ? { repairSweep: { deadFields } } : {}) });
 
       return { backfillRunId, items: items.length };
     }),
