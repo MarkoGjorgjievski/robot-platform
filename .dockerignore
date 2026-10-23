@@ -1,0 +1,17 @@
+# The Docker Compose stack (spec 2026-10-23): sources and manifests only. Never the dev .env or its secrets.
+**/node_modules
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+**/*.log
+.env
+.env.*
+stack.env
+.git
+.claude
+.superpowers
+.playwright-mcp
+.worktrees
+backups
+docs
+packages/api-server/public/captures/*
