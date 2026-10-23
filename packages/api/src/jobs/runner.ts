@@ -6,7 +6,7 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { db } from '@robot/db';
 import type { JobPolicy, Lane } from './types.js';
-import { RUN_STOPPED } from './types.js';
+import { runSentenceFor } from './types.js';
 import type { JobSubject } from './rows.js';
 import { closeJobRows } from './rows.js';
 import { runInJob, type JobContext } from './context.js';
@@ -56,7 +56,6 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   const log = opts.log ?? ((line: string) => console.log(`[worker] ${line}`));
   const freeMb = opts.freeMb ?? (() => os.freemem() / 1_048_576);
   const backoff = (attempt: number) => retryBase * 2 ** Math.max(attempt - 1, 0);
-  const runSentenceFor = (type: string) => opts.registry[type]?.policy.runSentence ?? RUN_STOPPED;
   /** The jobs held here, by claim (a job reaped from this worker and claimed by it again is a second hold). */
   const active = new Map<string, Active>();
   /** Outcome writes still in flight (a job's slot is free before its row says so); stop waits for them. */
@@ -165,7 +164,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   let reaps = 0;
   const reap = async () => {
     try {
-      const r = await reapJobs(opts.queue, { retryBaseMs: retryBase, runSentenceFor });
+      const r = await reapJobs(opts.queue, { retryBaseMs: retryBase });
       for (const id of r.retried) log(`reaped ${id}: its worker stopped answering; retrying`);
       for (const id of r.failed) log(`reaped ${id}: its worker stopped answering; no attempts left`);
       for (const id of r.expired) log(`expired ${id}: not started in time`);

@@ -45,6 +45,11 @@ export const JOB_POLICIES = {
 
 export type JobType = keyof typeof JOB_POLICIES;
 
+/** What a run row stamped with a job of this type says when the job fails for good — the one place the runner, the reaper and awaitJob read it. */
+export function runSentenceFor(type: string): string {
+  return (JOB_POLICIES as Record<string, JobPolicy>)[type]?.runSentence ?? RUN_STOPPED;
+}
+
 export type VerifyJobOptions = {
   onlyKeys?: string[];
   free?: boolean;

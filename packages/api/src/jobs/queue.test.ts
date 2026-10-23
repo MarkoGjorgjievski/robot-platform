@@ -20,7 +20,7 @@ const claim = async (types = ['t'], leaseMs = 60_000) => {
   if (job) O = job.lockedBy!;
   return job;
 };
-const reapOpts = { retryBaseMs: 1000, runSentenceFor: () => RUN_STOPPED };
+const reapOpts = { retryBaseMs: 1000 };
 
 afterEach(async () => { await db.delete(jobs).where(eq(jobs.queue, q())); });
 
