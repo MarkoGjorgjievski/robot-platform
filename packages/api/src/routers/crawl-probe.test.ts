@@ -24,11 +24,11 @@ vi.mock('../crawl/plan-source.js', async (importOriginal) => {
   return { ...actual, planSource: planSourceMock };
 });
 
-// The real enqueue, watched: its call order against `markRunExtracting` is part of the contract.
+// The real start (the flip and the job in one transaction), watched.
 vi.mock('../jobs/handlers/run.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../jobs/handlers/run.js')>();
-  enqueueRunSpy.fn = vi.fn(actual.enqueueRun);
-  return { ...actual, enqueueRun: enqueueRunSpy.fn };
+  enqueueRunSpy.fn = vi.fn(actual.startRunJob);
+  return { ...actual, startRunJob: enqueueRunSpy.fn };
 });
 
 // `planSource` is mocked and never actually inserts a `runs` row, so a real
@@ -126,11 +126,10 @@ describe('crawl.probeAndSample', () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0]!.payload).toEqual({ runId, limit: PROBE_SAMPLE_LIMIT });
 
-    // Order matters: the status flip is the persisted half of "starting a
-    // loop" and must land before the job that runs it is enqueued.
-    const markOrder = markRunExtractingMock.mock.invocationCallOrder[0]!;
-    const startOrder = enqueueRunSpy.fn.mock.invocationCallOrder[0]!;
-    expect(markOrder).toBeLessThan(startOrder);
+    // The status flip is the persisted half of "starting a loop": it and the job that runs it are
+    // written together (startRunJob, one transaction), so neither is ever there without the other.
+    expect(enqueueRunSpy.fn).toHaveBeenCalledTimes(1);
+    expect(enqueueRunSpy.fn).toHaveBeenCalledWith(expect.anything(), { runId, limit: PROBE_SAMPLE_LIMIT });
 
     expect(result).toEqual({
       runId, status: 'planned', itemCount: 3, warnings: ['some warning'], errors: [],

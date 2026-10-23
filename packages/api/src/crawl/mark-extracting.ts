@@ -3,7 +3,7 @@
 
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { runs } from '@robot/db';
-import type { db as Database } from '@robot/db';
+import type { DbOrTx } from '../jobs/queue.js';
 
 /**
  * Mark a run as extracting, and report whether the flip happened.
@@ -32,7 +32,7 @@ import type { db as Database } from '@robot/db';
  * non-terminal run has no completion time.
  */
 export async function markRunExtracting(
-  db: typeof Database,
+  db: DbOrTx,
   runId: string,
 ): Promise<boolean> {
   const flipped = await db.update(runs)

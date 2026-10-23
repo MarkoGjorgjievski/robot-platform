@@ -9,6 +9,7 @@ import { requeueStaleRunningItems, STALE_RUNNING_MS } from '../../crawl/requeue-
 import { startExecution } from '../../crawl/start-execution.js';
 import { runRepairSweep } from '../../crawl/repair-sweep.js';
 import { effectiveSchema } from '../../crawl/effective-schema.js';
+import { markRunExtracting } from '../../crawl/mark-extracting.js';
 import { enqueue } from '../enqueue.js';
 import type { JobContext } from '../context.js';
 import type { JobPayloads } from '../types.js';
@@ -25,7 +26,19 @@ export async function enqueueRun(dbh: Database, payload: JobPayloads['run']): Pr
   });
 }
 
-/** Still active with work pending: put back while the last pass was ending (a Retry-failed or Extract
+/**
+ * Starts a run's execution (whole-branch final list): marks it extracting — never over a Stop
+ * (`markRunExtracting`) — and enqueues its job, stamping the run with it, in one transaction, so a run
+ * never reads extracting with no job to run it.
+ */
+export async function startRunJob(dbh: Database, payload: JobPayloads['run']): Promise<string> {
+  return dbh.transaction(async (tx) => {
+    await markRunExtracting(tx, payload.runId);
+    const jobId = await enqueue(tx, 'run', payload, { key: `run:${payload.runId}` });
+    await tx.update(runs).set({ jobId }).where(eq(runs.id, payload.runId));
+    return jobId;
+  });
+}/** Still active with work pending: put back while the last pass was ending (a Retry-failed or Extract
  * that found this job still running, so added none) — nothing else would run it. */
 async function workLeft(runId: string): Promise<boolean> {
   const run = await db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { status: true } });
