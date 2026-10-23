@@ -13,7 +13,7 @@ back whole. *Done when:* the app serves end to end locally, and the restore test
 ## 2. Constraints
 
 - **Never touches the dev setup.** Compose project `robot-stack` (pinned by `name:` in the file), its own volumes
-  (`robot-stack_pgdata`, `robot-stack_captures`), its own host ports, bound to loopback only (127.0.0.1 and ::1 — Node resolves `localhost` to ::1 first): Postgres **5442**,
+  (`robot-stack_pgdata`, `robot-stack_captures`), its own host ports, published on 127.0.0.1 only, and the stack is used as `http://127.0.0.1:…` (cookies are per host, not per port: on `localhost` the stack's `robot_session` cookie would collide with `pnpm dev:all`'s on localhost:3000/4000): Postgres **5442**,
   api **4200**, app **3200** (override with `STACK_DB_PORT`, `STACK_API_PORT`, `STACK_APP_PORT`). Never 5432,
   3000, 4000, 3100, 4100; never the `robot-platform-db` container or its volume.
 - **Keyless by default.** No image contains `.env` (`.dockerignore`), and no service reads the dev `.env`
@@ -35,18 +35,18 @@ worker run under `tsx` exactly as in dev (no separate compile step to drift).
 | `migrate` | `api` | one shot: `drizzle-kit migrate` (`@robot/db`), then exits; api and worker wait for its success |
 | `api` | `api` (`node:22-bookworm-slim`) | `@robot/api-server` on :4000; `/healthz` healthcheck; no Chromium in the image (the api-server never launches one) |
 | `worker` | `worker` (`mcr.microsoft.com/playwright:v1.62.1-noble`: the `playwright-core` that `playwright-extra` resolves and launches with, not `@robot/browser`'s own `playwright` 1.58.2) | `@robot/worker`; `shm_size: 1gb`, `init: true` (reaps Chromium children), 30 s stop grace (its shutdown gives jobs back within 25 s) |
-| `app` | `app` | `vite build` with `VITE_API_URL=http://localhost:<api port>` baked in, then `packages/app/serve.mjs` (Node only: `dist/client` files, everything else through the SSR handler) on :3000 |
+| `app` | `app` | `vite build` with `VITE_API_URL=http://127.0.0.1:<api port>` baked in, then `packages/app/serve.mjs` (Node only: `dist/client` files, everything else through the SSR handler) on :3000 |
 | `backup` | `postgres:16` | nightly `pg_dump` loop + the backup/restore scripts (§5) |
 | `fixture` | `busybox` (profile `test` only) | a static product page at `http://fixture:8080/` for checks with no outside website |
 
 **Captures.** The worker writes screenshots and `.capture.json` files; the api-server serves them from
 `packages/api-server/public/captures`. Both mount the `captures` volume at that path (`CAPTURES_DIR` set to it).
 
-**The app's own server and the api-server.** The browser reaches the api-server at `http://localhost:4200`, but
+**The app's own server and the api-server.** The browser reaches the api-server at `http://127.0.0.1:4200`, but
 inside the app container that address is the container itself. The one server-side call (`getSession`, the
 SSR session lookup) now uses `API_INTERNAL_URL` when set (`http://api:4000` in compose), else the browser's
 address — the only code change outside the new files; dev is unchanged. Cookies are host-scoped, not
-port-scoped, so the session cookie set by `localhost:4200` reaches `localhost:3200` and is forwarded.
+port-scoped, so the session cookie set by `127.0.0.1:4200` reaches `127.0.0.1:3200` and is forwarded (and stays apart from dev's `localhost` cookie).
 `APP_ORIGINS` is set to the app's host origin for CORS.
 
 ## 4. Running it

@@ -1,7 +1,7 @@
 // The stack's end-to-end check (spec 2026-10-23 docker-compose §6), from the repo root with the stack up and
 // the fixture started (docker compose --profile test up -d):  node docker/smoke/e2e.mjs
 // End-to-end through the stack's api (:4200): sign in, a project, a website, a proof-page capture done by the worker, its tile served back.
-const API = process.env.API ?? 'http://localhost:4200';
+const API = process.env.API ?? 'http://127.0.0.1:4200';
 let cookie = '';
 async function call(kind, path, input) {
   const enc = encodeURIComponent(JSON.stringify({ json: input }));
