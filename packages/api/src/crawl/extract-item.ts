@@ -22,7 +22,7 @@ import {
   buildXPathLinksScript, normalizeVariantLink, normalizeVariantLinks, groupKeyOf, variantKeyOf,
   HARD_ITEM_CEILING,
   type ExtractionAgent, type OriginField, type SchemaDefinitionField, type VariantRunPlan,
-  type CertifiedPath, type Shown,
+  type CertifiedPath, type Shown, type LeanRunState,
 } from '@robot/scraper';
 import { captures, extractions } from '@robot/db';
 import type { db as Database } from '@robot/db';
@@ -69,6 +69,8 @@ export type ExtractItemDeps = {
   itemCap?: number;
   /** Injected so the links method can be tested without a database. */
   queueVariants?: typeof queueVariantGroup;
+  /** The run's lean-capture state (spec 2026-10-23 run speed §3.4), one per execution — start-execution.ts. Unset: today's capture. */
+  lean?: LeanRunState;
 };
 
 export async function extractItem(
@@ -147,7 +149,7 @@ export async function extractItem(
         ...(deps.certification!.defaults?.[f.name] !== undefined ? { defaultValue: deps.certification!.defaults[f.name]! } : {}),
       }));
 
-    const verified = await extractVerified({ url: item.url, fields }, { browser: deps.browser });
+    const verified = await extractVerified({ url: item.url, fields }, { browser: deps.browser, ...(deps.lean ? { lean: deps.lean } : {}) });
 
     // M3: the stats belong to the host the certification was proven against
     // — the `domain_intelligence` row `saveVerifiedPaths` actually wrote
@@ -185,7 +187,10 @@ export async function extractItem(
     // per product from the database, not from a console log: this is how the
     // 70 s → 7 s Ikea change is checked, and what the next speed work reads.
     const t = verified.timings;
-    if (t) console.log(`[crawl] ${item.url} captured in ${t.totalMs}ms (navigate ${t.navigateMs}ms, ready ${t.readyState ?? 'n/a'} ${t.readyMs ?? 0}ms), ${hits}/${scored.length} fields`);
+    // Spec 2026-10-23 run speed §3.5: which capture the values came from rides beside its timings.
+    const metadata: Record<string, unknown> = { ...(t ? { capture: t } : {}), ...(verified.lean ? { lean: verified.lean } : {}) };
+    const how = verified.lean ? `, ${verified.lean.mode}${verified.lean.reason ? ` (${verified.lean.reason})` : ''}` : '';
+    if (t) console.log(`[crawl] ${item.url} captured in ${t.totalMs}ms (navigate ${t.navigateMs}ms, ready ${t.readyState ?? 'n/a'} ${t.readyMs ?? 0}ms)${how}, ${hits}/${scored.length} fields`);
 
     // Spec 2026-10-12 §4: the extraction's validationResult carries whether
     // each certified value was shown on the page (verified.shown), and the
@@ -230,9 +235,9 @@ export async function extractItem(
         // "defaulted" (else drift would blank the list's real values): only the product-level
         // fills that survive, plus whatever applyDefaults filled on a variant row (property 7).
         const defaultedAll = [...new Set([...productDefaulted.filter((k) => !overwritten.has(k)), ...applied.flatMap((a) => a.defaulted)])];
-        return persistRows(rowsOut, confidence, t ? { capture: t } : {}, withDefaulted({ shown, paths }, defaultedAll));
+        return persistRows(rowsOut, confidence, metadata, withDefaulted({ shown, paths }, defaultedAll));
       }
-      return persistRows(built.rows, confidence, t ? { capture: t } : {}, validationResult);
+      return persistRows(built.rows, confidence, metadata, validationResult);
     }
 
     // Links-method variants (Task 4): this page is ONE variant — it keeps its
@@ -251,7 +256,7 @@ export async function extractItem(
       if (links.length === 0) {
         // A product without variants (or a page that no longer carries the
         // collector): its own URL is its key, and it has no `_variant_key`.
-        return persistRows([{ ...row, _product_key: ownUrl }], confidence, t ? { capture: t } : {}, validationResult);
+        return persistRows([{ ...row, _product_key: ownUrl }], confidence, metadata, validationResult);
       }
 
       const group = normalizeVariantLinks([item.url, ...links.map((l) => l.href)]);
@@ -284,10 +289,10 @@ export async function extractItem(
         });
       }
 
-      return persistRows([own], confidence, t ? { capture: t } : {}, validationResult);
+      return persistRows([own], confidence, metadata, validationResult);
     }
 
-    return persistRows([row], confidence, t ? { capture: t } : {}, validationResult);
+    return persistRows([row], confidence, metadata, validationResult);
   }
 
   const extract = deps.extract ?? runExtraction;
