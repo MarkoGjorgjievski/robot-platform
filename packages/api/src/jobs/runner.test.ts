@@ -182,6 +182,22 @@ describe('startJobRunner', () => {
     expect((await get(id)).result).toEqual({ value: 'second' });
   });
 
+  it('an answer or a failure the lost lease kept from being recorded is logged, and changes nothing', async () => {
+    const lines: string[] = [];
+    const steal = (id: string) => db.update(jobs).set({ lockedBy: 'other:9#00000000' }).where(eq(jobs.id, id));
+    const ok = await enqueueJob(db, { type: 'stolen-ok', payload: {} });
+    const bad = await enqueueJob(db, { type: 'stolen-bad', payload: {} });
+    start({
+      'stolen-ok': { policy: policy(), run: async (_p, ctx) => { await steal(ctx.jobId); return 'late'; } },
+      'stolen-bad': { policy: policy(), run: async (_p, ctx) => { await steal(ctx.jobId); throw new Error('late'); } },
+    }, { log: (l) => lines.push(l), lanes: { interactive: 1, background: 2, runs: 1 } });
+    await until(async () => lines.filter((l) => l.startsWith('lost the lease')).length === 2);
+    expect(lines).toContain(`lost the lease on stolen-ok ${ok.id} before its answer was recorded`);
+    expect(lines).toContain(`lost the lease on stolen-bad ${bad.id} before its failure was recorded: late`);
+    expect(lines.some((l) => l.startsWith('done ') || l.startsWith('failed '))).toBe(false);
+    expect(await get(ok.id)).toMatchObject({ status: 'running', lockedBy: 'other:9#00000000' });
+  });
+
   it('claims nothing while free memory is low', async () => {
     const { id } = await enqueueJob(db, { type: 'echo', payload: { n: 1 } });
     let free = 10;
