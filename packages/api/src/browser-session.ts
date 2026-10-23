@@ -17,6 +17,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { IBrowser } from '@robot/browser';
 import { PlaywrightBrowser } from '@robot/browser';
+import { currentJob } from './jobs/context.js';
 
 /** The worker's limit on browsers (jobs/browser-gate.ts). Unset: every session launches at once, as before. */
 export type BrowserGate = { acquire(): Promise<() => void>; track(browser: IBrowser): () => void };
@@ -66,6 +67,9 @@ export async function withBrowserSession<T>(
     // every subsequent call leaked another. `PlaywrightBrowser.close()` is
     // null-safe, so closing a browser that never finished launching is fine.
     await browser.launch({ headless: true });
+    // A job stopped while its browser launched (stuck, lease lost, shutdown): the gate's close may have
+    // come before Chromium was there to close, so close it here, at once, and do nothing with it.
+    if (currentJob()?.signal.aborted) throw new Error('The job was stopped while its browser started.');
     return await inSession.run(true, () => fn(browser));
   } finally {
     try {
