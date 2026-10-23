@@ -7,17 +7,16 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Align the Playwright versions** — `@robot/browser` declares playwright 1.58.2 but launches through playwright-extra, which resolves playwright-core 1.62.1; the worker image had to match 1.62.1. Declare one version everywhere. *Done when:* one Playwright version in the lockfile for launches; the worker image and dev agree; tests.
-2. **Run speed** — lean captures on certified runs and several websites in parallel through the queue (design: docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md). *Done when:* a measured 1,000-page-equivalent run is an order of magnitude faster with the same values.
-3. **Recurring extraction** — a schedule per website (e.g. every Monday 06:00); each run produces a downloadable file and a webhook on completion. *Done when:* a scheduled run fires, writes its file and posts its webhook; tests, smoke.
-4. **Email, with a local catcher** — SMTP sending (Mailpit in Docker for local) for "Needs attention", failed runs and account messages. *Done when:* each message is sent and seen in Mailpit; a real provider is a config change.
-5. **Tenant isolation audit, as tests** — two organisations, every router and capture-file route called across them, all refused; money fields removed from customer answers; rate limits. *Done when:* the sweep test passes.
-6. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
-7. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
-8. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
-9. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
-10. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-11. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **Run speed** — lean captures on certified runs and several websites in parallel through the queue (design: docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md). *Done when:* a measured 1,000-page-equivalent run is an order of magnitude faster with the same values.
+2. **Recurring extraction** — a schedule per website (e.g. every Monday 06:00); each run produces a downloadable file and a webhook on completion. *Done when:* a scheduled run fires, writes its file and posts its webhook; tests, smoke.
+3. **Email, with a local catcher** — SMTP sending (Mailpit in Docker for local) for "Needs attention", failed runs and account messages. *Done when:* each message is sent and seen in Mailpit; a real provider is a config change.
+4. **Tenant isolation audit, as tests** — two organisations, every router and capture-file route called across them, all refused; money fields removed from customer answers; rate limits. *Done when:* the sweep test passes.
+5. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
+6. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
+7. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
+8. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
+9. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+10. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
@@ -34,6 +33,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-23 — Playwright aligned on 1.62.1 everywhere (`baf5f5d`).
 - 2026-10-23 — The whole stack in Docker Compose, with nightly backups and a tested restore (`feat/docker-compose`).
 - 2026-10-23 — Capture worker and job queue (`7d94500`). After merge: stop dev:all, pnpm install, restart.
 - 2026-10-21 — Websites change follow-ups (`5ec19af`): a refresh no longer hides other findings, never starts a listing sample, and a default-backed field is judged against its default. Gymshark re-checked: all 8 fields read as working (15:49); a later re-check could not open a browser (low memory) and is recorded as failed.
