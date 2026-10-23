@@ -7,6 +7,7 @@ import { db, runs, runItems, extractions, captures, jobs } from '@robot/db';
 import { BROWSER_OWNER_SWITCH } from '@robot/browser';
 import { product, renderedTruth } from './fixture-shop.js';
 import type { SeededSite } from './seed.js';
+import { parsePowerShellJson } from '../powershell-json.js';
 
 const run = promisify(execFile);
 type Proc = { pid: number; ppid: number; mb: number; cmd: string };
@@ -17,7 +18,7 @@ async function processes(): Promise<Proc[]> {
       'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,WorkingSetSize,CommandLine | ConvertTo-Json -Compress'], { windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
     // PowerShell 5.1's ConvertTo-Json leaves a raw control character in a command line unescaped (invalid JSON);
     // the command line is only matched for the owner switch, so a space in its place is harmless.
-    const rows = JSON.parse(stdout.replace(/[\u0000-\u001f]/g, ' ')) as Array<{ ProcessId: number; ParentProcessId: number; WorkingSetSize: number; CommandLine: string | null }>;
+    const rows = parsePowerShellJson(stdout) as Array<{ ProcessId: number; ParentProcessId: number; WorkingSetSize: number; CommandLine: string | null }>;
     return rows.map((r) => ({ pid: r.ProcessId, ppid: r.ParentProcessId, mb: Number(r.WorkingSetSize) / 1_048_576, cmd: r.CommandLine ?? '' }));
   }
   const { stdout } = await run('ps', ['-eo', 'pid=,ppid=,rss=,args='], { maxBuffer: 64 * 1024 * 1024 });
