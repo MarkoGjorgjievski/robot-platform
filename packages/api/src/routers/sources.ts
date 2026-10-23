@@ -28,7 +28,7 @@ import { reachabilityResult, type Reachability } from '../verify/reachability.js
 import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency, notOnWebsiteKeys, loadCertificationState, runnableOf } from '../verify/current-certification.js';
 import { customerDriftResults, forCustomer, latestRefreshes, needsAttention, websiteAttention } from '../verify/attention.js';
 import { variantsRequired } from '../verify/variant-check.js';
-import { runSourceVerification } from '../verify/run-source-verification.js';
+import { isJobLive } from '../jobs/queue.js';
 import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification, startVerificationRow } from '../verify/in-flight.js';
@@ -790,11 +790,11 @@ export const sourcesRouter = router({
     .input(z.object({ captureId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await captureInOrg(ctx, input.captureId);
-      const row = await ctx.db.query.captures.findFirst({ where: eq(captures.id, input.captureId), columns: { id: true, url: true, metadata: true } });
+      const row = await ctx.db.query.captures.findFirst({ where: eq(captures.id, input.captureId), columns: { id: true, url: true, metadata: true, jobId: true } });
       const stored = row?.metadata as ProofPageMeta | undefined;
       if (!row || !stored || stored.kind !== 'proof-page') throw new TRPCError({ code: 'NOT_FOUND', message: `Proof-page capture ${input.captureId} not found` });
-      // A capture the api-server died in the middle of is reported as the failure it is, never as still running.
-      const meta = await resolveStalledProofPage(row.id, stored);
+      // A capture whose work died is reported as the failure it is, never as still running; one waiting in the queue is still capturing.
+      const meta = await resolveStalledProofPage(row.id, stored, row.jobId);
       return {
         url: meta.url, status: meta.status,
         tiles: meta.status === 'captured' ? meta.tiles : [],
@@ -1141,16 +1141,12 @@ export const sourcesRouter = router({
       }
 
       // Under the website row lock (fix wave 1, item 5): a refresh (verify/refresh-values.ts) takes the same
-      // lock for its in-flight check and writes, so a Verify and a refresh never interleave.
-      const start = await startVerificationRow(ctx.db, input.sourceId, hash);
-      if (start.status === 'in-progress') return start;
-      const id = start.verificationId;
-
-      void runSourceVerification(input.sourceId, id, { onlyKeys: input.onlyKeys, ...(input.free ? { free: true } : {}) }).catch((err) => {
-        console.error(`[sources.verify] verification ${id} failed:`, err);
+      // lock for its in-flight check and writes, so a Verify and a refresh never interleave. The row's `verify`
+      // job is enqueued in that same transaction; the worker runs it (spec 2026-10-23 §4.4).
+      const start = await startVerificationRow(ctx.db, input.sourceId, hash, undefined, {
+        ...(input.onlyKeys ? { onlyKeys: input.onlyKeys } : {}), ...(input.free ? { free: true } : {}),
       });
-
-      return { verificationId: id, status: 'started' as const };
+      return start.status === 'in-progress' ? start : { verificationId: start.verificationId, status: 'started' as const };
     }),
 
   /**
@@ -1186,7 +1182,8 @@ export const sourcesRouter = router({
       // Spec 2026-10-20 §3.3, §5.3: a run that failed or stalled never replaces the last completed
       // results on screen. The tab gets the newest completed, error-free run and, beside it, the
       // failure; the raw error stays on the row, for ops, and is never in this answer.
-      const failure = runFailure(newest);
+      // A row whose job is still queued or running is in flight, however long it has waited (spec 2026-10-23 §4.5).
+      const failure = runFailure(newest, Date.now(), await isJobLive(ctx.db, newest.jobId));
       const lastGood = failure
         ? await ctx.db.query.sourceVerifications.findFirst({
             where: and(eq(sourceVerifications.sourceId, input.sourceId), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)),

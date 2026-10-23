@@ -1,8 +1,9 @@
-// The fire-and-forget body behind `sources.verify` (task 12) — follows
+// The body behind `sources.verify` (task 12): the body of the `verify` job
+// (jobs/handlers/verify.ts); never awaited by a request. Follows
 // `startExecution`'s try/catch-everything shape (crawl/start-execution.ts):
-// the caller never awaits this, so it must never reject in a way that
-// escapes as an unhandled promise rejection, and every failure path must
-// still leave the row terminal (`completedAt` set).
+// it must never reject, and every failure path must still leave the row
+// terminal (`completedAt` set). A row closed meanwhile (the runner stopped
+// this attempt as stuck) is never written by it again (spec 2026-10-23 §7.6).
 
 import { and, eq, isNull } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
@@ -233,8 +234,8 @@ export async function runSourceVerification(
     }
 
     // One transaction (spec 2026-10-21 §3.1): no reader sees a field uncertified between the result and its hold.
-    await db.transaction(async (tx) => {
-      await tx.update(sourceVerifications).set({
+    const wrote = await db.transaction(async (tx) => {
+      const [won] = await tx.update(sourceVerifications).set({
         results: run.outcome.fields,
         variantResults,
         captures: captureRefs,
@@ -242,25 +243,30 @@ export async function runSourceVerification(
         aiCalls: run.outcome.aiCalls,
         costUsd: cost.toFixed(4),
         completedAt: new Date(),
-      }).where(eq(sourceVerifications.id, verificationId));
+      }).where(and(eq(sourceVerifications.id, verificationId), isNull(sourceVerifications.completedAt)))
+        .returning({ id: sourceVerifications.id });
+      // Closed meanwhile (the runner stopped this attempt as stuck): a late attempt writes nothing (spec §7.6).
+      if (!won) return false;
       await writeHolds(tx, sourceId, holdPlan);
       // The pages were just read: the scheduled check need not read them again for a while (spec §3.3).
       await tx.update(sources).set({ nextCheckAt: nextCheckAt() }).where(eq(sources.id, sourceId));
+      return true;
     });
+    if (!wrote) return;
     if (run.outcome.allPassed) {
       const byConcept: Record<string, CertifiedPath[]> = {};
       for (const f of fields) (byConcept[f.concept] ??= []).push(...run.outcome.fields[f.key]!.certified);
       await saveVerifiedPaths(hostname, 'detail', byConcept, set.urls[0]!);
       await db.update(sources).set({ driftedFields: null, updatedAt: new Date() }).where(eq(sources.id, sourceId));
-      // The coverage check (spec 2026-10-10 §A1): free, in the background, never awaited. Never after a refresh's own
+      // The coverage check (spec 2026-10-10 §A1): free, in the background; only its start is awaited. Never after a refresh's own
       // re-verify (spec 2026-10-21 §7.6, follow-ups §2): the scheduled check that started it runs its own listing sample.
-      if (!refresh) void startCoverage(sourceId, verificationId).catch((err) => console.error(`[coverage] could not start for ${sourceId}:`, err));
+      if (!refresh) await startCoverage(sourceId, verificationId).catch((err) => console.error(`[coverage] could not start for ${sourceId}:`, err));
     }
 
     // Spec 2026-10-21 §3.3: fields this Verify left held are checked on its own captures (no page load) —
     // what changed, and whether it changed by nature. Never after a refresh's own re-verify (§7.6).
     if (!refresh && holdPlan.upsert.length > 0) {
-      void startCheck(sourceId, holdPlan.upsert.map((h) => h.fieldKey), captureRefs)
+      await startCheck(sourceId, holdPlan.upsert.map((h) => h.fieldKey), captureRefs)
         .catch((err) => console.error(`[verify] the check after ${verificationId} could not start:`, err));
     }
 
@@ -275,7 +281,7 @@ export async function runSourceVerification(
       await db.update(sourceVerifications).set({
         errorMessage: stripAnsi(safeErrorMessage(err)).slice(0, 1000),
         completedAt: new Date(),
-      }).where(eq(sourceVerifications.id, verificationId));
+      }).where(and(eq(sourceVerifications.id, verificationId), isNull(sourceVerifications.completedAt)));
     } catch (recoveryErr) {
       console.error(`[verify] failed to record failure for ${verificationId}:`, recoveryErr);
     }

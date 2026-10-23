@@ -312,9 +312,9 @@ describe('runDriftCheck', () => {
       const pages = priceMovedOnP2();
       const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(pages[u]!)] as const)));
       const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
-      // The real start (review Minor 1: it names itself in the log), its run left in flight as a just-started re-verify is.
+      // The real start (review Minor 1: it names itself in the log), its job left queued as a just-started re-verify is.
       const startRefreshVerify = vi.fn((sourceId: string, keys: string[], refs: Record<string, StoredCaptureRef>, o: { checkId?: string | null } = {}) =>
-        realStartRefreshVerify(sourceId, keys, refs, { ...o, run: vi.fn(async () => undefined) }));
+        realStartRefreshVerify(sourceId, keys, refs, o));
       const first = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price] });
       await runDriftCheck(first.checkId, { capture, startRefreshVerify });
       const id = await startRefreshVerify.mock.results[0]!.value;
@@ -639,34 +639,6 @@ describe('the default capture function', () => {
       expect(captured(got[url]).meta.status).toBe('captured');
       expect(captured(got[url]).ref.captureId).not.toBe(tabCaptureId);
     } finally { await f.cleanup(); }
-  });
-
-  it('shares the proof-page browser limit: with the tab\'s three captures running, the check waits for a slot', async () => {
-    const f = await createProjectWithSource(caller, { tag: 'drift-slots', fields: [{ name: 'Title', type: 'text' }] });
-    let release!: () => void;
-    const gate = new Promise<void>((r) => { release = r; });
-    const sessionOf = (capture: (u: string) => Promise<PageCapture>) => async <T,>(fn: (b: IBrowser) => Promise<T>) =>
-      fn({ launch: async () => {}, close: async () => {}, capture } as unknown as IBrowser);
-    try {
-      // The Verification tab's captures hold every slot.
-      const holders = await Promise.all([0, 1, 2].map(() => startProofPageCapture(f.sourceId, f.urls[0]!, { session: sessionOf(async (u) => { await gate; return fakeCapture(u); }) })));
-      const driftCalls: string[] = [];
-      const pending = captureProofPagesWith(sessionOf(async (u) => { driftCalls.push(u); return fakeCapture(u); }))(f.sourceId, [f.urls[1]!]);
-      await new Promise((r) => setTimeout(r, 300));
-      expect(driftCalls).toEqual([]); // queued behind the tab's captures, not a fourth browser
-
-      release();
-      const got = await pending;
-      expect(driftCalls).toEqual([f.urls[1]]);
-      expect(captured(got[f.urls[1]!]).meta.status).toBe('captured');
-      for (const h of holders) {
-        for (let i = 0; i < 100; i++) {
-          const m = (await db.query.captures.findFirst({ where: eq(captures.id, h.captureId) }))!.metadata as { status: string };
-          if (m.status !== 'capturing') break;
-          await new Promise((r) => setTimeout(r, 50));
-        }
-      }
-    } finally { release(); await f.cleanup(); }
   });
 
   it('never starts a Jev reading, even with the switch on; a proof-page capture of the same page still does (whole-branch review I1)', async () => {

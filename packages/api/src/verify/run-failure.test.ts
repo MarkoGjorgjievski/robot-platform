@@ -12,3 +12,16 @@ describe('runFailure (spec 2026-10-20 §3.3)', () => {
   it('an in-flight row inside the window is still running', () => expect(runFailure({ startedAt: at(VERIFY_STALL_MS - 1000), completedAt: null, errorMessage: null }, NOW)).toBeNull());
   it('an in-flight row past the window stalled', () => expect(runFailure({ startedAt: at(VERIFY_STALL_MS + 1000), completedAt: null, errorMessage: null }, NOW)).toBe('stalled'));
 });
+
+describe('runFailure with a live job (spec 2026-10-23 §4.5)', () => {
+  it('an old in-flight row with a live job has not failed', () => {
+    const row = { startedAt: new Date(Date.now() - VERIFY_STALL_MS - 1), completedAt: null, errorMessage: null };
+    expect(runFailure(row, Date.now(), true)).toBeNull();
+    expect(runFailure(row, Date.now(), false)).toBe('stalled');
+    expect(runFailure(row)).toBe('stalled');
+  });
+  it('a completed row reads the same, live or not', () => {
+    const row = { startedAt: at(60_000), completedAt: at(1000), errorMessage: 'stalled' };
+    expect(runFailure(row, NOW, true)).toBe('stalled');
+  });
+});

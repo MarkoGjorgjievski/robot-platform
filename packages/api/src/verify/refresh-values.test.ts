@@ -1,7 +1,8 @@
 // packages/api/src/verify/refresh-values.test.ts
 // Websites change (spec 2026-10-21 §3.2): applying a check's refreshes and starting their free re-verify.
-// DB-backed; the re-verify's runner is injected, so no page load and no model call.
-import { describe, it, expect, afterAll, vi } from 'vitest';
+// DB-backed; the re-verify is a queued `verify` job no test here runs, so no page load and no model call.
+import { describe, it, expect, afterAll } from 'vitest';
+import { jobsOf } from '../test-helpers/jobs.js';
 import { eq } from 'drizzle-orm';
 import { db, driftChecks, fieldHolds, sources, sourceVerifications, valueRefreshes } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
@@ -13,7 +14,9 @@ import { holdSourceLock, stillPending } from '../test-helpers/row-lock.js';
 
 const me = await signedInCaller('refresh-values');
 afterAll(async () => { await me.cleanup(); });
-const LD: CertifiedPath = { source: 'json-ld', path: 'offers.price', transform: 'identity' };
+/** This website's `verify` jobs, oldest first (the file's queue holds every test's). */
+const verifyJobsOf = async (sourceId: string) => (await jobsOf('verify')).filter((j) => (j.payload as { sourceId?: string }).sourceId === sourceId);
+const LD: CertifiedPath ={ source: 'json-ld', path: 'offers.price', transform: 'identity' };
 
 async function currentPrice(tag: string) {
   const host = `test-refresh-${tag}.example.com`;
@@ -87,11 +90,13 @@ describe('startRefreshVerify', () => {
   it('starts a free, refresh-origin re-verify of the refreshed fields on the check’s captures', async () => {
     const s = await currentPrice('reverify');
     try {
-      const run = vi.fn(async () => undefined);
       const refs = { [s.urls[0]!]: { captureId: 'c1', capturedAt: new Date().toISOString() } };
-      const id = await startRefreshVerify(s.sourceId, ['price'], refs, { run });
+      const id = await startRefreshVerify(s.sourceId, ['price'], refs);
       expect(id).not.toBeNull();
-      expect(run).toHaveBeenCalledWith(s.sourceId, id, { onlyKeys: ['price'], free: true, origin: 'refresh', captureRefs: refs });
+      const [job] = await verifyJobsOf(s.sourceId);
+      expect(job).toMatchObject({ status: 'queued', key: `verify:${id}` });
+      expect(job!.payload).toEqual({ sourceId: s.sourceId, verificationId: id, onlyKeys: ['price'], free: true, origin: 'refresh', captureRefs: refs });
+      expect((await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, id!) }))!.jobId).toBe(job!.id);
     } finally { await s.cleanup(); }
   });
   it('review Minor 1: the refresh log names the re-verify before it runs, in the transaction that starts it', async () => {
@@ -99,23 +104,19 @@ describe('startRefreshVerify', () => {
     try {
       const [check] = await db.insert(driftChecks).values({ sourceId: s.sourceId, status: 'running', trigger: 'schedule', results: { runId: null, fields: {} } }).returning({ id: driftChecks.id });
       await db.insert(valueRefreshes).values({ sourceId: s.sourceId, fieldKey: 'price', driftCheckId: check!.id, pages: {}, fromHash: 'a', toHash: 'b' });
-      let linkedWhenRun: string | null | undefined;
-      const run = vi.fn(async () => {
-        linkedWhenRun = (await db.query.valueRefreshes.findFirst({ where: eq(valueRefreshes.driftCheckId, check!.id) }))?.verificationId;
-      });
-      const id = await startRefreshVerify(s.sourceId, ['price'], {}, { run, checkId: check!.id });
+      const id = await startRefreshVerify(s.sourceId, ['price'], {}, { checkId: check!.id });
       expect(id).not.toBeNull();
-      await run.mock.results[0]!.value;
-      expect(linkedWhenRun).toBe(id);
+      // The job is only queued: the link is there before any worker can run it.
+      expect((await verifyJobsOf(s.sourceId))[0]).toMatchObject({ status: 'queued', payload: { verificationId: id } });
+      expect((await db.query.valueRefreshes.findFirst({ where: eq(valueRefreshes.driftCheckId, check!.id) }))?.verificationId).toBe(id);
     } finally { await s.cleanup(); }
   });
   it('Review Focus 3: starts no re-verify while one is in flight', async () => {
     const s = await currentPrice('reverify-busy');
     try {
       await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x' });
-      const run = vi.fn(async () => undefined);
-      expect(await startRefreshVerify(s.sourceId, ['price'], {}, { run })).toBeNull();
-      expect(run).not.toHaveBeenCalled();
+      expect(await startRefreshVerify(s.sourceId, ['price'], {})).toBeNull();
+      expect(await verifyJobsOf(s.sourceId)).toEqual([]);
     } finally { await s.cleanup(); }
   });
 });
@@ -125,13 +126,12 @@ describe('a refresh and a Verify never interleave (fix wave 1, item 5)', () => {
     const s = await currentPrice('lock-reverify');
     try {
       const lock = await holdSourceLock(s.sourceId);
-      const run = vi.fn(async () => undefined);
-      const started = startRefreshVerify(s.sourceId, ['price'], {}, { run });
+      const started = startRefreshVerify(s.sourceId, ['price'], {});
       expect(await stillPending(started)).toBe(true);
       await lock.startVerifyInside();
       await lock.release();
       expect(await started).toBeNull();
-      expect(run).not.toHaveBeenCalled();
+      expect(await verifyJobsOf(s.sourceId)).toEqual([]);
     } finally { await s.cleanup(); }
   });
   it('applyRefreshes waits for a Verify start holding the lock, then is busy', async () => {
@@ -151,11 +151,12 @@ describe('a refresh and a Verify never interleave (fix wave 1, item 5)', () => {
     const s = await currentPrice('lock-order');
     try {
       const lock = await holdSourceLock(s.sourceId);
-      const run = vi.fn(async () => undefined);
-      const started = startRefreshVerify(s.sourceId, ['price'], {}, { run });
+      const started = startRefreshVerify(s.sourceId, ['price'], {});
       expect(await stillPending(started)).toBe(true);
       await lock.release();
-      expect(await started).not.toBeNull();
+      const id = await started;
+      expect(id).not.toBeNull();
+      expect(await verifyJobsOf(s.sourceId)).toHaveLength(1);
     } finally { await s.cleanup(); }
   });
 });

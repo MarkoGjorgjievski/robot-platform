@@ -16,7 +16,7 @@ import {
 import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { loadCurrentCertification } from './current-certification.js';
-import { captureSlots, loadProofPageCaptures } from './proof-page-capture.js';
+import { loadProofPageCaptures } from './proof-page-capture.js';
 import { sampleListing } from './coverage-sampler.js';
 import { summariseCoverage, stageLine, COVERAGE_STALLED, type CoverageResults, type SampledPage, type FieldCoverage } from './coverage-summary.js';
 
@@ -46,13 +46,13 @@ async function defaultListing(url: string): Promise<{ productUrls: string[]; ver
   if (waiting) return { productUrls: [], verdictMessage: waiting.message };
   const hostname = new URL(url).hostname;
   try {
-    // Inside the proof-page capture slots, like every page the check reads: never a fourth Chromium (spec A3).
-    return await captureSlots(() => withBrowserSession(async (browser) => {
+    // The worker's browser gate keeps it within WORKER_BROWSERS, like every page the check reads (spec A3).
+    return await withBrowserSession(async (browser) => {
       const { capture, links } = await readListingPage(browser, url, { load: true });
       reportVerdict(hostname, capture.verdict);
       if (capture.verdict.kind !== 'ok') return { productUrls: [], verdictMessage: verdictSentence(capture.verdict, url) };
       return { productUrls: findProductGroup(links, url)?.urls ?? [], verdictMessage: null };
-    }));
+    });
   } catch (err) {
     if (!(err instanceof CaptureError)) throw err;
     reportVerdict(hostname, err.kind);
@@ -72,11 +72,11 @@ export function answerFromBackoff(url: string): { unread: string; wall: true } |
   return waiting ? { unread: waiting.message, wall: true } : null;
 }
 
-/** One sampled page: certified paths only, in a proof-page capture slot, under the domain lock `runVerifiedExtraction` takes itself. */
+/** One sampled page: certified paths only, within the worker's browser gate (WORKER_BROWSERS), under the domain lock `runVerifiedExtraction` takes itself. */
 async function defaultExtract(url: string, fields: VerifiedField[]): ReturnType<NonNullable<CoverageDeps['extract']>> {
   const waiting = answerFromBackoff(url);
   if (waiting) return waiting;
-  return captureSlots(() => withBrowserSession(async (browser) => {
+  return withBrowserSession(async (browser) => {
     try {
       const r = await runVerifiedExtraction({ url, fields }, { browser });
       return { data: r.data, shape: shapeOf(r.capture!), defaulted: r.defaulted };
@@ -88,7 +88,7 @@ async function defaultExtract(url: string, fields: VerifiedField[]): ReturnType<
       if (err instanceof CaptureError) return { unread: err.message, wall: false };
       throw err;
     }
-  }));
+  });
 }
 
 /** The proof pages' shapes from their latest fresh captures (the ones the Verification tab's cards read); a url with none is left out. */

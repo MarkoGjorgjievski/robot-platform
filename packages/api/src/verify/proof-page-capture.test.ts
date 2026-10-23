@@ -17,7 +17,9 @@ vi.mock('./jev-client.js', async (importOriginal) => ({ ...(await importOriginal
 import { TILE_HEIGHT, CaptureError, BROWSER_UNAVAILABLE, type IBrowser, type PageCapture } from '@robot/browser';
 import { backoffAnswer, reportVerdict, _resetBackoffForTests } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
-import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, PROOF_PAGE_STALL_MS, type ProofPageMeta } from './proof-page-capture.js';
+import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, resolveStalledProofPage, PROOF_PAGE_STALL_MS, type ProofPageMeta } from './proof-page-capture.js';
+import { jobsOf } from '../test-helpers/jobs.js';
+import { enqueueJob } from '../jobs/queue.js';
 import { readCaptureFile } from './capture-store.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 
@@ -154,36 +156,104 @@ describe('a capturing row the api-server never finished', () => {
   });
 });
 
-describe('a capture waiting for a browser slot (final review M4)', () => {
-  it('is not reported stalled by its insert time, and its clock starts when it gets a slot', async () => {
-    const f = await createProjectWithSource(caller, { tag: 'ppc-queue', fields: [{ name: 'Title', type: 'text' }] });
-    let release!: () => void;
-    const gate = new Promise<void>((r) => { release = r; });
-    const blocked = sessionWith(async (u) => { await gate; return fakeCapture(u); });
+describe('proof-page captures go through the queue (spec 2026-10-23 §4.4)', () => {
+  it('a start inserts the row and its job together; the row names the job', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-q-start', fields: [{ name: 'Title', type: 'text' }] });
     try {
-      // Three captures hold every slot; the fourth waits in the queue.
-      const holders = await Promise.all([0, 1, 2].map(() => startProofPageCapture(f.sourceId, f.urls[1]!, { session: blocked })));
-      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { session: blocked });
-      // It has waited longer than the stall window (a busy server), by its insert time.
-      const old = new Date(Date.now() - PROOF_PAGE_STALL_MS - 1000).toISOString();
+      const { captureId } = await startProofPageCapture(f.sourceId, 'https://shop.test/p/1');
+      const job = (await jobsOf('proof-page-capture')).find((j) => j.key === `capture:${captureId}`);
+      expect(job).toMatchObject({ status: 'queued', key: `capture:${captureId}`, payload: { captureId }, maxAttempts: 2 });
+      const row = await db.query.captures.findFirst({ where: eq(captures.id, captureId) });
+      expect(row!.jobId).toBe(job!.id);
+      expect((row!.metadata as ProofPageMeta).status).toBe('capturing');
+    } finally { await f.cleanup(); }
+  });
+
+  it('the stepper reads a capture waiting in the queue past the stall window as capturing (via the procedure too)', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-q-wait', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!);
+      const old = new Date(Date.now() - PROOF_PAGE_STALL_MS - 60_000).toISOString();
       await db.update(captures).set({ metadata: { kind: 'proof-page', status: 'capturing', url: f.urls[0]!, startedAt: old } }).where(eq(captures.id, captureId));
       expect(await caller.sources.proofPageCapture({ captureId })).toMatchObject({ status: 'capturing' });
+      expect(await caller.sources.proofPageCaptures({ sourceId: f.sourceId, urls: [f.urls[0]!] })).toMatchObject({ [f.urls[0]!]: { captureId, status: 'capturing' } });
+    } finally { await f.cleanup(); }
+  });
 
-      const freed = Date.now();
-      release();
-      const meta = async () => (await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta;
-      for (let i = 0; i < 100 && (await meta()).status === 'capturing'; i++) await new Promise((r) => setTimeout(r, 50));
-      const done = await meta();
+  it('a capturing row older than the stall window stays capturing while its job is live; with none it stalls', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-q-live', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const old = new Date(Date.now() - PROOF_PAGE_STALL_MS - 60_000).toISOString();
+      const meta: ProofPageMeta = { kind: 'proof-page', status: 'capturing', url: 'https://shop.test/p/2', startedAt: old };
+      const { id: jobId } = await enqueueJob(db, { type: 'proof-page-capture', payload: {} });
+      const [queued] = await db.insert(captures).values({ sourceId: f.sourceId, url: meta.url, metadata: meta, jobId }).returning();
+      expect((await resolveStalledProofPage(queued!.id, meta, jobId)).status).toBe('capturing');
+      expect((await db.query.captures.findFirst({ where: eq(captures.id, queued!.id) }))!.metadata).toMatchObject({ status: 'capturing' });
+      const [orphan] = await db.insert(captures).values({ sourceId: f.sourceId, url: meta.url, metadata: meta }).returning();
+      expect(await resolveStalledProofPage(orphan!.id, meta, null)).toMatchObject({ status: 'failed', error: 'stalled' });
+      expect((await db.query.captures.findFirst({ where: eq(captures.id, orphan!.id) }))!.metadata).toMatchObject({ status: 'failed', error: 'stalled' });
+    } finally { await f.cleanup(); }
+  });
+
+  it('its clock starts when the work starts, not at the insert', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-q-clock', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { fire: false });
+      const old = new Date(Date.now() - PROOF_PAGE_STALL_MS - 1000).toISOString();
+      await db.update(captures).set({ metadata: { kind: 'proof-page', status: 'capturing', url: f.urls[0]!, startedAt: old } }).where(eq(captures.id, captureId));
+      const began = Date.now();
+      await runProofPageCapture(captureId, sessionWith(async (u) => fakeCapture(u)), { jev: false });
+      const done = (await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta;
       expect(done.status).toBe('captured');
-      expect(Date.parse(done.startedAt)).toBeGreaterThanOrEqual(freed - 1000);
-      for (const h of holders) {
-        for (let i = 0; i < 100; i++) {
-          const m = (await db.query.captures.findFirst({ where: eq(captures.id, h.captureId) }))!.metadata as ProofPageMeta;
-          if (m.status !== 'capturing') break;
-          await new Promise((r) => setTimeout(r, 50));
-        }
-      }
-    } finally { release(); await f.cleanup(); }
+      expect(Date.parse(done.startedAt)).toBeGreaterThanOrEqual(began - 1000);
+    } finally { await f.cleanup(); }
+  });
+
+  it('a capture closed meanwhile is not overwritten when its late attempt finishes', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-q-fence', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const url = f.urls[0]!;
+      const { captureId } = await startProofPageCapture(f.sourceId, url, { fire: false });
+      const closed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url, startedAt: new Date().toISOString(), error: 'stalled' };
+      // The session closes the row first — as the runner does when it stops a stuck attempt — then the capture "finishes".
+      const session = async <T,>(fn: (b: IBrowser) => Promise<T>) => {
+        await db.update(captures).set({ metadata: closed }).where(eq(captures.id, captureId));
+        return sessionWith(async (u) => fakeCapture(u))(fn);
+      };
+      await runProofPageCapture(captureId, session as never, { jev: false });
+      const row = (await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!;
+      expect(row.metadata).toEqual(closed);
+      expect(row.html).toBeNull();
+    } finally { await f.cleanup(); }
+  });
+
+  it('a late failure does not overwrite a closed row either', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-q-fence-fail', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const url = f.urls[0]!;
+      const { captureId } = await startProofPageCapture(f.sourceId, url, { fire: false });
+      const closed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url, startedAt: new Date().toISOString(), error: 'stalled' };
+      const session = async () => {
+        await db.update(captures).set({ metadata: closed }).where(eq(captures.id, captureId));
+        throw new Error('browser gone');
+      };
+      await runProofPageCapture(captureId, session as never, { jev: false });
+      expect((await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata).toEqual(closed);
+    } finally { await f.cleanup(); }
+  });
+
+  it('a row already closed is not taken again (a retry after the row was closed)', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-q-closed', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const url = f.urls[0]!;
+      const { captureId } = await startProofPageCapture(f.sourceId, url, { fire: false });
+      const closed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url, startedAt: new Date().toISOString(), error: 'stalled' };
+      await db.update(captures).set({ metadata: closed }).where(eq(captures.id, captureId));
+      let opened = 0;
+      await runProofPageCapture(captureId, sessionWith(async (u) => { opened++; return fakeCapture(u); }), { jev: false });
+      expect(opened).toBe(0);
+      expect((await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata).toEqual(closed);
+    } finally { await f.cleanup(); }
   });
 });
 

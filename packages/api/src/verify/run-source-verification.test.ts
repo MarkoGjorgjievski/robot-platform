@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
 import { BROWSER_UNAVAILABLE } from '@robot/browser';
-import { db, sources, sourceVerifications, captures, jevReadings } from '@robot/db';
+import { db, sources, sourceVerifications, captures, jevReadings, fieldHolds } from '@robot/db';
+import { runVerifyJob } from '../jobs/handlers/verify.js';
 import type { JevAgreement } from './jev-agreement.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { runSourceVerification, writeStage } from './run-source-verification.js';
@@ -475,6 +476,87 @@ describe('runSourceVerification — variants', () => {
       expect(row!.results).toMatchObject({ price: { certified: certifiedPrice } });
       expect(row!.variantResults).toMatchObject({ method: 'links', passed: false, problem: 'The variant check failed — try Verify again', pages: {} });
       expect(saveVerifiedPathsMock).toHaveBeenCalled();
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('a stopped attempt finishing late (spec 2026-10-23 §7.6)', () => {
+  const passing = (urls: string[]) => ({
+    outcome: {
+      fields: { price: { key: 'price', cells: {}, certified: [{ source: 'api' as const, path: 'item.price', transform: 'identity' as const }], weakEvidence: false, aiCalled: false, incomplete: false } },
+      allPassed: true,
+      aiCalls: 0,
+    },
+    captures: Object.fromEntries(urls.map((u) => [u, fakeCapture(u, '<html></html>')])),
+    captureErrors: {},
+  });
+  const closeAsRunnerDoes = (verificationId: string) =>
+    db.update(sourceVerifications).set({ completedAt: new Date(), errorMessage: 'stalled' }).where(eq(sourceVerifications.id, verificationId));
+
+  it('a verification completed meanwhile is not overwritten (a stopped attempt finishing late)', async () => {
+    const { sourceId, urls, cleanup } = await makeSchemaSource('late-pass');
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+      // The runner closes the row while the attempt is still reading pages; then the attempt "finishes".
+      runVerificationMock.mockImplementation(async () => { await closeAsRunnerDoes(verificationId); return passing(urls); });
+      const startCheck = vi.fn(async () => undefined);
+      await runSourceVerification(sourceId, verificationId, { startCoverage, startCheck });
+      const row = (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) }))!;
+      expect(row).toMatchObject({ errorMessage: 'stalled', results: {}, allPassed: false });
+      expect(await db.select().from(fieldHolds).where(eq(fieldHolds.sourceId, sourceId))).toEqual([]);
+      expect(saveVerifiedPathsMock).not.toHaveBeenCalled();
+      expect(startCoverage).not.toHaveBeenCalled();
+      expect(startCheck).not.toHaveBeenCalled();
+      // Nothing a finished Verify does: the drift flag stays, the schedule is not moved.
+      const src = (await db.query.sources.findFirst({ where: eq(sources.id, sourceId) }))!;
+      expect(src.driftedFields).toEqual(['price']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a late failure does not overwrite the closed row with its error', async () => {
+    const { sourceId, cleanup } = await makeSchemaSource('late-fail');
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+      runVerificationMock.mockImplementation(async () => { await closeAsRunnerDoes(verificationId); throw new Error('page.goto: Timeout 60000ms exceeded.'); });
+      await runSourceVerification(sourceId, verificationId, { startCoverage });
+      expect((await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) }))!.errorMessage).toBe('stalled');
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('runVerifyJob (spec 2026-10-23 §4.4)', () => {
+  it('a row already completed is not run again', async () => {
+    const { sourceId, cleanup } = await makeSchemaSource('job-done');
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+      await db.update(sourceVerifications).set({ completedAt: new Date(), errorMessage: 'stalled' }).where(eq(sourceVerifications.id, verificationId));
+      await runVerifyJob({ sourceId, verificationId });
+      expect(withBrowserSessionMock).not.toHaveBeenCalled();
+      expect(runVerificationMock).not.toHaveBeenCalled();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('an open row: the clock starts with the work, then the body runs with what the payload asked', async () => {
+    const { sourceId, cleanup } = await makeSchemaSource('job-open');
+    try {
+      const verificationId = await startVerificationRow(sourceId, { startedAt: new Date(Date.now() - 3_600_000) });
+      // The body fails at once (no page, no coverage start): this test is about the hand-off.
+      runVerificationMock.mockRejectedValue(new Error('no pages here'));
+      const before = Date.now();
+      await runVerifyJob({ sourceId, verificationId, onlyKeys: ['price'], free: true });
+      const row = (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) }))!;
+      expect(row.startedAt.getTime()).toBeGreaterThanOrEqual(before - 1000);
+      expect(row.errorMessage).toBe('no pages here');
+      expect(runVerificationMock).toHaveBeenCalledTimes(1);
+      expect(runVerificationMock.mock.calls[0]![1]).toMatchObject({ onlyKeys: ['price'], free: true });
     } finally {
       await cleanup();
     }

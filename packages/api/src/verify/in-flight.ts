@@ -9,10 +9,14 @@
 // grid, and every save came back "has a verification in flight". Sharing one
 // helper keeps the two procedures from drifting apart again.
 
+import { randomUUID } from 'node:crypto';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { sources, sourceVerifications } from '@robot/db';
 import type { Database } from '@robot/db';
 import { VERIFY_STALL_MS } from '@robot/scraper';
+import { enqueue } from '../jobs/enqueue.js';
+import { isJobLive } from '../jobs/queue.js';
+import type { VerifyJobOptions } from '../jobs/types.js';
 
 /** The database or a transaction on it. */
 export type DbOrTx = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -30,7 +34,8 @@ export async function lockSource(tx: DbOrTx, sourceId: string): Promise<boolean>
 /**
  * Starts a Verify: under the website row lock, the in-flight check (with its stall rule) and the new
  * verification row's insert, in one transaction. A Verify already in flight is handed back (`in-progress`)
- * and nothing is inserted. The caller fires the run itself, after this returns.
+ * and nothing is inserted. With `job`, the row's `verify` job is enqueued in the same transaction and the
+ * worker runs it (spec 2026-10-23 §4.4); without, the caller runs it itself (scripts).
  */
 export async function startVerificationRow(
   db: Database,
@@ -38,21 +43,27 @@ export async function startVerificationRow(
   definitionHash: string,
   /** Written in the same transaction as the new row (a refresh's re-verify names itself in the refresh log, review Minor 1). */
   onStarted?: (tx: DbOrTx, verificationId: string) => Promise<unknown>,
+  /** With options, the `verify` job is enqueued in this transaction (spec 2026-10-23 §4.4); without, the caller runs it. */
+  job?: VerifyJobOptions,
 ): Promise<{ verificationId: string; status: 'started' | 'in-progress' }> {
   return db.transaction(async (tx) => {
     await lockSource(tx, sourceId);
     const inFlight = await resolveInFlightVerification(tx, sourceId);
     if (inFlight) return { verificationId: inFlight.id, status: 'in-progress' as const };
-    const [row] = await tx.insert(sourceVerifications).values({ sourceId, definitionHash }).returning({ id: sourceVerifications.id });
-    if (onStarted) await onStarted(tx, row!.id);
-    return { verificationId: row!.id, status: 'started' as const };
+    const id = randomUUID();
+    const jobId = job ? await enqueue(tx, 'verify', { sourceId, verificationId: id, ...job }, { key: `verify:${id}` }) : null;
+    await tx.insert(sourceVerifications).values({ id, sourceId, definitionHash, jobId });
+    if (onStarted) await onStarted(tx, id);
+    return { verificationId: id, status: 'started' as const };
   });
 }
 
 /**
  * The Source's genuinely in-flight verification, or null.
  *
- * A `completed_at IS NULL` row younger than `VERIFY_STALL_MS` is real work in
+ * A row whose job is live (queued within its window, or running under its lease) is in flight however
+ * old (spec 2026-10-23 §4.5); otherwise the time rule:
+ * a `completed_at IS NULL` row younger than `VERIFY_STALL_MS` is real work in
  * progress and is returned as-is. One OLDER than that is a crash leftover (an
  * api-server restart mid-verify): it is closed out with
  * `errorMessage: 'stalled'` — so it can never wedge this Source — and null is
@@ -65,9 +76,10 @@ export async function resolveInFlightVerification(
   const inFlight = await db.query.sourceVerifications.findFirst({
     where: and(eq(sourceVerifications.sourceId, sourceId), isNull(sourceVerifications.completedAt)),
     orderBy: [desc(sourceVerifications.startedAt)],
-    columns: { id: true, startedAt: true },
+    columns: { id: true, startedAt: true, jobId: true },
   });
   if (!inFlight) return null;
+  if (await isJobLive(db, inFlight.jobId)) return { id: inFlight.id };
 
   if (Date.now() - inFlight.startedAt.getTime() < VERIFY_STALL_MS) {
     return { id: inFlight.id };
