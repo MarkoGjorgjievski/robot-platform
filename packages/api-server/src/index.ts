@@ -13,6 +13,10 @@ try {
   // .env not present — fine; the app falls back to whatever's already in process.env
 }
 
+// Before anything can load a page: in this process every browser launch throws (spec 2026-10-23 §4.4).
+const { configureApiProcess } = await import('./process.js');
+configureApiProcess();
+
 const { createApp } = await import('./app.js');
 
 // Procedures use CAPTURES_DIR to know where to write screenshots
@@ -25,8 +29,5 @@ serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[api-server] listening on http://localhost:${info.port}`);
 });
 
-// The scheduled website check (spec 2026-10-21 §3.3): every hour, free (proof pages + listing sample, no AI).
-// Off unless `WEBSITE_CHECKS=on` — a dev api-server never loads pages on its own.
-const { startWebsiteChecks, websiteChecksEnabled } = await import('@robot/api/website-checks');
-startWebsiteChecks();
-console.log(`[api-server] website checks ${websiteChecksEnabled() ? 'on (hourly)' : 'off (set WEBSITE_CHECKS=on to run them)'}`);
+// Page loads, runs and the scheduled website checks (WEBSITE_CHECKS) all run in the worker (@robot/worker).
+console.log(`[api-server] jobs go to queue "${(await import('@robot/api/jobs')).jobQueueName()}" — the worker runs them`);
