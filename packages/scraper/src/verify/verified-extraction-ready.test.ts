@@ -80,6 +80,23 @@ describe('buildReadyCheck', () => {
     const check = buildReadyCheck([twoPaths], PAGE_URL);
     expect(check.isReady(snapshot({ structuredData: { ...EMPTY_STRUCTURED, meta: { 'og:title': 'Widget A' } } }))).toBe(true);
   });
+
+  it('with preferFirstPathMs, waits for each field\'s first path — up to that long after the basic check passed', () => {
+    let t = 0;
+    const PRICE2: VerifiedField = { key: 'price', type: 'money', concept: 'price', paths: [
+      { source: 'api', path: 'item.priceCents', transform: 'cents_to_units' },
+      { source: 'json-ld', path: 'offers.price', transform: 'identity' },
+    ] };
+    const check = buildReadyCheck([PRICE2], PAGE_URL, undefined, { preferFirstPathMs: 1500, now: () => t });
+    const ldOnly = snapshot({ structuredData: { ...EMPTY_STRUCTURED, ldJson: [{ offers: { price: '129.99' } }] } });
+    expect(check.isReady(ldOnly)).toBe(false);   // the second path reads; the first has not arrived yet
+    t = 1000;
+    expect(check.isReady(ldOnly)).toBe(false);
+    t = 1500;
+    expect(check.isReady(ldOnly)).toBe(true);    // waited long enough: the second path's value is the honest read
+    const both = snapshot({ structuredData: ldOnly.structuredData, interceptedRequests: [apiRequest({ item: { priceCents: 12999 } })] });
+    expect(buildReadyCheck([PRICE2], PAGE_URL, undefined, { preferFirstPathMs: 1500, now: () => 0 }).isReady(both)).toBe(true);
+  });
 });
 
 function fakeBrowser(capture: PageCapture, log: string[]): IBrowser & { captureOptions: unknown[] } {
