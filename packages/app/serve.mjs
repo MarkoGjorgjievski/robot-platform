@@ -43,7 +43,8 @@ createServer(async (req, res) => {
           'cache-control': url.pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
         });
         if (req.method === 'HEAD') return res.end();
-        return createReadStream(hit.file).pipe(res);
+        // A file that vanishes or fails mid-read ends this response, never the process.
+        return createReadStream(hit.file).on('error', (err) => { console.error('[app] static file failed:', err.message); res.destroy(); }).pipe(res);
       }
     }
     const headers = new Headers();
