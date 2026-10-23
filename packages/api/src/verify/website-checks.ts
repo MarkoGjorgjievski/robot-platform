@@ -20,6 +20,7 @@ import { runDriftCheck, startDriftCheck, type CaptureProofPagesFn } from './run-
 import { runCoverageCheck, startCoverageCheck, type CoverageDeps } from './run-coverage-check.js';
 import { websiteCheckDays } from './check-schedule.js';
 import { enqueue } from '../jobs/enqueue.js';
+import type { DbOrTx } from '../jobs/queue.js';
 import { jobStopped } from '../jobs/context.js';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -39,11 +40,11 @@ export function websiteChecksEnabled(env: Record<string, string | undefined> = p
  * checked or past its time, with a completed clean Verify. `only` restricts the claim to those websites —
  * every test passes it (the test database is Marko's).
  */
-export async function claimDueWebsite(opts: { only?: string[]; days?: number } = {}): Promise<string | null> {
+export async function claimDueWebsite(opts: { only?: string[]; days?: number; tx?: DbOrTx } = {}): Promise<string | null> {
   if (opts.only && opts.only.length === 0) return null;
   const seconds = Math.round((opts.days ?? websiteCheckDays()) * 86_400);
   const only = opts.only ? sql`AND s.id IN (${sql.join(opts.only.map((id) => sql`${id}::uuid`), sql`, `)})` : sql``;
-  const result = await db.execute(sql`
+  const result = await (opts.tx ?? db).execute(sql`
     UPDATE sources SET next_check_at = now() + make_interval(secs => ${seconds})
      WHERE id = (
        SELECT s.id FROM sources s
@@ -102,9 +103,13 @@ export async function checkWebsite(sourceId: string, deps: { capture?: CapturePr
 export async function enqueueDueWebsiteChecks(opts: { limit?: number; only?: string[] } = {}): Promise<string[]> {
   const out: string[] = [];
   for (let i = 0; i < (opts.limit ?? SWEEP_LIMIT); i++) {
-    const id = await claimDueWebsite(opts.only ? { only: opts.only } : {});
+    // The claim and its job in one transaction: an enqueue that fails leaves the website due for the next sweep.
+    const id = await db.transaction(async (tx) => {
+      const claimed = await claimDueWebsite({ ...(opts.only ? { only: opts.only } : {}), tx });
+      if (claimed) await enqueue(tx, 'website-check', { sourceId: claimed }, { key: `website-check:${claimed}` });
+      return claimed;
+    });
     if (!id) break;
-    await enqueue(db, 'website-check', { sourceId: id }, { key: `website-check:${id}` });
     out.push(id);
   }
   return out;
