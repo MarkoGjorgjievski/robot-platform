@@ -6,9 +6,9 @@
 // test file accompanies). Covered here with a fake `IBrowser`, no real
 // Playwright involved.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { IBrowser, PageCapture, CrawlPage, CrawlOptions, CaptureOptions, BrowserOptions, ScrollOptions } from '@robot/browser';
-import { withBrowserSession } from './browser-session.js';
+import { withBrowserSession, setBrowserGate, NestedBrowserSessionError, type BrowserGate } from './browser-session.js';
 
 /** Records launch/close calls; never touches a real browser. */
 class RecordingBrowser implements IBrowser {
@@ -151,5 +151,43 @@ describe('withBrowserSession', () => {
 
     expect(result).toBe('ok');
     expect(browser.closeCalls).toBe(1);
+  });
+});
+
+describe('withBrowserSession under a gate', () => {
+  const fake = () => ({ launch: vi.fn(async () => {}), close: vi.fn(async () => {}) }) as unknown as IBrowser;
+  afterEach(() => setBrowserGate(null));
+
+  it('asks the gate before launching, tracks the browser, and releases after close', async () => {
+    const events: string[] = [];
+    const gate: BrowserGate = {
+      acquire: async () => { events.push('acquire'); return () => events.push('release'); },
+      track: () => { events.push('track'); return () => events.push('untrack'); },
+    };
+    setBrowserGate(gate);
+    const b = fake();
+    await withBrowserSession(async () => { events.push('work'); }, () => b);
+    expect(events).toEqual(['acquire', 'track', 'work', 'untrack', 'release']);
+    expect(b.close).toHaveBeenCalledOnce();
+  });
+
+  it('refuses a session opened inside another', async () => {
+    setBrowserGate({ acquire: async () => () => {}, track: () => () => {} });
+    await expect(withBrowserSession(() => withBrowserSession(async () => 1, fake), fake)).rejects.toBeInstanceOf(NestedBrowserSessionError);
+  });
+
+  it('without a gate, nests as before (scripts)', async () => {
+    await expect(withBrowserSession(() => withBrowserSession(async () => 1, fake), fake)).resolves.toBe(1);
+  });
+});
+
+describe('withBrowserSession under a gate — a factory that throws', () => {
+  afterEach(() => setBrowserGate(null));
+
+  it('gives the gate its place back', async () => {
+    const events: string[] = [];
+    setBrowserGate({ acquire: async () => { events.push('acquire'); return () => events.push('release'); }, track: () => () => {} });
+    await expect(withBrowserSession(async () => 1, () => { throw new Error('no browser'); })).rejects.toThrow('no browser');
+    expect(events).toEqual(['acquire', 'release']);
   });
 });
