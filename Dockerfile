@@ -6,9 +6,11 @@
 # The workspace packages export TypeScript source, so api-server and worker run it with tsx, as in dev.
 
 ARG NODE_IMAGE=node:22-bookworm-slim
-# Must match the playwright-core that launches Chromium: @robot/browser launches through playwright-extra
-# (stealth, on by default), which resolves playwright-core 1.62.1 in pnpm-lock.yaml, not @robot/browser's own
-# playwright 1.58.2. A mismatch fails every launch with "Executable doesn't exist at /ms-playwright/...".
+# Must match the playwright-core that launches Chromium. @robot/browser launches through playwright-extra
+# (stealth, on by default); every package that depends on Playwright (@robot/browser, @robot/agent,
+# @robot/app) now declares playwright 1.62.1, and a pnpm override pins playwright-core to 1.62.1 too, so
+# this is the only version in pnpm-lock.yaml. A mismatch fails every launch with "Executable doesn't exist
+# at /ms-playwright/...".
 ARG PLAYWRIGHT_IMAGE=mcr.microsoft.com/playwright:v1.62.1-noble
 
 # ── shared: corepack + the workspace manifests (the install layer is cached until one of these changes) ──

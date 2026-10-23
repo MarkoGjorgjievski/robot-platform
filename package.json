@@ -29,6 +29,9 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
-    ]
+    ],
+    "overrides": {
+      "playwright-core": "1.62.1"
+    }
   }
 }
