@@ -1,4 +1,4 @@
-// @robot/worker — `pnpm dev:all` starts it (turbo `dev`). Stops on SIGINT/SIGTERM, or when WORKER_STOP_FILE
+// @robot/worker — `pnpm dev:all` starts it (turbo `dev`). Stops on SIGINT/SIGTERM/SIGBREAK, or when WORKER_STOP_FILE
 // appears (Windows, where a smoke pair's worker cannot be sent a signal it can catch): it stops claiming,
 // gives running jobs back, closes its browsers and exits 0.
 import { join } from 'node:path';
@@ -17,7 +17,13 @@ process.env.CAPTURES_DIR ??= join(here, '..', '..', 'api-server', 'public', 'cap
 
 const { readWorkerConfig } = await import('./config.js');
 const { startWorker } = await import('./worker.js');
+const { closeOrphanBrowsers } = await import('./orphans.js');
+const { setBrowserOwner } = await import('@robot/browser');
 const config = readWorkerConfig(process.env);
+// Every browser this worker launches names it, so the next start can close what a hard kill (a `tsx watch`
+// restart on Windows, Task Manager) left running; this start closes what an earlier worker left.
+setBrowserOwner(String(process.pid));
+await closeOrphanBrowsers();
 // A stop file left over from an earlier stop would stop this worker at once.
 if (config.stopFile) rmSync(config.stopFile, { force: true });
 const worker = await startWorker(config);
@@ -37,6 +43,8 @@ async function shutdown(why: string): Promise<void> {
 }
 process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
+// Windows: Ctrl+Break, and what some process managers send in place of SIGTERM.
+process.on('SIGBREAK', () => void shutdown('SIGBREAK'));
 process.on('unhandledRejection', (err) => console.error('[worker] unhandled rejection:', err));
 if (config.stopFile) {
   const file = config.stopFile;

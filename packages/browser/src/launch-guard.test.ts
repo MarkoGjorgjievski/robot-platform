@@ -12,3 +12,13 @@ describe('the launch guard', () => {
     await b.close(); // null-safe: nothing was launched
   });
 });
+
+describe('the browser owner', () => {
+  it('names nothing until a process sets itself as owner; then every launch carries its switch', async () => {
+    const { setBrowserOwner, browserOwnerArgs } = await import('./launch-guard.js');
+    expect(browserOwnerArgs()).toEqual([]);
+    setBrowserOwner('4242');
+    try { expect(browserOwnerArgs()).toEqual(['--robot-owner=4242']); } finally { setBrowserOwner(null); }
+    expect(browserOwnerArgs()).toEqual([]);
+  });
+});

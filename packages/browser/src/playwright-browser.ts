@@ -6,7 +6,7 @@ import { classifyVerdict, classifyNavigationError } from './verdict.js';
 import { pageVariantFrom, selectedInPageData, wrongVariant, type Selection } from './page-variant.js';
 import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
-import { assertBrowserLaunchAllowed } from './launch-guard.js';
+import { assertBrowserLaunchAllowed, browserOwnerArgs } from './launch-guard.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
 import { rankInterceptedRequests } from './rank-requests.js';
 import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
@@ -131,7 +131,7 @@ export class PlaywrightBrowser implements IBrowser {
     const useStealth = options.stealth ?? true;
     const launcher = useStealth ? await stealthChromium() : chromium;
 
-    this.browser = await launcher.launch({ headless: options.headless ?? true, handleSIGINT: options.handleSIGINT });
+    this.browser = await launcher.launch({ headless: options.headless ?? true, handleSIGINT: options.handleSIGINT, args: browserOwnerArgs() });
 
     // A default context also leaks tells: no locale, no timezone, and a UA that
     // says HeadlessChrome. Only defaults — per-source browser config (v1.5
