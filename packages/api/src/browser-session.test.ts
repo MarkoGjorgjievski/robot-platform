@@ -191,3 +191,17 @@ describe('withBrowserSession under a gate — a factory that throws', () => {
     expect(events).toEqual(['acquire', 'release']);
   });
 });
+
+describe('withBrowserSession in a job that is stopped while its browser launches', () => {
+  it('closes the browser at once and never runs the function', async () => {
+    const { runInJob } = await import('./jobs/context.js');
+    const controller = new AbortController();
+    const browser = new RecordingBrowser();
+    browser.launch = async () => { browser.launchCalls++; controller.abort('stuck'); };  // stopped mid-launch
+    const fn = vi.fn(async () => 'ran');
+    const ctx = { jobId: 'j', claim: 'j#1', type: 't', lane: 'interactive' as const, attempt: 1, retry: false, signal: controller.signal, progress: () => {} };
+    await expect(runInJob(ctx, () => withBrowserSession(fn, () => browser))).rejects.toThrow(/stopped/);
+    expect(fn).not.toHaveBeenCalled();
+    expect(browser.closeCalls).toBe(1);
+  });
+});
