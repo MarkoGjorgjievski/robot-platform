@@ -139,10 +139,13 @@ export async function failJobTerminal(id: string, guard: FailGuard, detail: Seri
   });
 }
 
-/** Shutdown: back to the queue at once, its attempt not spent. */
-export async function releaseJob(id: string, owner: string): Promise<void> {
+/**
+ * Shutdown: back to the queue at once, its attempt not spent. `unstarted`: this claim never ran its
+ * handler and the job had never started before — it goes back as never started (not a retry next time).
+ */
+export async function releaseJob(id: string, owner: string, opts: { unstarted?: boolean } = {}): Promise<void> {
   await db.execute(sql`UPDATE jobs SET status = 'queued', attempts = GREATEST(attempts - 1, 0), locked_by = NULL,
-      locked_until = NULL, ${requeuedAt(sql`now()`)}
+      locked_until = NULL, ${requeuedAt(sql`now()`)}${opts.unstarted ? sql`, started_at = NULL` : sql``}
     WHERE id = ${id} AND locked_by = ${owner} AND status = 'running'`);
 }
 

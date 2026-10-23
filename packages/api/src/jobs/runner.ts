@@ -127,7 +127,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
         log(`claim failed: ${msg(err)}`);
       }
       if (!job) { await sleep(pollMs); continue; }
-      if (stopping) { await releaseJob(job.id, owner(job)).catch(() => {}); break; }
+      if (stopping) { await releaseJob(job.id, owner(job), { unstarted: !job.startedBefore }).catch(() => {}); break; }
       start(job);
     }
   };
