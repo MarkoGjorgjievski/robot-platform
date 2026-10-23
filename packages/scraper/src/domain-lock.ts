@@ -21,7 +21,7 @@ type LockEntry = {
 
 const activeLocks = new Map<string, LockEntry>();
 
-// Minimum delay between requests to the same domain (politeness)
+// Minimum time between the starts of two requests to the same domain (politeness)
 const POLITENESS_DELAY_MS = 2000;
 const lastRequestTime = new Map<string, number>();
 
@@ -146,7 +146,6 @@ export async function acquireDomainLock(domain: string, options: { onBackoff?: '
   activeLocks.set(domain, entry);
 
   const release = () => {
-    lastRequestTime.set(domain, now());
     activeLocks.delete(domain);
     entry.resolve();
   };
@@ -176,6 +175,10 @@ export async function acquireDomainLock(domain: string, options: { onBackoff?: '
     }
   }
 
+  // Spec 2026-10-23 run speed §3.6: the spacing runs start to start. The lock still admits one page per host at
+  // a time; a page that took longer than POLITENESS_DELAY_MS is followed at once (until 2026-10-23 the gap was
+  // counted from the release, which added ~1.7 s after every product of a certified run).
+  lastRequestTime.set(domain, now());
   return release;
 }
 
