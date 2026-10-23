@@ -108,6 +108,40 @@ describe('failures', () => {
   });
 });
 
+describe('the start window', () => {
+  // Spec §4.2: "must start within" is a window for the start, not for the work. A job given back
+  // (shutdown) or whose worker died has started; it gets its window again from when it is due.
+  const startedThenLate = async (leaseMs: number) => {
+    const { id } = await enqueueJob(db, { type: 't', payload: {}, maxAttempts: 2, expiresAt: new Date(Date.now() + 400) });
+    expect((await claim(['t'], leaseMs))!.id).toBe(id);
+    await new Promise((r) => setTimeout(r, 450));          // the window the job was enqueued with has passed
+    return id;
+  };
+
+  it('a job given back at shutdown is still claimable after its first window, never expired', async () => {
+    const id = await startedThenLate(60_000);
+    await releaseJob(id, W);
+    expect(await reapJobs(q(), reapOpts)).toEqual({ retried: [], failed: [], expired: [] });
+    expect(await isJobLive(db, id)).toBe(true);
+    expect((await claim())!.id).toBe(id);
+  });
+
+  it('a job whose worker died is retried after its first window, never expired', async () => {
+    const id = await startedThenLate(1);
+    expect(await reapJobs(q(), { ...reapOpts, retryBaseMs: 1 })).toEqual({ retried: [id], failed: [], expired: [] });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(await reapJobs(q(), reapOpts)).toEqual({ retried: [], failed: [], expired: [] });
+    expect((await claim())!.id).toBe(id);
+  });
+
+  it('a job given back still has a window: with no worker it expires a window after it was due', async () => {
+    const id = await startedThenLate(60_000);
+    await releaseJob(id, W);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(await reapJobs(q(), reapOpts)).toEqual({ retried: [], failed: [], expired: [id] });
+  });
+});
+
 describe('reapJobs', () => {
   it('a lapsed lease with attempts left is retried; without, failed stalled; a queued job past its window, expired', async () => {
     const again = await enqueueJob(db, { type: 't', payload: {}, maxAttempts: 2 });

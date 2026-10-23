@@ -3,7 +3,7 @@
 // JOB_QUEUE; a worker never sees another queue. Raw SQL, like crawl/claim-item.ts: postgres-js via
 // drizzle returns the row list itself.
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { db } from '@robot/db';
 import type { Database } from '@robot/db';
 import { closeJobRows } from './rows.js';
@@ -32,6 +32,12 @@ const toJob = (r: RawJob): JobRow => ({
 });
 const rows = <T>(r: unknown) => r as T[];
 const secs = (ms: number) => Math.max(ms, 1) / 1000;
+/**
+ * A job back in the queue after it started (a retry, a give-back) is due at `dueAt` and gets its start
+ * window again from then, as long as the one it was enqueued with (spec §4.2: the window is for the start,
+ * not for the work). Read in the same UPDATE, the old run_after and expires_at give that length; none stays none.
+ */
+const requeuedAt = (dueAt: SQL) => sql`run_after = ${dueAt}, expires_at = ${dueAt} + (expires_at - run_after)`;
 
 export function jobQueueName(env: Record<string, string | undefined> = process.env): string {
   return (env.JOB_QUEUE ?? '').trim() || 'default';
@@ -96,7 +102,7 @@ export async function completeJob(id: string, workerId: string, value: unknown):
 
 export async function retryJob(id: string, workerId: string, error: string, delayMs: number): Promise<boolean> {
   const r = rows(await db.execute(sql`UPDATE jobs SET status = 'queued', error = ${error.slice(0, 1000)}, locked_by = NULL, locked_until = NULL,
-      run_after = now() + make_interval(secs => ${secs(delayMs)})
+      ${requeuedAt(sql`now() + make_interval(secs => ${secs(delayMs)})`)}
     WHERE id = ${id} AND locked_by = ${workerId} AND status = 'running' RETURNING id`));
   return r.length > 0;
 }
@@ -121,7 +127,7 @@ export async function failJobTerminal(id: string, guard: FailGuard, detail: Seri
 /** Shutdown: back to the queue at once, its attempt not spent. */
 export async function releaseJob(id: string, workerId: string): Promise<void> {
   await db.execute(sql`UPDATE jobs SET status = 'queued', attempts = GREATEST(attempts - 1, 0), locked_by = NULL,
-      locked_until = NULL, run_after = now()
+      locked_until = NULL, ${requeuedAt(sql`now()`)}
     WHERE id = ${id} AND locked_by = ${workerId} AND status = 'running'`);
 }
 
@@ -134,7 +140,7 @@ export async function reapJobs(queue: string, opts: { retryBaseMs: number; runSe
     if (j.attempts < j.max_attempts) {
       const delay = opts.retryBaseMs * 2 ** Math.max(j.attempts - 1, 0);
       const r = rows(await db.execute(sql`UPDATE jobs SET status = 'queued', error = 'lease expired', locked_by = NULL,
-          locked_until = NULL, run_after = now() + make_interval(secs => ${secs(delay)})
+          locked_until = NULL, ${requeuedAt(sql`now() + make_interval(secs => ${secs(delay)})`)}
         WHERE id = ${j.id} AND status = 'running' AND locked_until < now() RETURNING id`));
       if (r.length) out.retried.push(j.id);
     } else if (await failJobTerminal(j.id, 'lapsed', { kind: 'unavailable', message: 'stalled' }, opts.runSentenceFor(j.type))) {
