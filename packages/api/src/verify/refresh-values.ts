@@ -11,7 +11,6 @@ import { db, driftChecks, fieldHolds, sources, valueRefreshes } from '@robot/db'
 import { fieldHash, type RefreshPage, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { certifyingResult, loadFieldCurrency, sourceDefinitionHash } from './current-certification.js';
 import { resolveInFlightVerification, startVerificationRow } from './in-flight.js';
-import { runSourceVerification } from './run-source-verification.js';
 import type { StoredCaptureRef } from './capture-store.js';
 
 /** One field's planned refresh, with the field hash the check read under. */
@@ -80,13 +79,14 @@ export async function applyRefreshes(sourceId: string, checkId: string | null, r
 /**
  * The free re-verify of refreshed fields on the check's captures (spec §3.2): `onlyKeys`, `free`, origin
  * `refresh` — so it never calls a model and never starts another check. None while another Verify is in
- * flight. Returns the new verification's id, or null. Fire-and-forget: the run is never awaited.
+ * flight. Returns the new verification's id, or null. Its `verify` job is enqueued with the row (spec
+ * 2026-10-23 §4.4); the worker runs it, never this caller.
  */
 export async function startRefreshVerify(
   sourceId: string,
   keys: string[],
   captureRefs: Record<string, StoredCaptureRef>,
-  deps: { run?: typeof runSourceVerification; checkId?: string | null } = {},
+  deps: { checkId?: string | null } = {},
 ): Promise<string | null> {
   if (keys.length === 0) return null;
   const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, verificationSet: true } });
@@ -98,10 +98,7 @@ export async function startRefreshVerify(
   const checkId = deps.checkId;
   const start = await startVerificationRow(db, sourceId, hash, checkId
     ? (tx, id) => tx.update(valueRefreshes).set({ verificationId: id }).where(and(eq(valueRefreshes.driftCheckId, checkId), inArray(valueRefreshes.fieldKey, keys)))
-    : undefined);
-  if (start.status === 'in-progress') return null;
-  const id = start.verificationId;
-  void (deps.run ?? runSourceVerification)(sourceId, id, { onlyKeys: keys, free: true, origin: 'refresh', captureRefs })
-    .catch((err) => console.error(`[refresh] re-verify ${id} failed:`, err));
-  return id;
+    : undefined,
+    { onlyKeys: keys, free: true, origin: 'refresh', captureRefs });
+  return start.status === 'in-progress' ? null : start.verificationId;
 }

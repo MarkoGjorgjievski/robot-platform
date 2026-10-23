@@ -1,31 +1,24 @@
 // packages/api/src/verify/proof-page-capture.ts
 // The background body behind `sources.captureProofPage`: one captures row per
-// request, its metadata the state machine the stepper polls. Follows
-// run-source-verification.ts's rule: the caller never awaits the run, so it
-// never rejects and always leaves the row terminal.
-import { and, eq, inArray, desc } from 'drizzle-orm';
+// request, its metadata the state machine the stepper polls. The body runs in
+// the worker as the `proof-page-capture` job (spec 2026-10-23 §4.4); it never
+// rejects and always leaves the row terminal. A row closed meanwhile (the
+// runner stopped a stuck attempt) is never written again by that attempt.
+import { randomUUID } from 'node:crypto';
+import { and, eq, inArray, desc, sql } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
 import { TILE_HEIGHT, CaptureError, BROWSER_UNAVAILABLE, type CaptureErrorKind, type CaptureVerdict, type PageCapture } from '@robot/browser';
 import { backoffAnswer, captureProofPage, CaptureProblemError, reportVerdict, CAPTURE_REUSE_MAX_AGE_MS, type Box } from '@robot/scraper';
 import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { writeCaptureFile, readCaptureFile, persistTiles, type StoredCaptureRef } from './capture-store.js';
-import { createLimiter } from './limiter.js';
 import { startJevReading } from './jev-reading.js';
+import { enqueue } from '../jobs/enqueue.js';
+import { currentJobId } from '../jobs/context.js';
+import { isJobLive } from '../jobs/queue.js';
 
-/**
- * At most three product-page captures run at once — a real browser tab each, so a burst of "mark this page" clicks does not pile up unbounded Chromium processes.
- * Shared by every proof-page capture in the process: the Verification tab's and the drift check's together (drift repair Task 2, fix round 1).
- */
-export const captureSlots = createLimiter(3);
-
-/**
- * Captures started in this process still queued for a slot (final review M4).
- * Their row's `startedAt` is the insert time, so under load the stall rule
- * would close them while they are merely waiting; being in this set is proof
- * they are not a crash leftover (a restart empties it, and they stall as before).
- */
-const waitingForSlot = new Set<string>();
+/** Every write after the start is fenced on it: a row closed meanwhile (stalled, retried) is left as it is (spec 2026-10-23 §7.6). */
+const stillCapturing = sql`${captures.metadata}->>'status' = 'capturing'`;
 
 export type ProofPageMeta =
   | { kind: 'proof-page'; status: 'capturing'; url: string; startedAt: string }
@@ -57,23 +50,23 @@ type CapturedProofPage = Extract<ProofPageMeta, { status: 'captured' }>;
 
 export type ProofPageCaptureRecord = { ref: StoredCaptureRef; capture: PageCapture; meta: CapturedProofPage };
 
-export async function startProofPageCapture(sourceId: string, url: string, opts: { session?: Session; fire?: boolean } = {}): Promise<{ captureId: string }> {
-  const meta: ProofPageMeta = { kind: 'proof-page', status: 'capturing', url, startedAt: new Date().toISOString() };
-  const [row] = await db.insert(captures).values({ sourceId, url, metadata: meta }).returning({ id: captures.id });
-  if (opts.fire ?? true) {
-    void runProofPageCaptureInSlot(row!.id, opts.session);
-  }
-  return { captureId: row!.id };
-}
-
 /**
- * Run a capture once one of the shared `captureSlots` is free, resolving when it is done. While it
- * queues it is marked as waiting, so the stall rule never closes it for time spent in the queue.
- * Never rejects (`runProofPageCapture` does not).
+ * Inserts a `capturing` row (spec 2026-09-18 §3.1). Fired (the default): its `proof-page-capture` job is
+ * enqueued in the same transaction and the worker takes it (spec 2026-10-23 §4.4). `fire: false`: the caller
+ * runs `runProofPageCapture` itself (the drift check, scripts); the row then belongs to the caller's job.
  */
-export function runProofPageCaptureInSlot(captureId: string, session?: Session, opts: CaptureRunOptions = {}): Promise<void> {
-  waitingForSlot.add(captureId);
-  return captureSlots(() => runProofPageCapture(captureId, session, opts)).finally(() => waitingForSlot.delete(captureId));
+export async function startProofPageCapture(sourceId: string, url: string, opts: { fire?: boolean } = {}): Promise<{ captureId: string }> {
+  const meta: ProofPageMeta = { kind: 'proof-page', status: 'capturing', url, startedAt: new Date().toISOString() };
+  const id = randomUUID();
+  if (opts.fire ?? true) {
+    await db.transaction(async (tx) => {
+      const jobId = await enqueue(tx, 'proof-page-capture', { captureId: id }, { key: `capture:${id}` });
+      await tx.insert(captures).values({ id, sourceId, url, metadata: meta, jobId });
+    });
+  } else {
+    await db.insert(captures).values({ id, sourceId, url, metadata: meta, jobId: currentJobId() });
+  }
+  return { captureId: id };
 }
 
 /**
@@ -87,16 +80,14 @@ export async function runProofPageCapture(captureId: string, session: Session = 
   const row = await db.query.captures
     .findFirst({ where: eq(captures.id, captureId), columns: { id: true, sourceId: true, url: true, metadata: true } })
     .catch(() => null);
-  if (!row) {
-    waitingForSlot.delete(captureId);
-    return;
-  }
-  // The capture's clock starts now, with a browser slot, not at the insert:
+  if (!row) return;
+  // A row already closed (stalled, or failed by a stopped attempt) is not taken again.
+  if ((row.metadata as ProofPageMeta | null)?.status !== 'capturing') return;
+  // The capture's clock starts now, with the work, not at the insert:
   // the stall rule measures work, not time spent in the queue (final review M4).
   const meta: ProofPageMeta = { kind: 'proof-page', status: 'capturing', url: row.url, startedAt: new Date().toISOString() };
-  await db.update(captures).set({ metadata: meta }).where(eq(captures.id, captureId))
+  await db.update(captures).set({ metadata: meta }).where(and(eq(captures.id, captureId), stillCapturing))
     .catch((e) => console.error(`[proof-page] failed to record the start of ${captureId}:`, e));
-  waitingForSlot.delete(captureId);
   const hostname = hostOf(row.url);
   // A host still backing off after a wall is answered from the backoff, with
   // no browser: the card fails with the wall's verdict and how long the wait
@@ -104,7 +95,7 @@ export async function runProofPageCapture(captureId: string, session: Session = 
   const waiting = backoffAnswer(row.url);
   if (waiting) {
     const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: row.url, startedAt: meta.startedAt, error: waiting.message, verdict: waiting.verdict };
-    await db.update(captures).set({ metadata: failed }).where(eq(captures.id, captureId))
+    await db.update(captures).set({ metadata: failed }).where(and(eq(captures.id, captureId), stillCapturing))
       .catch((e) => console.error(`[proof-page] failed to record the backoff answer for ${captureId}:`, e));
     return;
   }
@@ -120,7 +111,10 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     const visible = boxes.filter((b) => b.rect.y < capturedHeight);
     const contentHeight = visible.reduce((h, b) => Math.max(h, b.rect.y + b.rect.h), 0);
     const done: ProofPageMeta = { kind: 'proof-page', status: 'captured', url: row.url, startedAt: meta.startedAt, capturedAt: new Date().toISOString(), tiles, boxes: visible, pageHeight, capturedHeight, contentHeight, ...(capture.title?.trim() ? { title: capture.title.trim().slice(0, 120) } : {}) };
-    await db.update(captures).set({ html: capture.html, screenshotPath: tiles[0] ?? null, metadata: done }).where(eq(captures.id, captureId));
+    const [wrote] = await db.update(captures).set({ html: capture.html, screenshotPath: tiles[0] ?? null, metadata: done })
+      .where(and(eq(captures.id, captureId), stillCapturing)).returning({ id: captures.id });
+    // Closed meanwhile (the runner stopped this attempt as stuck): a late attempt writes nothing and starts nothing.
+    if (!wrote) return;
     // Jev at Verify, in shadow (spec 2026-10-16 §3): never awaited, never fails the capture.
     if (opts.jev ?? true) void startJevReading({ sourceId: row.sourceId, captureId, url: row.url, title: done.title ?? '', capture, boxes: visible })
       .catch((e) => console.error(`[jev] could not start for ${captureId}:`, e));
@@ -136,10 +130,13 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     if (verdict && hostname) reportVerdict(hostname, err instanceof CaptureProblemError && err.verdict ? err.verdict : verdict.kind);
     const error = err instanceof CaptureProblemError || err instanceof CaptureError ? safeErrorMessage(err).slice(0, 1000) : BROWSER_UNAVAILABLE;
     const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: row.url, startedAt: meta.startedAt, error, ...(verdict ? { verdict } : {}) };
-    await db.update(captures).set({ metadata: failed }).where(eq(captures.id, captureId))
+    await db.update(captures).set({ metadata: failed }).where(and(eq(captures.id, captureId), stillCapturing))
       .catch((e) => console.error(`[proof-page] failed to record failure for ${captureId}:`, e));
   }
 }
+
+/** Scripts and the drift check still call it by this name; the worker's browser gate is the slot now. */
+export const runProofPageCaptureInSlot = runProofPageCapture;
 
 function hostOf(url: string): string | null {
   try { return new URL(url).hostname; } catch { return null; }
@@ -168,16 +165,18 @@ export const PROOF_PAGE_STALL_MS = 3 * 60 * 1000;
 /**
  * The row's state as it should be reported, closing out a stalled capture on
  * the way — `resolveInFlightVerification`'s rule (in-flight.ts) for the
- * proof-page row. A `capturing` row younger than `PROOF_PAGE_STALL_MS` is
- * returned untouched; an older one is written `failed` / `'stalled'` so the
- * slot shows its reason and its **Try again**.
+ * proof-page row. A `capturing` row whose job is live (queued within its
+ * window, or running under its lease) is in flight however old. Otherwise one
+ * younger than `PROOF_PAGE_STALL_MS` is returned untouched and an older one is
+ * written `failed` / `'stalled'` so the slot shows its reason and its **Try again**.
  */
-export async function resolveStalledProofPage(captureId: string, meta: ProofPageMeta): Promise<ProofPageMeta> {
+export async function resolveStalledProofPage(captureId: string, meta: ProofPageMeta, jobId: string | null): Promise<ProofPageMeta> {
   if (meta.status !== 'capturing') return meta;
-  if (waitingForSlot.has(captureId)) return meta; // queued in this process, not stalled
+  // Its job is queued or working on it: waiting in the queue is not a stall (spec 2026-10-23 §4.5).
+  if (await isJobLive(db, jobId)) return meta;
   if (!(Date.now() - Date.parse(meta.startedAt) > PROOF_PAGE_STALL_MS)) return meta;
   const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: meta.url, startedAt: meta.startedAt, error: 'stalled' };
-  await db.update(captures).set({ metadata: failed }).where(eq(captures.id, captureId))
+  await db.update(captures).set({ metadata: failed }).where(and(eq(captures.id, captureId), stillCapturing))
     .catch((e) => console.error(`[proof-page] failed to close stalled capture ${captureId}:`, e));
   return failed;
 }
@@ -220,14 +219,14 @@ export async function latestProofPageCaptures(sourceId: string, urls: string[]):
   const rows = await db.query.captures.findMany({
     where: and(eq(captures.sourceId, sourceId), inArray(captures.url, urls)),
     orderBy: [desc(captures.createdAt)],
-    columns: { id: true, url: true, metadata: true },
+    columns: { id: true, url: true, metadata: true, jobId: true },
   });
   const seen = new Set<string>();
   for (const r of rows) {
     const m = r.metadata as ProofPageMeta | null;
     if (!m || m.kind !== 'proof-page' || seen.has(r.url)) continue;
     seen.add(r.url);
-    const meta = await resolveStalledProofPage(r.id, m);
+    const meta = await resolveStalledProofPage(r.id, m, r.jobId);
     if (meta.status === 'captured' && Date.now() - Date.parse(meta.capturedAt) > CAPTURE_REUSE_MAX_AGE_MS) continue;
     out[r.url] = { captureId: r.id, status: meta.status, ...(meta.status === 'failed' ? { error: meta.error, ...(meta.verdict ? { verdict: meta.verdict } : {}) } : {}), ...(meta.status === 'captured' && meta.title ? { title: meta.title } : {}) };
   }

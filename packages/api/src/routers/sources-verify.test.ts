@@ -6,12 +6,12 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { VerifyRefusal } from '../verify/verify-refusal.js';
 import { holdSourceLock, stillPending } from '../test-helpers/row-lock.js';
+import { jobsOf, runQueuedJobs } from '../test-helpers/jobs.js';
 
-// `sources.verify` fires `runSourceVerification` (verify/run-source-verification.ts)
-// without awaiting it — stubbed here so this file exercises ONLY sources.ts's
-// own guards (schema presence, the in-flight/stall rule), never a real
-// browser or LLM call. Same `vi.hoisted` pattern `sources.test.ts` uses for
-// `planSource`.
+// `sources.verify` enqueues a `verify` job (spec 2026-10-23 §4.4); the worker runs
+// `runSourceVerification` (verify/run-source-verification.ts). Stubbed here so a test
+// that runs the queue exercises ONLY the job's hand-off, never a real browser or LLM
+// call. Same `vi.hoisted` pattern `sources.test.ts` uses for `planSource`.
 const { runSourceVerificationMock } = vi.hoisted(() => ({
   runSourceVerificationMock: vi.fn().mockResolvedValue(undefined),
 }));
@@ -20,6 +20,9 @@ vi.mock('../verify/run-source-verification.js', () => ({ runSourceVerification: 
 afterEach(() => {
   runSourceVerificationMock.mockClear();
 });
+
+/** This website's queued `verify` jobs, oldest first (the file's queue holds every test's). */
+const verifyJobsOf = async (sourceId: string) => (await jobsOf('verify')).filter((j) => (j.payload as { sourceId?: string }).sourceId === sourceId);
 
 // A throwaway signed-in identity: every customer procedure needs a session
 // and works in its org only, so nothing here touches the seeded `default` org.
@@ -63,7 +66,7 @@ describe('sources.verify', () => {
       await expect(caller.sources.verify({ sourceId: f.sourceId })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
       const err = await rejectionOf(caller.sources.verify({ sourceId: f.sourceId }));
       expect((err!.cause as VerifyRefusal).problems).toEqual([{ reason: 'no_fields' }]);
-      expect(runSourceVerificationMock).not.toHaveBeenCalled();
+      expect(await verifyJobsOf(f.sourceId)).toEqual([]);
     } finally {
       await f.cleanup();
     }
@@ -80,12 +83,16 @@ describe('sources.verify', () => {
     try {
       const first = await caller.sources.verify({ sourceId });
       expect(first.status).toBe('started');
-      expect(runSourceVerificationMock).toHaveBeenCalledTimes(1);
+      const [job] = await verifyJobsOf(sourceId);
+      expect(job).toMatchObject({ status: 'queued', key: `verify:${first.verificationId}`, payload: { sourceId, verificationId: first.verificationId } });
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, first.verificationId) });
+      expect(row!.jobId).toBe(job!.id);
 
       const second = await caller.sources.verify({ sourceId });
       expect(second.status).toBe('in-progress');
       expect(second.verificationId).toBe(first.verificationId);
-      expect(runSourceVerificationMock).toHaveBeenCalledTimes(1);
+      expect(await verifyJobsOf(sourceId)).toHaveLength(1);
+      expect(runSourceVerificationMock).not.toHaveBeenCalled(); // the request never runs the body
     } finally {
       await cleanup();
     }
@@ -120,7 +127,7 @@ describe('sources.verify', () => {
       });
       const r = await caller.sources.verify({ sourceId: f.sourceId });
       expect(r.status).toBe('started');
-      expect(runSourceVerificationMock).toHaveBeenCalledTimes(1);
+      expect(await verifyJobsOf(f.sourceId)).toHaveLength(1);
     } finally { await f.cleanup(); }
   });
 
@@ -145,8 +152,44 @@ describe('sources.verify', () => {
       expect(closed!.errorMessage).toBe('stalled');
       expect(closed!.completedAt).not.toBeNull();
 
-      expect(runSourceVerificationMock).toHaveBeenCalledTimes(1);
-      expect(runSourceVerificationMock).toHaveBeenCalledWith(sourceId, result.verificationId, expect.anything());
+      const jobs = await verifyJobsOf(sourceId);
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0]!.payload).toMatchObject({ verificationId: result.verificationId });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a Verify waiting in the queue past the stall window is still in flight: a second click finds it, nothing is closed or started (spec 2026-10-23 §4.5)', async () => {
+    const { sourceId, cleanup } = await makeSchemaSource('queued-long');
+    try {
+      const first = await caller.sources.verify({ sourceId });
+      // The background lane was busy: twenty minutes on, the job is still queued (within its start window).
+      await db.update(sourceVerifications).set({ startedAt: new Date(Date.now() - VERIFY_STALL_MS - 60_000) }).where(eq(sourceVerifications.id, first.verificationId));
+      expect(await caller.sources.verify({ sourceId })).toEqual({ verificationId: first.verificationId, status: 'in-progress' });
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, first.verificationId) });
+      expect(row!.completedAt).toBeNull();
+      expect(row!.errorMessage).toBeNull();
+      expect(await verifyJobsOf(sourceId)).toHaveLength(1);
+      const status = (await caller.sources.verificationStatus({ sourceId }))!;
+      expect(status.id).toBe(first.verificationId);
+      expect(status.failedRun).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('the worker runs the queued Verify with what was asked, the clock starting with the work', async () => {
+    const { sourceId, keys, cleanup } = await makeSchemaSource('runs-queued');
+    try {
+      const r = await caller.sources.verify({ sourceId, onlyKeys: [keys.Price!], free: true });
+      await db.update(sourceVerifications).set({ startedAt: new Date(Date.now() - 3_600_000) }).where(eq(sourceVerifications.id, r.verificationId));
+      const before = Date.now();
+      await runQueuedJobs();
+      expect(runSourceVerificationMock).toHaveBeenCalledWith(sourceId, r.verificationId, { onlyKeys: [keys.Price!], free: true });
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, r.verificationId) });
+      expect(row!.startedAt.getTime()).toBeGreaterThanOrEqual(before - 1000);
+      expect((await verifyJobsOf(sourceId))[0]!.status).toBe('done');
     } finally {
       await cleanup();
     }
@@ -157,7 +200,7 @@ describe('sources.verify', () => {
     try {
       const r = await caller.sources.verify({ sourceId, onlyKeys: [] });
       expect(r.status).toBe('started');
-      expect(runSourceVerificationMock).toHaveBeenCalledWith(sourceId, r.verificationId, { onlyKeys: [] });
+      expect((await verifyJobsOf(sourceId))[0]!.payload).toEqual({ sourceId, verificationId: r.verificationId, onlyKeys: [] });
     } finally {
       await cleanup();
     }
@@ -173,7 +216,7 @@ describe('sources.verify', () => {
       await expect(caller.sources.verify({ sourceId, onlyKeys: [] })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'Confirm the variants of every product first' });
       const err = await rejectionOf(caller.sources.verify({ sourceId, onlyKeys: [] }));
       expect((err!.cause as VerifyRefusal).problems).toEqual([{ reason: 'variants' }]);
-      expect(runSourceVerificationMock).not.toHaveBeenCalled();
+      expect(await verifyJobsOf(sourceId)).toEqual([]);
 
       // A run that also verifies fields starts: the unanswered product fails inside the variant result.
       expect((await caller.sources.verify({ sourceId })).status).toBe('started');
@@ -196,11 +239,11 @@ describe('sources.verify', () => {
   it('passes free through to the run, and leaves it off when not asked (spec 2026-10-17 §10 property 9)', async () => {
     const { sourceId, keys, cleanup } = await makeSchemaSource('free');
     try {
-      await caller.sources.verify({ sourceId, onlyKeys: [keys.Price!], free: true });
-      expect(runSourceVerificationMock).toHaveBeenLastCalledWith(sourceId, expect.any(String), { onlyKeys: [keys.Price!], free: true });
+      const a = await caller.sources.verify({ sourceId, onlyKeys: [keys.Price!], free: true });
+      expect((await verifyJobsOf(sourceId))[0]!.payload).toEqual({ sourceId, verificationId: a.verificationId, onlyKeys: [keys.Price!], free: true });
       await db.update(sourceVerifications).set({ completedAt: new Date() }).where(eq(sourceVerifications.sourceId, sourceId));
-      await caller.sources.verify({ sourceId });
-      expect(runSourceVerificationMock.mock.lastCall![2]).not.toMatchObject({ free: true });
+      const b = await caller.sources.verify({ sourceId });
+      expect((await verifyJobsOf(sourceId))[1]!.payload).toEqual({ sourceId, verificationId: b.verificationId });
     } finally {
       await cleanup();
     }
@@ -218,7 +261,7 @@ describe('sources.verify', () => {
       expect(err).toMatchObject({ code: 'PRECONDITION_FAILED' });
       expect((err!.cause as VerifyRefusal).problems).toEqual([{ reason: 'blank', field: 'Rating', product: 3 }]);
       expect(err!.message).not.toMatch(/https?:|@/);
-      expect(runSourceVerificationMock).not.toHaveBeenCalled();
+      expect(await verifyJobsOf(f.sourceId)).toEqual([]);
       expect(await db.query.sourceVerifications.findMany({ where: eq(sourceVerifications.sourceId, f.sourceId) })).toHaveLength(0);
     } finally { await f.cleanup(); }
   });
@@ -247,7 +290,7 @@ describe('sources.verify takes the website row lock (fix wave 1, item 5)', () =>
       const inside = await lock.startVerifyInside();
       await lock.release();
       expect(await started).toEqual({ verificationId: inside, status: 'in-progress' });
-      expect(runSourceVerificationMock).not.toHaveBeenCalled();
+      expect(await verifyJobsOf(f.sourceId)).toEqual([]);
     } finally { await f.cleanup(); }
   });
   it('two concurrent starts make one verification: one started, the other in progress on the same row', async () => {
@@ -257,7 +300,7 @@ describe('sources.verify takes the website row lock (fix wave 1, item 5)', () =>
       expect([a.status, b.status].sort()).toEqual(['in-progress', 'started']);
       expect(a.verificationId).toBe(b.verificationId);
       expect(await db.select().from(sourceVerifications).where(eq(sourceVerifications.sourceId, f.sourceId))).toHaveLength(1);
-      expect(runSourceVerificationMock).toHaveBeenCalledTimes(1);
+      expect(await verifyJobsOf(f.sourceId)).toHaveLength(1);
     } finally { await f.cleanup(); }
   });
   it('the field re-verify (onlyKeys) waits on the lock the same way', async () => {
