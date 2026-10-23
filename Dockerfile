@@ -58,7 +58,7 @@ FROM manifests AS app-build
 RUN --mount=type=cache,id=robot-stack-pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store --filter "@robot/app..."
 COPY packages ./packages
-ARG VITE_API_URL=http://localhost:4200
+ARG VITE_API_URL=http://127.0.0.1:4200
 ENV VITE_API_URL=${VITE_API_URL}
 RUN pnpm --filter @robot/app build
 

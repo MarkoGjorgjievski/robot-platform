@@ -133,8 +133,8 @@ fixture page (profile `test`).
 **Worth knowing.** The worker image is Playwright **1.62.1**, not 1.58.2: `@robot/browser` declares
 `playwright` ^1.52 (resolved 1.58.2) but launches through `playwright-extra`, whose `playwright-core` peer
 resolves to 1.62.1 in the lockfile, so dev launches 1.62.1's Chromium too.
-Aligning the declared versions is a small follow-up. Ports are published on 127.0.0.1 and ::1 (Node resolves
-`localhost` to ::1 first).
+Aligning the declared versions is a small follow-up. Ports are published on 127.0.0.1 only and the stack is
+used as http://127.0.0.1:3200 — on `localhost` its session cookie would collide with `pnpm dev:all`'s.
 
 **How it was proven** (`docs/testing/results/2026-10-23-docker-compose/`): from nothing,
 `docker compose up -d --build` → all services up, 21 of 21 migrations applied, `/login` 200, `/healthz` ok;

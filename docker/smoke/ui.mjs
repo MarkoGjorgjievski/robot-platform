@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 // Playwright from @robot/browser's own install (the repo root has none).
 const require = createRequire(new URL('../../packages/browser/package.json', import.meta.url));
 const { chromium } = require('playwright');
-const APP = 'http://localhost:3200';
+const APP = 'http://127.0.0.1:3200';
 const out = process.argv[2] ?? '.';
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
