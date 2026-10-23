@@ -7,6 +7,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { BROWSER_OWNER_SWITCH } from '@robot/browser';
+import { parsePowerShellJson } from './powershell-json.js';
 
 const run = promisify(execFile);
 
@@ -29,18 +30,23 @@ export function isAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch (err) { return (err as NodeJS.ErrnoException).code === 'EPERM'; }
 }
 
+/** The owned browsers in `Get-CimInstance … | ConvertTo-Json -Compress` output: one object, an array, or nothing. */
+export function parseOwnedBrowsers(stdout: string): OwnedProcess[] {
+  const text = stdout.trim();
+  if (!text) return [];
+  const parsed = parsePowerShellJson(text) as { ProcessId: number; CommandLine: string | null } | Array<{ ProcessId: number; CommandLine: string | null }>;
+  return (Array.isArray(parsed) ? parsed : [parsed])
+    .filter((p) => p.CommandLine?.includes(BROWSER_OWNER_SWITCH))
+    .map((p) => ({ pid: p.ProcessId, commandLine: p.CommandLine! }));
+}
+
 /** Every process whose command line carries the owner switch. */
 export async function listOwnedBrowsers(): Promise<OwnedProcess[]> {
   if (process.platform === 'win32') {
     const filter = `CommandLine LIKE '%${BROWSER_OWNER_SWITCH}%'`;
     const { stdout } = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
       `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress`], { windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
-    const text = stdout.trim();
-    if (!text) return [];
-    const parsed = JSON.parse(text) as { ProcessId: number; CommandLine: string | null } | Array<{ ProcessId: number; CommandLine: string | null }>;
-    return (Array.isArray(parsed) ? parsed : [parsed])
-      .filter((p) => p.CommandLine?.includes(BROWSER_OWNER_SWITCH))
-      .map((p) => ({ pid: p.ProcessId, commandLine: p.CommandLine! }));
+    return parseOwnedBrowsers(stdout);
   }
   const { stdout } = await run('ps', ['-eo', 'pid=,args='], { maxBuffer: 16 * 1024 * 1024 });
   return stdout.split('\n').map((line) => line.trim()).filter((line) => line.includes(BROWSER_OWNER_SWITCH))

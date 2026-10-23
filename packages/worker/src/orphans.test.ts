@@ -5,7 +5,24 @@ import { createRequire } from 'node:module';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { orphansOf, listOwnedBrowsers, closeOrphanBrowsers, isAlive } from './orphans.js';
+import { orphansOf, listOwnedBrowsers, closeOrphanBrowsers, isAlive, parseOwnedBrowsers } from './orphans.js';
+
+describe('parseOwnedBrowsers', () => {
+  // PowerShell 5.1's ConvertTo-Json leaves a raw control character in a command line unescaped: invalid JSON, so
+  // a strict parse threw and the sweep found nothing (seen on this machine while measuring, Task 1 of run speed).
+  it('reads PowerShell output whose command line holds a raw control character', () => {
+    const stdout = '[{"ProcessId":11,"CommandLine":"chrome.exe --robot-owner=100 --title=a\tb\u0001c"},'
+      + '{"ProcessId":12,"CommandLine":null},{"ProcessId":13,"CommandLine":"chrome.exe --type=renderer"}]\r\n';
+    expect(() => JSON.parse(stdout)).toThrow();
+    const procs = parseOwnedBrowsers(stdout);
+    expect(procs.map((p) => p.pid)).toEqual([11]);
+    expect(procs[0].commandLine).toContain('--robot-owner=100');
+  });
+  it('reads a single process (an object, not an array) and empty output', () => {
+    expect(parseOwnedBrowsers('{"ProcessId":7,"CommandLine":"chrome.exe --robot-owner=5"}')).toEqual([{ pid: 7, commandLine: 'chrome.exe --robot-owner=5' }]);
+    expect(parseOwnedBrowsers('  \r\n')).toEqual([]);
+  });
+});
 
 describe('orphansOf', () => {
   const procs = [
