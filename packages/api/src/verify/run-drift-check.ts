@@ -13,11 +13,13 @@
 // row (refresh-values.ts), and a free re-verify of it starts. Never
 // `schemaDefinition`, `driftedFields`, marks or the domain cache.
 //
-// Follows run-source-verification.ts's fire-and-forget rule: the caller never
-// awaits `runDriftCheck`, so it never rejects and always leaves the row
-// terminal.
-import { and, desc, eq } from 'drizzle-orm';
-import { db, captures as captureRows, driftChecks, runs, sources } from '@robot/db';
+// `runDriftCheck` is the body of the `drift-check` job (spec 2026-10-23 §4.4),
+// or runs inline inside a `website-check` job; it never rejects and always
+// leaves the row terminal. A row no longer running is not run again, and a
+// retry re-verifies the refreshes an earlier attempt never linked to one.
+import { randomUUID } from 'node:crypto';
+import { and, desc, eq, isNull } from 'drizzle-orm';
+import { db, captures as captureRows, driftChecks, runs, sources, valueRefreshes } from '@robot/db';
 import {
   buildDomSearchScript, buildXPathProbeScript, classifyDrift, fieldHash, markPaths, planRefresh,
   type Box, type CertifiedPath, type ConfirmedPath, type DomHit, type DomNeedle, type DriftCapture, type DriftCheckResults, type DriftFieldResult,
@@ -33,6 +35,10 @@ import { startProofPageCapture, runProofPageCaptureInSlot, loadProofPageCaptureB
 import { readCaptureFile, type StoredCaptureRef } from './capture-store.js';
 import { readingsOf } from './holds.js';
 import { nextCheckAt } from './check-schedule.js';
+import { lockSource } from './in-flight.js';
+import { enqueue } from '../jobs/enqueue.js';
+import { currentJobId } from '../jobs/context.js';
+import { isJobLive } from '../jobs/queue.js';
 
 type Session = typeof withBrowserSession;
 
@@ -80,9 +86,10 @@ export function outcomeOfFailedCapture(meta: { error: string; verdict?: { kind: 
 
 /**
  * A check is three captures at a time plus offline classification — well
- * inside ten minutes. A `running` row older than this is a crash leftover (an
- * api-server restart mid-check): it is closed as `failed` / `'stalled'` and a
- * new check may start (the stall rule Verify uses, in-flight.ts).
+ * inside ten minutes. A `running` row older than this whose job is not live
+ * (queued within its window, or held under a lease) is a crash leftover: it is
+ * closed as `failed` / `'stalled'` and a new check may start (the stall rule
+ * Verify uses, in-flight.ts; spec 2026-10-23 §4.5).
  */
 export const DRIFT_CHECK_STALL_MS = 10 * 60 * 1000;
 
@@ -125,31 +132,45 @@ export const defaultCaptureProofPages: CaptureProofPagesFn = captureProofPagesWi
  * `emptyShare` (each drifted field's empty share in the run, from
  * `flagDrift`) is written into the row's results up front, so the banner can
  * say "% of products empty" whatever the check finds.
+ *
+ * Fired (the default), the row's `drift-check` job is enqueued in the same transaction and the worker runs it
+ * (spec 2026-10-23 §4.4); a `verify` check carries the Verify's stored capture refs (`storedRefs`), since a
+ * capture function cannot cross to the worker. `fire: false`: the caller runs `runDriftCheck` itself (the
+ * scheduled check inside its `website-check` job, scripts); the row then belongs to the caller's job.
  */
 export async function startDriftCheck(
   sourceId: string,
   runId: string | null,
-  opts: { capture?: CaptureProofPagesFn; fire?: boolean; emptyShare?: Record<string, number>; trigger?: DriftTrigger; keys?: string[] } = {},
+  opts: { capture?: CaptureProofPagesFn; storedRefs?: Record<string, StoredCaptureRef>; fire?: boolean; emptyShare?: Record<string, number>; trigger?: DriftTrigger; keys?: string[] } = {},
 ): Promise<{ checkId: string; status: 'started' | 'in-progress' }> {
-  const running = await db.query.driftChecks.findFirst({
-    where: and(eq(driftChecks.sourceId, sourceId), eq(driftChecks.status, 'running')),
-    orderBy: [desc(driftChecks.createdAt)],
-    columns: { id: true, createdAt: true },
-  });
-  if (running) {
-    if (Date.now() - running.createdAt.getTime() < DRIFT_CHECK_STALL_MS) return { checkId: running.id, status: 'in-progress' };
-    await db.update(driftChecks)
-      .set({ status: 'failed', error: 'stalled', completedAt: new Date() })
-      .where(and(eq(driftChecks.id, running.id), eq(driftChecks.status, 'running')));
-  }
-
+  const fire = opts.fire ?? true;
+  if (fire && opts.capture) throw new Error('A capture function runs inline only (fire: false); a fired check carries storedRefs.');
   const upFront = Object.fromEntries(Object.entries(opts.emptyShare ?? {}).map(([key, share]) => [key, { key, emptyShare: share }]));
-  const [row] = await db.insert(driftChecks)
-    .values({ sourceId, runId, status: 'running', trigger: opts.trigger ?? 'run', results: { runId, fields: upFront, ...(opts.keys ? { keys: opts.keys } : {}) } })
-    .returning({ id: driftChecks.id });
-  const checkId = row!.id;
-  if (opts.fire ?? true) void runDriftCheck(checkId, { capture: opts.capture });
-  return { checkId, status: 'started' };
+  // Under the website row lock (Verify's start, in-flight.ts): two starts never both find none running.
+  return db.transaction(async (tx) => {
+    await lockSource(tx, sourceId);
+    const [running] = await tx.select({ id: driftChecks.id, createdAt: driftChecks.createdAt, jobId: driftChecks.jobId }).from(driftChecks)
+      .where(and(eq(driftChecks.sourceId, sourceId), eq(driftChecks.status, 'running')))
+      .orderBy(desc(driftChecks.createdAt)).limit(1);
+    if (running) {
+      // A check whose job is queued or working is in progress however long it waited (spec 2026-10-23 §4.5).
+      if (await isJobLive(tx, running.jobId) || Date.now() - running.createdAt.getTime() < DRIFT_CHECK_STALL_MS) {
+        return { checkId: running.id, status: 'in-progress' as const };
+      }
+      await tx.update(driftChecks)
+        .set({ status: 'failed', error: 'stalled', completedAt: new Date() })
+        .where(and(eq(driftChecks.id, running.id), eq(driftChecks.status, 'running')));
+    }
+    const checkId = randomUUID();
+    const jobId = fire
+      ? await enqueue(tx, 'drift-check', { checkId, ...(opts.storedRefs ? { storedRefs: opts.storedRefs } : {}) }, { key: `drift:${checkId}` })
+      : currentJobId();
+    await tx.insert(driftChecks).values({
+      id: checkId, sourceId, runId, status: 'running', trigger: opts.trigger ?? 'run', jobId,
+      results: { runId, fields: upFront, ...(opts.keys ? { keys: opts.keys } : {}) },
+    });
+    return { checkId, status: 'started' as const };
+  });
 }
 
 /** The distinct paths the customer confirmed for a field, across its pages (run-verification.ts's `confirmedPathsOf`). */
@@ -198,7 +219,18 @@ async function refreshByNature(
   }
 }
 
-/** Never rejects: a throw anywhere leaves the row `failed` with its error. */
+/** The fields this check refreshed that no re-verify names yet (`value_refreshes` with no `verification_id`). */
+async function unlinkedRefreshes(checkId: string): Promise<string[]> {
+  const rows = await db.select({ key: valueRefreshes.fieldKey }).from(valueRefreshes)
+    .where(and(eq(valueRefreshes.driftCheckId, checkId), isNull(valueRefreshes.verificationId)));
+  return [...new Set(rows.map((r) => r.key))];
+}
+
+/**
+ * Never rejects: a throw anywhere leaves the row `failed` with its error. A row that is no longer running is
+ * not run again (a retry of a check closed meanwhile), except that a `done` check whose refreshes never got
+ * their re-verify (the worker died between the two) starts it now, on the pages it read (spec 2026-10-23 §4.4).
+ */
 export async function runDriftCheck(
   checkId: string,
   deps: { capture?: CaptureProofPagesFn; session?: Session; applyRefreshes?: typeof applyRefreshes; startRefreshVerify?: typeof startRefreshVerify } = {},
@@ -208,6 +240,13 @@ export async function runDriftCheck(
   try {
     const check = await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, checkId) });
     if (!check) return;
+    if (check.status === 'done') {
+      const unlinked = await unlinkedRefreshes(checkId);
+      const refs = (check.results as DriftCheckResults | null)?.captures ?? {};
+      if (unlinked.length > 0) await (deps.startRefreshVerify ?? startRefreshVerify)(check.sourceId, unlinked, refs, { checkId });
+      return;
+    }
+    if (check.status !== 'running') return;
     const source = await db.query.sources.findFirst({
       where: eq(sources.id, check.sourceId),
       columns: { schemaDefinition: true, verificationSet: true, driftedFields: true },
@@ -298,6 +337,9 @@ export async function runDriftCheck(
     // Spec 2026-10-21 §3.2: refresh what changed by nature, all or nothing per field. A field that is not
     // by nature records nothing; a refusal's reason code is staff-only.
     const refreshed = await refreshByNature(checkId, check.sourceId, toClassify, set, readingsByKey, out, deps.applyRefreshes ?? applyRefreshes);
+    // A retry after a crash between a refresh and its re-verify (spec 2026-10-23 §4.4): the earlier attempt's
+    // refreshes of this check that no re-verify names are re-verified now, with the ones just applied.
+    const toReverify = [...new Set([...refreshed, ...(await unlinkedRefreshes(checkId))])];
 
     const results: DriftCheckResults = { runId: check.runId, fields: out, trigger, ...(upKeys ? { keys: upKeys } : {}), captures: refs };
     const [finished] = await db.update(driftChecks)
@@ -314,7 +356,7 @@ export async function runDriftCheck(
     // The refreshed fields are verified again, free, on the pages this check just read. That re-verify is
     // refresh-origin, so it never starts another check (spec §7.6).
     // It names itself in this check's refresh log as it starts (review Minor 1).
-    if (refreshed.length > 0) await (deps.startRefreshVerify ?? startRefreshVerify)(check.sourceId, refreshed, refs, { checkId });
+    if (toReverify.length > 0) await (deps.startRefreshVerify ?? startRefreshVerify)(check.sourceId, toReverify, refs, { checkId });
   } catch (err) {
     console.error(`[drift] check ${checkId} failed:`, err);
     try {
@@ -329,9 +371,10 @@ export async function runDriftCheck(
 
 /**
  * The latest drift check for a website, with the date of the run it is about (null when none).
- * A `running` row older than `DRIFT_CHECK_STALL_MS` is a crash leftover: it is closed as
+ * A `running` row older than `DRIFT_CHECK_STALL_MS` whose job is not live is a crash leftover: it is closed as
  * `failed` / `'stalled'` on the way, so the tab stops showing "Checking what changed…"
- * forever (final review I2; `resolveStalledProofPage`'s rule).
+ * forever (final review I2; `resolveStalledProofPage`'s rule). A row whose job is queued or working is
+ * running however long it waited (spec 2026-10-23 §4.5).
  */
 export async function latestDriftCheck(sourceId: string) {
   let row = await db.query.driftChecks.findFirst({
@@ -339,7 +382,7 @@ export async function latestDriftCheck(sourceId: string) {
     orderBy: [desc(driftChecks.createdAt)],
   });
   if (!row) return null;
-  if (row.status === 'running' && Date.now() - row.createdAt.getTime() >= DRIFT_CHECK_STALL_MS) {
+  if (row.status === 'running' && Date.now() - row.createdAt.getTime() >= DRIFT_CHECK_STALL_MS && !(await isJobLive(db, row.jobId))) {
     const [closed] = await db.update(driftChecks)
       .set({ status: 'failed', error: 'stalled', completedAt: new Date() })
       .where(and(eq(driftChecks.id, row.id), eq(driftChecks.status, 'running')))

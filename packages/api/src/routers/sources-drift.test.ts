@@ -1,18 +1,15 @@
 // packages/api/src/routers/sources-drift.test.ts
 // sources.checkDrift / sources.driftCheck (drift repair Task 2): the on-demand
 // start and the latest check, both org-scoped.
-import { describe, it, expect, vi, afterAll } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, driftChecks, projects, runs, sources } from '@robot/db';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller, signIn } from '../test-helpers/identity.js';
+import { jobsOf } from '../test-helpers/jobs.js';
 
-// The job itself is covered in run-drift-check.test.ts; here it is never fired (no browser, no network).
-vi.mock('../verify/run-drift-check.js', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../verify/run-drift-check.js')>();
-  return { ...real, startDriftCheck: (s: string, r: string | null, o: Parameters<typeof real.startDriftCheck>[2] = {}) => real.startDriftCheck(s, r, { ...o, fire: false }) };
-});
-
+// The job itself is covered in run-drift-check.test.ts; here it is enqueued on this file's own queue and never
+// run (no worker works that queue: no browser, no network).
 const { DRIFT_CHECK_STALL_MS } = await import('../verify/run-drift-check.js');
 // A throwaway signed-in identity: every customer procedure needs a session
 // and works in its org only, so nothing here touches the seeded `default` org.
@@ -47,7 +44,11 @@ describe('sources.checkDrift / sources.driftCheck', () => {
     const f = await createProjectWithSource(caller, { tag: 'drift-router-manual', fields: [{ name: 'Price', type: 'money' }] });
     try {
       const started = await caller.sources.checkDrift({ sourceId: f.sourceId });
-      expect((await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, started.checkId) }))!.trigger).toBe('manual');
+      const row = (await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, started.checkId) }))!;
+      expect(row.trigger).toBe('manual');
+      // Enqueued for the worker with the row (spec 2026-10-23 §4.4): no refs, it re-captures the proof pages.
+      const job = (await jobsOf('drift-check')).find((j) => j.key === `drift:${started.checkId}`);
+      expect(job).toMatchObject({ id: row.jobId, payload: { checkId: started.checkId } });
     } finally { await f.cleanup(); }
   });
 

@@ -6,7 +6,10 @@ import { db, coverageChecks, driftChecks, sources, sourceVerifications } from '@
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { claimDueWebsite, checkWebsite, runDueWebsiteChecks, startWebsiteChecks, websiteChecksEnabled } from './website-checks.js';
+import { jobsOf } from '../test-helpers/jobs.js';
+import { enqueueJob } from '../jobs/queue.js';
+import { runInJob } from '../jobs/context.js';
+import { claimDueWebsite, checkWebsite, enqueueDueWebsiteChecks, runDueWebsiteChecks, startWebsiteChecks, websiteChecksEnabled } from './website-checks.js';
 
 const me = await signedInCaller('website-checks');
 afterAll(async () => { await me.cleanup(); });
@@ -105,6 +108,37 @@ describe('runDueWebsiteChecks', () => {
       expect(rest.checked[0]).not.toBe(out.checked[0]);
       expect(most).toBe(1);
     } finally { await a.cleanup(); await b.cleanup(); }
+  });
+});
+
+describe('website checks through the queue (spec 2026-10-23 §4.3)', () => {
+  it('the sweep enqueues one website-check job per due website it claims (only those it is given)', async () => {
+    const a = await certified('enqueue');
+    try {
+      const ids = await enqueueDueWebsiteChecks({ only: [a.sourceId] });
+      expect(ids).toEqual([a.sourceId]);
+      const job = (await jobsOf('website-check')).find((j) => j.key === `website-check:${a.sourceId}`);
+      expect(job).toMatchObject({ key: `website-check:${a.sourceId}`, payload: { sourceId: a.sourceId } });
+      expect(await enqueueDueWebsiteChecks({ only: [a.sourceId] })).toEqual([]); // claimed: not due again
+      // Nothing is checked by the sweep itself.
+      expect(await db.query.driftChecks.findFirst({ where: eq(driftChecks.sourceId, a.sourceId) })).toBeUndefined();
+    } finally { await a.cleanup(); }
+  });
+
+  it('rows a website check starts belong to its job, and it reports progress after the drift check', async () => {
+    const a = await certified('job-rows', { listing: true });
+    try {
+      const jobId = (await enqueueJob(db, { type: 'website-check', payload: {} })).id;
+      const listing = vi.fn(async () => ({ productUrls: [], verdictMessage: null }));
+      const onPhase = vi.fn();
+      const ctx = { jobId, claim: 'test-claim', type: 'website-check', lane: 'background' as const, attempt: 1, retry: false, signal: new AbortController().signal, progress: () => {} };
+      expect(await runInJob(ctx, () => checkWebsite(a.sourceId, { capture, coverage: { listing }, onPhase }))).toBe('checked');
+      expect(onPhase).toHaveBeenCalledTimes(1);
+      expect(await db.query.driftChecks.findFirst({ where: eq(driftChecks.sourceId, a.sourceId) })).toMatchObject({ status: 'done', jobId });
+      expect(await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.sourceId, a.sourceId) })).toMatchObject({ status: 'done', jobId });
+      // Inline inside the job: neither check is a job of its own.
+      expect((await jobsOf('drift-check')).length + (await jobsOf('coverage-check')).length).toBe(0);
+    } finally { await a.cleanup(); }
   });
 });
 

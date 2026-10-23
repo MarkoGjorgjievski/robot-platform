@@ -1,15 +1,16 @@
 // packages/api/src/verify/website-checks.ts
-// The scheduled website check (spec 2026-10-21 §3.3): every hour the
-// api-server claims up to six websites whose `next_check_at` has passed and,
-// one at a time, re-reads their proof pages (the drift check, trigger
-// `schedule`, every certified field) and then samples their listing (the
-// coverage check). Free: page loads and code only, in the proof-page capture
-// slots the Verification tab already uses — no Jev, no model. The claim is
-// `FOR UPDATE SKIP LOCKED`, so two api-servers on one database never check the
-// same website twice.
+// The scheduled website check (spec 2026-10-21 §3.3): every hour the worker's
+// timer claims up to six websites whose `next_check_at` has passed and
+// enqueues a `website-check` job for each (spec 2026-10-23 §4.3); the
+// api-server has no timer. The job (`checkWebsite`) re-reads the website's
+// proof pages (the drift check, trigger `schedule`, every certified field) and
+// then samples its listing (the coverage check), both inline, so their rows
+// belong to that job. Free: page loads and code only, within the worker's
+// browser gate — no Jev, no model. The claim is `FOR UPDATE SKIP LOCKED`, so
+// two sweeps on one database never claim the same website twice.
 //
 // Off by default (controller ruling 2026-10-21): the timer starts only with
-// `WEBSITE_CHECKS=on`, so a dev api-server never loads pages on its own.
+// `WEBSITE_CHECKS=on`, so a dev worker never loads pages on its own.
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db, runs, sources } from '@robot/db';
 import type { VerificationSet } from '@robot/scraper';
@@ -18,6 +19,7 @@ import { resolveInFlightVerification } from './in-flight.js';
 import { runDriftCheck, startDriftCheck, type CaptureProofPagesFn } from './run-drift-check.js';
 import { runCoverageCheck, startCoverageCheck, type CoverageDeps } from './run-coverage-check.js';
 import { websiteCheckDays } from './check-schedule.js';
+import { enqueue } from '../jobs/enqueue.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 /** At most this many websites per sweep. */
@@ -67,9 +69,10 @@ async function retryWithinTheHour(sourceId: string): Promise<'skipped'> {
 /**
  * One website's scheduled check: the proof pages, then (with a listing page) the listing sample, both awaited.
  * Not certified: skipped, and the claim's three days stand. Busy (a Verify in flight, a run extracting, a
- * check running): skipped, and tried again within the hour.
+ * check running): skipped, and tried again within the hour. `onPhase` is called when the drift check is done
+ * (the job's progress, so its stuck limit counts each phase on its own).
  */
-export async function checkWebsite(sourceId: string, deps: { capture?: CaptureProofPagesFn; coverage?: CoverageDeps } = {}): Promise<'checked' | 'skipped'> {
+export async function checkWebsite(sourceId: string, deps: { capture?: CaptureProofPagesFn; coverage?: CoverageDeps; onPhase?: () => void } = {}): Promise<'checked' | 'skipped'> {
   const state = await loadCertificationState(db, sourceId);
   if (!runnableOf(state) || !state.cert) return 'skipped';
   if (await resolveInFlightVerification(db, sourceId)) return retryWithinTheHour(sourceId);
@@ -80,6 +83,7 @@ export async function checkWebsite(sourceId: string, deps: { capture?: CapturePr
   const started = await startDriftCheck(sourceId, null, { trigger: 'schedule', keys, fire: false });
   if (started.status === 'in-progress') return retryWithinTheHour(sourceId);
   await runDriftCheck(started.checkId, deps.capture ? { capture: deps.capture } : {});
+  deps.onPhase?.();
   const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { verificationSet: true } });
   if ((source?.verificationSet as VerificationSet | null)?.listing_url) {
     const coverage = await startCoverageCheck(sourceId, null, { fire: false });
@@ -88,7 +92,22 @@ export async function checkWebsite(sourceId: string, deps: { capture?: CapturePr
   return 'checked';
 }
 
-/** One sweep: claim and check due websites one at a time, at most `limit`. Never throws. */
+/**
+ * The worker's sweep (spec 2026-10-23 §4.3): claims at most `limit` due websites and enqueues one
+ * `website-check` job each — the job runs `checkWebsite`. `only` as in `claimDueWebsite` (tests pass it).
+ */
+export async function enqueueDueWebsiteChecks(opts: { limit?: number; only?: string[] } = {}): Promise<string[]> {
+  const out: string[] = [];
+  for (let i = 0; i < (opts.limit ?? SWEEP_LIMIT); i++) {
+    const id = await claimDueWebsite(opts.only ? { only: opts.only } : {});
+    if (!id) break;
+    await enqueue(db, 'website-check', { sourceId: id }, { key: `website-check:${id}` });
+    out.push(id);
+  }
+  return out;
+}
+
+/** One sweep, inline (scripts and tests): claim and check due websites one at a time, at most `limit`. Never throws. */
 export async function runDueWebsiteChecks(opts: { limit?: number; only?: string[]; check?: typeof checkWebsite } = {}): Promise<{ checked: string[]; skipped: string[] }> {
   const out = { checked: [] as string[], skipped: [] as string[] };
   const check = opts.check ?? checkWebsite;
@@ -109,12 +128,12 @@ export async function runDueWebsiteChecks(opts: { limit?: number; only?: string[
 }
 
 /**
- * The api-server's timer: with `WEBSITE_CHECKS=on`, a first sweep after `firstDelayMs` (ten minutes), then one
+ * The worker's timer (the sweep enqueues by default): with `WEBSITE_CHECKS=on`, a first sweep after `firstDelayMs` (ten minutes), then one
  * every `intervalMs` (an hour); never two at once. Off, it sets no timer at all. Returns a stop function.
  */
 export function startWebsiteChecks(opts: { intervalMs?: number; firstDelayMs?: number; env?: Record<string, string | undefined>; sweep?: () => Promise<unknown> } = {}): () => void {
   if (!websiteChecksEnabled(opts.env)) return () => {};
-  const sweep = opts.sweep ?? (() => runDueWebsiteChecks());
+  const sweep = opts.sweep ?? (() => enqueueDueWebsiteChecks());
   let running = false;
   const tick = async () => {
     if (running) return;
