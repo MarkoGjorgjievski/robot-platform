@@ -21,7 +21,6 @@ await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 20000 
 await page.waitForLoadState('networkidle');
 console.log('after sign-in:', new URL(page.url()).pathname);
 await page.screenshot({ path: `${out}/app-after-signin.png` });
-const ssr = await (await page.request.get(`${APP}/`)).text();
 const r = await page.request.get(`${APP}/`, { maxRedirects: 0 });
 console.log('GET / with the session cookie:', r.status(), 'location', r.headers()['location'] ?? '-');
 await page.reload();
