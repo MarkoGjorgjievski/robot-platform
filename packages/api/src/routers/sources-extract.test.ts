@@ -3,17 +3,19 @@ import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, sources } from '@robot/db';
-import { itemCap, resolveBudget, reportVerdict, _resetBackoffForTests } from '@robot/scraper';
-import { CaptureError, BROWSER_UNAVAILABLE } from '@robot/browser';
+import { itemCap, resolveBudget, _resetBackoffForTests } from '@robot/scraper';
+import { BROWSER_UNAVAILABLE } from '@robot/browser';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
 
-// The Extract tab's free per-row listing check. Like `sources.findProductPages`
-// (sources-schema.test.ts), it launches a real browser via `withBrowserSession`
-// — stubbed here so this file never launches Chromium or hits the network.
-// `vi.mock` calls are hoisted above imports by vitest, so `appRouter`'s
-// transitive import of `../browser-session.js` already sees this mock.
+// The Extract tab's free per-row listing check and Add website's reachability line answer from the
+// worker (spec 2026-10-23 §4.4): their bodies' behaviour is tested in jobs/handlers/interactive.test.ts;
+// here, one case each end to end through the queue (this file's runner, in-process), and what the
+// customer reads when no worker answers. `withBrowserSession` is stubbed so nothing launches Chromium.
+// `vi.mock` calls are hoisted above imports by vitest, so the handlers' import of
+// `../browser-session.js` already sees this mock.
 const { withBrowserSessionMock } = vi.hoisted(() => ({ withBrowserSessionMock: vi.fn() }));
 vi.mock('../browser-session.js', () => ({ withBrowserSession: withBrowserSessionMock }));
 
@@ -33,93 +35,32 @@ function expectZodValidationError(err: unknown): asserts err is TRPCError {
   if (!(err.cause instanceof ZodError)) throw new Error(`expected ZodError cause, got ${err.cause}`);
 }
 
+/** With no worker, the wait ends this soon (the real ceiling is the job's start window and stuck limit). */
+async function withNoWorker<T>(fn: () => Promise<T>): Promise<T> {
+  process.env.JOB_AWAIT_MAX_MS = '300';
+  try { return await fn(); } finally { delete process.env.JOB_AWAIT_MAX_MS; }
+}
+
 describe('sources.checkListingPage', () => {
-  it('captures the listing page (no AI, loading more, the links read in the page) and reports product count, sample, and pagerSeen', async () => {
+  it('answers through the worker', async () => {
     const html = '<html><head><link rel="next" href="?page=2"></head><body></body></html>';
     const anchors = Array.from({ length: 12 }, (_, i) => ({ href: `/p/air-${i}-123456789012`, text: `Air ${i}`, levels: [{ d: 1, img: true, price: true, len: 30 }] }));
-    const captureMock = vi.fn().mockResolvedValue({ html, verdict: { kind: 'ok', status: 200 }, annotation: { anchors, itemList: [] } });
-    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) => fn({ capture: captureMock }));
-
-    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing.example.com/c/shoes' });
-
-    expect(result.productLinks).toBe(12);
-    expect(result.pagerSeen).toBe(true);
-    expect(result.sample).toHaveLength(10);
-    expect(result.verdict).toEqual({ kind: 'ok', status: 200 });
-    expect(result.message).toBeNull();
-    expect(withBrowserSessionMock).toHaveBeenCalledTimes(1);
-    expect(captureMock).toHaveBeenCalledWith('https://test-check-listing.example.com/c/shoes', expect.objectContaining({
-      interceptNetworkRequests: false, timeout: 20_000, annotate: expect.any(String),
-      loadMore: expect.objectContaining({ rounds: 3, enough: 60 }),
-    }));
-  });
-
-  it('a page with no product cards counts no products', async () => {
-    const anchors = [{ href: '/pages/terms', text: 'Terms' }, { href: '/collections/sofas', text: 'Sofas', levels: [{ d: 1, img: true, price: false, len: 5 }] }];
     withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: vi.fn().mockResolvedValue({ html: '<html></html>', verdict: { kind: 'ok', status: 200 }, annotation: { anchors, itemList: [] } }) }),
-    );
-    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-none.example.com/c/x' });
-    expect(result).toMatchObject({ productLinks: 0, sample: [], products: [], message: null });
+      fn({ capture: vi.fn().mockResolvedValue({ html, verdict: { kind: 'ok', status: 200 }, annotation: { anchors, itemList: [] } }) }));
+    const listingUrl = 'https://test-check-listing.example.com/c/shoes';
+
+    const answer = await withJobRunner(() => caller.sources.checkListingPage({ listingUrl }));
+
+    expect(answer).toMatchObject({ productLinks: 12, pagerSeen: true, verdict: { kind: 'ok', status: 200 }, message: null });
+    expect(answer.sample).toHaveLength(10);
+    const job = (await jobsOf('listing-check')).find((j) => (j.payload as { listingUrl: string }).listingUrl === listingUrl);
+    expect(job).toMatchObject({ status: 'done', key: `listing:${listingUrl}`, payload: { listingUrl } });
   });
 
-  it('reports pagerSeen false when the captured page has no pagination markup', async () => {
-    const html = '<html><body>no pager</body></html>';
-    const anchors = [
-      { href: '/p/air-1-123456789012', text: 'Air 1', levels: [{ d: 1, img: true, price: true, len: 30 }] },
-      { href: '/p/air-2-123456789013', text: 'Air 2', levels: [{ d: 1, img: true, price: true, len: 30 }] },
-    ];
-    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: vi.fn().mockResolvedValue({ html, verdict: { kind: 'ok', status: 200 }, annotation: { anchors, itemList: [] } }) }),
-    );
-
-    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-nopager.example.com/c/shoes' });
-
-    expect(result.productLinks).toBe(2);
-    expect(result.pagerSeen).toBe(false);
-  });
-
-  it('a challenge page counts no links and says why', async () => {
-    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: vi.fn().mockResolvedValue({ html: '<html>captcha</html>', verdict: { kind: 'challenge', status: 403, vendor: 'datadome' }, annotation: { anchors: [{ href: '/p/1-2', text: 'x', levels: [{ d: 1, img: true, price: true, len: 3 }] }], itemList: [] } }) }),
-    );
-
-    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-wall.example.com/c/shoes' });
-
-    expect(result.productLinks).toBe(0);
-    expect(result.verdict.kind).toBe('challenge');
-    expect(result.message).toBe("test-check-listing-wall.example.com asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check.");
-  });
-
-  it('no document at all (a CaptureError) is an answer, not a thrown error', async () => {
-    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: vi.fn().mockRejectedValue(new CaptureError('unreachable', 'https://test-check-listing-down.example.com/c/shoes', 'net::ERR_NAME_NOT_RESOLVED')) }),
-    );
-
-    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-down.example.com/c/shoes' });
-
-    expect(result).toEqual({ verdict: { kind: 'unreachable' }, message: 'test-check-listing-down.example.com could not be reached (no response).', productLinks: 0, pagerSeen: false, sample: [], products: [] });
-  });
-
-  it('a host still backing off is answered from the backoff: no browser, the wall sentence and the wait (review I4)', async () => {
-    reportVerdict('test-check-listing-backoff.example.com', { kind: 'refused', status: 403, vendor: 'cloudflare' });
-
-    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-backoff.example.com/c/shoes' });
-
+  it('with no worker, the listing check says the browser could not open', async () => {
+    const answer = await withNoWorker(() => caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-none.example.com/c/x' }));
+    expect(answer).toEqual({ verdict: { kind: 'crashed' }, message: BROWSER_UNAVAILABLE, productLinks: 0, pagerSeen: false, sample: [], products: [] });
     expect(withBrowserSessionMock).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      verdict: { kind: 'refused', status: 403, vendor: 'cloudflare' },
-      message: "test-check-listing-backoff.example.com refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet. Waiting 2 min before trying again.",
-      productLinks: 0, pagerSeen: false, sample: [], products: [],
-    });
-  });
-
-  it('a browser that cannot launch at all is one sentence, not the raw Playwright exception (campaign 2, 2026-10-11)', async () => {
-    withBrowserSessionMock.mockImplementation(async () => { throw new Error('browserType.launch: failed to launch. Call log: … hundreds of words …'); });
-
-    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-crash.example.com/c/shoes' });
-
-    expect(result).toEqual({ verdict: { kind: 'crashed' }, message: BROWSER_UNAVAILABLE, productLinks: 0, pagerSeen: false, sample: [], products: [] });
   });
 
   it('rejects a non-URL listingUrl', async () => {
@@ -144,54 +85,22 @@ describe('sources.checkListingPage', () => {
 });
 
 describe('sources.reachability', () => {
-  it('one page load, one tile: the verdict, its sentence, the final url', async () => {
-    const captureMock = vi.fn().mockResolvedValue({ url: 'https://www.test-reach.example.com/shop', html: '<html></html>', verdict: { kind: 'ok', status: 200 } });
-    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) => fn({ capture: captureMock }));
-
-    const result = await caller.sources.reachability({ url: 'https://www.test-reach.example.com/shop' });
-
-    expect(result).toMatchObject({ verdict: { kind: 'ok', status: 200 }, message: 'Reached test-reach.example.com (HTTP 200).', finalUrl: 'https://www.test-reach.example.com/shop' });
-    expect(typeof result.ms).toBe('number');
-    expect(captureMock).toHaveBeenCalledWith('https://www.test-reach.example.com/shop', expect.objectContaining({ waitUntil: 'load', timeout: 30_000, maxTiles: 1, interceptNetworkRequests: false }));
-  });
-
-  it('a CaptureError reads its sentence with no final url', async () => {
+  it('answers through the worker', async () => {
+    const url = 'https://www.test-reach.example.com/shop';
     withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: vi.fn().mockRejectedValue(new CaptureError('timeout', 'https://test-reach-slow.example.com/x', 'Timeout 30000ms exceeded')) }),
-    );
+      fn({ capture: vi.fn().mockResolvedValue({ url, html: '<html></html>', verdict: { kind: 'ok', status: 200 } }) }));
 
-    const result = await caller.sources.reachability({ url: 'https://test-reach-slow.example.com/x' });
+    const answer = await withJobRunner(() => caller.sources.reachability({ url }));
 
-    expect(result).toMatchObject({ verdict: { kind: 'timeout' }, message: 'test-reach-slow.example.com did not answer in time.', finalUrl: null });
+    expect(answer).toMatchObject({ verdict: { kind: 'ok', status: 200 }, message: 'Reached test-reach.example.com (HTTP 200).', finalUrl: url });
+    const job = (await jobsOf('reachability')).find((j) => (j.payload as { url: string }).url === url);
+    expect(job).toMatchObject({ status: 'done', key: `reachability:${url}`, payload: { url } });
   });
 
-  it('a host still backing off is answered without opening a browser', async () => {
-    reportVerdict('test-reach-wall.example.com', 'challenge');
-
-    const result = await caller.sources.reachability({ url: 'https://test-reach-wall.example.com/x' });
-
-    expect(result.verdict).toEqual({ kind: 'challenge', status: 0 });
-    expect(result.finalUrl).toBeNull();
-    expect(result.message).toBe("test-reach-wall.example.com asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check. Waiting 2 min before trying again."); // BACKOFF_FIRST_MS is 2 min
+  it('with no worker, the reachability line says the browser could not open', async () => {
+    const answer = await withNoWorker(() => caller.sources.reachability({ url: 'https://test-reach-none.example.com/x' }));
+    expect(answer).toMatchObject({ verdict: { kind: 'crashed' }, message: BROWSER_UNAVAILABLE, finalUrl: null });
     expect(withBrowserSessionMock).not.toHaveBeenCalled();
-  });
-
-  it('after a refusal the waiting line reads the refusal, not a made-up human check (review I4)', async () => {
-    reportVerdict('test-reach-refused.example.com', { kind: 'refused', status: 403, vendor: 'akamai' });
-
-    const result = await caller.sources.reachability({ url: 'https://test-reach-refused.example.com/x' });
-
-    expect(result.verdict).toEqual({ kind: 'refused', status: 403, vendor: 'akamai' });
-    expect(result.message).toBe("test-reach-refused.example.com refused the browser (HTTP 403, Akamai). We can't read this website from here yet. Waiting 2 min before trying again.");
-    expect(withBrowserSessionMock).not.toHaveBeenCalled();
-  });
-
-  it('a browser that cannot launch at all is one sentence, not the raw Playwright exception (campaign 2, 2026-10-11)', async () => {
-    withBrowserSessionMock.mockImplementation(async () => { throw new Error('browserType.launch: failed to launch. Call log: … hundreds of words …'); });
-
-    const result = await caller.sources.reachability({ url: 'https://test-reach-broken.example.com/x' });
-
-    expect(result).toMatchObject({ verdict: { kind: 'crashed' }, message: BROWSER_UNAVAILABLE, finalUrl: null });
   });
 });
 

@@ -4,12 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { db, captures, jevReadings } from '@robot/db';
-import { PlaywrightBrowser, pageVariantFrom, type PageVariant } from '@robot/browser';
+import { PlaywrightBrowser, pageVariantFrom, BROWSER_UNAVAILABLE, type PageVariant } from '@robot/browser';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { buildBoxMapScript, boxesFromAnnotation, pageTextOf } from '@robot/scraper';
 import { writeCaptureFile } from '../verify/capture-store.js';
 import { SHOP_EXAMPLE } from '../test-helpers/shop-example.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
 
 // `startProofPageCapture` fires a real browser un-awaited; stub the job so this file never launches one for the mutation.
 const { runMock } = vi.hoisted(() => ({ runMock: vi.fn().mockResolvedValue(undefined) }));
@@ -23,6 +24,8 @@ vi.mock('../verify/proof-page-capture.js', async (importOriginal) => {
 const me = await signedInCaller('sources-marks');
 const caller = me.caller;
 afterAll(async () => { await me.cleanup(); });
+/** Mark transfer answers from the worker (job `transfer-marks`, spec 2026-10-23 §4.4): this file's runner, in-process. */
+const transfer = (input: Parameters<typeof caller.sources.transferMarks>[0]) => withJobRunner(() => caller.sources.transferMarks(input));
 let dir: string;
 let browser: PlaywrightBrowser;
 beforeAll(async () => {
@@ -187,11 +190,14 @@ describe('sources.transferMarks', () => {
       expected: { Price: { 'https://test-marks-tr.example.com/p/1': '129.99', 'https://test-marks-tr.example.com/p/2': '219.99', 'https://test-marks-tr.example.com/p/3': '149.00' } } });
     try {
       await seedProofPage(f.sourceId, f.urls[0]!, 'p1'); const id2 = await seedProofPage(f.sourceId, f.urls[1]!, 'p2'); await seedProofPage(f.sourceId, f.urls[2]!, 'p3');
-      const r = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!, f.urls[2]!] });
+      const r = await transfer({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!, f.urls[2]!] });
       expect(r[f.urls[1]!]!.captureId).toBe(id2);
       expect(r[f.urls[1]!]!.fields[f.keys.Price!]!.value).toMatch(/219\.99/);
       expect(r[f.urls[1]!]!.fields[f.keys.Price!]!.boxes).toHaveLength(1);
       expect(r[f.urls[2]!]!.fields[f.keys.Price!]!.value).toMatch(/149/);
+      // It answered through the worker: one transfer-marks job, done, with no key (spec §4.2).
+      const job = (await jobsOf('transfer-marks')).find((j) => (j.payload as { sourceId: string }).sourceId === f.sourceId);
+      expect(job).toMatchObject({ status: 'done', key: null, payload: { sourceId: f.sourceId, fromUrl: f.urls[0], toUrls: [f.urls[1], f.urls[2]] } });
     } finally { await f.cleanup(); }
   });
   it('a target with no fresh capture is null, and the other target still resolves', async () => {
@@ -199,15 +205,23 @@ describe('sources.transferMarks', () => {
       expected: { Price: { 'https://test-marks-tr2.example.com/p/1': '129.99', 'https://test-marks-tr2.example.com/p/2': '219.99', 'https://test-marks-tr2.example.com/p/3': '149.00' } } });
     try {
       await seedProofPage(f.sourceId, f.urls[0]!, 'p1'); await seedProofPage(f.sourceId, f.urls[1]!, 'p2');
-      const r = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!, f.urls[2]!] });
+      const r = await transfer({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!, f.urls[2]!] });
       expect(r[f.urls[2]!]).toBeNull();
       expect(r[f.urls[1]!]!.fields[f.keys.Price!]!.value).toMatch(/219\.99/);
     } finally { await f.cleanup(); }
   });
+  it('with no worker, the transfer fails with the sentence a browser that could not start gave', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-tr-none', fields: [{ name: 'Price', type: 'money' }] });
+    process.env.JOB_AWAIT_MAX_MS = '300';
+    try {
+      await expect(caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!] }))
+        .rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR', message: BROWSER_UNAVAILABLE });
+    } finally { delete process.env.JOB_AWAIT_MAX_MS; await f.cleanup(); }
+  });
   it('PRECONDITION_FAILED when page 1 has no capture', async () => {
     const f = await createProjectWithSource(caller, { tag: 'marks-tr0', fields: [{ name: 'Price', type: 'money' }] });
     try {
-      await expect(caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!] })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+      await expect(transfer({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!] })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
     } finally { await f.cleanup(); }
   });
 });
@@ -248,10 +262,10 @@ describe('sources.transferMarks from the values on screen', () => {
       } });
     try {
       await seedProofPage(f.sourceId, f.urls[0]!, 'p1'); await seedProofPage(f.sourceId, f.urls[1]!, 'p2'); await seedProofPage(f.sourceId, f.urls[2]!, 'p3');
-      const r = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], from: { [f.keys.Price!]: { value: '129.99' } }, fieldKeys: [f.keys.Price!] });
+      const r = await transfer({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], from: { [f.keys.Price!]: { value: '129.99' } }, fieldKeys: [f.keys.Price!] });
       expect(r[f.urls[1]!]!.fields[f.keys.Price!]!.value).toMatch(/219\.99/);
       expect(r[f.urls[1]!]!.fields).not.toHaveProperty(f.keys.Title!);
-      const saved = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], fieldKeys: [f.keys.Price!] });
+      const saved = await transfer({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], fieldKeys: [f.keys.Price!] });
       expect(saved[f.urls[1]!]!.fields[f.keys.Price!]).toBeNull();
     } finally { await f.cleanup(); }
   });
@@ -259,9 +273,9 @@ describe('sources.transferMarks from the values on screen', () => {
     const f = await createProjectWithSource(caller, { tag: 'marks-via', fields: [{ name: 'Price', type: 'money' }] });
     try {
       await seedProofPage(f.sourceId, f.urls[0]!, 'p1'); await seedProofPage(f.sourceId, f.urls[1]!, 'p2');
-      const plain = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], from: { [f.keys.Price!]: { value: '129.99' } } });
+      const plain = await transfer({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], from: { [f.keys.Price!]: { value: '129.99' } } });
       expect(plain[f.urls[1]!]!.fields[f.keys.Price!]!.via.source).toBe('api'); // item.priceCents: the API ranks first
-      const r = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], from: { [f.keys.Price!]: { value: '129.99', via: { source: 'meta', path: 'product:price:amount' } } } });
+      const r = await transfer({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], from: { [f.keys.Price!]: { value: '129.99', via: { source: 'meta', path: 'product:price:amount' } } } });
       expect(r[f.urls[1]!]!.fields[f.keys.Price!]).toMatchObject({ value: expect.stringMatching(/219\.99/), via: { source: 'meta', path: 'product:price:amount' } });
     } finally { await f.cleanup(); }
   });

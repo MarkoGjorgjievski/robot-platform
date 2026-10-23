@@ -2,6 +2,7 @@
 // What each kind of job is, where it runs and how it fails (spec 2026-10-23 capture worker §4.2).
 // Plain data: enqueuers read it without importing a handler (handlers import the enqueuers).
 import type { StoredCaptureRef } from '../verify/capture-store.js';
+import type { ConfirmedPath, Mark } from '@robot/scraper';
 
 export type Lane = 'interactive' | 'background' | 'runs';
 
@@ -61,7 +62,7 @@ export type TransferMarksPayload = {
   sourceId: string;
   fromUrl: string;
   toUrls: string[];
-  from?: Record<string, { value: string; mark?: unknown; via?: unknown }>;
+  from?: Record<string, { value: string; mark?: Mark; via?: ConfirmedPath }>;
   fieldKeys?: string[];
 };
 

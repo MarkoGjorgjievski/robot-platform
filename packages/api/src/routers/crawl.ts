@@ -11,7 +11,8 @@ import { runInOrg, sourceInOrg } from '../auth/scope.js';
 import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
 import { markRunExtracting } from '../crawl/mark-extracting.js';
 import { canExecute } from '../crawl/execute-guard.js';
-import { planSource, safeErrorMessage, formatPlanLog } from '../crawl/plan-source.js';
+import { safeErrorMessage, formatPlanLog } from '../crawl/plan-source.js';
+import { planViaWorker } from '../crawl/plan-via-worker.js';
 import { requireCertification } from '../crawl/require-certification.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 import { loadRunCoverage, loadRunMisses } from '../crawl/load-run-coverage.js';
@@ -55,10 +56,11 @@ export const crawlRouter = router({
       // verifying in the first place. A full plan (probe: false) spends real
       // budget against the certified paths, so it is gated.
       if (!input.probe) await requireCertification(ctx.db, input.sourceId);
-      return planSource(ctx.db, input.sourceId, { probe: input.probe === true });
+      // Planning walks the listing in a browser: it runs in the worker (job `plan`, spec 2026-10-23 §4.4).
+      return planViaWorker(ctx.db, input.sourceId, { probe: input.probe === true });
     }),
   /**
-   * Probe-and-sample: a probe plan (`planSource(..., { probe: true })`) followed
+   * Probe-and-sample: a probe plan (`planViaWorker(..., { probe: true })`) followed
    * immediately by a small execution of what it found — spec §3's "one run,
    * small and bounded" step 1. Like `crawl.execute`, it enqueues the run's
    * `run` job (spec 2026-10-23 §4.4) and returns as soon as planning is done;
@@ -144,7 +146,7 @@ export const crawlRouter = router({
         };
       }
 
-      const outcome = await planSource(ctx.db, input.sourceId, { probe: true });
+      const outcome = await planViaWorker(ctx.db, input.sourceId, { probe: true });
 
       // `status === 'failed'` covers "every input errored"; `itemCount === 0`
       // additionally covers the case planSource itself doesn't mark failed —
