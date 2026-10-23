@@ -13,3 +13,6 @@ packages/api-server/public/captures/*.png
 .claude/
 .playwright-mcp/
 packages/api-server/public/captures/*.capture.json
+# Docker Compose stack: its dumps and its own env file (keys, if any)
+backups/
+stack.env
