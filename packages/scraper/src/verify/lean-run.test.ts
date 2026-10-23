@@ -1,6 +1,10 @@
 // The per-run rules that decide when a lean read is enough (spec 2026-10-23 run speed §3.3–3.4). Pure: no browser.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { newLeanRunState, leanRunStateFromEnv, fallbackFor, learn, recordOutcome, leanSummary, type FieldReading } from './lean-run.js';
+
+// The switch logs one [lean] line by design; keep the test output clean.
+beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+afterEach(() => { vi.restoreAllMocks(); });
 
 const r = (key: string, value: unknown, shown: boolean | null = null, hasPaths = true): FieldReading => ({ key, value, shown, hasPaths });
 
@@ -50,6 +54,15 @@ describe('learn', () => {
     expect(s.mode).toBe('lean');
     learn(s, [r('stock', null)], [r('stock', 'In stock')], { check: false, url: 'u6' });
     expect(s.mode).toBe('full');
+  });
+  it('an item written lean (no rescue) resets the rescue streak', () => {
+    const s = newLeanRunState({ checks: 0 });
+    learn(s, [r('stock', null)], [r('stock', 'In stock')], { check: false, url: 'u1' });
+    learn(s, [r('stock', null)], [r('stock', 'In stock')], { check: false, url: 'u2' });
+    recordOutcome(s, { mode: 'lean', reason: null, fields: [], leanMs: 2000 });
+    expect(s.rescueStreak).toBe(0);
+    learn(s, [r('stock', null)], [r('stock', 'In stock')], { check: false, url: 'u3' });
+    expect(s.mode).toBe('lean');
   });
   it('three confirmed misses: the field\'s next lean miss is trusted; a rescue un-confirms it', () => {
     const s = newLeanRunState({ checks: 0 });

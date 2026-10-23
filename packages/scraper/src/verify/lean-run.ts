@@ -91,7 +91,8 @@ export function learn(state: LeanRunState, lean: FieldReading[], full: FieldRead
 }
 
 export function recordOutcome(state: LeanRunState, o: LeanOutcome): LeanOutcome {
-  if (o.mode === 'lean') state.counts.lean++;
+  // Spec §3.4: an item without a rescue resets the streak, an item written lean included.
+  if (o.mode === 'lean') { state.counts.lean++; state.rescueStreak = 0; }
   else if (o.mode === 'full') state.counts.full++;
   else if (o.reason === 'check' || o.reason === 'miss' || o.reason === 'unshown' || o.reason === 'verdict') state.counts.leanFull[o.reason]++;
   return o;
