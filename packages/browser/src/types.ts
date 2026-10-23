@@ -79,6 +79,10 @@ export type PageCapture = {
   pageVariant?: PageVariant;
   /** The `annotate` script's value, when one was given (box map for a proof page). */
   annotation?: unknown;
+  /** `finalProbe`'s value, when one was given and did not throw. */
+  probe?: unknown;
+  /** 'lean' for a `lean` capture, else 'full'. Absent on captures built outside the browser. */
+  mode?: 'lean' | 'full';
   /**
    * What the browser got (spec 2026-10-09 §A1). Required on live captures;
    * fixtures and replays built outside the browser carry `{ kind: 'ok', status: 0 }`
@@ -177,6 +181,24 @@ export type CaptureOptions = {
    * certified path reads (final review I3, controller ruling).
    */
   expandTabs?: boolean;
+  /**
+   * Screenshot tiles, readable content and markdown (default true). False: `screenshot` is an empty Buffer,
+   * `screenshotTiles` `[]`, `markdown` `''`. No value can change: the HTML, title and structured data are read
+   * before the tiles (spec 2026-10-23 run speed §3.1).
+   */
+  pictures?: boolean;
+  /**
+   * A self-invoking page script evaluated once in the live tab right before the HTML is read (after the expand
+   * pass, and on a full capture after the final pass); its value is `PageCapture.probe`. A throw leaves `probe`
+   * undefined; it never fails the capture.
+   */
+  finalProbe?: string;
+  /**
+   * A certified run's lean capture (spec 2026-10-23 run speed §3.1): no dismissal passes, no final pass, no
+   * mouse park or scroll, no centre-overlay warning, no pictures; the expand pass only when `expand`. Interception,
+   * the ready poll, the navigated-away check, structured data, `selection` and the verdict are today's.
+   */
+  lean?: { expand: boolean };
   /**
    * Load more of a listing before it is read (spec 2026-10-20 §3.7): up to `rounds` rounds — never
    * more than `LOAD_MORE_MAX_ROUNDS`, and never past about ten seconds of wall time (controller

@@ -200,10 +200,18 @@ export class PlaywrightBrowser implements IBrowser {
         const readyWhen = options.ready?.when ?? 'after-navigation';
         let ready = options.ready && readyWhen === 'after-navigation' ? await this.waitUntilReady(page, url, intercepted, options.ready) : null;
         if (ready) await stage(`ready: ${ready.state}`);
-        await this.dismissPopups(page);
-        await stage('after dismissPopups');
-        await this.expandHiddenContent(page, { tabs: options.expandTabs ?? false });
-        await stage('after expandHidden');
+        // Spec 2026-10-23 run speed §3.1: a lean capture closes nothing — a popup changes no JSON-LD, meta or API
+        // body, and dismissal keeps a hidden overlay's text in the HTML anyway — and expands only when asked
+        // (certified XPaths were proven on the expanded page).
+        const lean = options.lean;
+        if (!lean) {
+          await this.dismissPopups(page);
+          await stage('after dismissPopups');
+        }
+        if (!lean || lean.expand) {
+          await this.expandHiddenContent(page, { tabs: options.expandTabs ?? false });
+          await stage('after expandHidden');
+        }
         await this.returnIfNavigatedAway(page, url, options);
         // 'after-expand': poll the page as it will be serialised, once the popup
         // and "show more" rounds have revealed whatever they reveal.
@@ -220,22 +228,24 @@ export class PlaywrightBrowser implements IBrowser {
           await stage('after loadMore');
         }
 
-        // Spec 2026-10-19 §3.4: one more dismissal pass for what arrived late (a consent manager
-        // that renders after the first pass), with no settle wait — a page with nothing over it
-        // costs no time. A close button can navigate by script, so the check runs again. Then
-        // back to the top: a dismissal click scrolls its element into view.
-        await this.dismissPopups(page, { settleMs: 0, final: true });
-        // The mouse rests where dismissal last clicked; its hover state (a size button's border) would
-        // be on the screenshot. Park it in the corner (review round 1).
-        await page.mouse.move(0, 0).catch((err) => { if (isCrash(err)) throw err; });
-        await this.returnIfNavigatedAway(page, url, options);
-        await page.evaluate('window.scrollTo(0, 0)').catch((err) => { if (isCrash(err)) throw err; });
-        const covering = (await page.evaluate(CENTRE_OVERLAY_SCRIPT).catch((err) => {
-          if (isCrash(err)) throw err;
-          return null;
-        })) as OverlayDescription | null;
-        if (covering) console.warn(overlayWarning(url, covering));
-        await stage('after final pass');
+        if (!lean) {
+          // Spec 2026-10-19 §3.4: one more dismissal pass for what arrived late (a consent manager
+          // that renders after the first pass), with no settle wait — a page with nothing over it
+          // costs no time. A close button can navigate by script, so the check runs again. Then
+          // back to the top: a dismissal click scrolls its element into view.
+          await this.dismissPopups(page, { settleMs: 0, final: true });
+          // The mouse rests where dismissal last clicked; its hover state (a size button's border) would
+          // be on the screenshot. Park it in the corner (review round 1).
+          await page.mouse.move(0, 0).catch((err) => { if (isCrash(err)) throw err; });
+          await this.returnIfNavigatedAway(page, url, options);
+          await page.evaluate('window.scrollTo(0, 0)').catch((err) => { if (isCrash(err)) throw err; });
+          const covering = (await page.evaluate(CENTRE_OVERLAY_SCRIPT).catch((err) => {
+            if (isCrash(err)) throw err;
+            return null;
+          })) as OverlayDescription | null;
+          if (covering) console.warn(overlayWarning(url, covering));
+          await stage('after final pass');
+        }
 
         let annotation: unknown = undefined;
         if (options.annotate) {
@@ -246,13 +256,25 @@ export class PlaywrightBrowser implements IBrowser {
           });
         }
 
+        let probe: unknown = undefined;
+        if (options.finalProbe) {
+          probe = await page.evaluate(options.finalProbe).catch((err) => {
+            if (isCrash(err)) throw err;
+            console.warn(`[browser] final probe failed on ${url}: ${(err as Error).message.split('\n')[0]}`);
+            return undefined;
+          });
+        }
+        const pictures = !lean && (options.pictures ?? true);
+
         const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
         // A page laid out far wider than the window puts content outside every tile (the
         // 2026-10-16 stealth case). Said out loud, so a new cause is noticed, not silently blank.
-        const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth).catch(() => 0);
-        const viewportWidth = page.viewportSize()?.width ?? 1280;
-        if (pageWidth > viewportWidth * 1.25) console.warn(`[browser] ${url} is laid out ${pageWidth}px wide in a ${viewportWidth}px window; screenshots will miss content to the right`);
-        const clips = computeTileClips(pageHeight, options.maxTiles);
+        if (pictures) {
+          const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth).catch(() => 0);
+          const viewportWidth = page.viewportSize()?.width ?? 1280;
+          if (pageWidth > viewportWidth * 1.25) console.warn(`[browser] ${url} is laid out ${pageWidth}px wide in a ${viewportWidth}px window; screenshots will miss content to the right`);
+        }
+        const clips = pictures ? computeTileClips(pageHeight, options.maxTiles) : [];
 
         const [html, title, structuredData] = await Promise.all([
           page.content(),
@@ -303,12 +325,11 @@ export class PlaywrightBrowser implements IBrowser {
           // A crash mid-tiles rethrows above and discards the tiles already taken,
           // on purpose: a dead renderer's page is not handed back half-captured.
         }
-        if (screenshotTiles.length === 0) {
+        if (pictures && screenshotTiles.length === 0) {
           throw new Error(`page.screenshot failed for every tile on ${url} — no usable screenshot`);
         }
 
-        const cleanedHtml = await this.extractReadableContent(page, html);
-        const markdown = nhm.translate(cleanedHtml);
+        const markdown = pictures ? nhm.translate(await this.extractReadableContent(page, html)) : '';
 
         // Rank and filter the intercepted requests
         const rankedRequests = rankInterceptedRequests(intercepted, url);
@@ -337,7 +358,7 @@ export class PlaywrightBrowser implements IBrowser {
           verdict: finalVerdict,
           html,
           markdown,
-          screenshot: screenshotTiles[0],
+          screenshot: screenshotTiles[0] ?? Buffer.alloc(0),
           screenshotTiles,
           title,
           timestamp: Date.now(),
@@ -345,6 +366,8 @@ export class PlaywrightBrowser implements IBrowser {
           interceptedRequests: rankedRequests,
           pageHeight,
           pageVariant,
+          mode: lean ? 'lean' : 'full',
+          ...(probe !== undefined ? { probe } : {}),
           ...(annotation !== undefined ? { annotation } : {}),
           timings: {
             navigateMs,
