@@ -1,20 +1,20 @@
 // packages/api/src/routers/crawl-probe.test.ts
 // crawl.probeAndSample — the probe-confirm flow's fire-and-forget entry point
 // (mvp-simplification task 8). Follows crawl.test.ts's stubbing pattern: the
-// heavy dependencies (`planSource`, `startExecution`) are mocked at the
-// module boundary so this exercises ONLY the router's own logic — what it
-// passes down, and whether it starts execution at all — without a real
-// planner, browser, or extraction loop.
+// planner is mocked at the module boundary so this exercises ONLY the router's
+// own logic — what it passes down, and whether it enqueues the run's job at
+// all (spec 2026-10-23 §4.4; nothing here runs the job, so no browser starts).
 import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, sources, projects, datasets, runs } from '@robot/db';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 import type { PlanSourceResult } from '../crawl/plan-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { jobsOf } from '../test-helpers/jobs.js';
 
-const { planSourceMock, startExecutionMock, markRunExtractingMock } = vi.hoisted(() => ({
+const { planSourceMock, enqueueRunSpy, markRunExtractingMock } = vi.hoisted(() => ({
   planSourceMock: vi.fn(),
-  startExecutionMock: vi.fn(),
+  enqueueRunSpy: { fn: null as unknown as import('vitest').Mock },
   markRunExtractingMock: vi.fn(),
 }));
 
@@ -23,9 +23,11 @@ vi.mock('../crawl/plan-source.js', async (importOriginal) => {
   return { ...actual, planSource: planSourceMock };
 });
 
-vi.mock('../crawl/start-execution.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../crawl/start-execution.js')>();
-  return { ...actual, startExecution: startExecutionMock };
+// The real enqueue, watched: its call order against `markRunExtracting` is part of the contract.
+vi.mock('../jobs/handlers/run.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../jobs/handlers/run.js')>();
+  enqueueRunSpy.fn = vi.fn(actual.enqueueRun);
+  return { ...actual, enqueueRun: enqueueRunSpy.fn };
 });
 
 // `planSource` is mocked and never actually inserts a `runs` row, so a real
@@ -57,6 +59,13 @@ async function makeSource() {
   return source!.id;
 }
 
+/** The run planSource would have inserted (planSource is mocked): a real row, so the job can be stamped on it. */
+async function plannedRun(sourceId: string) {
+  const [run] = await db.insert(runs).values({ sourceId, status: 'planned' }).returning({ id: runs.id });
+  return run!.id;
+}
+const runJobsOf = async (runId: string) => (await jobsOf('run')).filter((j) => (j.payload as { runId: string }).runId === runId);
+
 const OUTCOME_BASE: PlanSourceResult = {
   runId: 'run-placeholder',
   status: 'planned',
@@ -70,25 +79,25 @@ const OUTCOME_BASE: PlanSourceResult = {
 
 afterEach(async () => {
   planSourceMock.mockReset();
-  startExecutionMock.mockReset();
+  enqueueRunSpy.fn?.mockClear();
   markRunExtractingMock.mockReset();
   if (orgId) await db.delete(projects).where(eq(projects.orgId, orgId));
   orgId = null;
 });
 
 describe('crawl.probeAndSample', () => {
-  it('plans with probe: true, marks the run extracting, and starts execution at PROBE_SAMPLE_LIMIT when planning found work', async () => {
+  it('plans with probe: true, marks the run extracting, and enqueues its run job at PROBE_SAMPLE_LIMIT when planning found work', async () => {
     const sourceId = await makeSource();
+    const runId = await plannedRun(sourceId);
     planSourceMock.mockResolvedValue({
       ...OUTCOME_BASE,
-      runId: 'run-1',
+      runId,
       status: 'planned',
       itemCount: 3,
       warnings: ['some warning'],
       errors: [],
     } satisfies PlanSourceResult);
     markRunExtractingMock.mockResolvedValue(true);
-    startExecutionMock.mockResolvedValue(undefined);
 
     const result = await caller.crawl.probeAndSample({ sourceId });
 
@@ -100,21 +109,21 @@ describe('crawl.probeAndSample', () => {
     // flip the run to `extracting` exactly as `execute` does, not leave it at
     // `planned` for the whole sample.
     expect(markRunExtractingMock).toHaveBeenCalledTimes(1);
-    expect(markRunExtractingMock).toHaveBeenCalledWith(expect.anything(), 'run-1');
+    expect(markRunExtractingMock).toHaveBeenCalledWith(expect.anything(), runId);
 
-    // Fire-and-forget, but the call itself is synchronous — the mock has
-    // already recorded it by the time the mutation's promise resolves.
-    expect(startExecutionMock).toHaveBeenCalledTimes(1);
-    expect(startExecutionMock).toHaveBeenCalledWith('run-1', sourceId, expect.any(Array), PROBE_SAMPLE_LIMIT);
+    // The worker runs the sample: one `run` job, at the probe's limit.
+    const jobs = await runJobsOf(runId);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]!.payload).toEqual({ runId, limit: PROBE_SAMPLE_LIMIT });
 
-    // Order matters: the status flip is the synchronous, persisted half of
-    // "starting a loop" and must land before the unawaited background call.
+    // Order matters: the status flip is the persisted half of "starting a
+    // loop" and must land before the job that runs it is enqueued.
     const markOrder = markRunExtractingMock.mock.invocationCallOrder[0]!;
-    const startOrder = startExecutionMock.mock.invocationCallOrder[0]!;
+    const startOrder = enqueueRunSpy.fn.mock.invocationCallOrder[0]!;
     expect(markOrder).toBeLessThan(startOrder);
 
     expect(result).toEqual({
-      runId: 'run-1', status: 'planned', itemCount: 3, warnings: ['some warning'], errors: [],
+      runId, status: 'planned', itemCount: 3, warnings: ['some warning'], errors: [],
     });
   });
 
@@ -131,7 +140,7 @@ describe('crawl.probeAndSample', () => {
     const result = await caller.crawl.probeAndSample({ sourceId });
 
     expect(markRunExtractingMock).not.toHaveBeenCalled();
-    expect(startExecutionMock).not.toHaveBeenCalled();
+    expect(enqueueRunSpy.fn).not.toHaveBeenCalled();
     expect(result).toEqual({
       runId: 'run-2',
       status: 'failed',
@@ -153,7 +162,7 @@ describe('crawl.probeAndSample', () => {
     const result = await caller.crawl.probeAndSample({ sourceId });
 
     expect(markRunExtractingMock).not.toHaveBeenCalled();
-    expect(startExecutionMock).not.toHaveBeenCalled();
+    expect(enqueueRunSpy.fn).not.toHaveBeenCalled();
     expect(result.itemCount).toBe(0);
     expect(result.status).toBe('planned');
   });
@@ -194,7 +203,7 @@ describe('crawl.probeAndSample', () => {
       expect(result.runId).toBe(existingRun!.id);
       expect(planSourceMock).not.toHaveBeenCalled();
       expect(markRunExtractingMock).not.toHaveBeenCalled();
-      expect(startExecutionMock).not.toHaveBeenCalled();
+      expect(enqueueRunSpy.fn).not.toHaveBeenCalled();
     });
 
     it.each(['planning', 'planned', 'extracting', 'cancelling'])(
@@ -221,18 +230,18 @@ describe('crawl.probeAndSample', () => {
         // terminal `status` with `completedAt` still null isn't a reachable
         // production state, so the fixture shouldn't simulate one either.
         await db.insert(runs).values({ sourceId, status, inputLabel: 'probe', completedAt: new Date() });
+        const fresh = await plannedRun(sourceId);
         planSourceMock.mockResolvedValue({
           ...OUTCOME_BASE,
-          runId: 'run-fresh',
+          runId: fresh,
           status: 'planned',
           itemCount: 2,
         } satisfies PlanSourceResult);
         markRunExtractingMock.mockResolvedValue(true);
-        startExecutionMock.mockResolvedValue(undefined);
 
         const result = await caller.crawl.probeAndSample({ sourceId });
 
-        expect(result.runId).toBe('run-fresh');
+        expect(result.runId).toBe(fresh);
         expect(planSourceMock).toHaveBeenCalledTimes(1);
       },
     );
@@ -252,18 +261,18 @@ describe('crawl.probeAndSample', () => {
       await db.insert(runs).values({
         sourceId, status: 'planned', inputLabel: 'probe', completedAt: new Date(),
       });
+      const fresh = await plannedRun(sourceId);
       planSourceMock.mockResolvedValue({
         ...OUTCOME_BASE,
-        runId: 'run-fresh-after-zero-item-planned',
+        runId: fresh,
         status: 'planned',
         itemCount: 2,
       } satisfies PlanSourceResult);
       markRunExtractingMock.mockResolvedValue(true);
-      startExecutionMock.mockResolvedValue(undefined);
 
       const result = await caller.crawl.probeAndSample({ sourceId });
 
-      expect(result.runId).toBe('run-fresh-after-zero-item-planned');
+      expect(result.runId).toBe(fresh);
       expect(planSourceMock).toHaveBeenCalledTimes(1);
     });
 
@@ -282,18 +291,18 @@ describe('crawl.probeAndSample', () => {
     it('does not mistake a real crawl (a non-probe run) for an in-flight probe', async () => {
       const sourceId = await makeSource();
       await db.insert(runs).values({ sourceId, status: 'extracting', inputLabel: 'a-real-crawl' });
+      const fresh = await plannedRun(sourceId);
       planSourceMock.mockResolvedValue({
         ...OUTCOME_BASE,
-        runId: 'run-real-probe',
+        runId: fresh,
         status: 'planned',
         itemCount: 1,
       } satisfies PlanSourceResult);
       markRunExtractingMock.mockResolvedValue(true);
-      startExecutionMock.mockResolvedValue(undefined);
 
       const result = await caller.crawl.probeAndSample({ sourceId });
 
-      expect(result.runId).toBe('run-real-probe');
+      expect(result.runId).toBe(fresh);
       expect(planSourceMock).toHaveBeenCalledTimes(1);
     });
   });

@@ -1,5 +1,5 @@
 // packages/api/src/routers/crawl-execute.test.ts
-import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { db, runs, runItems, sources, projects, datasets } from '@robot/db';
@@ -9,19 +9,11 @@ import { claimNextItem } from '../crawl/claim-item.js';
 import { markItemDone } from '../crawl/record-outcome.js';
 import { finaliseRun } from '../crawl/roll-up-run.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { jobsOf } from '../test-helpers/jobs.js';
 
-// Finding 1 (final-review-findings.md): `crawl.execute` is the resume/retry
-// path for EVERY non-initial execution of a backfill run (Retry-N-failed,
-// Extract-N-pending, crash-resume) — it must pass `mergeToParent: true` to
-// `startExecution` whenever the run being executed is itself a backfill
-// (has a parentRunId), same as `crawl.backfill`'s own fire-and-forget call
-// already does. Mocked exactly the way crawl-backfill.test.ts mocks it, so
-// the args reaching `startExecution` are inspectable without a browser.
-const { startExecutionMock } = vi.hoisted(() => ({ startExecutionMock: vi.fn() }));
-vi.mock('../crawl/start-execution.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../crawl/start-execution.js')>();
-  return { ...actual, startExecution: startExecutionMock };
-});
+// `crawl.execute` enqueues the run's `run` job (spec 2026-10-23 §4.4); nothing here runs it, so no
+// browser starts. The job's own behaviour (merge rule, requeue, resume) is jobs/handlers/run.test.ts.
+const runJobsOf = async (runId: string) => (await jobsOf('run')).filter((j) => (j.payload as { runId: string }).runId === runId);
 
 // A throwaway signed-in identity: every customer procedure needs a session
 // and works in its org only, so nothing here touches the seeded `default` org.
@@ -69,7 +61,6 @@ async function seedRunWithDoneListingAndMixedDetails() {
 }
 
 afterEach(async () => {
-  startExecutionMock.mockReset();
   if (orgId) await db.delete(projects).where(eq(projects.orgId, orgId));
   orgId = null;
 });
@@ -397,7 +388,7 @@ describe('crawl.execute — stale running items', () => {
 // landed only in the backfill run's own extraction and never merged into the
 // parent, silently breaking R4's "'done' MEANS merged" the moment an
 // operator retried instead of using the original backfill click.
-describe('crawl.execute — mergeToParent for backfill runs (Finding 1)', () => {
+describe('crawl.execute — the run job (Finding 1: a backfill run merges; the job decides it off parentRunId)', () => {
   async function seedBackfillRunWithFailedItem() {
     const org = me.session.org; // the signed-in caller's org: procedures only see their own
     orgId = org!.id;
@@ -415,27 +406,38 @@ describe('crawl.execute — mergeToParent for backfill runs (Finding 1)', () => 
     return backfillRun!.id;
   }
 
-  it('passes mergeToParent: true when the run being executed has a parentRunId', async () => {
-    startExecutionMock.mockResolvedValue(undefined);
+  it("enqueues the backfill run's job, which merges into the parent (jobs/handlers/run.ts reads parentRunId)", async () => {
     const runId = await seedBackfillRunWithFailedItem();
 
-    await caller.crawl.execute({ runId, retryFailed: true });
+    expect(await caller.crawl.execute({ runId, retryFailed: true })).toMatchObject({ started: true });
 
-    expect(startExecutionMock).toHaveBeenCalledTimes(1);
-    const call = startExecutionMock.mock.calls[0]!;
-    expect(call[0]).toBe(runId);
-    expect(call[4]).toEqual({ mergeToParent: true });
+    const [job] = await runJobsOf(runId);
+    expect(job!.payload).toEqual({ runId });
+    expect((await db.query.runs.findFirst({ where: eq(runs.id, runId) }))!.jobId).toBe(job!.id);
   });
 
-  it('does not set mergeToParent for a plain (non-backfill) run', async () => {
-    startExecutionMock.mockResolvedValue(undefined);
+  it("enqueues a plain run's job with its limit", async () => {
     const runId = await seedPlannedRun(); // no parentRunId
 
-    await caller.crawl.execute({ runId, retryFailed: true });
+    await caller.crawl.execute({ runId, limit: 4 });
 
-    expect(startExecutionMock).toHaveBeenCalledTimes(1);
-    const call = startExecutionMock.mock.calls[0]!;
-    expect(call[0]).toBe(runId);
-    expect(call[4]).toBeUndefined();
+    const [job] = await runJobsOf(runId);
+    expect(job!.payload).toEqual({ runId, limit: 4 });
+  });
+
+  it('a second execute adds no job: one executor per run, and both answer started', async () => {
+    const runId = await seedPlannedRun();
+
+    const a = await caller.crawl.execute({ runId });
+    const b = await caller.crawl.execute({ runId, retryFailed: true });
+
+    expect([a.started, b.started]).toEqual([true, true]);
+    expect(await runJobsOf(runId)).toHaveLength(1);
+  });
+
+  it('dryRun enqueues nothing', async () => {
+    const runId = await seedPlannedRun();
+    await caller.crawl.execute({ runId, dryRun: true });
+    expect(await runJobsOf(runId)).toHaveLength(0);
   });
 });

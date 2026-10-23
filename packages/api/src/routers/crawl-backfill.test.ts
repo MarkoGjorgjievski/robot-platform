@@ -1,29 +1,24 @@
 // packages/api/src/routers/crawl-backfill.test.ts
 //
 // `crawl.backfill`'s six ordered guards (task-6-brief.md) plus the happy
-// path. `startExecution` is mocked exactly the way sources.test.ts mocks
-// `planSource` — this file exercises the mutation's own behaviour (guards,
-// the inserted run/items shapes, the args passed to execution), never a real
-// browser or extraction chain.
+// path. The mutation enqueues the backfill run's `run` job (spec 2026-10-23
+// §4.4) and nothing here runs it — this file exercises the mutation's own
+// behaviour (guards, the inserted run/items shapes, the job's payload), never
+// a real browser or extraction chain. What the job does with the payload is
+// jobs/handlers/run.test.ts.
 
-import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, runs, runItems, extractions, captures, sources, sourceVerifications, projects, datasets } from '@robot/db';
-import { effectiveSchema } from '../crawl/effective-schema.js';
+import { db, runs, runItems, extractions, captures, sourceVerifications, projects, datasets, sources } from '@robot/db';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { jobsOf } from '../test-helpers/jobs.js';
 
-const { startExecutionMock, runRepairSweepMock } = vi.hoisted(() => ({
-  startExecutionMock: vi.fn(),
-  runRepairSweepMock: vi.fn(),
-}));
-vi.mock('../crawl/start-execution.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../crawl/start-execution.js')>();
-  return { ...actual, startExecution: startExecutionMock };
-});
-vi.mock('../crawl/repair-sweep.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../crawl/repair-sweep.js')>();
-  return { ...actual, runRepairSweep: runRepairSweepMock };
-});
+const runJobsOf = async (runId: string) => (await jobsOf('run')).filter((j) => (j.payload as { runId: string }).runId === runId);
+/** The run jobs for this run and its backfill runs: none, when a guard refused. */
+const jobsUnder = async (runId: string) => {
+  const ids = new Set([runId, ...(await db.select({ id: runs.id }).from(runs).where(eq(runs.parentRunId, runId))).map((r) => r.id)]);
+  return (await jobsOf('run')).filter((j) => ids.has((j.payload as { runId: string }).runId));
+};
 
 // A throwaway signed-in identity: every customer procedure needs a session
 // and works in its org only, so nothing here touches the seeded `default` org.
@@ -154,8 +149,6 @@ async function makeCustomerSchemaWithStaleCertification(sourceId: string) {
 }
 
 afterEach(async () => {
-  startExecutionMock.mockReset();
-  runRepairSweepMock.mockReset();
   if (orgId) await db.delete(projects).where(eq(projects.orgId, orgId));
   orgId = null;
 });
@@ -170,7 +163,7 @@ describe('crawl.backfill', () => {
 
     await expect(caller.crawl.backfill({ runId: backfillRunId }))
       .rejects.toThrow(new RegExp(`backfill.*parent.*${realParentRunId}`, 'i'));
-    expect(startExecutionMock).not.toHaveBeenCalled();
+    expect(await jobsUnder(backfillRunId)).toEqual([]);
   });
 
   // I3: a backfill buys pages exactly like `execute` does, and was the one
@@ -186,7 +179,7 @@ describe('crawl.backfill', () => {
       message: 'Verify the schema before extracting',
     });
 
-    expect(startExecutionMock).not.toHaveBeenCalled();
+    expect(await jobsUnder(runId)).toEqual([]);
     // The gate runs before any side effect: no backfill run, no items.
     const children = await db.select().from(runs).where(eq(runs.parentRunId, runId));
     expect(children).toEqual([]);
@@ -197,7 +190,7 @@ describe('crawl.backfill', () => {
     const runId = await seedStillExecutingRun();
 
     await expect(caller.crawl.backfill({ runId })).rejects.toThrow(/still executing/i);
-    expect(startExecutionMock).not.toHaveBeenCalled();
+    expect(await jobsUnder(runId)).toEqual([]);
   });
 
   // Guard 3: an in-flight backfill against the same parent is reused, not duplicated.
@@ -210,7 +203,7 @@ describe('crawl.backfill', () => {
     const result = await caller.crawl.backfill({ runId });
 
     expect(result).toEqual({ backfillRunId: existingBackfill!.id, status: 'in-progress' });
-    expect(startExecutionMock).not.toHaveBeenCalled();
+    expect(await jobsUnder(runId)).toEqual([]);
   });
 
   // Guard 4: nothing to derive means nothing to backfill.
@@ -218,7 +211,7 @@ describe('crawl.backfill', () => {
     const runId = await seedCompletedRunWithNoGaps();
 
     await expect(caller.crawl.backfill({ runId })).rejects.toThrow(/nothing to backfill/i);
-    expect(startExecutionMock).not.toHaveBeenCalled();
+    expect(await jobsUnder(runId)).toEqual([]);
   });
 
   // Guard 5: a dead field among the targets needs an explicit strategy.
@@ -226,11 +219,10 @@ describe('crawl.backfill', () => {
     const { runId } = await seedCompletedRunWithDeadField();
 
     await expect(caller.crawl.backfill({ runId })).rejects.toThrow(/deadFieldStrategy required/i);
-    expect(startExecutionMock).not.toHaveBeenCalled();
+    expect(await jobsUnder(runId)).toEqual([]);
   });
 
   it('creates the backfill run and its items, then fires merged execution', async () => {
-    startExecutionMock.mockResolvedValue(undefined);
     const { runId, sourceId, item2Id } = await seedCompletedRunWithHealthyGap();
 
     const result = await caller.crawl.backfill({ runId });
@@ -263,24 +255,20 @@ describe('crawl.backfill', () => {
       status: 'pending',
     });
 
-    expect(startExecutionMock).toHaveBeenCalledTimes(1);
-    const call = startExecutionMock.mock.calls[0]!;
-    expect(call[0]).toBe(backfillRunId);
-    expect(call[1]).toBe(sourceId);
-    // The schema arg is `effectiveSchema(parent.source)`'s output
-    // (DETAIL_URL_FIELD-filtered) — computed the same way crawl.ts's guard 1
-    // loads `parent.source`, not hardcoded, so this stays true if the
-    // dataset schema shape ever changes.
-    const source = await db.query.sources.findFirst({
-      where: eq(sources.id, sourceId),
-      // Mirrors crawl.ts guard 1's own column list exactly — `schemaDefinition`
-      // included (ledger T10), since `effectiveSchema` branches on it.
-      columns: { id: true, selectorsJson: true, datasetId: true, schemaDefinition: true },
-      with: { dataset: { columns: { schema: true } } },
-    });
-    expect(call[2]).toEqual(effectiveSchema(source!));
-    expect(call[3]).toBeUndefined(); // no limit
-    expect(call[4]).toEqual({ mergeToParent: true });
+    const jobs = await runJobsOf(backfillRunId);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]!.payload).toEqual({ runId: backfillRunId });
+    expect(backfillRun!.jobId).toBe(jobs[0]!.id);
+  });
+
+  it('a repair sweep\'s job carries the dead fields', async () => {
+    const { runId } = await seedCompletedRunWithDeadField();
+
+    const result = await caller.crawl.backfill({ runId, deadFieldStrategy: 'repair_sweep' });
+
+    const backfillRunId = result.backfillRunId as string;
+    const [job] = await runJobsOf(backfillRunId);
+    expect(job!.payload).toEqual({ runId: backfillRunId, repairSweep: { deadFields: ['isbn'] } });
   });
 
   // Fix round 1 (review finding): `deadFieldStrategy: 'repair_sweep'` sent
@@ -289,16 +277,12 @@ describe('crawl.backfill', () => {
   // evaluate zero eligible samples, always return 'repair_failed', and
   // strand the rest of the backfill run pending on a terminal run.
   it('takes the plain path when repair_sweep is requested but no target field is dead', async () => {
-    startExecutionMock.mockResolvedValue(undefined);
     const { runId } = await seedCompletedRunWithHealthyGap();
 
     const result = await caller.crawl.backfill({ runId, deadFieldStrategy: 'repair_sweep' });
 
     expect(result.items).toBe(1);
-    expect(runRepairSweepMock).not.toHaveBeenCalled();
-    expect(startExecutionMock).toHaveBeenCalledTimes(1);
-    const call = startExecutionMock.mock.calls[0]!;
-    expect(call[3]).toBeUndefined(); // no limit
-    expect(call[4]).toEqual({ mergeToParent: true });
+    const [job] = await runJobsOf(result.backfillRunId as string);
+    expect(job!.payload).toEqual({ runId: result.backfillRunId });
   });
 });

@@ -12,16 +12,14 @@ import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
 import { markRunExtracting } from '../crawl/mark-extracting.js';
 import { canExecute } from '../crawl/execute-guard.js';
 import { planSource, safeErrorMessage, formatPlanLog } from '../crawl/plan-source.js';
-import { effectiveSchema } from '../crawl/effective-schema.js';
 import { requireCertification } from '../crawl/require-certification.js';
-import { startExecution } from '../crawl/start-execution.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 import { loadRunCoverage, loadRunMisses } from '../crawl/load-run-coverage.js';
 import { loadCurrentCertification } from '../verify/current-certification.js';
 import {
   classifyFields, deriveBackfillItems, planBackfillRun, EST_AI_COST_PER_PAGE_USD, type BackfillItemPlan,
 } from '../crawl/backfill.js';
-import { runRepairSweep } from '../crawl/repair-sweep.js';
+import { enqueueRun } from '../jobs/handlers/run.js';
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
 // path — re-exported from its new home (`plan-source.ts`, mvp-simplification
@@ -61,12 +59,11 @@ export const crawlRouter = router({
     }),
   /**
    * Probe-and-sample: a probe plan (`planSource(..., { probe: true })`) followed
-   * immediately by a small, fire-and-forget execution of what it found — spec
-   * §3's "one run, small and bounded" step 1. `crawl.execute`'s own guard
-   * comments (above `startExecution`, `start-execution.ts`) apply verbatim
-   * here: the loop is deliberately not awaited, so this mutation returns as
-   * soon as planning is done and the dashboard polls `crawl.status`/`crawl.items`
-   * for the sample rows as they land.
+   * immediately by a small execution of what it found — spec §3's "one run,
+   * small and bounded" step 1. Like `crawl.execute`, it enqueues the run's
+   * `run` job (spec 2026-10-23 §4.4) and returns as soon as planning is done;
+   * the dashboard polls `crawl.status`/`crawl.items` for the sample rows as
+   * they land.
    *
    * If planning itself failed — every input errored, or nothing was planned —
    * there is no work list for execution to pick up, and starting the loop
@@ -157,12 +154,7 @@ export const crawlRouter = router({
       if (outcome.status === 'planned' && outcome.itemCount > 0) {
         const execSource = await ctx.db.query.sources.findFirst({
           where: eq(sources.id, input.sourceId),
-          // selectorsJson: a Scratch source's schema falls back here when its
-          // dataset schema is empty — see effective-schema.ts. Mirrors
-          // `execute`'s own lookup exactly, so a probe source and a confirmed
-          // source resolve their schema the same way.
-          columns: { id: true, selectorsJson: true, schemaDefinition: true },
-          with: { dataset: { columns: { schema: true } } },
+          columns: { id: true },
         });
         // planSource already confirmed sourceId exists (it would have thrown
         // NOT_FOUND otherwise) — this can only be null if the Source was
@@ -176,20 +168,12 @@ export const crawlRouter = router({
           // `isRunActive` key off that status. Without this, a probe's
           // execution window was invisible to both: Stop refused with
           // "not active" and the polling UI read the run as idle while a
-          // browser was, in fact, working it. Called before the
-          // fire-and-forget `startExecution` below, exactly as `execute`
-          // orders it — the flip is the visible, synchronous half of
-          // starting a loop, and it must be persisted before the background
-          // work (which the caller does not await) begins.
+          // browser was, in fact, working it. Called before the run's job is
+          // enqueued, exactly as `execute` orders it — the flip is the
+          // visible half of starting a loop, persisted before the work begins.
           await markRunExtracting(ctx.db, outcome.runId);
-          // Deliberately not awaited — see start-execution.ts's own doc
-          // comment for why this must never become an unhandled rejection,
-          // and `execute`'s identical `.catch()` below for the pattern this
-          // copies.
-          void startExecution(outcome.runId, execSource.id, effectiveSchema(execSource), PROBE_SAMPLE_LIMIT)
-            .catch((err) => {
-              console.error(`[crawl] startExecution rejected outside its own guards for run ${outcome.runId}:`, err);
-            });
+          // The worker runs the sample (`run` job, one per run; spec 2026-10-23 §4.4).
+          await enqueueRun(ctx.db, { runId: outcome.runId, limit: PROBE_SAMPLE_LIMIT });
         }
       }
 
@@ -388,34 +372,10 @@ export const crawlRouter = router({
       // `cancelling` run whose original loop already died.
       await markRunExtracting(ctx.db, input.runId);
 
-      // Returns immediately: hundreds of items at ~30s each outlives any HTTP
-      // request. All state lives in run_items, so progress is read with
-      // crawl.status and a crash resumes by calling execute again.
-      //
-      // Deliberately not awaited. startExecution guards its own failure path,
-      // but this `.catch()` is a second line of defense: nothing thrown by a
-      // background crawl may become an unhandled rejection that kills the
-      // api-server process serving the dashboard.
-      //
-      // Finding 1 (final-review-findings.md): `execute` is the ONLY entry
-      // point for every non-initial execution of a backfill run — Retry-N-
-      // failed, Extract-N-pending, crash-resume — none of which go through
-      // `crawl.backfill`'s own `mergeToParent: true` call. `run` was already
-      // loaded above with no column restriction, so `run.parentRunId` is
-      // free to read here: a set parentRunId means this run IS a backfill
-      // run, and every one of its executions must merge into the parent or
-      // a healed row lands only on the backfill run's own extraction,
-      // breaking R4's "'done' MEANS merged".
-      void startExecution(
-        input.runId,
-        run.source.id,
-        effectiveSchema(run.source),
-        input.limit,
-        run.parentRunId ? { mergeToParent: true } : undefined,
-      )
-        .catch((err) => {
-          console.error(`[crawl] startExecution rejected outside its own guards for run ${input.runId}:`, err);
-        });
+      // The worker runs it (`run` job, one per run: a second execute while one is queued or running
+      // adds none); a crash resumes by itself. A backfill run merges into its parent (Finding 1) — the
+      // job reads `parentRunId` off the run, for this and every later execution.
+      await enqueueRun(ctx.db, { runId: input.runId, ...(input.limit !== undefined ? { limit: input.limit } : {}) });
       return { runId: input.runId, started: true, requeued };
     }),
 
@@ -496,8 +456,8 @@ export const crawlRouter = router({
     }),
 
   /**
-   * Creates a backfill run from `input.runId`'s gaps and fires its execution
-   * merged back into the parent run's items (`startExecution`'s
+   * Creates a backfill run from `input.runId`'s gaps and enqueues its `run`
+   * job, which merges it back into the parent run's items (`startExecution`'s
    * `mergeToParent`, Task 5). Six guards precede the write, in order — see
    * task-6-brief.md for the exact contract this mirrors.
    *
@@ -506,7 +466,7 @@ export const crawlRouter = router({
    * the run through `runRepairSweep` (sample, evaluate against the parent's
    * merged rows, then sweep or stop honest), while `full_focus` (and the
    * no-dead-fields case, where the value is irrelevant) takes the plain path
-   * straight through `startExecution`.
+   * straight through `startExecution`. The job's payload carries the choice.
    */
   backfill: protectedProcedure
     .input(z.object({
@@ -596,15 +556,14 @@ export const crawlRouter = router({
         });
       }
 
-      // `deadFieldStrategy` is never written to the DB (controller Ruling
-      // R5, task 7) — it only ever matters for the lifetime of THIS request,
-      // to pick which fire-and-forget path runs below. There is no durable
-      // "mid repair-sweep" marker anywhere: if the process dies between the
-      // sample execute and the sweep execute, the run simply finalises
-      // 'partial' (runRepairSweep step 1's own F1 semantics) and sits there,
-      // honest and terminal, until a human re-runs backfillPreview and
-      // re-issues backfill — that IS the recovery path, not a bug to guard
-      // against with more state.
+      // `deadFieldStrategy` is never written to the run (controller Ruling
+      // R5, task 7) — only to its `run` job's payload, for that job's
+      // lifetime. There is no durable "mid repair-sweep" marker on the run:
+      // if the job is stopped between the sample execute and the sweep
+      // execute, the run has finalised 'partial' (runRepairSweep step 1's own
+      // F1 semantics) and its retry leaves it there, honest and terminal,
+      // until a human re-runs backfillPreview and re-issues backfill — that
+      // IS the recovery path, not a bug to guard against with more state.
       const deadFields = fieldClasses.filter((f) => f.classification === 'dead').map((f) => f.name);
       const isRepairSweep = input.deadFieldStrategy === 'repair_sweep' && deadFields.length > 0;
 
@@ -621,31 +580,12 @@ export const crawlRouter = router({
         ? (item: BackfillItemPlan) => item.targetFields.some((f) => deadSet.has(f))
         : undefined;
 
-      // Guard 6: plan the run, flip it to extracting, and fire its execution
-      // the same way `execute` above does — not awaited (see startExecution's
-      // own doc comment for why this must never become an unhandled
-      // rejection), merged back into the parent's items via `mergeToParent`.
+      // Guard 6: plan the run, flip it to extracting, and enqueue its `run` job the same way `execute`
+      // above does. The job merges it into the parent's items (it has a parentRunId) and, for a repair
+      // sweep, stages it through `runRepairSweep`.
       const backfillRunId = await planBackfillRun(ctx.db, input.runId, parent.source.id, items, targetNames, orderFirst);
       await markRunExtracting(ctx.db, backfillRunId);
-
-      // Bound to a const rather than read as `parent.source.id` inside the
-      // closure below: a property narrowing (`parent.source` is not null,
-      // established by guard 1) does not survive into a callback, but a
-      // const does — same reasoning as effective-schema.ts's `inputSet`.
-      const sourceId = parent.source.id;
-      const schema = effectiveSchema(parent.source);
-      const execute = (opts?: { limit?: number }) =>
-        startExecution(backfillRunId, sourceId, schema, opts?.limit, { mergeToParent: true });
-
-      if (isRepairSweep) {
-        void runRepairSweep(ctx.db, backfillRunId, deadFields, execute).catch((err) => {
-          console.error(`[crawl] runRepairSweep rejected outside its own guards for run ${backfillRunId}:`, err);
-        });
-      } else {
-        void execute().catch((err) => {
-          console.error(`[crawl] startExecution rejected outside its own guards for run ${backfillRunId}:`, err);
-        });
-      }
+      await enqueueRun(ctx.db, { runId: backfillRunId, ...(isRepairSweep ? { repairSweep: { deadFields } } : {}) });
 
       return { backfillRunId, items: items.length };
     }),

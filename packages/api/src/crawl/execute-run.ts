@@ -59,6 +59,12 @@ export type ExecuteDeps = {
    * forever, because rollUpStatus saw `pending > 0` and no cancel.
    */
   finalise: (rowCount: number, cancelled: boolean, limitReached: boolean) => Promise<string>;
+  /**
+   * The worker stopped this attempt (stuck or shutting down): stop between items, without finalising — the
+   * retry resumes the run (spec 2026-10-23 §4.4). An item that throws once the attempt is stopped (its browser
+   * was closed under it) is not recorded failed: it stays `running`, and the retry puts it back to pending.
+   */
+  aborted?: () => boolean;
 };
 
 export type ExecuteOutcome = {
@@ -84,6 +90,7 @@ export async function executeRun(
   // Consecutive items that failed on a wall; any other outcome resets it.
   let wallStreak = 0;
   let wallStop: string | null = null;
+  let abortedStop = false;
 
   // `finalise` runs in `finally` so it fires on every exit path — normal
   // completion, cancellation, or a claim that broke the loop early. A run
@@ -98,6 +105,11 @@ export async function executeRun(
       // is why they're still pending — see `limitReached` on ExecuteDeps.
       if (opts?.limit !== undefined && extracted + failed >= opts.limit) {
         limitReached = true;
+        break;
+      }
+
+      if (deps.aborted?.()) {
+        abortedStop = true;
         break;
       }
 
@@ -142,6 +154,11 @@ export async function executeRun(
           console.error(`executeRun: onDone failed to record item ${item.id}`, recordErr);
         }
       } catch (err) {
+        // Stopped under it: not this page's failure. Left `running` for the retry to requeue.
+        if (deps.aborted?.()) {
+          abortedStop = true;
+          break;
+        }
         // One blocked page must never cost the other 299 in the run.
         const message = err instanceof Error ? err.message : String(err);
         try {
@@ -173,7 +190,8 @@ export async function executeRun(
       }
     }
   } finally {
-    status = await deps.finalise(extracted, cancelled, limitReached);
+    // A stopped attempt leaves the run as it is: the retry resumes it and finalises it.
+    status = abortedStop ? 'aborted' : await deps.finalise(extracted, cancelled, limitReached);
   }
 
   return { extracted, failed, recordingFailures, cancelled, limitReached, status };
