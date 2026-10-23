@@ -7,7 +7,7 @@ import { runVerifyJob } from './handlers/verify.js';
 import { runDriftCheck, storedCaptures } from '../verify/run-drift-check.js';
 import { runCoverageCheck } from '../verify/run-coverage-check.js';
 import { checkWebsite } from '../verify/website-checks.js';
-import { runExecuteJob } from './handlers/run.js';
+import { runExecuteJob, afterRunJob } from './handlers/run.js';
 import { reachabilityNow, listingCheckNow, transferMarksNow, detectVariantsNow, variantLinksNearNow } from './handlers/interactive.js';
 import { planSource } from '../crawl/plan-source.js';
 import { db } from '@robot/db';
@@ -58,6 +58,8 @@ export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
       policy: JOB_POLICIES.run,
       subject: (p: JobPayloads['run']) => ({ table: 'runs', id: p.runId }),
       run: (p: JobPayloads['run'], ctx) => runExecuteJob(p, ctx),
+      // Work put back while the job was ending (its key still taken, so that enqueue added none) gets a new job (M4).
+      afterDone: (p: JobPayloads['run'], value) => afterRunJob(p, value),
     },
   };
   return opts.testJobs ? { ...registry, ...testJobDefinitions() } : registry;

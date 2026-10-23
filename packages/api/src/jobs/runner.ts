@@ -19,6 +19,8 @@ export type JobDefinition = {
   /** The status row the payload names, reused by a retry (every other row the job owns is closed first). */
   subject?: (payload: any) => JobSubject | null;
   run: (payload: any, ctx: JobContext) => Promise<unknown>;
+  /** Called once the job is recorded done, with its answer (a run restarts work put back while it was ending). */
+  afterDone?: (payload: any, value: unknown) => Promise<unknown>;
 };
 export type Registry = Record<string, JobDefinition>;
 
@@ -109,8 +111,11 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       if (a.over) return;
       finish(a);
       track((async () => {
-        if (await completeJob(job.id, owner(job), value ?? null)) log(`done ${job.type} ${job.id}`);
-        else lostBefore(job, 'its answer was recorded');
+        if (await completeJob(job.id, owner(job), value ?? null)) {
+          log(`done ${job.type} ${job.id}`);
+          await def.afterDone?.(job.payload, value)
+            .catch((err) => log(`after ${job.type} ${job.id} failed: ${msg(err)}`));
+        } else lostBefore(job, 'its answer was recorded');
       })().catch((recordErr) => log(`could not record the answer of ${job.id}: ${msg(recordErr)}`)));
     })();
   };

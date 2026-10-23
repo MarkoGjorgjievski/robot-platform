@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterAll } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { db, runs, runItems } from '@robot/db';
 import { createTestSource, deleteTestSource } from '../../test-helpers/source.js';
-import { enqueueRun, runExecuteJob } from './run.js';
+import { enqueueRun, runExecuteJob, afterRunJob } from './run.js';
 import { jobsOf } from '../../test-helpers/jobs.js';
 import type { JobContext } from '../context.js';
 import type { startExecution } from '../../crawl/start-execution.js';
@@ -120,7 +120,25 @@ describe('runs through the queue (spec 2026-10-23 §4.4)', () => {
     expect(await statuses(runId)).toEqual(['https://x.test/1:done', 'https://x.test/2:done']);
   });
 
-  it('a pass that recorded nothing is not repeated, even with work pending', async () => {
+  it('work put back after the job\'s last look (Retry failed racing its end) gets a new run job once the job is done (M4)', async () => {
+    const runId = await runWithItems();
+    await db.update(runItems).set({ status: 'done' }).where(eq(runItems.runId, runId));
+    const execute = vi.fn<Execute>(async (id, _s, _schema, _limit, opts) => {
+      opts!.hooks!.onItem!();
+      await db.update(runs).set({ status: 'partial', completedAt: new Date() }).where(eq(runs.id, id));
+    });
+    const value = await runExecuteJob({ runId }, ctx(false), { execute });
+    expect(value).toEqual({ settled: true });
+    // Retry failed lands between the job's last look and its completion: its enqueue found this job and added none.
+    await db.update(runItems).set({ status: 'pending' }).where(and(eq(runItems.runId, runId), eq(runItems.url, 'https://x.test/2')));
+    await db.update(runs).set({ status: 'extracting', completedAt: null }).where(eq(runs.id, runId));
+    expect(await afterRunJob({ runId }, value)).toBe(true);
+    const queued = (await jobsOf('run')).filter((j) => (j.payload as { runId: string }).runId === runId);
+    expect(queued.map((j) => [j.status, j.payload])).toEqual([['queued', { runId }]]);
+    expect((await db.query.runs.findFirst({ where: eq(runs.id, runId) }))!.jobId).toBe(queued[0]!.id);
+    // Nothing left: nothing enqueued. A pass that recorded nothing never re-enqueues itself.
+    expect(await afterRunJob({ runId }, { settled: false })).toBe(false);
+  });  it('a pass that recorded nothing is not repeated, even with work pending', async () => {
     const runId = await runWithItems();
     await db.update(runItems).set({ status: 'pending', startedAt: null }).where(eq(runItems.runId, runId));
     const execute = vi.fn<Execute>(async () => {});
