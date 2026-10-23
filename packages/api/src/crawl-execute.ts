@@ -19,6 +19,7 @@ import { requeueStaleRunningItems } from './crawl/requeue-stale.js';
 import { markRunExtracting } from './crawl/mark-extracting.js';
 import { startExecution } from './crawl/start-execution.js';
 import { effectiveSchema } from './crawl/effective-schema.js';
+import { startInlineJobs } from './jobs/inline.js';
 
 const runId = process.argv[2];
 if (!runId) {
@@ -26,7 +27,9 @@ if (!runId) {
   process.exit(1);
 }
 
-/** The run's status and its detail items' counts — what `crawl.status` reports. */
+// Inline, like the execution itself (spec 2026-10-23 §3.4): the drift check a finished run starts is
+// enqueued on this script's own queue and run here; the script waits for it before it exits.
+const inline = await startInlineJobs('crawl-execute');/** The run's status and its detail items' counts — what `crawl.status` reports. */
 async function readStatus() {
   const run = await db.query.runs.findFirst({ where: eq(runs.id, runId!), columns: { status: true } });
   if (!run) throw new Error(`Run ${runId} not found`);
@@ -96,6 +99,6 @@ for (const item of items.filter((i) => i.kind === 'detail')) {
   console.log(`  [${item.status}] ${item.url.slice(0, 90)}${item.error ? ` — ${item.error.slice(0, 60)}` : ''}`);
 }
 
-const outcome = describeCrawlExecuteOutcome(status, hitPollCap);
+await inline.drain();const outcome = describeCrawlExecuteOutcome(status, hitPollCap);
 console.log(`\n${outcome.message}`);
 process.exit(outcome.exitCode);
