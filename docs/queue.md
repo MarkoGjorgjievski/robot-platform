@@ -21,6 +21,10 @@ reason and goes on to the next.
 
 ## Needs Marko
 
+- **Two pages at a time per website during runs?** It would roughly halve a large website's run again; it is a politeness
+  choice (2026-10-23, run speed).
+- **More browsers on this machine?** Defaults stay WORKER_BROWSERS=3 / WORKER_RUNS=1 for memory; the run-speed
+  benchmark measures 6/4 and 6/6 — raise them in .env if memory allows.
 - **Turn the scheduled checks on?** `WEBSITE_CHECKS=on` makes the api-server check each certified website
   every 3 days (free, proof pages + 20 listing products). Off by default.
 - **Backfill holds for other websites** whose last Verify failed only on stale values (e.g. Decathlon,
