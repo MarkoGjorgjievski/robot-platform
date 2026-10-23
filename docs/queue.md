@@ -8,7 +8,7 @@ reason and goes on to the next.
 ## Next
 
 1. **A job queue and a separate capture worker** — page capture leaves the api-server for its own worker process, fed by a Postgres-backed queue (Verify, runs, checks, samples); one place limits browsers and memory. *Done when:* the api-server starts no browser; every capture job goes through the queue; a stuck or crashed worker job is retried or failed with a sentence; tests, smoke. (Marko: start, 2026-10-23.)
-2. **The whole stack in Docker Compose** — app, api, worker, Postgres from one command, plus a nightly pg_dump with a tested restore. *Done when:*  serves the app locally end to end; a restore test passes.
+2. **The whole stack in Docker Compose** — app, api, worker, Postgres from one command, plus a nightly pg_dump with a tested restore. *Done when:* `docker compose up` serves the app locally end to end; a restore test passes.
 3. **Run speed** — lean captures on certified runs and several websites in parallel through the queue (design: docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md). *Done when:* a measured 1,000-page-equivalent run is an order of magnitude faster with the same values.
 4. **Recurring extraction** — a schedule per website (e.g. every Monday 06:00); each run produces a downloadable file and a webhook on completion. *Done when:* a scheduled run fires, writes its file and posts its webhook; tests, smoke.
 5. **Email, with a local catcher** — SMTP sending (Mailpit in Docker for local) for "Needs attention", failed runs and account messages. *Done when:* each message is sent and seen in Mailpit; a real provider is a config change.
