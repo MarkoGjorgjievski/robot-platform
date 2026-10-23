@@ -48,8 +48,11 @@ export function jobQueueName(env: Record<string, string | undefined> = process.e
 }
 
 export type EnqueueSpec = {
-  type: string; payload: unknown; key?: string | null; priority?: number; maxAttempts?: number;
-  runAfter?: Date; expiresAt?: Date | null; queue?: string;
+  type: string; payload: unknown; key?: string | null; priority?: number; maxAttempts?: number; queue?: string;
+  /** Due this long after it is written (default: at once). */
+  delayMs?: number;
+  /** Failed 'expired' when not started this long after it is due; null or absent: no window. Both on the database clock. */
+  startWithinMs?: number | null;
 };
 
 /** Inserts a job, or hands back the queued/running one with the same key. Use the caller's transaction. */
@@ -58,11 +61,13 @@ export async function enqueueJob(dbOrTx: DbOrTx, spec: EnqueueSpec): Promise<{ i
   const key = spec.key ?? null;
   for (let tries = 0; tries < 3; tries++) {
     const id = randomUUID();
+    const due = sql`now() + make_interval(secs => ${(spec.delayMs ?? 0) / 1000})`;
+    const window = spec.startWithinMs === undefined || spec.startWithinMs === null ? sql`NULL::timestamptz`
+      : sql`${due} + make_interval(secs => ${spec.startWithinMs / 1000})`;
     const inserted = rows<{ id: string }>(await dbOrTx.execute(sql`
       INSERT INTO jobs (id, queue, type, key, payload, priority, max_attempts, run_after, expires_at)
       VALUES (${id}, ${queue}, ${spec.type}, ${key}, ${JSON.stringify(spec.payload ?? {})}::jsonb,
-              ${spec.priority ?? 10}, ${spec.maxAttempts ?? 1}, ${(spec.runAfter ?? new Date()).toISOString()}::timestamptz,
-              ${spec.expiresAt ? spec.expiresAt.toISOString() : null}::timestamptz)
+              ${spec.priority ?? 10}, ${spec.maxAttempts ?? 1}, ${due}, ${window})
       ON CONFLICT (queue, key) WHERE status IN ('queued', 'running') AND key IS NOT NULL DO NOTHING
       RETURNING id`));
     if (inserted[0]) return { id: inserted[0].id, created: true };

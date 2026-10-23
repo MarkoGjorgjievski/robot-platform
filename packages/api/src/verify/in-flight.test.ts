@@ -34,7 +34,7 @@ describe('a verification in flight (spec 2026-10-23 §4.5)', () => {
 
   it('one whose job is past its start window is not live: the time rule closes it', async () => {
     const s = await source();
-    const { id: jobId } = await enqueueJob(db, { type: 'verify', payload: {}, expiresAt: new Date(Date.now() - 1000) });
+    const { id: jobId } = await enqueueJob(db, { type: 'verify', payload: {}, startWithinMs: -1000 });
     const [v] = await db.insert(sourceVerifications).values({ sourceId: s, definitionHash: 'h', startedAt: old(), jobId }).returning();
     expect(await resolveInFlightVerification(db, s)).toBeNull();
     expect((await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, v!.id) }))!.errorMessage).toBe('stalled');
