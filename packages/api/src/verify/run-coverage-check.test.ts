@@ -9,7 +9,8 @@ import { db, captures, coverageChecks, domainIntelligence, sources, sourceVerifi
 import { _resetBackoffForTests, fieldHash, reportVerdict, type CertifiedPath, type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { jobsOf } from '../test-helpers/jobs.js';
+import { jobsOf, jobContext } from '../test-helpers/jobs.js';
+import { runInJob } from '../jobs/context.js';
 import { enqueueJob } from '../jobs/queue.js';
 import { COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_PROOF_PAGES, ALL_ANSWERED, type CoverageResults } from './coverage-summary.js';
 
@@ -525,7 +526,27 @@ describe('coverage checks through the queue (spec 2026-10-23)', () => {
     } finally { await f.cleanup(); }
   });
 
-  it('a check that is no longer running is not run again', async () => {
+  it('a stopped job writes no outcome: the row stays running — pages failing or read alike — and the next claim completes it (final review I1)', async () => {
+    const f = await certifiedWebsite('cov-abort');
+    try {
+      const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
+      // Shutdown: the browser is closed under the check, so every page read throws.
+      const first = new AbortController();
+      const failing = vi.fn(async () => { first.abort('shutdown'); throw new Error('Target page, context or browser has been closed'); });
+      await runInJob(jobContext('coverage-check', first), () => runCoverageCheck(checkId, { listing: listing(30), extract: failing, proofShapes }));
+      expect(await checkRow(checkId)).toMatchObject({ status: 'running', completedAt: null, error: null });
+      expect(failing).toHaveBeenCalledTimes(1);
+      // Stopped while a page was read anyway: no more pages, nothing written.
+      const second = new AbortController();
+      const reading = vi.fn(async () => { second.abort('lease lost'); return { data: {}, shape: single }; });
+      await runInJob(jobContext('coverage-check', second), () => runCoverageCheck(checkId, { listing: listing(30), extract: reading, proofShapes }));
+      expect(await checkRow(checkId)).toMatchObject({ status: 'running', completedAt: null });
+      expect(reading).toHaveBeenCalledTimes(1);
+      // Claimed again: it runs to the end.
+      await runInJob(jobContext('coverage-check', new AbortController(), { retry: true }), () => runCoverageCheck(checkId, { listing: listing(30), extract: extractWith(f.keyOf, () => false), proofShapes }));
+      expect((await checkRow(checkId)).status).toBe('done');
+    } finally { await f.cleanup(); }
+  });  it('a check that is no longer running is not run again', async () => {
     const f = await certifiedWebsite('cov-q-closed');
     try {
       const [row] = await db.insert(coverageChecks).values({ sourceId: f.sourceId, status: 'failed', error: 'stalled' }).returning();

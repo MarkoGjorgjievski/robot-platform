@@ -20,6 +20,7 @@ import { runDriftCheck, startDriftCheck, type CaptureProofPagesFn } from './run-
 import { runCoverageCheck, startCoverageCheck, type CoverageDeps } from './run-coverage-check.js';
 import { websiteCheckDays } from './check-schedule.js';
 import { enqueue } from '../jobs/enqueue.js';
+import { jobStopped } from '../jobs/context.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 /** At most this many websites per sweep. */
@@ -83,6 +84,8 @@ export async function checkWebsite(sourceId: string, deps: { capture?: CapturePr
   const started = await startDriftCheck(sourceId, null, { trigger: 'schedule', keys, fire: false });
   if (started.status === 'in-progress') return retryWithinTheHour(sourceId);
   await runDriftCheck(started.checkId, deps.capture ? { capture: deps.capture } : {});
+  // Stopped (stuck, lease lost, shutdown): no coverage check is started on a closed browser (final review I1).
+  if (jobStopped()) return 'skipped';
   deps.onPhase?.();
   const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { verificationSet: true } });
   if ((source?.verificationSet as VerificationSet | null)?.listing_url) {

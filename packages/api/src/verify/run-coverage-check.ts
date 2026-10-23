@@ -22,7 +22,7 @@ import { loadProofPageCaptures } from './proof-page-capture.js';
 import { sampleListing } from './coverage-sampler.js';
 import { lockSource } from './in-flight.js';
 import { enqueue } from '../jobs/enqueue.js';
-import { currentJobId } from '../jobs/context.js';
+import { currentJobId, jobStopped } from '../jobs/context.js';
 import { isJobLive } from '../jobs/queue.js';
 import { summariseCoverage, stageLine, COVERAGE_STALLED, type CoverageResults, type SampledPage, type FieldCoverage } from './coverage-summary.js';
 
@@ -160,6 +160,8 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
     const fieldsDef = (Array.isArray(source.schemaDefinition) ? source.schemaDefinition : []) as SchemaDefinitionField[];
     const cert = await loadCurrentCertification(db, check.sourceId);
     const done = async (results: CoverageResults) => {
+      // Stopped (stuck, lease lost, shutdown): what it read was read by a browser closed under it (final review I1).
+      if (jobStopped()) return;
       await db.update(coverageChecks).set({ status: 'done', results, completedAt: new Date() })
         .where(and(eq(coverageChecks.id, checkId), eq(coverageChecks.status, 'running')));
     };
@@ -186,6 +188,7 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
     let walls = 0;
     let errors = 0;
     for (const url of urls) {
+      if (jobStopped()) return;
       try {
         const still = await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.id, checkId), columns: { status: true } });
         if (still?.status !== 'running') {
@@ -200,6 +203,7 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
       try {
         r = await extract(url, fields);
       } catch (err) {
+        if (jobStopped()) return;
         // One page's unexpected failure is that page unread, never the check failed.
         console.error(`[coverage] check ${checkId}: reading ${url} failed:`, err);
         sampled.push({ url, unread: PAGE_UNREADABLE });
@@ -219,7 +223,8 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
     }
     await done({ listingUrl, sampled, proofShapes: await proofShapes(check.sourceId, set.urls), planned: urls.length });
   } catch (err) {
-    console.error(`[coverage] check ${checkId} failed:`, err);
+    // Stopped: the row is left running, for the runner or the next claim (final review I1).
+    if (jobStopped()) return;    console.error(`[coverage] check ${checkId} failed:`, err);
     try {
       await db.update(coverageChecks)
         .set({ status: 'failed', error: safeErrorMessage(err).slice(0, 1000), completedAt: new Date() })

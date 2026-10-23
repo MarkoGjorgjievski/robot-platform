@@ -6,7 +6,9 @@ import { db, coverageChecks, driftChecks, sources, sourceVerifications } from '@
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { jobsOf } from '../test-helpers/jobs.js';
+import { jobsOf, jobContext } from '../test-helpers/jobs.js';
+import { closeJobRows } from '../jobs/rows.js';
+import { RUN_STOPPED } from '../jobs/types.js';
 import { enqueueJob } from '../jobs/queue.js';
 import { runInJob } from '../jobs/context.js';
 import { claimDueWebsite, checkWebsite, enqueueDueWebsiteChecks, runDueWebsiteChecks, startWebsiteChecks, websiteChecksEnabled } from './website-checks.js';
@@ -142,7 +144,27 @@ describe('website checks through the queue (spec 2026-10-23 §4.3)', () => {
   });
 });
 
-describe('websiteChecksEnabled', () => {
+describe('a stopped website check (final review I1)', () => {
+  it('writes no outcome and starts no coverage check; claimed again, it closes the half-done drift row and runs to the end', async () => {
+    const a = await certified('job-abort', { listing: true });
+    try {
+      const jobId = (await enqueueJob(db, { type: 'website-check', payload: {} })).id;
+      const listing = vi.fn(async () => ({ productUrls: [], verdictMessage: null }));
+      const stop = new AbortController();
+      const stopped = vi.fn(async (s: string, urls: string[]) => { stop.abort('shutdown'); return capture(s, urls); });
+      await runInJob(jobContext('website-check', stop, { jobId }), () => checkWebsite(a.sourceId, { capture: stopped, coverage: { listing } }));
+      expect(await db.query.driftChecks.findFirst({ where: eq(driftChecks.sourceId, a.sourceId) })).toMatchObject({ status: 'running', jobId });
+      expect(await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.sourceId, a.sourceId) })).toBeUndefined();
+      expect(listing).not.toHaveBeenCalled();
+      // The re-claim: the runner closes the earlier start's rows (a website check names none), then the job runs.
+      await closeJobRows(db, jobId, { runSentence: RUN_STOPPED, except: null });
+      expect(await runInJob(jobContext('website-check', new AbortController(), { jobId, retry: true }), () => checkWebsite(a.sourceId, { capture, coverage: { listing } }))).toBe('checked');
+      const drift = await db.query.driftChecks.findMany({ where: eq(driftChecks.sourceId, a.sourceId) });
+      expect(drift.map((d) => d.status).sort()).toEqual(['done', 'failed']);
+      expect(await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.sourceId, a.sourceId) })).toMatchObject({ status: 'done', jobId });
+    } finally { await a.cleanup(); }
+  }, 60_000);
+});describe('websiteChecksEnabled', () => {
   it('is off unless WEBSITE_CHECKS is `on` (controller ruling: off by default)', () => {
     expect(websiteChecksEnabled({})).toBe(false);
     expect(websiteChecksEnabled({ WEBSITE_CHECKS: '' })).toBe(false);

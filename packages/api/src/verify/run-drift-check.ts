@@ -37,7 +37,7 @@ import { readingsOf } from './holds.js';
 import { nextCheckAt } from './check-schedule.js';
 import { lockSource } from './in-flight.js';
 import { enqueue } from '../jobs/enqueue.js';
-import { currentJobId } from '../jobs/context.js';
+import { currentJobId, jobStopped } from '../jobs/context.js';
 import { isJobLive } from '../jobs/queue.js';
 
 type Session = typeof withBrowserSession;
@@ -325,7 +325,9 @@ export async function runDriftCheck(
       });
     }
 
-    // Each field's empty share in the run: as handed over at the start, else read from the run itself (a check started on demand).
+    // Stopped (stuck, lease lost, shutdown): its pages were read by a browser closed under it. Nothing is
+    // refreshed or written; the row is the runner's or the next claim's (final review I1).
+    if (jobStopped()) return;    // Each field's empty share in the run: as handed over at the start, else read from the run itself (a check started on demand).
     const upFront = ((check.results as DriftCheckResults | null)?.fields ?? {}) as Record<string, Partial<DriftFieldResult>>;
     const missing = Object.keys(out).filter((k) => typeof upFront[k]?.emptyShare !== 'number');
     const fromRun = check.runId && missing.length > 0 ? await runEmptyShares(db, check.runId, missing, defaultKeys) : {};
@@ -341,7 +343,7 @@ export async function runDriftCheck(
     // refreshes of this check that no re-verify names are re-verified now, with the ones just applied.
     const toReverify = [...new Set([...refreshed, ...(await unlinkedRefreshes(checkId))])];
 
-    const results: DriftCheckResults = { runId: check.runId, fields: out, trigger, ...(upKeys ? { keys: upKeys } : {}), captures: refs };
+    if (jobStopped() && refreshed.length === 0) return;    const results: DriftCheckResults = { runId: check.runId, fields: out, trigger, ...(upKeys ? { keys: upKeys } : {}), captures: refs };
     const [finished] = await db.update(driftChecks)
       .set({ status: 'done', results, completedAt: new Date() })
       .where(and(eq(driftChecks.id, checkId), eq(driftChecks.status, 'running')))
@@ -358,7 +360,7 @@ export async function runDriftCheck(
     // It names itself in this check's refresh log as it starts (review Minor 1).
     if (toReverify.length > 0) await (deps.startRefreshVerify ?? startRefreshVerify)(check.sourceId, toReverify, refs, { checkId });
   } catch (err) {
-    console.error(`[drift] check ${checkId} failed:`, err);
+    if (jobStopped()) return;    console.error(`[drift] check ${checkId} failed:`, err);
     try {
       await db.update(driftChecks)
         .set({ status: 'failed', error: safeErrorMessage(err).slice(0, 1000), completedAt: new Date() })
