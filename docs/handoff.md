@@ -35,7 +35,9 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Capture worker and job queue (2026-10-23)](#capture-worker-and-job-queue-2026-10-23).** All page loads run in a separate worker fed by a Postgres job queue, with leases, retries and one browser kept for interactive work; the api-server never starts a browser. Merged 2026-10-23 after the full gate.
+**Newest: [The whole stack in Docker Compose (2026-10-23)](#the-whole-stack-in-docker-compose-2026-10-23).** `docker compose up -d --build` runs Postgres, migrations, api, worker, app and a nightly backup as project `robot-stack` on :3200/:4200/:5442, keyless; a restore test proves a dump comes back whole. On `feat/docker-compose`, not merged.
+
+**Before it: [Capture worker and job queue (2026-10-23)](#capture-worker-and-job-queue-2026-10-23).** All page loads run in a separate worker fed by a Postgres job queue, with leases, retries and one browser kept for interactive work; the api-server never starts a browser. Merged 2026-10-23 after the full gate.
 
 **Before it: [Websites change (2026-10-21)](#websites-change-keep-running-re-check-tell-the-customer-2026-10-21).** A website whose pages changed keeps running on its last good paths, by-nature values refresh themselves, and the customer is told what needs them. Merged 2026-10-21 after the full gate.
 
@@ -112,6 +114,40 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## The whole stack in Docker Compose (2026-10-23)
+
+Spec `docs/superpowers/specs/2026-10-23-docker-compose-design.md`, plan
+`docs/superpowers/plans/2026-10-23-docker-compose.md`. Queue item 1, under the standing approval.
+
+**What changed.** A root `Dockerfile` (targets `api`, `worker`, `app`) and `docker-compose.yml` (project
+`robot-stack`): Postgres 16 with a healthcheck, a one-shot `migrate` (drizzle-kit), the api-server and the
+worker under tsx as in dev, the app built by Vite and served by `packages/app/serve.mjs`, and a `backup`
+service that `pg_dump`s nightly into `./backups`. App :3200, api :4200, Postgres :5442, loopback only; own
+volumes (`robot-stack_pgdata`, `robot-stack_captures`, the latter shared by api and worker). Keyless unless
+`./stack.env` supplies keys; no image contains `.env`. One code change: the app's SSR session lookup uses
+`API_INTERNAL_URL` when set (in the stack `http://api:4000`); dev is unchanged. Scripts:
+`docker/backup/{backup,restore,restore-test}.sh`; smoke: `docker/smoke/{e2e,ui}.mjs` against a busybox
+fixture page (profile `test`).
+
+**Worth knowing.** The worker image is Playwright **1.62.1**, not 1.58.2: `@robot/browser` declares
+`playwright` ^1.52 (resolved 1.58.2) but launches through `playwright-extra`, whose `playwright-core` peer
+resolves to 1.62.1 in the lockfile, so dev launches 1.62.1's Chromium too.
+Aligning the declared versions is a small follow-up. Ports are published on 127.0.0.1 and ::1 (Node resolves
+`localhost` to ::1 first).
+
+**How it was proven** (`docs/testing/results/2026-10-23-docker-compose/`): from nothing,
+`docker compose up -d --build` → all services up, 21 of 21 migrations applied, `/login` 200, `/healthz` ok;
+the worker claimed a proof-page capture of the fixture page (done in 3.6 s), the api served its screenshot
+(401 without a session); a real browser signed in through `/login` and stayed signed in after a reload (SSR
+over `API_INTERNAL_URL`); `restore-test.sh` PASS (27 tables, every row count and content hash equal), a
+stale dump FAIL (exit 1), `restore.sh` into a new database and `--replace` both worked, the nightly loop
+dumped at its set minute and pruned to `BACKUP_KEEP`. Memory: worker ~350 MB after a capture, api ~140 MB,
+app ~55 MB. `down -v` left nothing.
+
+**For Marko.** `docker compose up -d --build` (first build pulls ~3.5 GB for the Playwright base; images
+~5 GB together). It runs beside `pnpm dev:all` without touching it. Not production hosting: no TLS, no
+offsite copy of `./backups`.
 
 ## Capture worker and job queue (2026-10-23)
 
