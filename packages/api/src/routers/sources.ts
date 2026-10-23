@@ -14,7 +14,7 @@ import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
 import { sourceInOrg, captureInOrg } from '../auth/scope.js';
 import { planViaWorker } from '../crawl/plan-via-worker.js';
-import { runAndWait } from '../jobs/enqueue.js';
+import { runAndWait, urlKey } from '../jobs/enqueue.js';
 import { JobUnavailableError } from '../jobs/errors.js';
 import type { transferMarksNow, detectVariantsNow, variantLinksNearNow } from '../jobs/handlers/interactive.js';
 import { httpUrl } from '../verify/http-url.js';
@@ -699,7 +699,7 @@ export const sourcesRouter = router({
     .input(z.object({ listingUrl: httpUrl }))
     .mutation(async ({ input }): Promise<ListingPageCheck> => {
       try {
-        return (await runAndWait('listing-check', { listingUrl: input.listingUrl }, { key: `listing:${input.listingUrl}` })) as ListingPageCheck;
+        return (await runAndWait('listing-check', { listingUrl: input.listingUrl }, { key: urlKey('listing', input.listingUrl) })) as ListingPageCheck;
       } catch (err) {
         // No answer from the worker reads as a browser that could not start — the answer a crash gave before.
         if (err instanceof JobUnavailableError) return { ...unreadListingPage({ kind: 'crashed' }, input.listingUrl), message: BROWSER_UNAVAILABLE };
@@ -717,7 +717,7 @@ export const sourcesRouter = router({
     .input(z.object({ url: httpUrl }))
     .query(async ({ input }): Promise<Reachability> => {
       try {
-        return (await runAndWait('reachability', { url: input.url }, { key: `reachability:${input.url}` })) as Reachability;
+        return (await runAndWait('reachability', { url: input.url }, { key: urlKey('reachability', input.url) })) as Reachability;
       } catch (err) {
         // No answer from the worker reads as a browser that could not start — the answer a crash gave before.
         if (err instanceof JobUnavailableError) return { ...reachabilityResult(input.url, { kind: 'crashed' }, null, 0), message: BROWSER_UNAVAILABLE };

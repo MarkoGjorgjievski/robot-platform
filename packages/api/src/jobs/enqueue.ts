@@ -1,5 +1,6 @@
 // packages/api/src/jobs/enqueue.ts
 // The one way api code starts a job: the type's policy decides its priority, attempts and window.
+import { createHash } from 'node:crypto';
 import { db } from '@robot/db';
 import { JOB_POLICIES, type JobPayloads, type JobType } from './types.js';
 import { awaitJob, enqueueJob, type DbOrTx } from './queue.js';
@@ -13,6 +14,13 @@ export async function enqueue<T extends JobType>(dbOrTx: DbOrTx, type: T, payloa
   return id;
 }
 
+/**
+ * A job key made from an address (final review I3): `<prefix>:<sha1 of the url>`, so a key is one length
+ * whatever the address (jobs.key holds 200 characters; a listing or product URL can be longer).
+ */
+export function urlKey(prefix: string, url: string): string {
+  return `${prefix}:${createHash('sha1').update(url).digest('hex')}`;
+}
 /** How long the api-server waits for an awaited job: its start window, its stuck limit and ten seconds. `JOB_AWAIT_MAX_MS` caps it (tests). */
 export function ceilingOf(type: JobType, env: Record<string, string | undefined> = process.env): number {
   const p = JOB_POLICIES[type];
