@@ -110,6 +110,20 @@ describe('startJobRunner', () => {
       expect(resumed[0]).toBe('running');
     } finally { await deleteTestSource(sourceId); }
   }, JOB_TEST_MS);
+  it('afterDone runs once the job is recorded done, with its answer; a throw there is logged, the job stays done (M4)', async () => {
+    const lines: string[] = [];
+    const seen: Array<[string, unknown]> = [];
+    const ok = await enqueueJob(db, { type: 'then', payload: { n: 1 } });
+    const bad = await enqueueJob(db, { type: 'then-bad', payload: {} });
+    start({
+      then: { policy: policy(), run: async () => ({ settled: true }), afterDone: async (_p, value) => { seen.push([(await get(ok.id)).status, value]); } },
+      'then-bad': { policy: policy(), run: async () => 'x', afterDone: async () => { throw new Error('enqueue failed'); } },
+    }, { log: (l) => lines.push(l), lanes: { interactive: 1, background: 2, runs: 1 } });
+    await until(async () => seen.length === 1 && lines.some((l) => l.includes('after then-bad')));
+    expect(seen).toEqual([['done', { settled: true }]]);
+    expect(lines).toContain(`after then-bad ${bad.id} failed: enqueue failed`);
+    expect((await get(bad.id)).status).toBe('done');
+  }, JOB_TEST_MS);
   it('a job with progress is not stuck', async () => {
     const { id } = await enqueueJob(db, { type: 'busy', payload: {} });
     start({ busy: { policy: policy({ stuckMs: 100 }), run: async (_p, ctx) => { for (let i = 0; i < 6; i++) { await new Promise((r) => setTimeout(r, 50)); ctx.progress(); } return 'ok'; } } });

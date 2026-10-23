@@ -41,12 +41,12 @@ export async function runExecuteJob(
   p: JobPayloads['run'],
   ctx: JobContext,
   deps: { execute?: typeof startExecution; repairSweep?: typeof runRepairSweep } = {},
-): Promise<void> {
+): Promise<RunJobValue> {
   const run = await db.query.runs.findFirst({
     where: eq(runs.id, p.runId),
     with: { source: { columns: { id: true, selectorsJson: true, schemaDefinition: true }, with: { dataset: { columns: { schema: true } } } } },
   });
-  if (!run?.source || !ACTIVE.includes(run.status)) return;
+  if (!run?.source || !ACTIVE.includes(run.status)) return { settled: false };
   // `ctx.retry`, not the attempt number: a job given back at shutdown keeps its attempt but was started before.
   await requeueStaleRunningItems(db, p.runId, ctx.retry ? 0 : STALE_RUNNING_MS);
 
@@ -66,11 +66,28 @@ export async function runExecuteJob(
 
   if (p.repairSweep) {
     await (deps.repairSweep ?? runRepairSweep)(db, p.runId, p.repairSweep.deadFields, go);
-    return;
+    return { settled: false };
   }
   const limit = p.limit !== undefined ? { limit: p.limit } : undefined;
+  let left = false;
   do {
     recorded = 0;
     await go(limit);
-  } while (recorded > 0 && (await workLeft(p.runId)));
+  } while (recorded > 0 && (left = await workLeft(p.runId)));
+  // Settled: the last pass did work and then found none left. A pass that recorded nothing is not one to repeat.
+  return { settled: recorded > 0 && !left };
+}
+
+/** What a run job answers: whether it ended on a run with no work left (only then may work found later be its to restart). */
+export type RunJobValue = { settled: boolean };
+
+/**
+ * After the run job is recorded done (M4): work put back while it was ending — a Retry failed or an Extract whose
+ * enqueue found this job still running and so added none — gets a new run job now that the key is free. Only after
+ * a settled end, so a run whose last pass could do nothing is never restarted in a loop.
+ */
+export async function afterRunJob(p: JobPayloads['run'], value: unknown): Promise<boolean> {
+  if ((value as RunJobValue | null)?.settled !== true || !(await workLeft(p.runId))) return false;
+  await enqueueRun(db, { runId: p.runId });
+  return true;
 }
