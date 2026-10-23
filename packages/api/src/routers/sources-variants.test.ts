@@ -4,12 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { db, captures, datasets, projects, sources } from '@robot/db';
-import { PlaywrightBrowser } from '@robot/browser';
+import { PlaywrightBrowser, BROWSER_UNAVAILABLE } from '@robot/browser';
 import type { PageCapture } from '@robot/browser';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { buildBoxMapScript, boxesFromAnnotation } from '@robot/scraper';
 import { writeCaptureFile } from '../verify/capture-store.js';
 import { signedInCaller, signIn } from '../test-helpers/identity.js';
+import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
 
 // `startProofPageCapture` fires a real browser un-awaited; stub the job so this file never launches one for the mutation.
 const { runMock } = vi.hoisted(() => ({ runMock: vi.fn().mockResolvedValue(undefined) }));
@@ -32,6 +33,8 @@ vi.mock('../browser-session.js', async (importOriginal) => {
 const me = await signedInCaller('sources-variants');
 const caller = me.caller;
 afterAll(async () => { await me.cleanup(); });
+/** Variant detection answers from the worker (job `detect-variants`, spec 2026-10-23 §4.4): this file's runner, in-process. */
+const detect = (input: { sourceId: string }) => withJobRunner(() => caller.sources.detectVariants(input));
 
 /** A product-page fixture: `withVariants` puts a two-entry `hasVariant` list (color axis) in the
  * JSON-LD, so `detectVariantLists` reports a `list`; without it, a single plain `Product` block. */
@@ -110,7 +113,7 @@ describe('sources.detectVariants', () => {
       await seedProofPage(f.sourceId, f.urls[1]!, 'Widget 2', true);
       await seedProofPage(f.sourceId, f.urls[2]!, 'Widget 3', false);
 
-      const r = await caller.sources.detectVariants({ sourceId: f.sourceId });
+      const r = await detect({ sourceId: f.sourceId });
       expect(r.suggested).toBe('list');
       expect(r.pages).toHaveLength(3);
       expect(r.pages[0]).toMatchObject({ url: f.urls[0], captured: true });
@@ -118,6 +121,9 @@ describe('sources.detectVariants', () => {
       expect(r.pages[0]!.lists[0]).toMatchObject({ source: 'json-ld', path: 'hasVariant', count: 2, axes: ['color'] });
       expect(r.pages[1]!.lists.length).toBeGreaterThan(0);
       expect(r.pages[2]).toMatchObject({ url: f.urls[2], captured: true, lists: [] });
+      // It answered through the worker: one detect-variants job, done, keyed by the website (spec §4.2).
+      expect((await jobsOf('detect-variants')).find((j) => (j.payload as { sourceId: string }).sourceId === f.sourceId))
+        .toMatchObject({ status: 'done', key: `detect-variants:${f.sourceId}`, payload: { sourceId: f.sourceId } });
     } finally { await f.cleanup(); }
   });
 
@@ -132,7 +138,7 @@ describe('sources.detectVariants', () => {
       await seedProofPage(f.sourceId, f.urls[1]!, 'Widget 2', false);
       // page 3 never captured
 
-      const r = await caller.sources.detectVariants({ sourceId: f.sourceId });
+      const r = await detect({ sourceId: f.sourceId });
       expect(r.suggested).toBe('none');
       expect(r.pages[2]).toEqual({ url: f.urls[2], captured: false, lists: [], links: [], pickers: [] });
       expect(r.pages[0]!.captured).toBe(true);
@@ -142,7 +148,7 @@ describe('sources.detectVariants', () => {
   it('with no verification set, answers no pages and "none"', async () => {
     const f = await createProjectWithSource(caller, { tag: 'variants-unverified', fields: [{ name: 'Price', type: 'money' }] });
     try {
-      const r = await caller.sources.detectVariants({ sourceId: f.sourceId });
+      const r = await detect({ sourceId: f.sourceId });
       expect(r).toEqual({ pages: [], suggested: 'none' });
     } finally { await f.cleanup(); }
   });
@@ -155,11 +161,20 @@ describe('sources.detectVariants', () => {
     });
     try {
       withBrowserSessionMock.mockClear();
-      const r = await caller.sources.detectVariants({ sourceId: f.sourceId });
+      const r = await detect({ sourceId: f.sourceId });
       expect(r.suggested).toBe('none');
       expect(r.pages).toEqual(f.urls.map((url) => ({ url, captured: false, lists: [], links: [], pickers: [] })));
       expect(withBrowserSessionMock).not.toHaveBeenCalled();
     } finally { await f.cleanup(); }
+  });
+
+  it('with no worker, detection fails with the sentence a browser that could not start gave', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'variants-none', fields: [{ name: 'Price', type: 'money' }] });
+    process.env.JOB_AWAIT_MAX_MS = '300';
+    try {
+      await expect(caller.sources.detectVariants({ sourceId: f.sourceId }))
+        .rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR', message: BROWSER_UNAVAILABLE });
+    } finally { delete process.env.JOB_AWAIT_MAX_MS; await f.cleanup(); }
   });
 });
 

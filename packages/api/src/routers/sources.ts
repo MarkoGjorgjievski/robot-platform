@@ -4,26 +4,25 @@ import { eq, and, desc, sql, isNotNull, isNull, inArray } from 'drizzle-orm';
 import { sources, datasets, projects, inputSets, sourceVerifications, captures, jevReadings, type Database } from '@robot/db';
 import {
   VERIFY_STALL_MS, estAiCostPerFieldUsd, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash, isNotOnWebsite,
-  suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript, pageTextOf, visibleTextFromHtml,
-  detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
-  resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
-  type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult, type Box,
-  type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
-  reportVerdict, backoffAnswer, CaptureProblemError, readListingPage,
+  suggestMarks, pageTextOf, visibleTextFromHtml,
+  resolveVariantList, suggestEntryValues, normalizeVariantLink, normalizeVariantLinks,
+  type SchemaDefinitionField, type VerificationSet, type Box, type VariantVerification,
 } from '@robot/scraper';
-import { CaptureError, BROWSER_UNAVAILABLE } from '@robot/browser';
+import { BROWSER_UNAVAILABLE } from '@robot/browser';
 import { router, protectedProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
 import { sourceInOrg, captureInOrg } from '../auth/scope.js';
-import { planSource } from '../crawl/plan-source.js';
-import { withBrowserSession } from '../browser-session.js';
+import { planViaWorker } from '../crawl/plan-via-worker.js';
+import { runAndWait } from '../jobs/enqueue.js';
+import { JobUnavailableError } from '../jobs/errors.js';
+import type { transferMarksNow, detectVariantsNow, variantLinksNearNow } from '../jobs/handlers/interactive.js';
 import { httpUrl } from '../verify/http-url.js';
 import { bindingInput, prepareBinding, bindingProblemList, host, markInput, confirmedPathInput } from '../verify/binding-input.js';
 import { refuseVerify, refusalProblems } from '../verify/verify-refusal.js';
 import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../contract.js';
 import { entryFieldsFor } from '../verify/variant-fields.js';
-import { describeListingPage, unreadListingPage, type ListingPageCheck } from '../verify/find-product-pages.js';
+import { unreadListingPage, type ListingPageCheck } from '../verify/find-product-pages.js';
 import { reachabilityResult, type Reachability } from '../verify/reachability.js';
 import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency, notOnWebsiteKeys, loadCertificationState, runnableOf } from '../verify/current-certification.js';
 import { customerDriftResults, forCustomer, latestRefreshes, needsAttention, websiteAttention } from '../verify/attention.js';
@@ -45,6 +44,16 @@ import { startDriftCheck, latestDriftCheck, latestDriftedRun } from '../verify/r
 import { latestCoverageCheck } from '../verify/run-coverage-check.js';
 import { requireCertification } from '../crawl/require-certification.js';
 import { createAxis, lockDatasetSchema, lockSources } from './datasets.js';
+
+/** An awaited job with no answer is a browser that could not start (the copy a crash showed before). */
+async function unavailableAsError<T>(p: Promise<T>): Promise<T> {
+  try {
+    return await p;
+  } catch (err) {
+    if (err instanceof JobUnavailableError) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: BROWSER_UNAVAILABLE });
+    throw err;
+  }
+}
 
 /** The transaction handle `ctx.db.transaction` hands its callback — named so `setInputPages` can take one as a parameter. */
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -682,91 +691,37 @@ export const sourcesRouter = router({
 
   /**
    * The Extract tab's per-row listing check — no AI, nothing saved, one page
-   * load. Reads the page with `readListingPage` (@robot/scraper: loaded
-   * more, at most three rounds; its links read in the live page) and hands
-   * them to `describeListingPage` (find-product-pages.ts): the product
-   * group's full size, a sample of it, and whether a pager was detected on
-   * the page.
-   *
-   * Carries the capture's verdict (spec 2026-10-09 §A1): a block page,
-   * CAPTCHA or 404 counts no links and says why in `message` (null when ok);
-   * no document at all (a `CaptureError`) reads the same way. The verdict
-   * also feeds the host's backoff (`reportVerdict`).
-   *
-   * A host still backing off after a wall is answered from the backoff, with
-   * no browser: the wall's sentence and how long the wait still is (review
-   * I4, 2026-10-09). Loading it again would only extend the wall.
+   * load: `listingCheckNow` (jobs/handlers/interactive.ts), run in the worker
+   * (job `listing-check`, spec 2026-10-23 §4.4), which also keeps the host's
+   * backoff after a wall.
    */
   checkListingPage: protectedProcedure
     .input(z.object({ listingUrl: httpUrl }))
     .mutation(async ({ input }): Promise<ListingPageCheck> => {
-      const hostname = new URL(input.listingUrl).hostname;
-      const waiting = backoffAnswer(input.listingUrl);
-      if (waiting) return { ...unreadListingPage(waiting.verdict, input.listingUrl), message: waiting.message };
       try {
-        const { links, html, verdict } = await withBrowserSession(async (browser) => {
-          // 20 s, not the browser's default 60 s: Brooklinen never goes idle
-          // and the finder sat at a blank "Find products" for 90 s waiting
-          // out two 60 s networkidle timeouts (campaign 2, 2026-10-11). The
-          // `load` fallback inside navigateWithFallback still applies. Then at
-          // most three rounds of loading more (spec 2026-10-20 §3.7).
-          const { capture, links } = await readListingPage(browser, input.listingUrl, { load: true, timeout: 20_000 });
-          reportVerdict(hostname, capture.verdict);
-          return { links, html: capture.html, verdict: capture.verdict };
-        });
-        return describeListingPage(links, input.listingUrl, html, verdict);
+        return (await runAndWait('listing-check', { listingUrl: input.listingUrl }, { key: `listing:${input.listingUrl}` })) as ListingPageCheck;
       } catch (err) {
-        if (err instanceof CaptureError) {
-          reportVerdict(hostname, err.kind);
-          return unreadListingPage({ kind: err.kind }, input.listingUrl);
-        }
-        // A `CaptureProblemError`'s message is already the customer sentence
-        // (verify/capture-check.ts); let it propagate as before. Anything
-        // else is a throw from before any verdict existed — a Playwright
-        // exception, hundreds of words, that must never reach the listing
-        // bar verbatim (campaign 2, 2026-10-11).
-        if (err instanceof CaptureProblemError) throw err;
-        console.error('[finder] checkListingPage crashed for', input.listingUrl, err);
-        return { ...unreadListingPage({ kind: 'crashed' }, input.listingUrl), message: BROWSER_UNAVAILABLE };
+        // No answer from the worker reads as a browser that could not start — the answer a crash gave before.
+        if (err instanceof JobUnavailableError) return { ...unreadListingPage({ kind: 'crashed' }, input.listingUrl), message: BROWSER_UNAVAILABLE };
+        throw err;
       }
     }),
 
   /**
    * Add website's free reachability line (spec 2026-10-09 §A2): one page
-   * load, one tile, no AI, nothing saved — whether the browser can read this
-   * address, in the verdict's customer sentence. A `CaptureError` (no
-   * document arrived) is an answer too, not a failure of the query.
-   *
-   * A host still backing off after a challenge or refusal (domain-lock.ts) is
-   * answered from the backoff alone, without opening a browser: a query can
-   * be refetched freely, and every load of a walled host extends the wall.
+   * load, one tile, no AI, nothing saved: `reachabilityNow`
+   * (jobs/handlers/interactive.ts), run in the worker (job `reachability`,
+   * spec 2026-10-23 §4.4), which also keeps the host's backoff after a wall.
    */
   reachability: protectedProcedure
     .input(z.object({ url: httpUrl }))
     .query(async ({ input }): Promise<Reachability> => {
-      const hostname = new URL(input.url).hostname;
-      // The wall that started the backoff, in its own words: a host that
-      // refused us reads "refused", not a made-up human check (review I4).
-      const waiting = backoffAnswer(input.url);
-      if (waiting) return reachabilityResult(input.url, waiting.verdict, null, 0, waiting.waitMs);
-      const t0 = Date.now();
       try {
-        return await withBrowserSession(async (browser) => {
-          const capture = await browser.capture(input.url, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1, timeout: 30_000 });
-          reportVerdict(hostname, capture.verdict);
-          return reachabilityResult(input.url, capture.verdict, capture.url, Date.now() - t0);
-        });
+        return (await runAndWait('reachability', { url: input.url }, { key: `reachability:${input.url}` })) as Reachability;
       } catch (err) {
-        if (err instanceof CaptureError) {
-          reportVerdict(hostname, err.kind);
-          return reachabilityResult(input.url, { kind: err.kind }, null, Date.now() - t0);
-        }
-        // Same shape as checkListingPage above: a CaptureProblemError already
-        // carries a customer sentence, so it propagates; anything else is a
-        // browser-layer throw before any verdict existed.
-        if (err instanceof CaptureProblemError) throw err;
-        console.error('[finder] reachability crashed for', input.url, err);
-        return { ...reachabilityResult(input.url, { kind: 'crashed' }, null, Date.now() - t0), message: BROWSER_UNAVAILABLE };
+        // No answer from the worker reads as a browser that could not start — the answer a crash gave before.
+        if (err instanceof JobUnavailableError) return { ...reachabilityResult(input.url, { kind: 'crashed' }, null, 0), message: BROWSER_UNAVAILABLE };
+        throw err;
       }
     }),
 
@@ -877,14 +832,9 @@ export const sourcesRouter = router({
     }),
 
   /**
-   * Page 1's paths run on the other proof pages (spec 2026-09-18 §3.4). Opens
-   * a browser for the offline DOM search and XPath probe only — and only when
-   * there is something to carry and somewhere to carry it to.
-   *
-   * Per target url: `null` when that page has no fresh proof-page capture,
-   * otherwise the capture whose box map the `boxes` indices refer to and a
-   * result per field (`null` where nothing resolved, or where page 1 has no
-   * value to carry).
+   * Page 1's paths run on the other proof pages (spec 2026-09-18 §3.4):
+   * `transferMarksNow` (jobs/handlers/interactive.ts), run in the worker
+   * (job `transfer-marks`, spec 2026-10-23 §4.4).
    */
   transferMarks: protectedProcedure
     .input(z.object({
@@ -897,42 +847,7 @@ export const sourcesRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
-      const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, input.sourceId), columns: { id: true, schemaDefinition: true, verificationSet: true } });
-      if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
-      const allFields = (source.schemaDefinition ?? []) as SchemaDefinitionField[];
-      const fields = input.fieldKeys ? allFields.filter((f) => input.fieldKeys!.includes(f.key)) : allFields;
-      const set = (source.verificationSet ?? { urls: [], expected: {} }) as VerificationSet;
-      // The Verification tab saves drafts, but a tick transfers before its save lands, so it sends the answer on screen.
-      const pageOne = (key: string) => input.from
-        ? { value: input.from[key]?.value ?? '', mark: input.from[key]?.mark, via: input.from[key]?.via }
-        : { value: set.expected[key]?.[input.fromUrl] ?? '', mark: set.marks?.[key]?.[input.fromUrl], via: set.paths?.[key]?.[input.fromUrl] };
-      const pages = await loadProofPageCaptures(input.sourceId, [input.fromUrl, ...input.toUrls]);
-      const from = pages[input.fromUrl];
-      if (!from) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Mark page 1 first: it has no fresh capture' });
-      // A target without a fresh capture is simply not tried — it comes back null, not an empty field map:
-      // an index into a box map we do not have would be a silent wrong outline.
-      const to = Object.fromEntries(input.toUrls.filter((u) => pages[u]).map((u) => [u, { capture: pages[u]!.capture, boxes: pages[u]!.meta.boxes }]));
-      const out: Record<string, { captureId: string; fields: Record<string, Transferred | null> } | null> =
-        Object.fromEntries(input.toUrls.map((u) => [u, pages[u] ? { captureId: pages[u]!.ref.captureId, fields: {} } : null]));
-      // A field with a blank page-1 value has nothing to carry; when that is every field, no browser is opened.
-      const carried = fields.filter((f) => pageOne(f.key).value.trim() !== '');
-      for (const f of fields) {
-        if (carried.includes(f)) continue;
-        for (const u of input.toUrls) if (out[u]) out[u]!.fields[f.key] = null;
-      }
-      if (carried.length === 0 || Object.keys(to).length === 0) return out;
-      await withBrowserSession(async (browser) => {
-        const deps = {
-          evalXPaths: (html: string, xps: string[]) => browser.setContentEvaluate<XPathProbeResult>(html, buildXPathProbeScript(xps)),
-          runDomSearch: (html: string, needles: DomNeedle[], pageUrl: string) => browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript(needles, pageUrl)),
-        };
-        for (const field of carried) {
-          const { value: expected, mark, via } = pageOne(field.key);
-          const r = await transferMarks({ field, from: { url: input.fromUrl, capture: from.capture, expected, mark, via }, to }, deps);
-          for (const u of input.toUrls) if (out[u]) out[u]!.fields[field.key] = r[u] ?? null;
-        }
-      });
-      return out;
+      return (await unavailableAsError(runAndWait('transfer-marks', input))) as Awaited<ReturnType<typeof transferMarksNow>>;
     }),
 
   /**
@@ -968,7 +883,8 @@ export const sourcesRouter = router({
         });
       }
 
-      const result = await planSource(ctx.db, source.id, { probe: false });
+      // Planning runs in the worker (job `plan`, spec 2026-10-23 §4.4); the request waits for it.
+      const result = await planViaWorker(ctx.db, source.id, { probe: false });
 
       await ctx.db
         .update(sources)
@@ -1290,61 +1206,15 @@ export const sourcesRouter = router({
   // ─── Variants (spec 2026-10-01 §3): how a website exposes variants ──────
 
   /**
-   * Inspects this website's proof-page captures for how it exposes variants
-   * — no AI, no navigation: `detectVariantLists` reads each capture's
-   * structured data/intercepted JSON already on hand, and the links/pickers
-   * scripts run once per capture's stored HTML inside a single
-   * `withBrowserSession` (`setContentEvaluate`, same as `transferMarks`). A
-   * proof page with no fresh capture reports `captured: false` and empty
-   * arrays rather than being skipped — the caller still gets one row per
-   * proof page, in order.
-   *
-   * `suggested` is computed only from what was found: `list` if any page has
-   * a variant list, else `links` if any page has a link group, else `none`.
-   * A source with no verification set, or one with no proof URLs yet,
-   * answers `{ pages: [], suggested: 'none' }` — nothing to inspect.
+   * Inspects this website's proof-page captures for how it exposes variants:
+   * `detectVariantsNow` (jobs/handlers/interactive.ts), run in the worker
+   * (job `detect-variants`, spec 2026-10-23 §4.4).
    */
   detectVariants: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
-      const source = await ctx.db.query.sources.findFirst({
-        where: eq(sources.id, input.sourceId),
-        columns: { id: true, verificationSet: true },
-      });
-      if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} not found` });
-
-      const urls = (source.verificationSet as VerificationSet | null)?.urls ?? [];
-      if (urls.length === 0) return { pages: [], suggested: 'none' as const };
-
-      const captureRecords = await loadProofPageCaptures(input.sourceId, urls);
-      type Page = { url: string; captured: boolean; lists: VariantList[]; links: VariantLinks[]; pickers: VariantPicker[] };
-      // Fix round 1: a browser is only worth opening when at least one proof
-      // page has something to evaluate — every URL missing a fresh capture
-      // means every row is `captured: false` with nothing to run a script
-      // against, so skip `withBrowserSession` entirely rather than launching
-      // Chromium to do nothing.
-      const pages: Page[] = urls.some((url) => captureRecords[url])
-        ? await withBrowserSession(async (browser) => {
-            const out: Page[] = [];
-            for (const url of urls) {
-              const rec = captureRecords[url];
-              if (!rec) { out.push({ url, captured: false, lists: [], links: [], pickers: [] }); continue; }
-              const lists = detectVariantLists(rec.capture);
-              const links = await browser.setContentEvaluate<VariantLinks[]>(rec.capture.html, buildVariantLinksScript(url));
-              const pickers = await browser.setContentEvaluate<VariantPicker[]>(rec.capture.html, buildVariantPickerScript());
-              out.push({ url, captured: true, lists, links, pickers });
-            }
-            return out;
-          })
-        : urls.map((url) => ({ url, captured: false, lists: [], links: [], pickers: [] }));
-
-      const suggested = pages.some((p) => p.lists.length > 0)
-        ? ('list' as const)
-        : pages.some((p) => p.links.length > 0)
-          ? ('links' as const)
-          : ('none' as const);
-      return { pages, suggested };
+      return (await unavailableAsError(runAndWait('detect-variants', { sourceId: input.sourceId }, { key: `detect-variants:${input.sourceId}` }))) as Awaited<ReturnType<typeof detectVariantsNow>>;
     }),
 
   /**
@@ -1558,24 +1428,13 @@ export const sourcesRouter = router({
 
   /**
    * Finds the links near an element the customer marks on a proof page's
-   * screenshot (spec 2026-10-01 §3 "links" method, the manual-mark picker):
-   * runs `buildLinksNearScript` against the page's fresh proof capture in
-   * one `withBrowserSession`, the same `setContentEvaluate` pattern
-   * `detectVariants`/`transferMarks` use. `null` when there is no fresh
-   * capture of `url`, or nothing near the marked element groups into a
-   * link set.
+   * screenshot: `variantLinksNearNow` (jobs/handlers/interactive.ts), run in
+   * the worker (job `variant-links-near`, spec 2026-10-23 §4.4).
    */
   variantLinksNear: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), url: httpUrl, xpath: z.string().min(1).max(2000) }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
-      const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, input.sourceId), columns: { id: true } });
-      if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} not found` });
-
-      const captureRecords = await loadProofPageCaptures(input.sourceId, [input.url]);
-      const rec = captureRecords[input.url];
-      if (!rec) return null;
-
-      return withBrowserSession((browser) => browser.setContentEvaluate<VariantLinks | null>(rec.capture.html, buildLinksNearScript(input.xpath, input.url)));
+      return (await unavailableAsError(runAndWait('variant-links-near', input))) as Awaited<ReturnType<typeof variantLinksNearNow>>;
     }),
 });

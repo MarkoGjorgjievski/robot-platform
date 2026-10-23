@@ -69,11 +69,8 @@ export type PlanSourceResult = {
   cacheWarm: boolean;
 };
 
-export async function planSource(
-  db: typeof Database,
-  sourceId: string,
-  opts: { probe?: boolean } = {},
-): Promise<PlanSourceResult> {
+/** The source as planning reads it, or the precondition error it has always thrown. */
+export async function assertPlannable(db: typeof Database, sourceId: string) {
   const source = await db.query.sources.findFirst({
     where: eq(sources.id, sourceId),
     with: { dataset: { columns: { schema: true } }, inputSet: { columns: { columns: true, rows: true } } },
@@ -84,6 +81,34 @@ export async function planSource(
   if (!source.inputSet) {
     throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${sourceId} has no InputSet to plan from` });
   }
+  return { ...source, inputSet: source.inputSet };
+}
+
+/**
+ * The `planning` run row a plan fills in. A probe run's label overrides the
+ * usual "what was this run pointed at" text: `crawl.status` readers need to
+ * tell a probe apart from a real crawl at a glance, and 'probe' is
+ * unambiguous where a URL template or source name is not.
+ */
+export function planningRunValues(source: { id: string; urlTemplate: string | null; name: string }, probe: boolean) {
+  return {
+    sourceId: source.id,
+    status: 'planning' as const,
+    startedAt: new Date(),
+    inputLabel: probe ? 'probe' : (source.urlTemplate ?? source.name).slice(0, 200),
+  };
+}
+
+/**
+ * With `opts.runId`, the planning run row already exists (written with its `plan` job by
+ * `planViaWorker`, spec 2026-10-23 §4.4) and is filled in; without, one is inserted here.
+ */
+export async function planSource(
+  db: typeof Database,
+  sourceId: string,
+  opts: { probe?: boolean; runId?: string } = {},
+): Promise<PlanSourceResult> {
+  const source = await assertPlannable(db, sourceId);
   // Bound here rather than read inside the planRun closure below: a
   // property narrowing (`source.inputSet` is not null) does not survive
   // into a callback, but a const does.
@@ -92,16 +117,9 @@ export async function planSource(
   const probe = opts.probe === true;
 
   // Nothing has been written yet, so a failure above leaves no trace to clean up.
-  const [run] = await db.insert(runs).values({
-    sourceId: source.id,
-    status: 'planning',
-    startedAt: new Date(),
-    // A probe run's label overrides the usual "what was this run
-    // pointed at" text: `crawl.status` readers need to tell a probe
-    // apart from a real crawl at a glance, and 'probe' is unambiguous
-    // where a URL template or source name is not.
-    inputLabel: probe ? 'probe' : (source.urlTemplate ?? source.name).slice(0, 200),
-  }).returning({ id: runs.id });
+  const [run] = opts.runId
+    ? [{ id: opts.runId }]
+    : await db.insert(runs).values(planningRunValues(source, probe)).returning({ id: runs.id });
   const before = snapshotUsage();
 
   // From here on, the run row exists: every exit path (including a launch

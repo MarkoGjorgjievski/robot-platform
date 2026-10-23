@@ -8,6 +8,9 @@ import { runDriftCheck, storedCaptures } from '../verify/run-drift-check.js';
 import { runCoverageCheck } from '../verify/run-coverage-check.js';
 import { checkWebsite } from '../verify/website-checks.js';
 import { runExecuteJob } from './handlers/run.js';
+import { reachabilityNow, listingCheckNow, transferMarksNow, detectVariantsNow, variantLinksNearNow } from './handlers/interactive.js';
+import { planSource } from '../crawl/plan-source.js';
+import { db } from '@robot/db';
 
 export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
   const registry: Registry = {
@@ -15,6 +18,18 @@ export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
       policy: JOB_POLICIES['proof-page-capture'],
       subject: (p: JobPayloads['proof-page-capture']) => ({ table: 'captures', id: p.captureId }),
       run: (p: JobPayloads['proof-page-capture']) => runProofPageCapture(p.captureId),
+    },
+    // The procedures that answered from a browser while the request waited: it waits for these (spec §4.4).
+    reachability: { policy: JOB_POLICIES.reachability, run: (p: JobPayloads['reachability']) => reachabilityNow(p.url) },
+    'listing-check': { policy: JOB_POLICIES['listing-check'], run: (p: JobPayloads['listing-check']) => listingCheckNow(p.listingUrl) },
+    'transfer-marks': { policy: JOB_POLICIES['transfer-marks'], run: (p: JobPayloads['transfer-marks']) => transferMarksNow(p) },
+    'detect-variants': { policy: JOB_POLICIES['detect-variants'], run: (p: JobPayloads['detect-variants']) => detectVariantsNow(p.sourceId) },
+    'variant-links-near': { policy: JOB_POLICIES['variant-links-near'], run: (p: JobPayloads['variant-links-near']) => variantLinksNearNow(p) },
+    // Its run row is written with the job (crawl/plan-via-worker.ts); planning fills it in.
+    plan: {
+      policy: JOB_POLICIES.plan,
+      subject: (p: JobPayloads['plan']) => ({ table: 'runs', id: p.runId }),
+      run: (p: JobPayloads['plan']) => planSource(db, p.sourceId, { probe: p.probe, runId: p.runId }),
     },
     verify: {
       policy: JOB_POLICIES.verify,

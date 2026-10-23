@@ -6,6 +6,9 @@ import { db, sources, inputSets } from '@robot/db';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { withJobRunner } from '../test-helpers/jobs.js';
+import { jobRegistry } from '../jobs/handlers.js';
+import { PLAN_STOPPED } from '../jobs/types.js';
 
 // `sources.confirm` calls the real `planSource` — stubbed here per the task
 // brief ("confirm sets confirmedAt and plans full (stub planSource)") so this
@@ -22,6 +25,20 @@ vi.mock('../crawl/plan-source.js', async (importOriginal) => {
 const me = await signedInCaller('sources');
 const caller = me.caller;
 afterAll(async () => { await me.cleanup(); });
+
+/**
+ * `sources.confirm` plans in the worker (job `plan`, spec 2026-10-23 §4.4): this file's runner,
+ * in-process, running `plan` only, with `planSource` mocked as above. The planning run is written
+ * with its job after the same no-InputSet refusal planSource makes, so the website gets one first.
+ */
+async function confirm(sourceId: string) {
+  const s = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), with: { dataset: { columns: { projectId: true } } } });
+  if (!s!.inputSetId) {
+    const [set] = await db.insert(inputSets).values({ projectId: s!.dataset!.projectId, type: 'direct', name: 'confirm test', columns: [{ name: 'url', primary: true }], rows: [{ url: 'https://test-confirm.example.com/list' }] }).returning({ id: inputSets.id });
+    await db.update(sources).set({ inputSetId: set!.id }).where(eq(sources.id, sourceId));
+  }
+  return withJobRunner(() => caller.sources.confirm({ sourceId }), { registry: { plan: jobRegistry().plan! } });
+}
 
 function expectZodValidationError(err: unknown): asserts err is TRPCError {
   if (!(err instanceof TRPCError)) throw new Error(`expected TRPCError, got ${err}`);
@@ -105,7 +122,7 @@ describe('sources.update — listingMode', () => {
         inputs: [],
         cacheWarm: false,
       });
-      await caller.sources.confirm({ sourceId: f.sourceId });
+      await confirm(f.sourceId);
 
       await expect(
         caller.sources.update({ id: f.sourceId, listingMode: 'detail' }),
@@ -132,7 +149,7 @@ describe('sources.update — listingMode', () => {
         inputs: [],
         cacheWarm: false,
       });
-      await caller.sources.confirm({ sourceId: f.sourceId });
+      await confirm(f.sourceId);
 
       const updated = await caller.sources.update({ id: f.sourceId, isActive: false });
       expect(updated.isActive).toBe(false);
@@ -156,7 +173,7 @@ describe('sources.update — listingMode', () => {
         inputs: [],
         cacheWarm: false,
       });
-      await caller.sources.confirm({ sourceId: f.sourceId });
+      await confirm(f.sourceId);
 
       const updated = await caller.sources.update({ id: f.sourceId, listingMode: 'listing_to_detail' });
       expect(updated.listingMode).toBe('listing_to_detail');
@@ -184,13 +201,13 @@ describe('sources.confirm', () => {
       const before = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
       expect(before!.confirmedAt).toBeNull();
 
-      const result = await caller.sources.confirm({ sourceId: f.sourceId });
+      const result = await confirm(f.sourceId);
       expect(result).toEqual({ runId: '11111111-1111-1111-1111-111111111111' });
 
       expect(planSourceMock).toHaveBeenCalledTimes(1);
       const call = planSourceMock.mock.calls[0]!;
       expect(call[1]).toBe(f.sourceId);
-      expect(call[2]).toEqual({ probe: false });
+      expect(call[2]).toEqual({ probe: false, runId: expect.any(String) });
 
       const after = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
       expect(after!.confirmedAt).toBeInstanceOf(Date);
@@ -217,7 +234,7 @@ describe('sources.confirm', () => {
         cacheWarm: false,
       });
 
-      await caller.sources.confirm({ sourceId: f.sourceId });
+      await confirm(f.sourceId);
       expect(planSourceMock).toHaveBeenCalledTimes(1);
 
       await expect(caller.sources.confirm({ sourceId: f.sourceId }))
@@ -229,13 +246,13 @@ describe('sources.confirm', () => {
     }
   });
 
-  it('does not set confirmedAt when planSource throws', async () => {
+  it('does not set confirmedAt when planning throws', async () => {
     const f = await createProjectWithSource(caller, { tag: 'confirm-c', fields: [] });
     try {
       planSourceMock.mockRejectedValue(new Error('planning blew up'));
 
-      await expect(caller.sources.confirm({ sourceId: f.sourceId }))
-        .rejects.toThrow('planning blew up');
+      await expect(confirm(f.sourceId))
+        .rejects.toThrow(PLAN_STOPPED); // the customer reads the sentence, not the raw error (spec 2026-10-23 §6)
 
       const after = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
       expect(after!.confirmedAt).toBeNull();
@@ -325,7 +342,7 @@ describe('sources.delete', () => {
         status: 'planned', itemCount: 1, listingPages: 0,
         warnings: [], errors: [], inputs: [], cacheWarm: false,
       });
-      await caller.sources.confirm({ sourceId: f.sourceId });
+      await confirm(f.sourceId);
 
       await expect(
         caller.sources.delete({ sourceId: f.sourceId }),

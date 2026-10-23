@@ -6,7 +6,9 @@ import { db, sources, projects, datasets, inputSets, runs, runItems } from '@rob
 import type { PlanRunOutcome } from '@robot/scraper';
 import { verdictSentence } from '@robot/browser';
 import { PROBE_BUDGET } from '../crawl/probe.js';
+import { PLAN_STOPPED } from '../jobs/types.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { withJobRunner, jobsOf } from '../test-helpers/jobs.js';
 
 // planRun needs a real browser and (for anything interesting) an API key, so the
 // router's OWN behaviour — run status, what it persists, what it returns — can
@@ -33,6 +35,8 @@ vi.mock('@robot/browser', async (importOriginal) => {
 const me = await signedInCaller('crawl');
 const caller = me.caller;
 afterAll(async () => { await me.cleanup(); });
+/** Planning answers from the worker (job `plan`, spec 2026-10-23 §4.4): this file's runner, in-process, with the stubs above. */
+const plan = (input: { sourceId: string; probe?: boolean }) => withJobRunner(() => caller.crawl.plan(input));
 
 const CRAWL_TEST_SLUG_PREFIX = 'test-crawl-';
 
@@ -178,7 +182,7 @@ describe('crawlRouter.plan persistence', () => {
         ],
       } satisfies PlanRunOutcome);
 
-      const result = await caller.crawl.plan({ sourceId: fixture.sourceId });
+      const result = await plan({ sourceId: fixture.sourceId });
       expect(result.status).toBe('planned');
       expect(result.itemCount).toBe(1);
       expect(result.inputs).toEqual([
@@ -194,6 +198,8 @@ describe('crawlRouter.plan persistence', () => {
       // A run that planned work is not an error, so the field the dashboard
       // renders as a red banner stays empty.
       expect(run?.errorMessage).toBeNull();
+      // Planned in the worker: the run names its plan job, which is done (spec 2026-10-23 §4.4).
+      expect((await jobsOf('plan')).find((j) => j.id === run?.jobId)).toMatchObject({ status: 'done', key: `plan:${result.runId}`, payload: { sourceId: fixture.sourceId, runId: result.runId, probe: false } });
     } finally {
       await fixture.cleanup();
     }
@@ -217,7 +223,7 @@ describe('crawlRouter.plan persistence', () => {
         ],
       } satisfies PlanRunOutcome);
 
-      const result = await caller.crawl.plan({ sourceId: fixture.sourceId });
+      const result = await plan({ sourceId: fixture.sourceId });
       expect(result.status).toBe('failed');
       expect(result.itemCount).toBe(0);
 
@@ -248,7 +254,7 @@ describe('crawlRouter.plan persistence', () => {
         ],
       } satisfies PlanRunOutcome);
 
-      const result = await caller.crawl.plan({ sourceId: fixture.sourceId });
+      const result = await plan({ sourceId: fixture.sourceId });
       expect(result.status).toBe('planned');
       const run = await db.query.runs.findFirst({ where: eq(runs.id, result.runId) });
       expect(run?.status).toBe('planned');
@@ -270,7 +276,7 @@ describe('crawlRouter.plan persistence', () => {
         inputs: [{ inputIndex: 0, itemCount: 1, status: 'planned' }],
       } satisfies PlanRunOutcome);
 
-      const result = await caller.crawl.plan({ sourceId: fixture.sourceId });
+      const result = await plan({ sourceId: fixture.sourceId });
       const items = await db.query.runItems.findMany({ where: eq(runItems.runId, result.runId) });
 
       const listing = items.filter((i) => i.kind === 'listing');
@@ -290,6 +296,19 @@ describe('crawlRouter.plan persistence', () => {
     }
   });
 
+  it('planning that throws fails its run and answers the sentence, not the raw error (spec 2026-10-23 §6)', async () => {
+    const fixture = await makePlannableSource();
+    try {
+      planRunMock.mockRejectedValue(new Error('page.goto: net::ERR_ABORTED … hundreds of words'));
+      await expect(plan({ sourceId: fixture.sourceId })).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR', message: PLAN_STOPPED });
+      const [run] = await db.query.runs.findMany({ where: eq(runs.sourceId, fixture.sourceId) });
+      expect(run?.status).toBe('failed');
+      expect(run?.completedAt).toBeInstanceOf(Date);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
   it('probe: true slices to the first input row, substitutes PROBE_BUDGET, and labels the run `probe`', async () => {
     const fixture = await makePlannableSource([{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }]);
     try {
@@ -301,7 +320,7 @@ describe('crawlRouter.plan persistence', () => {
         inputs: [{ inputIndex: 0, itemCount: 1, status: 'planned' }],
       } satisfies PlanRunOutcome);
 
-      const result = await caller.crawl.plan({ sourceId: fixture.sourceId, probe: true });
+      const result = await plan({ sourceId: fixture.sourceId, probe: true });
       expect(result.status).toBe('planned');
 
       expect(planRunMock).toHaveBeenCalledTimes(1);
@@ -327,7 +346,7 @@ describe('crawlRouter.plan persistence', () => {
         inputs: [{ inputIndex: 0, itemCount: 1, status: 'planned' }],
       } satisfies PlanRunOutcome);
 
-      const result = await caller.crawl.plan({ sourceId: fixture.sourceId });
+      const result = await plan({ sourceId: fixture.sourceId });
       expect(result.status).toBe('planned');
 
       expect(planRunMock).toHaveBeenCalledTimes(1);
