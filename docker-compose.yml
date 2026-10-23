@@ -4,7 +4,8 @@
 # robot_session cookie with `pnpm dev:all` (localhost:3000/4000) and each would sign the other out.
 #   docker compose down                 → stop it (add -v to drop its database, captures and nothing else)
 # Its own project name, volumes and ports: it never touches the dev Postgres (robot-platform-db on 5432) or
-# `pnpm dev:all` (:3000/:4000). Keyless unless ./stack.env supplies keys; the dev .env is never read.
+# `pnpm dev:all` (:3000/:4000). Keyless unless ./stack.env supplies keys: no service receives the dev .env (compose reads it only to fill in
+# ${STACK_*} values, and nothing here names a key).
 name: robot-stack
 
 x-stack-env: &stack-env
@@ -32,8 +33,9 @@ services:
 
   # One shot: applies @robot/db's migrations (drizzle-kit migrate), then exits; api and worker wait for it.
   migrate:
-    build: { context: ., target: api }
+    # The api service builds this image; built once, never pulled.
     image: robot-stack/api
+    pull_policy: never
     command: ["pnpm", "--filter", "@robot/db", "exec", "drizzle-kit", "migrate"]
     working_dir: /repo
     environment:
@@ -51,6 +53,7 @@ services:
       PORT: "4000"
       APP_ORIGINS: http://127.0.0.1:${STACK_APP_PORT:-3200}
       CAPTURES_DIR: /repo/packages/api-server/public/captures
+    init: true
     ports:
       - "127.0.0.1:${STACK_API_PORT:-4200}:4000"
     volumes:
@@ -95,6 +98,7 @@ services:
     environment:
       # The app's own server (SSR's session lookup) reaches the api-server on the stack's network.
       API_INTERNAL_URL: http://api:4000
+    init: true
     ports:
       - "127.0.0.1:${STACK_APP_PORT:-3200}:3000"
     depends_on:
