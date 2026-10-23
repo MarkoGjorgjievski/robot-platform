@@ -3,7 +3,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Lane } from './types.js';
 
-export type JobContext = { jobId: string; type: string; lane: Lane; attempt: number; signal: AbortSignal; progress: () => void };
+export type JobContext = {
+  jobId: string; type: string; lane: Lane; attempt: number;
+  /** The job was started before (a retry, or given back at shutdown): an earlier start may have left work half-done. */
+  retry: boolean;
+  signal: AbortSignal; progress: () => void;
+};
 
 const store = new AsyncLocalStorage<JobContext>();
 
