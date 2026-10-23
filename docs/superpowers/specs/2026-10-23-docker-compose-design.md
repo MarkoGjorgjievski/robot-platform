@@ -16,7 +16,7 @@ back whole. *Done when:* the app serves end to end locally, and the restore test
   (`robot-stack_pgdata`, `robot-stack_captures`), its own host ports, published on 127.0.0.1 only, and the stack is used as `http://127.0.0.1:…` (cookies are per host, not per port: on `localhost` the stack's `robot_session` cookie would collide with `pnpm dev:all`'s on localhost:3000/4000): Postgres **5442**,
   api **4200**, app **3200** (override with `STACK_DB_PORT`, `STACK_API_PORT`, `STACK_APP_PORT`). Never 5432,
   3000, 4000, 3100, 4100; never the `robot-platform-db` container or its volume.
-- **Keyless by default.** No image contains `.env` (`.dockerignore`), and no service reads the dev `.env`
+- **Keyless by default.** No image contains `.env` (`.dockerignore`), and no service receives the dev `.env`
   (compose's own `.env` interpolation is used only for `STACK_*` names). Keys and switches (`ANTHROPIC_API_KEY`,
   `TYPESAFE_API_KEY`, `JEV_SHADOW`, `WEBSITE_CHECKS`, `OPS_EMAILS`, …) come only from an optional, gitignored
   `./stack.env` given to api and worker. Without it: no AI, no Jev, no scheduled checks.
