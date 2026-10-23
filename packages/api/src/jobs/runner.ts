@@ -74,15 +74,16 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
     const a: Active = { job, def, controller, lastProgress: Date.now(), over: false, settled: Promise.resolve() };
     active.set(job.id, a);
     const ctx: JobContext = {
-      jobId: job.id, type: job.type, lane: def.policy.lane, attempt: job.attempts, signal: controller.signal,
+      jobId: job.id, type: job.type, lane: def.policy.lane, attempt: job.attempts, retry: job.startedBefore ?? job.attempts > 1, signal: controller.signal,
       progress: () => { a.lastProgress = Date.now(); },
     };
     log(`claimed ${job.type} ${job.id} (attempt ${job.attempts} of ${job.maxAttempts})`);
     a.settled = (async () => {
       let value: unknown;
       try {
-        // A retry: the rows an earlier attempt left half-done are closed, except the one the payload names.
-        if (job.attempts > 1) await closeJobRows(db, job.id, { runSentence: runSentenceFor(job.type), except: def.subject?.(job.payload) ?? null });
+        // Started before (a retry, or given back at attempt 1): the rows an earlier start left half-done
+        // are closed, except the one the payload names.
+        if (ctx.retry) await closeJobRows(db, job.id, { runSentence: runSentenceFor(job.type), except: def.subject?.(job.payload) ?? null });
         value = await runInJob(ctx, () => def.run(job.payload, ctx));
       } catch (err) {
         if (a.over) return;

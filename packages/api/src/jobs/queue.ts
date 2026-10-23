@@ -18,17 +18,21 @@ export type JobRow = {
   id: string; queue: string; type: string; key: string | null; payload: unknown; status: JobStatus;
   priority: number; attempts: number; maxAttempts: number; runAfter: Date; expiresAt: Date | null;
   lockedBy: string | null; lockedUntil: Date | null; result: unknown; error: string | null;
+  /** Set by a claim: this job was started before (a retry, or given back at shutdown) — not `attempts > 1`, which a give-back does not raise. */
+  startedBefore?: boolean;
 };
 type RawJob = {
   id: string; queue: string; type: string; key: string | null; payload: unknown; status: JobStatus; priority: number;
   attempts: number; max_attempts: number; run_after: Date | string; expires_at: Date | string | null;
   locked_by: string | null; locked_until: Date | string | null; result: unknown; error: string | null;
+  started_before?: boolean;
 };
 const date = (v: Date | string | null): Date | null => (v === null ? null : v instanceof Date ? v : new Date(v));
 const toJob = (r: RawJob): JobRow => ({
   id: r.id, queue: r.queue, type: r.type, key: r.key, payload: r.payload, status: r.status, priority: r.priority,
   attempts: r.attempts, maxAttempts: r.max_attempts, runAfter: date(r.run_after)!, expiresAt: date(r.expires_at),
   lockedBy: r.locked_by, lockedUntil: date(r.locked_until), result: r.result, error: r.error,
+  ...(r.started_before === undefined ? {} : { startedBefore: r.started_before }),
 });
 const rows = <T>(r: unknown) => r as T[];
 const secs = (ms: number) => Math.max(ms, 1) / 1000;
@@ -74,16 +78,17 @@ export async function claimJob(opts: { queue: string; workerId: string; types: s
   if (opts.types.length === 0) return null;
   const types = sql.join(opts.types.map((t) => sql`${t}`), sql`, `);
   const claimed = rows<RawJob>(await db.execute(sql`
-    UPDATE jobs SET status = 'running', attempts = attempts + 1, locked_by = ${opts.workerId},
+    UPDATE jobs AS j SET status = 'running', attempts = j.attempts + 1, locked_by = ${opts.workerId},
            locked_until = now() + make_interval(secs => ${secs(opts.leaseMs)}), started_at = now()
-     WHERE id = (
-       SELECT id FROM jobs
+      FROM (
+       SELECT id, started_at FROM jobs
         WHERE queue = ${opts.queue} AND status = 'queued' AND type IN (${types})
           AND run_after <= now() AND (expires_at IS NULL OR expires_at > now())
         ORDER BY priority, run_after, created_at
         LIMIT 1
-        FOR UPDATE SKIP LOCKED)
-    RETURNING *`));
+        FOR UPDATE SKIP LOCKED) AS prev
+     WHERE j.id = prev.id
+    RETURNING j.*, prev.started_at IS NOT NULL AS started_before`));
   return claimed[0] ? toJob(claimed[0]) : null;
 }
 

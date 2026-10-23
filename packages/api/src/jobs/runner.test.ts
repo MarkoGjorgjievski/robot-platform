@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, jobs, sourceVerifications } from '@robot/db';
+import { db, jobs, sourceVerifications, driftChecks } from '@robot/db';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
-import { enqueueJob, claimJob, jobQueueName } from './queue.js';
+import { enqueueJob, claimJob, releaseJob, jobQueueName } from './queue.js';
 import { startJobRunner, type Registry, type JobRunner } from './runner.js';
 import type { JobPolicy } from './types.js';
 import { testJobDefinitions } from './test-jobs.js';
@@ -128,6 +128,37 @@ describe('startJobRunner', () => {
       await until(async () => (await get(id)).status === 'done');
       expect((await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, leftover!.id) }))!.errorMessage).toBe('stalled');
       expect((await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, mine!.id) }))!.completedAt).toBeNull();
+    } finally { await deleteTestSource(sourceId); }
+  });
+
+  it('a job given back at attempt 1 and claimed again closes the half-done rows of its earlier start', async () => {
+    const sourceId = await createTestSource({ schema: [] });
+    try {
+      const { id } = await enqueueJob(db, { type: 'redo', payload: {}, maxAttempts: 2 });
+      const [mine] = await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'h', jobId: id }).returning();
+      const [halfDone] = await db.insert(driftChecks).values({ sourceId, jobId: id }).returning();
+      await claimJob({ queue: q(), workerId: 'old:3', types: ['redo'], leaseMs: 60_000 });
+      await releaseJob(id, 'old:3');                        // a shutdown: the attempt is not spent
+      let retry: boolean | undefined;
+      start({ redo: { policy: policy({ maxAttempts: 2 }), subject: () => ({ table: 'source_verifications', id: mine!.id }), run: async (_p, ctx) => { retry = ctx.retry; return 'ok'; } } });
+      await until(async () => (await get(id)).status === 'done');
+      expect(await get(id)).toMatchObject({ attempts: 1 });
+      expect(await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, halfDone!.id) })).toMatchObject({ status: 'failed', error: 'stalled' });
+      expect(retry).toBe(true);
+      expect((await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, mine!.id) }))!.completedAt).toBeNull();
+    } finally { await deleteTestSource(sourceId); }
+  });
+
+  it('a first start closes nothing and is not a retry', async () => {
+    const sourceId = await createTestSource({ schema: [] });
+    try {
+      const { id } = await enqueueJob(db, { type: 'fresh', payload: {} });
+      const [own] = await db.insert(driftChecks).values({ sourceId, jobId: id }).returning();
+      let retry: boolean | undefined;
+      start({ fresh: { policy: policy(), run: async (_p, ctx) => { retry = ctx.retry; return 'ok'; } } });
+      await until(async () => (await get(id)).status === 'done');
+      expect(retry).toBe(false);
+      expect(await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, own!.id) })).toMatchObject({ status: 'running' });
     } finally { await deleteTestSource(sourceId); }
   });
 
