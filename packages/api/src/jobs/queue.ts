@@ -59,6 +59,16 @@ export type EnqueueSpec = {
 export async function enqueueJob(dbOrTx: DbOrTx, spec: EnqueueSpec): Promise<{ id: string; created: boolean }> {
   const queue = spec.queue ?? jobQueueName();
   const key = spec.key ?? null;
+  // A queued job of this key whose start window passed will never run: it is not handed back (the caller
+  // would wait on an answer that cannot come) but failed 'expired' here, its rows closed, and the key freed (M6).
+  if (key !== null) {
+    const late = rows<{ id: string; type: string }>(await dbOrTx.execute(sql`
+      UPDATE jobs SET status = 'failed', error = 'expired', result = ${JSON.stringify({ error: { kind: 'unavailable', message: 'expired' } })}::jsonb,
+             finished_at = now()
+       WHERE queue = ${queue} AND key = ${key} AND status = 'queued' AND expires_at < now()
+      RETURNING id, type`));
+    for (const j of late) await closeJobRows(dbOrTx, j.id, { runSentence: runSentenceFor(j.type) });
+  }
   for (let tries = 0; tries < 3; tries++) {
     const id = randomUUID();
     const due = sql`now() + make_interval(secs => ${(spec.delayMs ?? 0) / 1000})`;

@@ -10,7 +10,7 @@ import {
 } from './queue.js';
 import { JobUnavailableError, serializeError } from './errors.js';
 import { JOB_TEST_MS } from '../test-helpers/jobs.js';
-import { RUN_STOPPED } from './types.js';
+import { RUN_STOPPED, PLAN_STOPPED } from './types.js';
 
 const W = 'test-worker:1';
 const q = () => jobQueueName();
@@ -45,7 +45,20 @@ describe('enqueueJob', () => {
     expect((await get(plain.id)).runAfter.getTime()).toBe((await get(plain.id)).createdAt.getTime());
   }, JOB_TEST_MS);
 
-  it('two enqueues of one key at once make one job', async () => {
+  it('a queued job of the key whose start window passed is not handed back: it is failed expired, its rows closed, and a new one made (M6)', async () => {
+    const sourceId = await createTestSource({ schema: [] });
+    try {
+      const old = await enqueueJob(db, { type: 'plan', payload: {}, key: 'late-key', startWithinMs: -1000 });
+      const [r] = await db.insert(runs).values({ sourceId, status: 'planning', jobId: old.id }).returning();
+      const fresh = await enqueueJob(db, { type: 'plan', payload: {}, key: 'late-key', startWithinMs: 60_000 });
+      expect(fresh.created).toBe(true);
+      expect(fresh.id).not.toBe(old.id);
+      expect(await get(old.id)).toMatchObject({ status: 'failed', error: 'expired' });
+      expect(await db.query.runs.findFirst({ where: eq(runs.id, r!.id) })).toMatchObject({ status: 'failed', errorMessage: PLAN_STOPPED });
+      // One still in its window is handed back as before.
+      expect(await enqueueJob(db, { type: 'plan', payload: {}, key: 'late-key' })).toEqual({ id: fresh.id, created: false });
+    } finally { await deleteTestSource(sourceId); }
+  }, JOB_TEST_MS);  it('two enqueues of one key at once make one job', async () => {
     const [a, b] = await Promise.all([
       db.transaction((tx) => enqueueJob(tx, { type: 't', payload: { n: 1 }, key: 'same' })),
       db.transaction((tx) => enqueueJob(tx, { type: 't', payload: { n: 2 }, key: 'same' })),
