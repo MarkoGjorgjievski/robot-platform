@@ -42,11 +42,11 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 - `pnpm -r test` — the green gate (Tier 1 fixture replay + unit tests). Needs Postgres running
 - `pnpm test:judge` — calibrate the Tier 2 judge against known answers (live, paid)
 - `pnpm test:liveness` — do the corpus fixtures still match the pages their URLs serve? (live, free)
-- `pnpm test:ui:app` — `@robot/app` route smoke: signs in through `/login` as a throwaway address, walks every screen in both themes, screenshots into `docs/testing/screens/app-*.png`; needs `pnpm dev:all` running (live, free)
+- `pnpm test:ui:app` — `@robot/app` route smoke: signs in through `/login` as a throwaway address, walks every screen in both themes, screenshots into `docs/testing/screens/app-*.png`; needs `pnpm dev:all` running — the api-server, the app and the worker, which takes the smoke's captures (live, free)
 - `pnpm test:ui:staff` — staff-access smoke: a throwaway operator works on a throwaway customer's website as staff, and the customer reads the log; screenshots into `docs/testing/screens/staff-*.png`. Runs only against an isolated pair (keyless api-server on :4100 with `OPS_EMAILS=staff-smoke-op@example.com APP_ORIGINS=http://localhost:3100`, the app on :3100 with `VITE_API_URL=http://localhost:4100`, and its worker — `JOB_QUEUE=isolated-4100 WEBSITE_CHECKS=off` on both the api-server and the worker; see the top of `packages/app/src/staff-smoke.test.ts`), never `pnpm dev:all` (live, free)
 - The isolated pair's worker: `cd packages/worker && ANTHROPIC_API_KEY= JEV_SHADOW= TYPESAFE_API_KEY= WEBSITE_CHECKS=off JOB_QUEUE=isolated-4100 WORKER_STOP_FILE=<scratch>/worker.stop npx tsx src/index.ts`; stop it by creating the stop file (e.g. `touch <scratch>/worker.stop`) — it gives running jobs back, closes its browsers and exits 0 (on Windows a kill would leave its Chromium running)
 - `pnpm --filter @robot/worker exec tsx src/live-check.ts [url …]` — free live check of reachability and the listing check through an in-process worker on its own queue (keyless; no Jev)
-- Keep `JEV_SHADOW` unset in the servers a `pnpm test:ui:app` or `pnpm test:ui:staff` run talks to, or they send real, paid Jev readings for the captures the smokes trigger
+- Keep `JEV_SHADOW` unset in the worker (and the api-server) a `pnpm test:ui:app` or `pnpm test:ui:staff` run talks to: the worker takes the captures the smokes trigger, and with it set sends real, paid Jev readings for them
 - `pnpm --filter @robot/api dogfood` — Tier 2 live dogfood + LLM judge; writes `docs/testing/results/`. Needs `ANTHROPIC_API_KEY`
 - `pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — CLI test run
 - `HEADFUL=1 pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — with visible browser
@@ -74,7 +74,7 @@ Variables already set in the shell take precedence over `.env`.
 - `APP_ORIGINS` — comma-separated origins the api-server accepts (CORS); default `http://localhost:3000`. An isolated pair (app :3100 → api :4100) sets its own
 - `TYPESAFE_API_KEY` — TypeSafe (Jev) API key; with `JEV_SHADOW=1` set too, enables a Jev reading after each proof-page capture (spec 2026-10-16). Either missing, no reading runs
 - `JEV_SHADOW` — set to `1` to turn on Jev at Verify, in shadow; needs `TYPESAFE_API_KEY` too
-- `JEV_DAILY_READINGS` — readings per UTC day across the api-server (one per proof-page capture); default 2000
+- `JEV_DAILY_READINGS` — readings per UTC day across the worker, which takes every proof-page capture (one reading per capture); default 2000
 - `WEBSITE_CHECKS` — set to `on` to run the free scheduled website checks every hour (proof pages + listing sample, no AI); off by default; read by the worker (it owns the schedule)
 - `JOB_QUEUE` — the queue the api-server enqueues to and the worker claims from; default `default`. Tests use their own per file; the isolated smoke pair uses `isolated-4100`
 - `WORKER_BROWSERS` — at most this many Chromium processes in the worker at once; default 3 (at least 1)
