@@ -21,7 +21,7 @@ import { startRefreshVerify as realStartRefreshVerify } from './refresh-values.j
 import type { CheckedPage } from './run-drift-check.js';
 import { startProofPageCapture, runProofPageCaptureInSlot, type ProofPageCaptureRecord } from './proof-page-capture.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { jobsOf } from '../test-helpers/jobs.js';
+import { jobsOf, jobContext } from '../test-helpers/jobs.js';
 import { jobRegistry } from '../jobs/handlers.js';
 import { runInJob } from '../jobs/context.js';
 import { enqueueJob } from '../jobs/queue.js';
@@ -579,7 +579,28 @@ describe('drift checks through the queue (spec 2026-10-23)', () => {
     } finally { await f.cleanup(); }
   });
 
-  it('a check that is no longer running is not run again', async () => {
+  it('a stopped job writes no outcome: the row stays running — captures failing or read alike, nothing refreshed — and the next claim completes it (final review I1)', async () => {
+    const { f, capture } = await refreshSetup('drift-abort');
+    try {
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price] });
+      const session = (async (fn: (b: IBrowser) => Promise<unknown>) => fn(browser)) as never;
+      // Shutdown: the browser is closed under the check, so the re-captures throw.
+      const first = new AbortController();
+      await runInJob(jobContext('drift-check', first), () => runDriftCheck(checkId, { session, capture: async () => { first.abort('shutdown'); throw new Error('Target page, context or browser has been closed'); } }));
+      expect(await checkRow(checkId)).toMatchObject({ status: 'running', completedAt: null, error: null });
+      // Stopped while the pages came back anyway: nothing is classified into the row, nothing refreshed.
+      const second = new AbortController();
+      const spy = vi.fn(async () => null);
+      await runInJob(jobContext('drift-check', second), () => runDriftCheck(checkId, { session, capture: async (s, urls) => { second.abort('lease lost'); return capture(s, urls); }, startRefreshVerify: spy }));
+      expect(await checkRow(checkId)).toMatchObject({ status: 'running', completedAt: null });
+      expect(await db.query.valueRefreshes.findFirst({ where: eq(valueRefreshes.driftCheckId, checkId) })).toBeUndefined();
+      expect(spy).not.toHaveBeenCalled();
+      // Claimed again: it runs to the end.
+      await runInJob(jobContext('drift-check', new AbortController(), { retry: true }), () => runDriftCheck(checkId, { session, capture, startRefreshVerify: spy }));
+      expect((await checkRow(checkId))!.status).toBe('done');
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally { await f.cleanup(); }
+  }, 120_000);  it('a check that is no longer running is not run again', async () => {
     const f = await certifiedWebsite('drift-q-closed');
     try {
       const [row] = await db.insert(driftChecks).values({ sourceId: f.sourceId, status: 'failed', error: 'stalled' }).returning();

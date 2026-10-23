@@ -14,6 +14,8 @@ import { writeCaptureFile } from './capture-store.js';
 import { loadVariantCurrency } from './current-certification.js';
 import { VARIANT_SHOP } from '../test-helpers/variant-shop.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { jobContext } from '../test-helpers/jobs.js';
+import { runInJob } from '../jobs/context.js';
 
 // `runSourceVerification` never launches a real browser or calls
 // `@robot/scraper`'s `runVerification` for real — both are stubbed here, the
@@ -530,7 +532,40 @@ describe('a stopped attempt finishing late (spec 2026-10-23 §7.6)', () => {
   });
 });
 
-describe('runVerifyJob (spec 2026-10-23 §4.4)', () => {
+describe('a stopped job writes no outcome (final review I1)', () => {
+  it('stopped mid-Verify, the row stays open — failure or late pass alike, no captures stored — and the next claim completes it', async () => {
+    const { sourceId, urls, cleanup } = await makeSchemaSource('abort');
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+      const row = async () => (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) }))!;
+      const passing = {
+        outcome: { fields: { price: { key: 'price', cells: {}, certified: [{ source: 'api' as const, path: 'item.price', transform: 'identity' as const }], weakEvidence: false, aiCalled: false, incomplete: false } }, allPassed: true, aiCalls: 0 },
+        captures: Object.fromEntries(urls.map((u) => [u, fakeCapture(u, '<html></html>')])),
+        captureErrors: {},
+      };
+      // Shutdown: the browser is closed under the run, which throws.
+      const first = new AbortController();
+      runVerificationMock.mockImplementationOnce(async () => { first.abort('shutdown'); throw new Error('Target page, context or browser has been closed'); });
+      await runInJob(jobContext('verify', first), () => runVerifyJob({ sourceId, verificationId }));
+      expect(await row()).toMatchObject({ completedAt: null, errorMessage: null });
+      // Stopped, but the run came back with a pass: nothing is written or started.
+      const second = new AbortController();
+      runVerificationMock.mockImplementationOnce(async () => { second.abort('lease lost'); return passing; });
+      await runInJob(jobContext('verify', second), () => runSourceVerification(sourceId, verificationId, { startCoverage }));
+      expect(await row()).toMatchObject({ completedAt: null, errorMessage: null });
+      expect(await db.select().from(captures).where(eq(captures.sourceId, sourceId))).toEqual([]);
+      expect(saveVerifiedPathsMock).not.toHaveBeenCalled();
+      expect(startCoverage).not.toHaveBeenCalled();
+      // Claimed again: the attempt runs to the end.
+      runVerificationMock.mockResolvedValueOnce(passing);
+      await runInJob(jobContext('verify', new AbortController(), { retry: true }), () => runSourceVerification(sourceId, verificationId, { startCoverage }));
+      expect((await row()).completedAt).not.toBeNull();
+      expect((await row()).allPassed).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+});describe('runVerifyJob (spec 2026-10-23 §4.4)', () => {
   it('a row already completed is not run again', async () => {
     const { sourceId, cleanup } = await makeSchemaSource('job-done');
     try {

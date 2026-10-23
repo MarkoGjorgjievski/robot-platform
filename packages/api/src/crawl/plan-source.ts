@@ -6,7 +6,7 @@
 // PROBE_BUDGET, the `inputLabel: 'probe'` run label) is preserved exactly.
 
 import { TRPCError } from '@trpc/server';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { SchemaAgent, snapshotUsage } from '@robot/agent';
 import { planRun, type PlannedItem, type PlanInputReport } from '@robot/scraper';
 import { runs, runItems, sources } from '@robot/db';
@@ -15,6 +15,15 @@ import { withBrowserSession } from '../browser-session.js';
 import { PROBE_BUDGET } from './probe.js';
 import { effectiveSchema } from './effective-schema.js';
 import { addRunCost, costSince } from './record-run-cost.js';
+import { jobStopped } from '../jobs/context.js';
+
+/** The run was closed (stalled, stopped) before planning could write it: nothing is written (final review M2). */
+export class PlanningClosedError extends Error {
+  constructor(runId: string) {
+    super(`Run ${runId} is no longer planning; its plan was not written.`);
+    this.name = 'PlanningClosedError';
+  }
+}
 
 /** Warnings + errors as one free-text block, or null when planning was clean. */
 export function formatPlanLog(
@@ -116,6 +125,12 @@ export async function planSource(
 
   const probe = opts.probe === true;
 
+  // A run closed before its job started (a stalled plan claimed again) is not walked: nothing would be written.
+  if (opts.runId) {
+    const existing = await db.query.runs.findFirst({ where: eq(runs.id, opts.runId), columns: { status: true } });
+    if (existing?.status !== 'planning') throw new PlanningClosedError(opts.runId);
+  }
+
   // Nothing has been written yet, so a failure above leaves no trace to clean up.
   const [run] = opts.runId
     ? [{ id: opts.runId }]
@@ -163,68 +178,81 @@ export async function planSource(
       },
       { browser, agent: new SchemaAgent() },
     ));
+    // Stopped (stuck, lease lost, shutdown): the walk ran on a browser closed under it. Nothing is written;
+    // the run is the runner's or the next claim's (final review I1).
+    if (jobStopped()) throw new Error(`planning run ${run!.id} stopped`);
 
     // onConflictDoNothing() is the dedupe backstop for a URL surfaced twice
     // (e.g. two input rows landing on the same listing entry) — it cannot
     // throw on the unique (run_id, url) constraint. .returning() reports
     // only the rows actually written, so the counts below describe what
     // was persisted, not what planRun merely proposed.
-    let persisted: Array<{ kind: string }> = [];
-    if (outcome.items.length > 0) {
-      const now = new Date();
-      persisted = await db.insert(runItems).values(
-        outcome.items.map((item: PlannedItem) => ({
-          runId: run!.id,
-          kind: item.kind,
-          url: item.url,
-          inputIndex: item.inputIndex,
-          inputValues: item.inputValues,
-          listingValues: item.listingValues,
-          pageNumber: item.pageNumber,
-          // A listing item is not work waiting to happen: planning ALREADY
-          // fetched and processed that page. Leaving it `pending` would park
-          // rows in a queue phase 2 only ever claims `kind='detail'` from,
-          // and any status rollup that forgot to filter `kind` would read
-          // a finished run as unfinished.
-          ...(item.kind === 'listing'
-            ? { status: 'done' as const, completedAt: now }
-            : { status: 'pending' as const }),
-        })),
-      ).onConflictDoNothing().returning({ kind: runItems.kind });
-    }
+    // One transaction, on a run still planning (M2): a run closed meanwhile (the runner stopped this
+    // attempt) gets no items and keeps its status and sentence.
+    const written = await db.transaction(async (tx) => {
+      const [open] = await tx.select({ id: runs.id }).from(runs)
+        .where(and(eq(runs.id, run!.id), eq(runs.status, 'planning'))).for('update');
+      if (!open) return null;
+      let persisted: Array<{ kind: string }> = [];
+      if (outcome.items.length > 0) {
+        const now = new Date();
+        persisted = await tx.insert(runItems).values(
+          outcome.items.map((item: PlannedItem) => ({
+            runId: run!.id,
+            kind: item.kind,
+            url: item.url,
+            inputIndex: item.inputIndex,
+            inputValues: item.inputValues,
+            listingValues: item.listingValues,
+            pageNumber: item.pageNumber,
+            // A listing item is not work waiting to happen: planning ALREADY
+            // fetched and processed that page. Leaving it `pending` would park
+            // rows in a queue phase 2 only ever claims `kind='detail'` from,
+            // and any status rollup that forgot to filter `kind` would read
+            // a finished run as unfinished.
+            ...(item.kind === 'listing'
+              ? { status: 'done' as const, completedAt: now }
+              : { status: 'pending' as const }),
+          })),
+        ).onConflictDoNothing().returning({ kind: runItems.kind });
+      }
 
-    const listingPages = persisted.filter((i) => i.kind === 'listing').length;
-    const itemCount = persisted.length - listingPages;
+      const listingPages = persisted.filter((i) => i.kind === 'listing').length;
+      const itemCount = persisted.length - listingPages;
 
-    // Every input errored and nothing was planned: there is no work list, so
-    // calling this run `planned` invites phase 2 to run on nothing and hides
-    // the failure behind a green status.
-    const allInputsFailed =
-      outcome.inputs.length > 0 &&
-      outcome.inputs.every((i) => i.status === 'error') &&
-      itemCount === 0;
+      // Every input errored and nothing was planned: there is no work list, so
+      // calling this run `planned` invites phase 2 to run on nothing and hides
+      // the failure behind a green status.
+      const allInputsFailed =
+        outcome.inputs.length > 0 &&
+        outcome.inputs.every((i) => i.status === 'error') &&
+        itemCount === 0;
 
-    // Warnings and errors go to runs.logs, not runs.errorMessage: Plan B's
-    // DB-polling crawl.status can only see what is persisted, and logs is
-    // the free-text "what happened during this run" field. errorMessage is
-    // the fatal-reason channel the dashboard renders as a red banner — a
-    // `planned` run that merely carried warnings must not light that up. It
-    // is set below only when the run genuinely failed.
-    const logs = formatPlanLog(outcome.warnings, outcome.errors);
+      // Warnings and errors go to runs.logs, not runs.errorMessage: Plan B's
+      // DB-polling crawl.status can only see what is persisted, and logs is
+      // the free-text "what happened during this run" field. errorMessage is
+      // the fatal-reason channel the dashboard renders as a red banner — a
+      // `planned` run that merely carried warnings must not light that up. It
+      // is set below only when the run genuinely failed.
+      const logs = formatPlanLog(outcome.warnings, outcome.errors);
 
-    await db.update(runs)
-      .set({
-        status: allInputsFailed ? 'failed' : 'planned',
-        logs,
-        // The first input's own reason (a blocked listing's message is the
-        // capture verdict's customer sentence), not a count — the count and
-        // every other error stay in `logs`.
-        errorMessage: allInputsFailed
-          ? (outcome.errors[0]?.message ?? `planning failed for all ${outcome.inputs.length} input(s)`)
-          : null,
-        completedAt: new Date(),
-      })
-      .where(eq(runs.id, run!.id));
+      await tx.update(runs)
+        .set({
+          status: allInputsFailed ? 'failed' : 'planned',
+          logs,
+          // The first input's own reason (a blocked listing's message is the
+          // capture verdict's customer sentence), not a count — the count and
+          // every other error stay in `logs`.
+          errorMessage: allInputsFailed
+            ? (outcome.errors[0]?.message ?? `planning failed for all ${outcome.inputs.length} input(s)`)
+            : null,
+          completedAt: new Date(),
+        })
+        .where(eq(runs.id, run!.id));
+      return { itemCount, listingPages, allInputsFailed };
+    });
+    if (!written) throw new PlanningClosedError(run!.id);
+    const { itemCount, listingPages, allInputsFailed } = written;
 
     return {
       runId: run!.id,
@@ -237,12 +265,15 @@ export async function planSource(
       cacheWarm: outcome.cacheWarm,
     };
   } catch (err) {
-    await db.update(runs)
-      // safeErrorMessage, not `(err as Error).message`: a rejection that
-      // is not an Error (a string, a driver object) would otherwise write
-      // `undefined` into the run's fatal-reason field.
-      .set({ status: 'failed', errorMessage: safeErrorMessage(err), completedAt: new Date() })
-      .where(eq(runs.id, run!.id));
+    // Stopped: the run stays planning for the runner or the next claim (final review I1). Closed: left as it is (M2).
+    if (!jobStopped() && !(err instanceof PlanningClosedError)) {
+      await db.update(runs)
+        // safeErrorMessage, not `(err as Error).message`: a rejection that
+        // is not an Error (a string, a driver object) would otherwise write
+        // `undefined` into the run's fatal-reason field.
+        .set({ status: 'failed', errorMessage: safeErrorMessage(err), completedAt: new Date() })
+        .where(and(eq(runs.id, run!.id), eq(runs.status, 'planning')));
+    }
     throw err;
   } finally {
     // The planning walk's own model calls (pagination detection, the

@@ -18,3 +18,10 @@ const store = new AsyncLocalStorage<JobContext>();
 export function currentJob(): JobContext | undefined { return store.getStore(); }
 export function currentJobId(): string | null { return store.getStore()?.jobId ?? null; }
 export function runInJob<T>(ctx: JobContext, fn: () => Promise<T>): Promise<T> { return store.run(ctx, fn); }
+
+/**
+ * The job this code runs in was stopped (stuck, its lease lost, shutdown). Its handler writes no outcome
+ * from then on: the browser it was using was closed under it, so whatever it would write is the stop, not
+ * the page — and the row is the runner's (stuck: closed 'stalled') or the next claim's (given back, reaped).
+ */
+export function jobStopped(): boolean { return store.getStore()?.signal.aborted === true; }

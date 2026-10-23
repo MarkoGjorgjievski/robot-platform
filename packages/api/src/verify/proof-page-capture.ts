@@ -14,7 +14,7 @@ import { safeErrorMessage } from '../crawl/plan-source.js';
 import { writeCaptureFile, readCaptureFile, persistTiles, type StoredCaptureRef } from './capture-store.js';
 import { startJevReading } from './jev-reading.js';
 import { enqueue } from '../jobs/enqueue.js';
-import { currentJobId } from '../jobs/context.js';
+import { currentJobId, jobStopped } from '../jobs/context.js';
 import { isJobLive } from '../jobs/queue.js';
 
 /** Every write after the start is fenced on it: a row closed meanwhile (stalled, retried) is left as it is (spec 2026-10-23 §7.6). */
@@ -101,6 +101,8 @@ export async function runProofPageCapture(captureId: string, session: Session = 
   }
   try {
     const { capture, boxes } = await session((browser) => captureProofPage(browser, row.url));
+    // Stopped meanwhile (stuck, lease lost, shutdown): the row is the runner's or the next claim's now (final review I1).
+    if (jobStopped()) return;
     if (hostname) reportVerdict(hostname, capture.verdict);
     const tiles = await persistTiles(capture.screenshotTiles);
     await writeCaptureFile(captureId, capture);
@@ -125,6 +127,8 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     // else is a throw from before any verdict existed — a Playwright
     // exception, hundreds of words, that must never land in `error` for the
     // proof card to show verbatim (campaign 2, 2026-10-11).
+    // Stopped: this failure is the closed browser, not the page — nothing is written (final review I1).
+    if (jobStopped()) return;
     console.error(`[proof-page] capture ${captureId} failed:`, err);
     const verdict = err instanceof CaptureProblemError ? err.verdict : err instanceof CaptureError ? { kind: err.kind } : undefined;
     if (verdict && hostname) reportVerdict(hostname, err instanceof CaptureProblemError && err.verdict ? err.verdict : verdict.kind);

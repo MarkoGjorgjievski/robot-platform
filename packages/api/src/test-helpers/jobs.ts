@@ -5,6 +5,7 @@ import { eq, and, asc } from 'drizzle-orm';
 import { db, jobs } from '@robot/db';
 import { jobQueueName, openJobCount, type JobRow } from '../jobs/queue.js';
 import { startJobRunner, type Registry } from '../jobs/runner.js';
+import type { JobContext } from '../jobs/context.js';
 
 async function registryOrDefault(registry?: Registry): Promise<Registry> {
   if (registry) return registry;
@@ -39,4 +40,12 @@ export async function runQueuedJobs(opts: { registry?: Registry; timeoutMs?: num
 export async function jobsOf(type: string): Promise<JobRow[]> {
   const found = await db.query.jobs.findMany({ where: and(eq(jobs.queue, jobQueueName()), eq(jobs.type, type)), orderBy: [asc(jobs.createdAt)] });
   return found as unknown as JobRow[];
+}
+
+/** A job context for running a handler body inline, as the runner would; abort `controller` to stop it. */
+export function jobContext(type: string, controller = new AbortController(), opts: { jobId?: string; retry?: boolean } = {}): JobContext {
+  return {
+    jobId: opts.jobId ?? '00000000-0000-4000-8000-000000000000', claim: 'test#00000000', type, lane: 'background', attempt: 1,
+    retry: opts.retry ?? false, signal: controller.signal, progress: () => {},
+  };
 }

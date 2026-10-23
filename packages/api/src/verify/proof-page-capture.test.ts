@@ -18,7 +18,8 @@ import { TILE_HEIGHT, CaptureError, BROWSER_UNAVAILABLE, type IBrowser, type Pag
 import { backoffAnswer, reportVerdict, _resetBackoffForTests } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, resolveStalledProofPage, PROOF_PAGE_STALL_MS, type ProofPageMeta } from './proof-page-capture.js';
-import { jobsOf } from '../test-helpers/jobs.js';
+import { jobsOf, jobContext } from '../test-helpers/jobs.js';
+import { runInJob } from '../jobs/context.js';
 import { enqueueJob } from '../jobs/queue.js';
 import { readCaptureFile } from './capture-store.js';
 import { signedInCaller } from '../test-helpers/identity.js';
@@ -257,7 +258,28 @@ describe('proof-page captures go through the queue (spec 2026-10-23 §4.4)', () 
   });
 });
 
-describe('the Jev reading after a capture (spec 2026-10-16 §3)', () => {
+describe('a stopped job writes no outcome (final review I1)', () => {
+  it('stopped mid-capture, the row stays capturing — failure or late success alike — and the next claim captures it', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-abort', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { fire: false });
+      const status = async () => ((await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta).status;
+      // Shutdown: the runner aborts the job and the gate closes its browser, so the capture throws.
+      const first = new AbortController();
+      await runInJob(jobContext('proof-page-capture', first), () => runProofPageCapture(captureId,
+        sessionWith(async () => { first.abort('shutdown'); throw new Error('Target page, context or browser has been closed'); }), { jev: false }));
+      expect(await status()).toBe('capturing');
+      // Stopped, but the page came back anyway: not written either.
+      const second = new AbortController();
+      await runInJob(jobContext('proof-page-capture', second), () => runProofPageCapture(captureId,
+        sessionWith(async (u) => { second.abort('lease lost'); return fakeCapture(u); }), { jev: false }));
+      expect(await status()).toBe('capturing');
+      // The job claimed again: its attempt runs to the end.
+      await runInJob(jobContext('proof-page-capture', new AbortController(), { retry: true }), () => runProofPageCapture(captureId, sessionWith(async (u) => fakeCapture(u)), { jev: false }));
+      expect(await status()).toBe('captured');
+    } finally { await f.cleanup(); }
+  });
+});describe('the Jev reading after a capture (spec 2026-10-16 §3)', () => {
   // A page whose Price is ambiguous (a sale price and a crossed-out one): with the switch on it is read.
   const pricedCapture = (url: string): PageCapture => ({
     ...fakeCapture(url),

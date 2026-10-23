@@ -34,6 +34,7 @@ import { recordJevAgreement } from './jev-agreement.js';
 import { certifyingResult, loadFieldCurrency } from './current-certification.js';
 import { decideHolds, writeHolds, type HoldPlan } from './holds.js';
 import { nextCheckAt } from './check-schedule.js';
+import { jobStopped } from '../jobs/context.js';
 
 /**
  * Strips ANSI escape codes (e.g. the dim/reset styling Playwright's own
@@ -223,7 +224,9 @@ export async function runSourceVerification(
       });
       return { run, variantResults, holdPlan };
     });
-    const cost = estimateCostUsd(diffUsage(before, snapshotUsage())).usd;
+    // Stopped meanwhile (stuck, lease lost, shutdown): its pages were read by a browser closed under it.
+    // Nothing is stored or written; the row is the runner's or the next claim's (final review I1).
+    if (jobStopped()) return;    const cost = estimateCostUsd(diffUsage(before, snapshotUsage())).usd;
 
     const captureRefs: Record<string, StoredCaptureRef> = {};
     for (const url of set.urls) {
@@ -236,7 +239,7 @@ export async function runSourceVerification(
 
     // One transaction (spec 2026-10-21 §3.1): no reader sees a field uncertified between the result and its hold.
     const wrote = await db.transaction(async (tx) => {
-      const [won] = await tx.update(sourceVerifications).set({
+      if (jobStopped()) return false;      const [won] = await tx.update(sourceVerifications).set({
         results: run.outcome.fields,
         variantResults,
         captures: captureRefs,
@@ -277,7 +280,8 @@ export async function runSourceVerification(
     void recordJevAgreement(verificationId, sourceId, fields, set, captureRefs, run.outcome.fields)
       .catch((err) => console.error(`[jev] agreement for ${verificationId} failed:`, err));
   } catch (err) {
-    console.error(`[verify] verification ${verificationId} failed:`, err);
+    // Stopped: the failure is the closed browser, not the website — the row is left open (final review I1).
+    if (jobStopped()) return;    console.error(`[verify] verification ${verificationId} failed:`, err);
     try {
       await db.update(sourceVerifications).set({
         errorMessage: stripAnsi(safeErrorMessage(err)).slice(0, 1000),
