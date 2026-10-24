@@ -27,6 +27,12 @@ spec's estimate (≈15× at `R` = 6):
 800, after-4 8,000, after-6 8,000), 0 mismatches. Real pages (`real-sites.md`): 15 pages, 0 value and 0 shown differences; median
 today 11,827 ms, lean 12,180 ms (a fresh lean state per page, so every page pays its first-sight fallbacks).
 
+**Real pages, re-run on the final branch head** (after the review fixes, `real-sites.md` as committed): 15 pages,
+0 value and 0 shown differences again, the same modes per page (5 lean, 10 lean+full) and the same not-shown fields;
+only the network moved the timings (median today 8,272 ms, lean 9,475 ms; Chromium peak 1,164 MB). The paragraph and
+the projection below quote the first run (11,827 / 12,180 ms, 1,049 MB); with the re-run's 1,164 MB per run the
+memory rule still allows one run on this machine.
+
 **Real pages, honestly.** Gymshark took lean on every page (median 5,308 ms vs 10,423 ms today). Ikea and Skullcandy
 fell back (`lean+full:unshown` — Ikea title/description, Skullcandy sku/brand, fields today's capture also reads as
 not shown) on every page in the fresh-state pass, so there lean was slower than today (16.1 s vs 12.8 s; 12.2 s vs
