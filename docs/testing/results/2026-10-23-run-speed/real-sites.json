@@ -1,0 +1,1283 @@
+{
+ "at": "2026-10-24T03:14:04.467Z",
+ "summary": {
+  "pages": 15,
+  "errors": 0,
+  "todayMedianMs": 11827,
+  "leanMedianMs": 12180,
+  "modes": {
+   "lean": 5,
+   "full": 0,
+   "leanFull": 10
+  },
+  "switchedPages": 0,
+  "valueDiffPages": 0,
+  "leanWrittenValueDiffPages": 0,
+  "shownDiffPages": 0,
+  "chromiumPeakMb": 1049,
+  "runLike": [
+   {
+    "site": "www.ikea.com",
+    "summary": "run run-like: lean 1, lean+full 3 (check 2, miss 0, unshown 1, verdict 0), full 0",
+    "switched": null
+   },
+   {
+    "site": "www.gymshark.com",
+    "summary": "run run-like: lean 3, lean+full 2 (check 2, miss 0, unshown 0, verdict 0), full 0",
+    "switched": null
+   },
+   {
+    "site": "www.skullcandy.com",
+    "summary": "run run-like: lean 2, lean+full 3 (check 2, miss 0, unshown 1, verdict 0), full 0",
+    "switched": null
+   }
+  ],
+  "skipped": []
+ },
+ "perSite": [
+  {
+   "site": "www.ikea.com",
+   "pages": 5,
+   "errors": 0,
+   "todayMedianMs": 12805,
+   "leanMedianMs": 16120,
+   "modes": {
+    "lean": 0,
+    "full": 0,
+    "leanFull": 5
+   },
+   "valueDiffPages": 0,
+   "shownDiffPages": 0
+  },
+  {
+   "site": "www.gymshark.com",
+   "pages": 5,
+   "errors": 0,
+   "todayMedianMs": 10423,
+   "leanMedianMs": 5308,
+   "modes": {
+    "lean": 5,
+    "full": 0,
+    "leanFull": 0
+   },
+   "valueDiffPages": 0,
+   "shownDiffPages": 0
+  },
+  {
+   "site": "www.skullcandy.com",
+   "pages": 5,
+   "errors": 0,
+   "todayMedianMs": 8020,
+   "leanMedianMs": 12180,
+   "modes": {
+    "lean": 0,
+    "full": 0,
+    "leanFull": 5
+   },
+   "valueDiffPages": 0,
+   "shownDiffPages": 0
+  }
+ ],
+ "rows": [
+  {
+   "site": "www.ikea.com",
+   "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-3-seat-sofa-with-open-end-kelinge-beige-s89622109/",
+   "order": "today-first",
+   "todayMs": 15639,
+   "leanMs": 16120,
+   "todayCaptureMs": 14281,
+   "leanCaptureMs": 5595,
+   "lean": {
+    "mode": "lean+full",
+    "reason": "unshown",
+    "fields": [
+     "title",
+     "description"
+    ],
+    "leanMs": 5595
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "SÖDERHAMN 3-seat sofa - with open end/Kelinge beige",
+     "price": 1800,
+     "main_image": "https://www.ikea.com/my/en/images/products/soederhamn-3-seat-sofa-with-open-end-kelinge-beige__1499503_pe1006681_s5.jpg",
+     "sku": "896.221.09",
+     "brand": "IKEA",
+     "in_stock": true,
+     "rating": 5,
+     "description": "SÖDERHAMN 3-seat sofa - with open end/Kelinge beige. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra support. The sofa's sections can be used freestanding or combined in different ways to get a size and shape that suits you and your home."
+    },
+    "shown": {
+     "title": false,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": false
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "SÖDERHAMN 3-seat sofa - with open end/Kelinge beige",
+     "price": 1800,
+     "main_image": "https://www.ikea.com/my/en/images/products/soederhamn-3-seat-sofa-with-open-end-kelinge-beige__1499503_pe1006681_s5.jpg",
+     "sku": "896.221.09",
+     "brand": "IKEA",
+     "in_stock": true,
+     "rating": 5,
+     "description": "SÖDERHAMN 3-seat sofa - with open end/Kelinge beige. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra support. The sofa's sections can be used freestanding or combined in different ways to get a size and shape that suits you and your home."
+    },
+    "shown": {
+     "title": false,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": false
+    }
+   },
+   "chromiumMb": 485
+  },
+  {
+   "site": "www.ikea.com",
+   "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
+   "url": "https://www.ikea.com/my/en/p/vimle-3-seat-sofa-with-chaise-longue-with-wide-armrests-knaebaeck-grey-green-s69635037/",
+   "order": "lean-first",
+   "todayMs": 12119,
+   "leanMs": 16812,
+   "todayCaptureMs": 11004,
+   "leanCaptureMs": 6002,
+   "lean": {
+    "mode": "lean+full",
+    "reason": "unshown",
+    "fields": [
+     "title",
+     "description"
+    ],
+    "leanMs": 6002
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "VIMLE 3-seat sofa with chaise longue - with wide armrests/Knäbäck grey-green",
+     "price": 3945,
+     "main_image": "https://www.ikea.com/my/en/images/products/vimle-3-seat-sofa-with-chaise-longue-with-wide-armrests-knaebaeck-grey-green__1544797_pe1019340_s5.jpg",
+     "sku": "696.350.37",
+     "brand": "IKEA",
+     "in_stock": true,
+     "rating": 5,
+     "description": "VIMLE 3-seat sofa with chaise longue - with wide armrests/Knäbäck grey-green. This soft sofa will have a long life since the seat cushions are filled with high resilience foam that gives good support for your body and quickly regains its original shape when you get up."
+    },
+    "shown": {
+     "title": false,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": false
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "VIMLE 3-seat sofa with chaise longue - with wide armrests/Knäbäck grey-green",
+     "price": 3945,
+     "main_image": "https://www.ikea.com/my/en/images/products/vimle-3-seat-sofa-with-chaise-longue-with-wide-armrests-knaebaeck-grey-green__1544797_pe1019340_s5.jpg",
+     "sku": "696.350.37",
+     "brand": "IKEA",
+     "in_stock": true,
+     "rating": 5,
+     "description": "VIMLE 3-seat sofa with chaise longue - with wide armrests/Knäbäck grey-green. This soft sofa will have a long life since the seat cushions are filled with high resilience foam that gives good support for your body and quickly regains its original shape when you get up."
+    },
+    "shown": {
+     "title": false,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": false
+    }
+   },
+   "chromiumMb": 438
+  },
+  {
+   "site": "www.ikea.com",
+   "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+   "order": "today-first",
+   "todayMs": 12805,
+   "leanMs": 16099,
+   "todayCaptureMs": 11722,
+   "leanCaptureMs": 5393,
+   "lean": {
+    "mode": "lean+full",
+    "reason": "unshown",
+    "fields": [
+     "title",
+     "description"
+    ],
+    "leanMs": 5393
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "SÖDERHAMN 4-seat sofa with chaise longue - and open end/Kelinge beige",
+     "price": 2695,
+     "main_image": "https://www.ikea.com/my/en/images/products/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige__1499644_pe1006772_s5.jpg",
+     "sku": "996.216.75",
+     "brand": "IKEA",
+     "in_stock": true,
+     "rating": 4,
+     "description": "SÖDERHAMN 4-seat sofa with chaise longue - and open end/Kelinge beige. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra support. If you need a larger sofa, you can add a section or two to your existing combination."
+    },
+    "shown": {
+     "title": false,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": false
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "SÖDERHAMN 4-seat sofa with chaise longue - and open end/Kelinge beige",
+     "price": 2695,
+     "main_image": "https://www.ikea.com/my/en/images/products/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige__1499644_pe1006772_s5.jpg",
+     "sku": "996.216.75",
+     "brand": "IKEA",
+     "in_stock": true,
+     "rating": 4,
+     "description": "SÖDERHAMN 4-seat sofa with chaise longue - and open end/Kelinge beige. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra support. If you need a larger sofa, you can add a section or two to your existing combination."
+    },
+    "shown": {
+     "title": false,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": false
+    }
+   },
+   "chromiumMb": 437
+  },
+  {
+   "site": "www.ikea.com",
+   "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
+   "url": "https://www.ikea.com/my/en/p/lillesaeter-4-seat-sofa-gunnared-bright-green-yellow-s49614272/",
+   "order": "lean-first",
+   "todayMs": 12311,
+   "leanMs": 18443,
+   "todayCaptureMs": 11142,
+   "leanCaptureMs": 8040,
+   "lean": {
+    "mode": "lean+full",
+    "reason": "unshown",
+    "fields": [
+     "title",
+     "rating",
+     "description"
+    ],
+    "leanMs": 8040
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "LILLESÄTER 4-seat sofa - Gunnared bright green-yellow",
+     "price": 2895,
+     "main_image": "https://www.ikea.com/my/en/images/products/lillesaeter-4-seat-sofa-gunnared-bright-green-yellow__1576115_pe1032232_s5.jpg",
+     "sku": "496.142.72",
+     "brand": "IKEA",
+     "in_stock": true,
+     "rating": 0,
+     "description": "LILLESÄTER 4-seat sofa - Gunnared bright green-yellow. Suitable for use in public environments. This cover is made of dope-dyed Gunnared fabric in polyester. It is a durable fabric with a wool-like feel, a warm look and a two-toned melange effect."
+    },
+    "shown": {
+     "title": false,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": false,
+     "description": false
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "LILLESÄTER 4-seat sofa - Gunnared bright green-yellow",
+     "price": 2895,
+     "main_image": "https://www.ikea.com/my/en/images/products/lillesaeter-4-seat-sofa-gunnared-bright-green-yellow__1576115_pe1032232_s5.jpg",
+     "sku": "496.142.72",
+     "brand": "IKEA",
+     "in_stock": true,
+     "rating": 0,
+     "description": "LILLESÄTER 4-seat sofa - Gunnared bright green-yellow. Suitable for use in public environments. This cover is made of dope-dyed Gunnared fabric in polyester. It is a durable fabric with a wool-like feel, a warm look and a two-toned melange effect."
+    },
+    "shown": {
+     "title": false,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": false,
+     "description": false
+    }
+   },
+   "chromiumMb": 430
+  },
+  {
+   "site": "www.ikea.com",
+   "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
+   "url": "https://www.ikea.com/my/en/p/landskrona-three-seat-sofa-grann-bomstad-black-metal-s79031701/",
+   "order": "today-first",
+   "todayMs": 12871,
+   "leanMs": 15945,
+   "todayCaptureMs": 11767,
+   "leanCaptureMs": 5481,
+   "lean": {
+    "mode": "lean+full",
+    "reason": "unshown",
+    "fields": [
+     "title",
+     "description"
+    ],
+    "leanMs": 5481
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "LANDSKRONA Three-seat sofa - Grann/Bomstad black/metal",
+     "price": 3995,
+     "main_image": "https://www.ikea.com/my/en/images/products/landskrona-three-seat-sofa-grann-bomstad-black-metal__1576905_pe1032802_s5.jpg",
+     "sku": "790.317.01",
+     "brand": "IKEA",
+     "in_stock": true,
+     "rating": 5,
+     "description": "LANDSKRONA Three-seat sofa - Grann/Bomstad black/metal. Contact areas with soft, dyed-through 1.2 mm thick grain leather that is supple and smooth to the touch. The outer surfaces are covered in a durable coated fabric with the same look and feel as leather. Fixed cover."
+    },
+    "shown": {
+     "title": false,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": false
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "LANDSKRONA Three-seat sofa - Grann/Bomstad black/metal",
+     "price": 3995,
+     "main_image": "https://www.ikea.com/my/en/images/products/landskrona-three-seat-sofa-grann-bomstad-black-metal__1576905_pe1032802_s5.jpg",
+     "sku": "790.317.01",
+     "brand": "IKEA",
+     "in_stock": true,
+     "rating": 5,
+     "description": "LANDSKRONA Three-seat sofa - Grann/Bomstad black/metal. Contact areas with soft, dyed-through 1.2 mm thick grain leather that is supple and smooth to the touch. The outer surfaces are covered in a durable coated fabric with the same look and feel as leather. Fixed cover."
+    },
+    "shown": {
+     "title": false,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": false
+    }
+   },
+   "chromiumMb": 436
+  },
+  {
+   "site": "www.gymshark.com",
+   "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
+   "url": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26",
+   "order": "today-first",
+   "todayMs": 12809,
+   "leanMs": 4892,
+   "todayCaptureMs": 12294,
+   "leanCaptureMs": 4811,
+   "lean": {
+    "mode": "lean",
+    "reason": null,
+    "fields": [],
+    "leanMs": 4811
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "Whitney Mid-Rise Leggings",
+     "price": 54,
+     "main_image": "https://cdn.shopify.com/s/files/1/0156/6146/files/images-WhitneyMidRiseLeggingGSBlackB6B2A_BB2J_2089_V1.jpg?v=1773329267",
+     "sku": "B6B2A-BB2J",
+     "brand": "Gymshark",
+     "in_stock": true,
+     "rating": 4.1,
+     "description": "Made with our ButterSmoothTM fabric. Designed for lifting. These leggings are mid rise and made from stretchy, buttery soft, squat-proof fabric."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "Whitney Mid-Rise Leggings",
+     "price": 54,
+     "main_image": "https://cdn.shopify.com/s/files/1/0156/6146/files/images-WhitneyMidRiseLeggingGSBlackB6B2A_BB2J_2089_V1.jpg?v=1773329267",
+     "sku": "B6B2A-BB2J",
+     "brand": "Gymshark",
+     "in_stock": true,
+     "rating": 4.1,
+     "description": "Made with our ButterSmoothTM fabric. Designed for lifting. These leggings are mid rise and made from stretchy, buttery soft, squat-proof fabric."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "chromiumMb": 1044
+  },
+  {
+   "site": "www.gymshark.com",
+   "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
+   "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-pink-aw26",
+   "order": "lean-first",
+   "todayMs": 9017,
+   "leanMs": 7822,
+   "todayCaptureMs": 8338,
+   "leanCaptureMs": 7748,
+   "lean": {
+    "mode": "lean",
+    "reason": null,
+    "fields": [],
+    "leanMs": 7748
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "Everyday Seamless Leggings",
+     "price": 38,
+     "main_image": "https://cdn.shopify.com/s/files/1/0156/6146/files/EverydaySeamlessLeggingsGSStrengthPinkB7A3L_KDM6_4620.jpg?v=1784726264",
+     "sku": "B7A3L-KDM6",
+     "brand": "Gymshark",
+     "in_stock": true,
+     "rating": 3.4,
+     "description": "Designed for any kind of training such as hybrid, lifting and studio. These leggings are high waisted and made from soft seamless fabric."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "Everyday Seamless Leggings",
+     "price": 38,
+     "main_image": "https://cdn.shopify.com/s/files/1/0156/6146/files/EverydaySeamlessLeggingsGSStrengthPinkB7A3L_KDM6_4620.jpg?v=1784726264",
+     "sku": "B7A3L-KDM6",
+     "brand": "Gymshark",
+     "in_stock": true,
+     "rating": 3.4,
+     "description": "Designed for any kind of training such as hybrid, lifting and studio. These leggings are high waisted and made from soft seamless fabric."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "chromiumMb": 1049
+  },
+  {
+   "site": "www.gymshark.com",
+   "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
+   "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-leggings-leggings-blue-aw26-b4b8h-uctn",
+   "order": "today-first",
+   "todayMs": 11827,
+   "leanMs": 4899,
+   "todayCaptureMs": 11308,
+   "leanCaptureMs": 4824,
+   "lean": {
+    "mode": "lean",
+    "reason": null,
+    "fields": [],
+    "leanMs": 4824
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "Everyday Seamless Flared Leggings",
+     "price": 38,
+     "main_image": "https://cdn.shopify.com/s/files/1/0156/6146/files/EverydaySeamlessFlare_GSHeavyBlueB4B8H_UCTN_0201_V2.jpg?v=1785311464",
+     "sku": "B4B8H-UCTN",
+     "brand": "Gymshark",
+     "in_stock": true,
+     "rating": 3.6,
+     "description": "Designed for any kind of training such as running, lifting, studio. These leggings are flared fit and made from soft seamless fabric."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "Everyday Seamless Flared Leggings",
+     "price": 38,
+     "main_image": "https://cdn.shopify.com/s/files/1/0156/6146/files/EverydaySeamlessFlare_GSHeavyBlueB4B8H_UCTN_0201_V2.jpg?v=1785311464",
+     "sku": "B4B8H-UCTN",
+     "brand": "Gymshark",
+     "in_stock": true,
+     "rating": 3.6,
+     "description": "Designed for any kind of training such as running, lifting, studio. These leggings are flared fit and made from soft seamless fabric."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "chromiumMb": 829
+  },
+  {
+   "site": "www.gymshark.com",
+   "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
+   "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-shorts-shorts-brown-aw26",
+   "order": "lean-first",
+   "todayMs": 7916,
+   "leanMs": 8693,
+   "todayCaptureMs": 7371,
+   "leanCaptureMs": 8613,
+   "lean": {
+    "mode": "lean",
+    "reason": null,
+    "fields": [],
+    "leanMs": 8613
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "Everyday Seamless Shorts",
+     "price": 28,
+     "main_image": "https://cdn.shopify.com/s/files/1/0156/6146/files/EverydaySeamlessShortsGSEspressoBrownBBA8M_NDJ1_3490B6A8M_NDJ1.jpg?v=1785308220",
+     "sku": "B6A8M-NDJ1",
+     "brand": "Gymshark",
+     "in_stock": true,
+     "rating": 3.7,
+     "description": "Designed for any kind of training such as running, lifting, studio. These shorts are high waisted and made from soft seamless fabric."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "Everyday Seamless Shorts",
+     "price": 28,
+     "main_image": "https://cdn.shopify.com/s/files/1/0156/6146/files/EverydaySeamlessShortsGSEspressoBrownBBA8M_NDJ1_3490B6A8M_NDJ1.jpg?v=1785308220",
+     "sku": "B6A8M-NDJ1",
+     "brand": "Gymshark",
+     "in_stock": true,
+     "rating": 3.7,
+     "description": "Designed for any kind of training such as running, lifting, studio. These shorts are high waisted and made from soft seamless fabric."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "chromiumMb": 825
+  },
+  {
+   "site": "www.gymshark.com",
+   "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
+   "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-shorts-black-aw23",
+   "order": "today-first",
+   "todayMs": 10423,
+   "leanMs": 5308,
+   "todayCaptureMs": 9887,
+   "leanCaptureMs": 5223,
+   "lean": {
+    "mode": "lean",
+    "reason": null,
+    "fields": [],
+    "leanMs": 5223
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "Everyday Seamless Shorts",
+     "price": 28,
+     "main_image": "https://cdn.shopify.com/s/files/1/0156/6146/files/images-EverydaySeamlessShortsGSBlackB6A8M_BB2J_8692_V2.jpg?v=1768555601",
+     "sku": "B6A8M-BB2J",
+     "brand": "Gymshark",
+     "in_stock": true,
+     "rating": 3.7,
+     "description": "Designed for any kind of training such as running, lifting, studio. These shorts are high waisted and made from soft seamless fabric."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "Everyday Seamless Shorts",
+     "price": 28,
+     "main_image": "https://cdn.shopify.com/s/files/1/0156/6146/files/images-EverydaySeamlessShortsGSBlackB6A8M_BB2J_8692_V2.jpg?v=1768555601",
+     "sku": "B6A8M-BB2J",
+     "brand": "Gymshark",
+     "in_stock": true,
+     "rating": 3.7,
+     "description": "Designed for any kind of training such as running, lifting, studio. These shorts are high waisted and made from soft seamless fabric."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": true,
+     "brand": true,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "chromiumMb": 700
+  },
+  {
+   "site": "www.skullcandy.com",
+   "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
+   "url": "https://www.skullcandy.com/products/crusher-plyr-720-gaming-headphones",
+   "order": "today-first",
+   "todayMs": 12166,
+   "leanMs": 12180,
+   "todayCaptureMs": 11659,
+   "leanCaptureMs": 4410,
+   "lean": {
+    "mode": "lean+full",
+    "reason": "unshown",
+    "fields": [
+     "sku",
+     "brand"
+    ],
+    "leanMs": 4410
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "Crusher® PLYR® 720",
+     "price": 199.99,
+     "main_image": "https://www.skullcandy.com/cdn/shop/files/PLYR720_XBox_1.png?v=1759966184",
+     "sku": "S6PXW-T964",
+     "brand": "Skullcandy US",
+     "in_stock": true,
+     "rating": 4.3,
+     "description": "CRUSH EVERY LEVEL WITH MIND-BENDING BASS This isn’t just a headset — it’s your portal to new dimensions of sound. Featuring Crusher Bass, open-back acoustics, and THX Spatial Audio, Crusher PLYR 720 brings the game to life. Step into a 3D virtual world where you can feel the roar of dragons and the rumble of distant artillery. Live the game with Crusher PLYR 720."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": false,
+     "brand": false,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "Crusher® PLYR® 720",
+     "price": 199.99,
+     "main_image": "https://www.skullcandy.com/cdn/shop/files/PLYR720_XBox_1.png?v=1759966184",
+     "sku": "S6PXW-T964",
+     "brand": "Skullcandy US",
+     "in_stock": true,
+     "rating": 4.3,
+     "description": "CRUSH EVERY LEVEL WITH MIND-BENDING BASS This isn’t just a headset — it’s your portal to new dimensions of sound. Featuring Crusher Bass, open-back acoustics, and THX Spatial Audio, Crusher PLYR 720 brings the game to life. Step into a 3D virtual world where you can feel the roar of dragons and the rumble of distant artillery. Live the game with Crusher PLYR 720."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": false,
+     "brand": false,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "chromiumMb": 822
+  },
+  {
+   "site": "www.skullcandy.com",
+   "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
+   "url": "https://www.skullcandy.com/products/icon-anc",
+   "order": "lean-first",
+   "todayMs": 7082,
+   "leanMs": 13047,
+   "todayCaptureMs": 6615,
+   "leanCaptureMs": 6183,
+   "lean": {
+    "mode": "lean+full",
+    "reason": "unshown",
+    "fields": [
+     "sku",
+     "brand"
+    ],
+    "leanMs": 6183
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "Icon® ANC",
+     "price": 99.99,
+     "main_image": "https://www.skullcandy.com/cdn/shop/files/1_iconANC-black.png?v=1768951066",
+     "sku": "S5IOW-S740",
+     "brand": "Skullcandy US",
+     "in_stock": true,
+     "rating": 3.9,
+     "description": "COMFORT, ACTION, NO DISTRACTIONS Almost 20 years ago, the OG Icon headphone blew up the boardsports world. The new Icon ANC is built better than ever with active noise canceling, sweat- and water-resistance and up to 60 hours of battery time. Icon ANC is just like the original, except it looks better, sounds better, and does way more cool stuff."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": false,
+     "brand": false,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "Icon® ANC",
+     "price": 99.99,
+     "main_image": "https://www.skullcandy.com/cdn/shop/files/1_iconANC-black.png?v=1768951066",
+     "sku": "S5IOW-S740",
+     "brand": "Skullcandy US",
+     "in_stock": true,
+     "rating": 3.9,
+     "description": "COMFORT, ACTION, NO DISTRACTIONS Almost 20 years ago, the OG Icon headphone blew up the boardsports world. The new Icon ANC is built better than ever with active noise canceling, sweat- and water-resistance and up to 60 hours of battery time. Icon ANC is just like the original, except it looks better, sounds better, and does way more cool stuff."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": false,
+     "brand": false,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "chromiumMb": 828
+  },
+  {
+   "site": "www.skullcandy.com",
+   "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
+   "url": "https://www.skullcandy.com/products/hesh-360-wireless-headphones",
+   "order": "today-first",
+   "todayMs": 7618,
+   "leanMs": 10173,
+   "todayCaptureMs": 7092,
+   "leanCaptureMs": 3538,
+   "lean": {
+    "mode": "lean+full",
+    "reason": "unshown",
+    "fields": [
+     "sku",
+     "brand"
+    ],
+    "leanMs": 3538
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "Hesh® 360",
+     "price": 79.99,
+     "main_image": "https://www.skullcandy.com/cdn/shop/files/Hesh360_bone_1.png?v=1792432059",
+     "sku": "S6HOW-T001",
+     "brand": "Skullcandy US",
+     "in_stock": true,
+     "rating": 4.3,
+     "description": "YOUR SOUND, YOUR STYLE Hesh 360 brings all the must-haves together: rich, dynamic sound, a super comfortable fit, and a clean, confident design that looks good anywhere. Whether you’re working, commuting, or just vibing out, Hesh 360 keeps things simple without cutting corners. And with access to the Skullcandy App, you can adjust your Stay-Aware levels and customize your EQ for a totally personalized experience."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": false,
+     "brand": false,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "Hesh® 360",
+     "price": 79.99,
+     "main_image": "https://www.skullcandy.com/cdn/shop/files/Hesh360_bone_1.png?v=1792432059",
+     "sku": "S6HOW-T001",
+     "brand": "Skullcandy US",
+     "in_stock": true,
+     "rating": 4.3,
+     "description": "YOUR SOUND, YOUR STYLE Hesh 360 brings all the must-haves together: rich, dynamic sound, a super comfortable fit, and a clean, confident design that looks good anywhere. Whether you’re working, commuting, or just vibing out, Hesh 360 keeps things simple without cutting corners. And with access to the Skullcandy App, you can adjust your Stay-Aware levels and customize your EQ for a totally personalized experience."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": false,
+     "brand": false,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "chromiumMb": 831
+  },
+  {
+   "site": "www.skullcandy.com",
+   "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
+   "url": "https://www.skullcandy.com/products/hesh-540-anc-noise-canceling-headphones",
+   "order": "lean-first",
+   "todayMs": 8020,
+   "leanMs": 11626,
+   "todayCaptureMs": 7455,
+   "leanCaptureMs": 4417,
+   "lean": {
+    "mode": "lean+full",
+    "reason": "unshown",
+    "fields": [
+     "sku",
+     "brand"
+    ],
+    "leanMs": 4417
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "Hesh® 540 ANC",
+     "price": 159.99,
+     "main_image": "https://www.skullcandy.com/cdn/shop/files/Bone_1.png?v=1769032320",
+     "sku": "S6HAW-T001",
+     "brand": "Skullcandy US",
+     "in_stock": true,
+     "rating": 4.1,
+     "description": "Surround Sound In Style Block out the noise. Dial up the vibe. With Active Noise Canceling and THX® Spatial Audio, Hesh 540 ANC doesn’t just play your music—it drops you right into it. Whether you're jamming, binging, or just zoning out, it’s all immersive, all day."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": false,
+     "brand": false,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "Hesh® 540 ANC",
+     "price": 159.99,
+     "main_image": "https://www.skullcandy.com/cdn/shop/files/Bone_1.png?v=1769032320",
+     "sku": "S6HAW-T001",
+     "brand": "Skullcandy US",
+     "in_stock": true,
+     "rating": 4.1,
+     "description": "Surround Sound In Style Block out the noise. Dial up the vibe. With Active Noise Canceling and THX® Spatial Audio, Hesh 540 ANC doesn’t just play your music—it drops you right into it. Whether you're jamming, binging, or just zoning out, it’s all immersive, all day."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": false,
+     "brand": false,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "chromiumMb": 835
+  },
+  {
+   "site": "www.skullcandy.com",
+   "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
+   "url": "https://www.skullcandy.com/products/aviator-900-anc-headphones",
+   "order": "today-first",
+   "todayMs": 10206,
+   "leanMs": 13697,
+   "todayCaptureMs": 9656,
+   "leanCaptureMs": 5340,
+   "lean": {
+    "mode": "lean+full",
+    "reason": "unshown",
+    "fields": [
+     "sku",
+     "brand"
+    ],
+    "leanMs": 5340
+   },
+   "switched": null,
+   "leanFullDisagreed": [],
+   "valueDiffs": [],
+   "shownDiffs": [],
+   "today": {
+    "data": {
+     "title": "Aviator® 900 ANC",
+     "price": 229.99,
+     "main_image": "https://www.skullcandy.com/cdn/shop/files/Aviator900ANC_Black_1.png?v=1764107969",
+     "sku": "S6AVW-T740",
+     "brand": "Skullcandy US",
+     "in_stock": true,
+     "rating": 4.1,
+     "description": "AUDIO ELEVATED Immerse yourself in 360° audio soundscapes, premium adaptive noise canceling and cutting-edge performance and features. Wrapped in unrivaled comfort and an iconic, retro-inspired design, Aviator 900 ANC sets a new standard for luxury listening — effortless, elevated, and unmistakably Skullcandy."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": false,
+     "brand": false,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "leanResult": {
+    "data": {
+     "title": "Aviator® 900 ANC",
+     "price": 229.99,
+     "main_image": "https://www.skullcandy.com/cdn/shop/files/Aviator900ANC_Black_1.png?v=1764107969",
+     "sku": "S6AVW-T740",
+     "brand": "Skullcandy US",
+     "in_stock": true,
+     "rating": 4.1,
+     "description": "AUDIO ELEVATED Immerse yourself in 360° audio soundscapes, premium adaptive noise canceling and cutting-edge performance and features. Wrapped in unrivaled comfort and an iconic, retro-inspired design, Aviator 900 ANC sets a new standard for luxury listening — effortless, elevated, and unmistakably Skullcandy."
+    },
+    "shown": {
+     "title": true,
+     "price": true,
+     "main_image": null,
+     "sku": false,
+     "brand": false,
+     "in_stock": null,
+     "rating": true,
+     "description": true
+    }
+   },
+   "chromiumMb": 844
+  }
+ ],
+ "runLike": [
+  {
+   "site": "www.ikea.com",
+   "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
+   "items": [
+    {
+     "url": "https://www.ikea.com/my/en/p/soederhamn-3-seat-sofa-with-open-end-kelinge-beige-s89622109/",
+     "lean": {
+      "mode": "lean+full",
+      "reason": "check",
+      "fields": [],
+      "leanMs": 6287
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.ikea.com/my/en/p/vimle-3-seat-sofa-with-chaise-longue-with-wide-armrests-knaebaeck-grey-green-s69635037/",
+     "lean": {
+      "mode": "lean+full",
+      "reason": "check",
+      "fields": [],
+      "leanMs": 9630
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+     "lean": null,
+     "error": "ikea.com could not be reached (no response).",
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.ikea.com/my/en/p/lillesaeter-4-seat-sofa-gunnared-bright-green-yellow-s49614272/",
+     "lean": {
+      "mode": "lean+full",
+      "reason": "unshown",
+      "fields": [
+       "title",
+       "rating",
+       "description"
+      ],
+      "leanMs": 11052
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.ikea.com/my/en/p/landskrona-three-seat-sofa-grann-bomstad-black-metal-s79031701/",
+     "lean": {
+      "mode": "lean",
+      "reason": null,
+      "fields": [],
+      "leanMs": 3984
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    }
+   ],
+   "summary": "run run-like: lean 1, lean+full 3 (check 2, miss 0, unshown 1, verdict 0), full 0",
+   "switched": null
+  },
+  {
+   "site": "www.gymshark.com",
+   "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
+   "items": [
+    {
+     "url": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26",
+     "lean": {
+      "mode": "lean+full",
+      "reason": "check",
+      "fields": [],
+      "leanMs": 5310
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-pink-aw26",
+     "lean": {
+      "mode": "lean+full",
+      "reason": "check",
+      "fields": [],
+      "leanMs": 5483
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-leggings-leggings-blue-aw26-b4b8h-uctn",
+     "lean": {
+      "mode": "lean",
+      "reason": null,
+      "fields": [],
+      "leanMs": 4911
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-shorts-shorts-brown-aw26",
+     "lean": {
+      "mode": "lean",
+      "reason": null,
+      "fields": [],
+      "leanMs": 4865
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-shorts-black-aw23",
+     "lean": {
+      "mode": "lean",
+      "reason": null,
+      "fields": [],
+      "leanMs": 4853
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    }
+   ],
+   "summary": "run run-like: lean 3, lean+full 2 (check 2, miss 0, unshown 0, verdict 0), full 0",
+   "switched": null
+  },
+  {
+   "site": "www.skullcandy.com",
+   "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
+   "items": [
+    {
+     "url": "https://www.skullcandy.com/products/crusher-plyr-720-gaming-headphones",
+     "lean": {
+      "mode": "lean+full",
+      "reason": "check",
+      "fields": [],
+      "leanMs": 4191
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.skullcandy.com/products/icon-anc",
+     "lean": {
+      "mode": "lean+full",
+      "reason": "check",
+      "fields": [],
+      "leanMs": 3207
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.skullcandy.com/products/hesh-360-wireless-headphones",
+     "lean": {
+      "mode": "lean+full",
+      "reason": "unshown",
+      "fields": [
+       "sku",
+       "brand"
+      ],
+      "leanMs": 3349
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.skullcandy.com/products/hesh-540-anc-noise-canceling-headphones",
+     "lean": {
+      "mode": "lean",
+      "reason": null,
+      "fields": [],
+      "leanMs": 3818
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    },
+    {
+     "url": "https://www.skullcandy.com/products/aviator-900-anc-headphones",
+     "lean": {
+      "mode": "lean",
+      "reason": null,
+      "fields": [],
+      "leanMs": 5799
+     },
+     "valueDiffs": [],
+     "shownDiffs": []
+    }
+   ],
+   "summary": "run run-like: lean 2, lean+full 3 (check 2, miss 0, unshown 1, verdict 0), full 0",
+   "switched": null
+  }
+ ]
+}
