@@ -1,7 +1,7 @@
 // Spec 2026-10-24 §3.2 "Starting": the scheduled-run job plans like crawl.plan, then starts the run — stubbed planner.
 import { describe, it, expect, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, runs } from '@robot/db';
+import { db, emailMessages, runs } from '@robot/db';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { jobRegistry } from '../jobs/handlers.js';
@@ -82,6 +82,19 @@ describe('runScheduledRun', () => {
       expect(await db.query.runs.findFirst({ where: eq(runs.id, f.runId), columns: { status: true, errorMessage: true } }))
         .toEqual({ status: 'failed', errorMessage: NOT_CERTIFIED_RUN });
     } finally { await f.cleanup(); }
+  });
+  it('a scheduled run this job left failed emails its owners (spec 2026-10-24 email, Settled 6); a started one does not', async () => {
+    const empty = await withRun('planned');
+    const going = await withRun('planning');
+    try {
+      const start = vi.fn(async () => 'job-1') as unknown as typeof startRunJob & ReturnType<typeof vi.fn>;
+      await runScheduledRun({ sourceId: empty.sourceId, runId: empty.runId }, { plan: planned('planned', 0), start });
+      const [row] = await db.select().from(emailMessages).where(eq(emailMessages.dedupeKey, `run-failed:${empty.runId}:${me.user.id}`));
+      expect(row).toMatchObject({ subject: 'A run of Site scheduled-run failed' });
+      expect(row!.text).toContain(NOTHING_PLANNED);
+      await runScheduledRun({ sourceId: going.sourceId, runId: going.runId }, { plan: planned('planned', 3), start });
+      expect(await db.select().from(emailMessages).where(eq(emailMessages.dedupeKey, `run-failed:${going.runId}:${me.user.id}`))).toEqual([]);
+    } finally { await empty.cleanup(); await going.cleanup(); }
   });
   it('the worker knows the job, with its policy and its run as the row it owns', () => {
     const def = jobRegistry()['scheduled-run']!;

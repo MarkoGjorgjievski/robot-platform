@@ -5,6 +5,7 @@ import { memberships, orgs, sessions, users, MEMBERSHIP_ROLES } from '@robot/db'
 import { router, protectedProcedure, requireRole } from '../trpc.js';
 import { slugify, uniqueSlug } from '../slug.js';
 import { listStaffActivity } from '../auth/staff-activity.js';
+import { queueEmailsSafely } from '../email/queue-emails.js';
 
 /** Organisations and who is in them (spec 2026-09-21 §2). Every procedure acts on the session's current org. */
 export const orgsRouter = router({
@@ -66,7 +67,13 @@ export const orgsRouter = router({
         if (!target) throw new TRPCError({ code: 'NOT_FOUND', message: 'Not a member of this organisation' });
         if (target.role === 'owner') throw new TRPCError({ code: 'FORBIDDEN', message: "The owner's role cannot be changed" });
         if (input.role === 'owner') requireRole(ctx.session, ['owner']);
-        await ctx.db.update(memberships).set({ role: input.role }).where(eq(memberships.id, target.id));
+        // The same role again changes nothing, and sends nothing.
+        if (target.role === input.role) return { userId: input.userId, role: input.role };
+        await ctx.db.transaction(async (tx) => {
+          await tx.update(memberships).set({ role: input.role }).where(eq(memberships.id, target.id));
+          // Spec 2026-10-24 email §3.1: that member hears of it (always). Its own savepoint: mail never fails the change.
+          await queueEmailsSafely(tx, { kind: 'role-changed', membershipId: target.id, orgId: ctx.session.org.id, userId: input.userId, role: input.role, at: new Date() });
+        });
         return { userId: input.userId, role: input.role };
       }),
 
@@ -78,8 +85,12 @@ export const orgsRouter = router({
         const target = await ctx.db.query.memberships.findFirst({ where: and(eq(memberships.userId, input.userId), eq(memberships.orgId, ctx.session.org.id)) });
         if (!target) throw new TRPCError({ code: 'NOT_FOUND', message: 'Not a member of this organisation' });
         if (target.role === 'owner') throw new TRPCError({ code: 'FORBIDDEN', message: 'The owner cannot be removed' });
-        await ctx.db.delete(memberships).where(eq(memberships.id, target.id));
-        await ctx.db.delete(sessions).where(and(eq(sessions.userId, input.userId), eq(sessions.orgId, ctx.session.org.id)));
+        await ctx.db.transaction(async (tx) => {
+          // Spec 2026-10-24 email §3.1, §4.1: the one message a former member gets, built while they are still a member.
+          await queueEmailsSafely(tx, { kind: 'removed', orgId: ctx.session.org.id, userId: input.userId, at: new Date() });
+          await tx.delete(memberships).where(eq(memberships.id, target.id));
+          await tx.delete(sessions).where(and(eq(sessions.userId, input.userId), eq(sessions.orgId, ctx.session.org.id)));
+        });
         return { ok: true as const };
       }),
   }),

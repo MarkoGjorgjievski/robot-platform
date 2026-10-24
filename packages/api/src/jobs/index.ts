@@ -11,3 +11,4 @@ export { enqueueDueWebsiteChecks, startWebsiteChecks } from '../verify/website-c
 export { startRecurringRuns, sweepDueSchedules } from '../recurring/sweep.js';
 export { forbidBrowserLaunch } from '@robot/browser';
 export { mailOn } from '../email/config.js';
+export { notifyRunFailed } from '../email/run-failed.js';

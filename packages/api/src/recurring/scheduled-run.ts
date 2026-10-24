@@ -4,13 +4,15 @@
 // ordinary run. A plan that fails stays failed with its own reason; one that planned no products is closed failed
 // with a sentence — a scheduled run is never left `planned` with nothing behind it. Certification is checked
 // again right before the start (as `crawl.execute` does): one lost since the sweep closes the run failed; a start
-// that throws closes it failed with the run-stopped sentence, and the job fails with the error.
+// that throws closes it failed with the run-stopped sentence, and the job fails with the error. A run it leaves failed
+// emails the website's owners and admins (spec 2026-10-24 email).
 import { and, eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { db, runs } from '@robot/db';
 import { planSource } from '../crawl/plan-source.js';
 import { requireCertification } from '../crawl/require-certification.js';
 import { startRunJob } from '../jobs/handlers/run.js';
+import { notifyRunFailed } from '../email/run-failed.js';
 import { RUN_STOPPED, type JobPayloads } from '../jobs/types.js';
 
 export const NOTHING_PLANNED = 'This run found no products to extract.';
@@ -25,7 +27,21 @@ async function closePlanned(runId: string, sentence: string): Promise<void> {
 
 export async function runScheduledRun(
   p: JobPayloads['scheduled-run'],
-  deps: { plan?: typeof planSource; start?: typeof startRunJob } = {},
+  deps: { plan?: typeof planSource; start?: typeof startRunJob; notifyFailed?: typeof notifyRunFailed } = {},
+): Promise<{ started: boolean }> {
+  try {
+    return await planAndStart(p, deps);
+  } finally {
+    // Spec 2026-10-24 email (Settled 6): nobody watched a scheduled run start, so one this job left failed — its own
+    // failed plan, nothing planned, certification lost, a start that threw — tells its owners. A started run is
+    // `extracting` and sends nothing here. Never throws.
+    await (deps.notifyFailed ?? notifyRunFailed)(db, p.runId);
+  }
+}
+
+async function planAndStart(
+  p: JobPayloads['scheduled-run'],
+  deps: { plan?: typeof planSource; start?: typeof startRunJob },
 ): Promise<{ started: boolean }> {
   const result = await (deps.plan ?? planSource)(db, p.sourceId, { probe: false, runId: p.runId });
   if (result.status !== 'planned' || result.itemCount === 0) {
