@@ -40,3 +40,13 @@ describe('the fixture shop', () => {
     expect(r.data.Stock).toBe(product(3, 1).stock);
   }, 90_000);
 });
+
+describe('gone pages (the email live check)', () => {
+  it('a path in `gone` answers 404 until it is taken out again', async () => {
+    const url = shop.sites[0]!.productUrl(2);
+    expect((await fetch(url)).status).toBe(200);
+    shop.gone.add('/p/2');
+    try { expect((await fetch(url)).status).toBe(404); } finally { shop.gone.delete('/p/2'); }
+    expect((await fetch(url)).status).toBe(200);
+  });
+});

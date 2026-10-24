@@ -1,0 +1,182 @@
+{
+ "at": "2026-10-24T09:35:22.489Z",
+ "image": "axllent/mailpit:v1.32.0",
+ "runId": "0e128973-e4cb-4e60-acb1-7588b292be79",
+ "runStatus": "failed",
+ "messages": [
+  {
+   "to": [
+    "live-email-member-1792834418221@example.com"
+   ],
+   "subject": "You were removed from Live-email-owner-1792834418221"
+  },
+  {
+   "to": [
+    "live-email-member-1792834418221@example.com"
+   ],
+   "subject": "Your role in Live-email-owner-1792834418221 changed"
+  },
+  {
+   "to": [
+    "live-email-owner-1792834418221@example.com"
+   ],
+   "subject": "Our team is working in your organisation"
+  },
+  {
+   "to": [
+    "live-email-admin-1792834418221@example.com"
+   ],
+   "subject": "Our team is working in your organisation"
+  },
+  {
+   "to": [
+    "live-email-owner-1792834418221@example.com"
+   ],
+   "subject": "A run of Site bench-0 failed"
+  },
+  {
+   "to": [
+    "live-email-admin-1792834418221@example.com"
+   ],
+   "subject": "A run of Site bench-0 failed"
+  },
+  {
+   "to": [
+    "live-email-owner-1792834418221@example.com"
+   ],
+   "subject": "Site bench-0 needs your attention"
+  },
+  {
+   "to": [
+    "live-email-admin-1792834418221@example.com"
+   ],
+   "subject": "Site bench-0 needs your attention"
+  }
+ ],
+ "checks": [
+  {
+   "name": "needs attention: one message each to the owner and the admin",
+   "ok": true,
+   "detail": "live-email-admin-1792834418221@example.com, live-email-owner-1792834418221@example.com"
+  },
+  {
+   "name": "a second check while it still needs attention queues nothing more",
+   "ok": true
+  },
+  {
+   "name": "the run failed",
+   "ok": true,
+   "detail": "failed: That page doesn't exist on 127.0.0.11 (404). Check the address."
+  },
+  {
+   "name": "a failed run: one message each to the owner and the admin",
+   "ok": true
+  },
+  {
+   "name": "the same failed run reported again queues nothing more",
+   "ok": true
+  },
+  {
+   "name": "staff access: one message each to the owner and the admin, none to the operator or the member",
+   "ok": true
+  },
+  {
+   "name": "a role change: one message to that member",
+   "ok": true
+  },
+  {
+   "name": "a removal: one message to the former member; again is refused",
+   "ok": true
+  },
+  {
+   "name": "Mailpit holds exactly 8 messages",
+   "ok": true,
+   "detail": "8"
+  },
+  {
+   "name": "\"Site bench-0 needs your attention\" reached live-email-owner-1792834418221@example.com once",
+   "ok": true,
+   "detail": "1"
+  },
+  {
+   "name": "… with its link http://app.live-email.test/projects/test-bench-0/sites/site-bench-0",
+   "ok": true
+  },
+  {
+   "name": "\"Site bench-0 needs your attention\" reached live-email-admin-1792834418221@example.com once",
+   "ok": true,
+   "detail": "1"
+  },
+  {
+   "name": "… with its link http://app.live-email.test/projects/test-bench-0/sites/site-bench-0",
+   "ok": true
+  },
+  {
+   "name": "\"A run of Site bench-0 failed\" reached live-email-owner-1792834418221@example.com once",
+   "ok": true,
+   "detail": "1"
+  },
+  {
+   "name": "… with its link http://app.live-email.test/projects/test-bench-0/sites/site-bench-0/runs/0e128973-e4cb-4e60-acb1-7588b292be79",
+   "ok": true
+  },
+  {
+   "name": "\"A run of Site bench-0 failed\" reached live-email-admin-1792834418221@example.com once",
+   "ok": true,
+   "detail": "1"
+  },
+  {
+   "name": "… with its link http://app.live-email.test/projects/test-bench-0/sites/site-bench-0/runs/0e128973-e4cb-4e60-acb1-7588b292be79",
+   "ok": true
+  },
+  {
+   "name": "\"Our team is working in your organisation\" reached live-email-owner-1792834418221@example.com once",
+   "ok": true,
+   "detail": "1"
+  },
+  {
+   "name": "… with its link http://app.live-email.test/settings",
+   "ok": true
+  },
+  {
+   "name": "\"Our team is working in your organisation\" reached live-email-admin-1792834418221@example.com once",
+   "ok": true,
+   "detail": "1"
+  },
+  {
+   "name": "… with its link http://app.live-email.test/settings",
+   "ok": true
+  },
+  {
+   "name": "\"Your role in Live-email-owner-1792834418221 changed\" reached live-email-member-1792834418221@example.com once",
+   "ok": true,
+   "detail": "1"
+  },
+  {
+   "name": "… with its link http://app.live-email.test/settings",
+   "ok": true
+  },
+  {
+   "name": "\"You were removed from Live-email-owner-1792834418221\" reached live-email-member-1792834418221@example.com once",
+   "ok": true,
+   "detail": "1"
+  },
+  {
+   "name": "… with its link http://app.live-email.test/login",
+   "ok": true
+  },
+  {
+   "name": "nothing reached the operator or anyone outside the organisation",
+   "ok": true
+  },
+  {
+   "name": "no message names the shop’s address",
+   "ok": true
+  },
+  {
+   "name": "every message row is sent",
+   "ok": true,
+   "detail": "sent, sent, sent, sent, sent, sent, sent, sent"
+  }
+ ]
+}

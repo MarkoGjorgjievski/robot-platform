@@ -13,7 +13,12 @@ export const REALISTIC: FixtureLatency = { htmlMs: [600, 900], slowExtraMs: 2500
 export const INSTANT: FixtureLatency = { htmlMs: [0, 0], slowExtraMs: 0, slowShare: 0, cssMs: 0, imageMs: 0, apiMs: [0, 0] };
 
 export type FixtureSite = { index: number; host: string; origin: string; consentGated: boolean; productUrl(id: number): string };
-export type FixtureShop = { sites: FixtureSite[]; close(): Promise<void> };
+export type FixtureShop = {
+  sites: FixtureSite[];
+  /** Paths (e.g. '/p/2') that answer 404 while listed — a product that went away (the email live check). */
+  gone: Set<string>;
+  close(): Promise<void>;
+};
 
 /** A deterministic number in [0, 1) for (site, id, salt). */
 export function unit(site: number, id: number, salt: string): number {
@@ -126,9 +131,10 @@ ${t.rating === null ? '' : `<div class="rating"><span class="score">${t.rating}<
 
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="#ccc"/></svg>';
 
-function handler(site: FixtureSite, lat: FixtureLatency) {
+function handler(site: FixtureSite, lat: FixtureLatency, gone: Set<string>) {
   return async (req: IncomingMessage, res: ServerResponse) => {
     const path = new URL(req.url ?? '/', site.origin).pathname;
+    if (gone.has(path)) { res.writeHead(404, { 'content-type': 'text/plain' }); return res.end('not found'); }
     let m: RegExpMatchArray | null;
     if ((m = path.match(/^\/p\/(\d+)$/))) {
       const id = Number(m[1]);
@@ -163,10 +169,11 @@ export async function startFixtureShop(opts: { sites: number; latency?: FixtureL
   const lat = opts.latency ?? REALISTIC;
   const servers: Server[] = [];
   const sites: FixtureSite[] = [];
+  const gone = new Set<string>();
   for (let i = 0; i < opts.sites; i++) {
     const host = `127.0.0.${11 + i}`;
     const site: FixtureSite = { index: i, host, origin: '', consentGated: opts.sites >= 4 && i === opts.sites - 1, productUrl: (id) => `${site.origin}/p/${id}` };
-    const server = createServer((req, res) => { void handler(site, lat)(req, res); });
+    const server = createServer((req, res) => { void handler(site, lat, gone)(req, res); });
     await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, host, () => resolve()); });
     site.origin = `http://${host}:${(server.address() as AddressInfo).port}`;
     servers.push(server);
@@ -174,6 +181,7 @@ export async function startFixtureShop(opts: { sites: number; latency?: FixtureL
   }
   return {
     sites,
+    gone,
     close: async () => { await Promise.all(servers.map((s) => new Promise<void>((r) => { s.closeAllConnections(); s.close(() => r()); }))); },
   };
 }
