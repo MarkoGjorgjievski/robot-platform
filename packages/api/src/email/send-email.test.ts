@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { db, emailMessages } from '@robot/db';
+import { db, emailMessages, memberships, users } from '@robot/db';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { startSmtpSink, type SmtpSink } from '../test-helpers/smtp-sink.js';
 import { jobsOf, runQueuedJobs, JOB_TEST_MS } from '../test-helpers/jobs.js';
@@ -139,5 +139,59 @@ describe('sendEmailJob', () => {
   it('the registry runs it on the background lane, priority 25, five attempts, with no status row', () => {
     expect(JOB_POLICIES.email).toMatchObject({ lane: 'background', priority: 25, maxAttempts: 5, startWithinMs: null });
     expect(jobRegistry().email!.subject!({ messageId: 'x' })).toBeNull();
+  });
+});
+
+describe('M3: at send time the recipient must still be one (spec §4.1)', () => {
+  const extra: string[] = [];
+  afterAll(async () => { for (const id of extra) await db.delete(users).where(eq(users.id, id)); });
+
+  /** Another person in my org, with `role` and preferences, and one queued `kind` message to them. */
+  async function to(kind: string, role: 'owner' | 'admin' | 'member' | null, prefs: { emailAttention?: boolean; emailFailedRuns?: boolean } = {}) {
+    const email = `send-check-${Date.now()}-${++n}@example.com`;
+    const [u] = await db.insert(users).values({ email, name: 'Ana', avatarColour: '#123456', ...prefs }).returning();
+    extra.push(u!.id);
+    if (role) await db.insert(memberships).values({ userId: u!.id, orgId: me.org.id, role });
+    const [row] = await db.insert(emailMessages).values({
+      orgId: me.org.id, userId: u!.id, kind, dedupeKey: `test-send-check:${Date.now()}:${++n}`, toAddress: email,
+      subject: 'S', text: 'T\n', html: '<p>T</p>',
+    }).returning();
+    return row!;
+  }
+  const send = (id: string) => sendEmailJob({ messageId: id }, { attempt: 1 }, { env: on() });
+  async function skipped(id: string, reason: RegExp) {
+    expect(await send(id)).toEqual({ status: 'skipped' });
+    expect(await rowOf(id)).toMatchObject({ status: 'skipped', sentAt: null, error: expect.stringMatching(reason) });
+  }
+
+  it('attention and run-failed go only to an owner or admin who still keeps that kind on', async () => {
+    for (const kind of ['attention', 'run-failed']) {
+      expect(await send((await to(kind, 'admin')).id)).toEqual({ status: 'sent' });
+      await skipped((await to(kind, 'member')).id, /no longer an owner or admin/);
+      await skipped((await to(kind, null)).id, /no longer a member/);
+    }
+    await skipped((await to('attention', 'owner', { emailAttention: false })).id, /turned these emails off/);
+    await skipped((await to('run-failed', 'owner', { emailFailedRuns: false })).id, /turned these emails off/);
+    expect(sink.messages).toHaveLength(2);
+  });
+
+  it('staff-access goes to an owner or admin whatever their preferences', async () => {
+    expect(await send((await to('staff-access', 'owner', { emailAttention: false, emailFailedRuns: false })).id)).toEqual({ status: 'sent' });
+    await skipped((await to('staff-access', 'member')).id, /no longer an owner or admin/);
+    expect(sink.messages).toHaveLength(1);
+  });
+
+  it('role-changed goes to anyone still a member; removed always goes', async () => {
+    expect(await send((await to('role-changed', 'member')).id)).toEqual({ status: 'sent' });
+    await skipped((await to('role-changed', null)).id, /no longer a member/);
+    expect(await send((await to('removed', null)).id)).toEqual({ status: 'sent' });
+    expect(sink.messages).toHaveLength(2);
+  });
+
+  it('a recipient whose account is gone gets nothing', async () => {
+    const m = await to('attention', 'owner');
+    await db.delete(users).where(eq(users.id, m.userId!));
+    await skipped(m.id, /no longer a member/);
+    expect(sink.messages).toHaveLength(0);
   });
 });

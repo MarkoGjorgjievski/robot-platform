@@ -36,3 +36,21 @@ export async function orgMember(dbh: DbOrTx, orgId: string, userId: string): Pro
   const [r] = await memberRows(dbh, orgId, userId);
   return r ? { userId: r.userId, email: r.email } : null;
 }
+
+/**
+ * Spec §4.1 at send time (final review M3): whether the person a queued message is addressed to may still get it —
+ * null when they may, else the reason it is skipped. Attention and run-failed: still an owner or admin who keeps
+ * that kind on; staff-access: still an owner or admin; role-changed: still a member; removed: always (they are no
+ * longer a member by design).
+ */
+export async function whyNotNow(dbh: DbOrTx, m: { kind: string; orgId: string; userId: string | null }): Promise<string | null> {
+  if (m.kind === 'removed') return null;
+  const [r] = m.userId ? await memberRows(dbh, m.orgId, m.userId) : [];
+  if (!r) return 'not sent: the recipient is no longer a member of this organisation';
+  if (m.kind === 'role-changed') return null;
+  if (r.role !== 'owner' && r.role !== 'admin') return 'not sent: the recipient is no longer an owner or admin of this organisation';
+  if (m.kind === 'staff-access') return null;
+  if (m.kind === 'attention') return r.emailAttention ? null : 'not sent: the recipient turned these emails off';
+  if (m.kind === 'run-failed') return r.emailFailedRuns ? null : 'not sent: the recipient turned these emails off';
+  return `not sent: unknown kind ${m.kind}`;
+}

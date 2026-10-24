@@ -2,7 +2,8 @@
 // The `email` job (spec 2026-10-24 email §3.3): sends one email_messages row from MAIL_FROM over SMTP_URL. Mail off
 // (SMTP_URL empty) marks it skipped. A failed send is a failed attempt — recorded, thrown, retried with the job's
 // backoff — and the fifth is final (`failed`). A row no longer queued (sent, skipped, failed, or gone with its org)
-// is never sent again. One message per job, so one recipient's failure never blocks another's. SMTP_URL's
+// is never sent again. Right before sending, the recipient must still be one (whyNotNow, §4.1), or the row is
+// skipped with the reason. One message per job, so one recipient's failure never blocks another's. SMTP_URL's
 // credentials never reach the stored error or the thrown one (redactSmtp).
 import { and, eq } from 'drizzle-orm';
 import { db, emailMessages } from '@robot/db';
@@ -10,6 +11,7 @@ import type { JobContext } from '../jobs/context.js';
 import type { JobPayloads } from '../jobs/types.js';
 import { mailFrom, smtpUrl, type Env } from './config.js';
 import { SEND_TIMEOUT_MS, redactSmtp, sendSmtp } from './smtp.js';
+import { whyNotNow } from './recipients.js';
 
 /** JOB_POLICIES.email.maxAttempts — pinned equal by send-email.test.ts. */
 export const EMAIL_ATTEMPTS = 5;
@@ -28,6 +30,12 @@ export async function sendEmailJob(
   const url = smtpUrl(env);
   if (!url) {
     await db.update(emailMessages).set({ status: 'skipped' }).where(stillQueued);
+    return { status: 'skipped' };
+  }
+  // Spec §4.1 at send time: a role, membership or preference may have changed since the row was queued.
+  const why = await whyNotNow(db, row);
+  if (why) {
+    await db.update(emailMessages).set({ status: 'skipped', error: why }).where(stillQueued);
     return { status: 'skipped' };
   }
   try {
