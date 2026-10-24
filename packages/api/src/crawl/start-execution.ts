@@ -24,6 +24,7 @@ import { flagDrift } from './drift.js';
 import { startDriftCheck } from '../verify/run-drift-check.js';
 import { safeErrorMessage } from './plan-source.js';
 import { addRunCost, costSince } from './record-run-cost.js';
+import { enqueueRunDelivery } from '../delivery/run-delivery.js';
 
 /**
  * The one decision `startExecution` wires into `executeRun`'s `onDone`:
@@ -92,6 +93,9 @@ export function buildOnDone(
  * the same try, so a check that fails to start is logged like a failed flag
  * and never touches the run's status either.
  *
+ * After drift, a settled run's delivery (its file and webhook, spec 2026-10-24) is queued the same way —
+ * logged and swallowed if it fails.
+ *
  * Pulled out and exported, mirroring `buildOnDone` above, so this is testable
  * with stubbed `finaliseRun`/`flagDrift`/`startDriftCheck` — no browser, no real DB.
  */
@@ -104,11 +108,13 @@ export function buildFinalise(
     finaliseRun?: typeof finaliseRun;
     flagDrift?: typeof flagDrift;
     startDriftCheck?: typeof startDriftCheck;
+    enqueueDelivery?: (db: typeof Database, runId: string) => Promise<unknown>;
   } = {},
 ): ExecuteDeps['finalise'] {
   const doFinaliseRun = deps.finaliseRun ?? finaliseRun;
   const doFlagDrift = deps.flagDrift ?? flagDrift;
   const doStartDriftCheck = deps.startDriftCheck ?? startDriftCheck;
+  const doEnqueueDelivery = deps.enqueueDelivery ?? enqueueRunDelivery;
 
   return async (_rowCount, cancelled, limitReached) => {
     const status = await doFinaliseRun(db, runId, cancelled, limitReached);
@@ -129,6 +135,15 @@ export function buildFinalise(
         }
       } catch (err) {
         console.error(`[crawl] drift flagging failed for run ${runId}:`, err);
+      }
+    }
+    // Spec 2026-10-24 §3.3: a settled run of a website with a schedule or a webhook gets its file and its post.
+    // In its own try, like drift: a delivery that cannot be queued never changes the run's status.
+    if (status !== 'extracting') {
+      try {
+        await doEnqueueDelivery(db, runId);
+      } catch (err) {
+        console.error(`[crawl] run delivery could not be queued for run ${runId}:`, err);
       }
     }
     return status;

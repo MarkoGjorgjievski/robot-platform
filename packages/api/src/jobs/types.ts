@@ -43,6 +43,9 @@ export const JOB_POLICIES = {
   'website-check': { lane: 'background', priority: 30, maxAttempts: 2, stuckMs: 25 * MIN, startWithinMs: null, maxConcurrent: 1 },
   // Spec 2026-10-24 §3.2: plans a scheduled run (its run row is written with the job by the sweep), then starts it.
   'scheduled-run': { lane: 'background', priority: 20, maxAttempts: 1, stuckMs: 15 * MIN, startWithinMs: null, runSentence: PLAN_STOPPED },
+  // Spec 2026-10-24 §3.3: writes a settled run's file and posts its webhook; a failed post is retried (30 s, doubling).
+  // Five attempts — delivery/delivery-state.ts's RUN_DELIVERY_ATTEMPTS, pinned by run-delivery.test.ts.
+  'run-delivery': { lane: 'background', priority: 15, maxAttempts: 5, stuckMs: 5 * MIN, startWithinMs: null },
   run: { lane: 'runs', priority: 10, maxAttempts: 3, stuckMs: 15 * MIN, startWithinMs: null, retryOnStuck: true, runSentence: RUN_STOPPED },
 } as const satisfies Record<string, JobPolicy>;
 
@@ -81,5 +84,6 @@ export type JobPayloads = {
   'coverage-check': { checkId: string };
   'website-check': { sourceId: string };
   'scheduled-run': { sourceId: string; runId: string };
+  'run-delivery': { runId: string; deliveryId: string };
   run: { runId: string; limit?: number; repairSweep?: { deadFields: string[] } };
 };

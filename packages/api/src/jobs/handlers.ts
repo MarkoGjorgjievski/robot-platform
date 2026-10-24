@@ -8,6 +8,7 @@ import { runDriftCheck, storedCaptures } from '../verify/run-drift-check.js';
 import { runCoverageCheck } from '../verify/run-coverage-check.js';
 import { checkWebsite } from '../verify/website-checks.js';
 import { runScheduledRun } from '../recurring/scheduled-run.js';
+import { deliverRun } from '../delivery/run-delivery.js';
 import { runExecuteJob, afterRunJob } from './handlers/run.js';
 import { reachabilityNow, listingCheckNow, transferMarksNow, detectVariantsNow, variantLinksNearNow } from './handlers/interactive.js';
 import { planSource } from '../crawl/plan-source.js';
@@ -59,6 +60,12 @@ export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
       policy: JOB_POLICIES['scheduled-run'],
       subject: (p: JobPayloads['scheduled-run']) => ({ table: 'runs', id: p.runId }),
       run: (p: JobPayloads['scheduled-run']) => runScheduledRun(p),
+    },
+    // No status row of its own: a failed delivery never closes or changes its run (spec 2026-10-24 §4.5).
+    'run-delivery': {
+      policy: JOB_POLICIES['run-delivery'],
+      subject: () => null,
+      run: (p: JobPayloads['run-delivery'], ctx) => deliverRun(p, ctx),
     },
     // One executor per run; a retry resumes it (its earlier attempt's `running` items back to pending).
     run: {
