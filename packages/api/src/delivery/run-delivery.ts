@@ -105,6 +105,10 @@ export async function deliverRun(
   ctx: Pick<JobContext, 'attempt'>,
   deps: { post?: typeof postWebhook; env?: Record<string, string | undefined>; now?: () => number } = {},
 ): Promise<{ files: boolean; delivered: boolean | null }> {
+  // Checked again now, not only at enqueue: a run resumed or re-opened since is not one to send (its status would
+  // be outside §3.4's list), and nothing is written or posted for it.
+  const now = await db.query.runs.findFirst({ where: eq(runs.id, p.runId), columns: { status: true, resultCount: true } });
+  if (!now || !deliverable(now.status, now.resultCount)) return { files: false, delivered: null };
   const written = await writeRunFiles(db, p.runId);
   if (!written) return { files: false, delivered: null };
   const [hit] = await db
