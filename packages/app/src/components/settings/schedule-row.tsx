@@ -39,16 +39,24 @@ export function ScheduleRow(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.schedule, dirty]);
 
-  const edit = (f: () => void) => { setDirty(true); f(); };
+  // An edit clears a stale error: it was about the values the customer has just changed.
+  const edit = (f: () => void) => { setDirty(true); setError(null); f(); };
   const problem = scheduleFormProblem(choice, days, time);
   async function onSave() {
     setError(null);
     try {
       await save.mutateAsync({ id: props.siteId, schedule: scheduleFromForm(choice, days, time, zone) });
-      setDirty(false);
-      await utils.sources.get.invalidate();
     } catch (e) {
       setError(mutationErrorText(e as MutationErrorLike, staff));
+      return;
+    }
+    // "Edited" until the fresh `sources.get` has landed, so the sync effect never shows the old schedule in between;
+    // if the refetch fails the row keeps what was typed (and saved).
+    try {
+      await utils.sources.get.invalidate(undefined, undefined, { throwOnError: true });
+      setDirty(false);
+    } catch {
+      // Saved; the page just could not reload it.
     }
   }
   const next = nextRunLine(props.nextRunAt, props.schedule?.timeZone ?? null);
@@ -101,7 +109,7 @@ export function ScheduleRow(props: {
 
         <div className="flex flex-wrap items-center gap-3">
           <Button size="sm" variant="outline" onClick={() => void onSave()} disabled={!dirty || !!problem || save.isPending}>
-            Save schedule
+            {save.isPending ? 'Saving…' : 'Save schedule'}
           </Button>
           {/* Every disabled control says why, within a line of it. */}
           {!dirty ? <span className="text-sm text-muted-foreground">No changes to save</span>

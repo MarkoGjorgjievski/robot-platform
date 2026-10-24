@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   choiceOf, scheduleFromForm, scheduleFormProblem, whenLabel, nextRunLine, lastOutcomeLine, timeZoneOptions,
   maskSecret, webhookLine, CHOICE_LABELS, WEBHOOK_HELP,
+  REPLACE_SECRET_TITLE, REPLACE_SECRET_TEXT, webhookSaveReason, COPY_FAILED,
 } from './recurring-view';
 
 const MON_6 = { days: [1], time: '06:00', timeZone: 'Europe/Berlin' };
@@ -72,5 +73,23 @@ describe('the Webhook row and the run page line', () => {
     const at = new Date('2026-10-26T05:03:00Z');
     expect(webhookLine({ state: 'retrying', at, statusCode: 503, error: 'answered 503' }, true, 'UTC')).toBe('Webhook not delivered yet — trying again. (503: answered 503)');
     expect(webhookLine({ state: 'failed', at, statusCode: null, error: 'no answer within 10 s' }, true, 'UTC')).toBe('Webhook could not be delivered. (no answer: no answer within 10 s)');
+  });
+});
+
+describe('the Webhook row, review round 1', () => {
+  it('Replace secret says what stops working, in plain words', () => {
+    expect(REPLACE_SECRET_TITLE).toBe('Replace the signing secret?');
+    expect(REPLACE_SECRET_TEXT).toBe(
+      'Download links in webhooks already sent stop working, and your endpoint’s signature check fails until you give it the new secret.',
+    );
+  });
+  it('says why Save webhook is disabled', () => {
+    expect(webhookSaveReason(false, 'https://hooks.example.com/x')).toBe('No changes to save');
+    expect(webhookSaveReason(true, '   ', true)).toBe('Use Remove to stop sending');
+    expect(webhookSaveReason(true, '', false)).toBe('Enter your endpoint’s web address');
+    expect(webhookSaveReason(true, 'https://hooks.example.com/x')).toBeNull();
+  });
+  it('a clipboard the browser does not offer reads as a sentence', () => {
+    expect(COPY_FAILED).toBe('That could not be copied. Show the secret and copy it by hand.');
   });
 });
