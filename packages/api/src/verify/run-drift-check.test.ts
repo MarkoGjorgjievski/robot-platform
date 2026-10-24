@@ -7,8 +7,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { and, eq, count } from 'drizzle-orm';
-import { db, captures, driftChecks, fieldHolds, jevReadings, sources, sourceVerifications, valueRefreshes } from '@robot/db';
+import { and, eq, count, like } from 'drizzle-orm';
+import { db, captures, driftChecks, emailMessages, fieldHolds, jevReadings, sources, sourceVerifications, valueRefreshes } from '@robot/db';
 import { CaptureError, BROWSER_UNAVAILABLE, PlaywrightBrowser, type IBrowser, type PageCapture } from '@robot/browser';
 import {
   buildBoxMapScript, fieldHash,
@@ -137,9 +137,10 @@ async function certifiedWebsite(tag: string) {
   return { ...f, keyOf };
 }
 
-// `nextCheckAt` is left out: every finished check moves it on (spec 2026-10-21 §3.3) — the one source column a check writes.
+// `nextCheckAt` is left out: every finished check moves it on (spec 2026-10-21 §3.3). So is `attentionSince`: a finished
+// check syncs "Needs attention" (spec 2026-10-24 email §3.2), and a changed field turns it on.
 const snapshot = async (sourceId: string) => ({
-  source: await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { nextCheckAt: false } }),
+  source: await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { nextCheckAt: false, attentionSince: false } }),
   verifications: (await db.select({ n: count() }).from(sourceVerifications).where(eq(sourceVerifications.sourceId, sourceId)))[0]!.n,
 });
 
@@ -500,6 +501,35 @@ describe('runDriftCheck', () => {
       const results = (await checkRow(checkId))!.results as DriftCheckResults;
       expect(results.fields[f.keyOf.stock]!.result).toBe('lost');
       expect(results.fields[f.keyOf.price]!.result).not.toBe('lost');
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('a finished check with nothing to re-verify syncs attention: a gone proof page emails the owner once (spec 2026-10-24 email §3.2)', async () => {
+    const f = await certifiedWebsite('drift-gone-email');
+    try {
+      const recs = { [U[0]!]: await record(clone(PAGES[U[0]!]!)), [U[1]!]: await record(clone(PAGES[U[1]!]!)) };
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false });
+      await runDriftCheck(checkId, { capture });
+      expect((await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), columns: { attentionSince: true } }))!.attentionSince).not.toBeNull();
+      const rows = await db.select().from(emailMessages).where(like(emailMessages.dedupeKey, `attention:${f.sourceId}:%`));
+      expect(rows.map((r) => r.userId)).toEqual([me.user.id]);
+      expect(rows[0]!.text).toMatch(/[Pp]roduct 3 no longer loads/);
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it("RF1: a check that started a refresh's re-verify leaves the email to that re-verify", async () => {
+    const f = await certifiedWebsite('drift-refresh-email');
+    try {
+      const pages = priceMovedOnP2();
+      const recs = Object.fromEntries(await Promise.all(U.map(async (u) => [u, await record(pages[u]!)] as const)));
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? null]));
+      const syncAttention = vi.fn(async () => {});
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false, trigger: 'schedule', keys: [f.keyOf.price, f.keyOf.name] });
+      await runDriftCheck(checkId, { capture, startRefreshVerify: vi.fn(async () => null), syncAttention });
+      expect(((await checkRow(checkId))!.results as DriftCheckResults).fields[f.keyOf.price]!.refresh).toEqual({ applied: true });
+      expect(syncAttention).not.toHaveBeenCalled();
+      expect(await db.select().from(emailMessages).where(like(emailMessages.dedupeKey, `attention:${f.sourceId}:%`))).toEqual([]);
     } finally { await f.cleanup(); }
   }, 120_000);
 });

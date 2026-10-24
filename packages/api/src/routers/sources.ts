@@ -47,6 +47,7 @@ import { startDriftCheck, latestDriftCheck, latestDriftedRun } from '../verify/r
 import { latestCoverageCheck } from '../verify/run-coverage-check.js';
 import { requireCertification } from '../crawl/require-certification.js';
 import { createAxis, lockDatasetSchema, lockSources } from './datasets.js';
+import { syncAttentionSafely } from '../email/attention-sync.js';
 
 /** An awaited job with no answer is a browser that could not start (the copy a crash showed before). */
 async function unavailableAsError<T>(p: Promise<T>): Promise<T> {
@@ -673,7 +674,7 @@ export const sourcesRouter = router({
 
       const { fields, verificationSet } = prepareBinding(binding, contract);
 
-      return ctx.db.transaction(async (tx) => {
+      const updated = await ctx.db.transaction(async (tx) => {
         // Variant answers (plan 2 task 3, Review Focus 1) never travel through `bindingInput` —
         // `prepareBinding` above never emits `variants` — so a concurrent `saveVariantAnswer`
         // committing between this procedure's dispatch and its write must not be silently
@@ -690,14 +691,14 @@ export const sourcesRouter = router({
           : undefined;
         const verificationSetToWrite: VerificationSet = variants && Object.keys(variants).length > 0 ? { ...verificationSet, variants } : verificationSet;
 
-        const [updated] = await tx
+        const [row] = await tx
           .update(sources)
           .set({ schemaDefinition: fields, verificationSet: verificationSetToWrite, updatedAt: new Date() })
           .where(eq(sources.id, sourceId))
           .returning();
 
         if (extractOwnsInput) {
-          return updated;
+          return row;
         }
 
         // Updated in place so a source keeps its input set id across edits —
@@ -738,8 +739,11 @@ export const sourcesRouter = router({
             .where(eq(sources.id, sourceId));
         }
 
-        return updated;
+        return row;
       });
+      // Spec 2026-10-24 email §3.2: a changed proof page, expected value or mark can release a hold. Never throws.
+      await syncAttentionSafely(ctx.db, sourceId);
+      return updated;
     }),
 
   /**

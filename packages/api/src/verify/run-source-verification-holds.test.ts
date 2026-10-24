@@ -6,9 +6,9 @@ import { describe, it, expect, vi, afterAll, afterEach } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
+import { eq, like } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
-import { db, fieldHolds, sources, sourceVerifications } from '@robot/db';
+import { db, emailMessages, fieldHolds, sources, sourceVerifications } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
@@ -365,6 +365,24 @@ describe('writeHolds keeps hashes a concurrent refresh added (fix wave 1, item 2
       await writing;
       const hold = await db.query.fieldHolds.findFirst({ where: eq(fieldHolds.sourceId, s.sourceId) });
       expect(new Set(hold!.fieldHashes as string[])).toEqual(new Set([s.hash, 'refresh-to']));
+    } finally { await s.cleanup(); }
+  });
+});
+
+describe('Needs attention after a Verify (spec 2026-10-24 email §3.2)', () => {
+  it('a failed re-verify that holds a field emails the owner once; another while it still needs attention sends nothing; a passing one turns it off', async () => {
+    const s = await certified('email');
+    try {
+      const since = async () => (await db.query.sources.findFirst({ where: eq(sources.id, s.sourceId), columns: { attentionSince: true } }))!.attentionSince;
+      const sent = () => db.select().from(emailMessages).where(like(emailMessages.dedupeKey, `attention:${s.sourceId}:%`));
+      const caps = Object.fromEntries(s.urls.map((u, i) => [u, page(u, String(1.5 + i))]));
+      await verify(s.sourceId, { price: failing(s.urls, s.hash) }, caps);
+      expect(await since()).not.toBeNull();
+      expect((await sent()).map((r) => [r.userId, r.subject])).toEqual([[me.user.id, 'Site holds-email needs your attention']]);
+      await verify(s.sourceId, { price: failing(s.urls, s.hash) }, caps);
+      expect(await sent()).toHaveLength(1);
+      await verify(s.sourceId, { price: s.passed }, Object.fromEntries(s.urls.map((u) => [u, page(u, '1.00')])));
+      expect(await since()).toBeNull();
     } finally { await s.cleanup(); }
   });
 });
