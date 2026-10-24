@@ -89,3 +89,47 @@ describe('runScheduledRun', () => {
     expect(def.subject?.({ sourceId: 's', runId: 'r' })).toEqual({ table: 'runs', id: 'r' });
   });
 });
+
+describe('a scheduled-run job that ends for good after the plan, before the start (final review M1)', () => {
+  /** A scheduled-run job for `runId` on this file's queue, stamped on the run, the run already `planned`. */
+  async function plannedWithJob(runId: string) {
+    const { enqueue } = await import('../jobs/enqueue.js');
+    const { jobs } = await import('@robot/db');
+    const jobId = await enqueue(db, 'scheduled-run', { sourceId: '', runId }, { key: `scheduled-run:${runId}` });
+    await db.update(runs).set({ status: 'planned', jobId }).where(eq(runs.id, runId));
+    return { jobId, jobs };
+  }
+
+  it('failed for good: its planned run is closed failed with the run-stopped sentence', async () => {
+    const { failJobTerminal } = await import('../jobs/queue.js');
+    const f = await withRun('planning');
+    try {
+      const { jobId } = await plannedWithJob(f.runId);
+      expect(await failJobTerminal(jobId, 'queued', { kind: 'unavailable', message: 'stalled' }, JOB_POLICIES['scheduled-run'].runSentence)).toBe(true);
+      expect(await db.query.runs.findFirst({ where: eq(runs.id, f.runId), columns: { status: true, errorMessage: true } })).toEqual({ status: 'failed', errorMessage: RUN_STOPPED });
+    } finally { await f.cleanup(); }
+  });
+
+  it('reaped (its worker died): the same', async () => {
+    const { reapJobs, jobQueueName } = await import('../jobs/queue.js');
+    const f = await withRun('planning');
+    try {
+      const { jobId, jobs } = await plannedWithJob(f.runId);
+      await db.update(jobs).set({ status: 'running', attempts: 1, lockedBy: 'gone#00000000', lockedUntil: new Date(Date.now() - 60_000) }).where(eq(jobs.id, jobId));
+      expect((await reapJobs(jobQueueName(), { retryBaseMs: 30_000 })).failed).toContain(jobId);
+      expect(await db.query.runs.findFirst({ where: eq(runs.id, f.runId), columns: { status: true, errorMessage: true } })).toEqual({ status: 'failed', errorMessage: RUN_STOPPED });
+    } finally { await f.cleanup(); }
+  });
+
+  it('a planned run another kind of job owns (a plan by hand, waiting to be started) is left planned', async () => {
+    const { failJobTerminal } = await import('../jobs/queue.js');
+    const { enqueue } = await import('../jobs/enqueue.js');
+    const f = await withRun('planned');
+    try {
+      const jobId = await enqueue(db, 'plan', { sourceId: f.sourceId, runId: f.runId } as never, { key: `plan-test:${f.runId}` });
+      await db.update(runs).set({ jobId }).where(eq(runs.id, f.runId));
+      await failJobTerminal(jobId, 'queued', { kind: 'unavailable', message: 'expired' }, JOB_POLICIES.plan.runSentence);
+      expect((await db.query.runs.findFirst({ where: eq(runs.id, f.runId), columns: { status: true } }))!.status).toBe('planned');
+    } finally { await f.cleanup(); }
+  });
+});
