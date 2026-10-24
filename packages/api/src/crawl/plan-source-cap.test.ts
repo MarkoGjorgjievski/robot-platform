@@ -147,6 +147,22 @@ describe('planSource and the monthly limit (spec 2026-10-24 metering §2.3)', ()
     } finally { await a.cleanup(); await b.cleanup(); }
   });
 
+  it('final review M3: a refusal that ends the walk reaches the crawl.plan caller as the one sentence, not "try again"', async () => {
+    await db.update(orgs).set({ aiCapUsd: '0.00' }).where(eq(orgs.id, me.org.id));
+    const f = await plannable('plan-cap-escapes');
+    try {
+      planRunMock.mockImplementationOnce(async (_input: unknown, deps: { agent: { detectPagination: (h: string) => Promise<unknown> } }) => {
+        await deps.agent.detectPagination('<html></html>');
+        return outcome('plan-cap-escapes');
+      });
+      await expect(withJobRunner(() => me.caller.crawl.plan({ sourceId: f.sourceId, probe: true })))
+        .rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: CAP_REACHED_MESSAGE });
+      // crawl.plan writes its own planning run (plannable's is left untouched).
+      const run = (await db.query.runs.findMany({ where: eq(runs.sourceId, f.sourceId) })).find((r) => r.id !== f.runId);
+      expect(run).toMatchObject({ status: 'failed', errorMessage: CAP_REACHED_MESSAGE });
+    } finally { await f.cleanup(); }
+  }, JOB_TEST_MS);
+
   it('with room, the model is asked and the plan is written', async () => {
     const f = await plannable('plan-cap-room');
     try {

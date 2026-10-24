@@ -315,6 +315,9 @@ async function planSourceIn(
           completedAt: new Date(),
         })
         .where(and(eq(runs.id, run!.id), eq(runs.status, 'planning')));
+      // ...and the caller reads that sentence too, not "stopped, try again" (final review M3): a TRPCError crosses the
+      // queue with its code and words (plan-via-worker.ts).
+      if (isCapReached(err) || (ledger?.refused ?? 0) > 0) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: CAP_REACHED_MESSAGE, cause: err });
     }
     throw err;
   } finally {
