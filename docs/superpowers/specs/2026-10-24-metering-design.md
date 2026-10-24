@@ -1,8 +1,38 @@
 # Metering and spend caps per organisation — design
 
-**Status:** written 2026-10-24 under the standing approval (`CLAUDE.md`, "Autonomous runs"; `docs/queue.md` item 1,
+**Status:** implemented on `feat/metering` and merged to `main` on 2026-10-24 (`28948402`); written 2026-10-24 under the standing approval (`CLAUDE.md`, "Autonomous runs"; `docs/queue.md` item 1,
 "Metering and spend caps per organisation"). Plan: `docs/superpowers/plans/2026-10-24-metering.md`. Branch
 `feat/metering` from `main` @ `2fc0d8b2`, worktree `C:\Users\Marko\Documents\projects\robot-platform-metering`.
+
+**Proven:** the full runs on the final code head (`28948402`): `@robot/db` 34, `@robot/agent` 67 (3 live tests skipped
+keyless), `@robot/scraper` 1,318 (5 skipped), `@robot/api` 2,057 (140 files), `@robot/api-server` 88,
+`@robot/worker` 18, `@robot/app` 1,115 (the two smokes skipped); `tsc --noEmit` clean in all seven. The feature's own
+tests: metering and the limit's state 9 (`metering.test.ts`: UTC month edges, samples out of `runs` but in `aiUsd`,
+equality with `usage.byProject`, org value / default / `none` / a typo, `reached` at equality); the capped agent 14
+and the per-job usage scope 14 (`@robot/agent`); Verify at the limit 8 (`run-source-verification-cap.test.ts`) plus 3
+in `run-verification.test.ts`; planning 8 (`plan-source-cap.test.ts`); execution 34 (`start-execution.test.ts`, the
+breaker at three among them); `setAiCap` and `ops.orgs` 8 (`orgs-ai-cap.test.ts`); the app's view functions 21
+(Usage's Runs, the staff panel, ops Organisations). The procedure sweep covers 87 procedures; the money sweep (51)
+checks that `verifyEstimate.cap` reaches staff only. The route smoke passed 28 of 28 and the staff smoke 1 of 1 on one
+isolated keyless pair from the branch, with no `[rate-limit]` line. The screenshots: the customer's Usage shows
+"0 runs" under the headline and a Runs column, and no money, in both themes; the customer's Settings has no limit panel;
+the staff panel (`staff-settings-ai-limit.png`) reads "$0.00 spent this month · $40 limit · $40.00 left" with the
+default hint and Save; ops → Organisations (`staff-ops-orgs.png`) shows the throwaway org with "$40", 0 % and Jev
+muted; the customer's staff log reads "Changed a setting of this organisation".
+
+**Deviations:** the reviews forced these. (1) Recorded costs are per job: `withUsageScope` (`@robot/agent`,
+AsyncLocalStorage) gives each Verify, plan and run its own tally. The process-wide usage diff would have charged one
+org's spend to another's row under concurrency, and the limit reads those rows. (2) A Verify takes its org's slot before
+it reads what is left, and records its cost on every exit before the slot closes. (3) `verifyEstimate.aiAvailable` is
+false once less than one field's estimate is left, not only at the limit. (4) A capped plan answers with the one
+sentence as its only error and no walk warnings. A refusal that escapes the walk reaches the caller as
+`PRECONDITION_FAILED` with the same sentence. (5) Calls to the free local model (Ollama) are neither refused nor
+counted. (6) A refused catalogue lookup is counted apart and never fails a page that needed no AI (§3.2 over the plan).
+(7) The operator CLI `crawl-plan.ts` stays capped: it plans a customer org's website, and keeping to that org's limit is
+the safe side. Settled in the plan ("Settled here", 19 rulings): a refused call is not a call; the in-process registry
+per org; the edges of the limit; a typo falls back to $25; planning fails the run and does not throw; the customer reads
+a limit change as "Changed a setting of this organisation" and never receives the `action` key; `routeTree.gen.ts`
+staged with the `/ops/orgs` lines only.
 
 ## 1. Why
 
@@ -121,7 +151,8 @@ The month can be chosen: this month or any of the last 6.
 ## 3. Safety properties
 
 1. No org's month AI spend passes its cap by more than one projected call's estimate, whatever the concurrency of its
-   own jobs.
+   own jobs. This holds within one worker process, and in projected dollars: the projection is calls × an estimate, so a
+   call that costs more than its estimate can carry real spend past the limit by the difference.
 2. A cap never stops work that needs no AI. That covers certified extraction, drift, coverage and website checks, and
    every mechanical Verify.
 3. A customer never sees an amount, the cap, or the words "AI", "model" or "budget".
