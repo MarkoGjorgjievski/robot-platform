@@ -12,8 +12,9 @@ export function monthBounds(month: string): { start: Date; end: Date } {
 }
 
 /**
- * What the organisation spent this month and how many pages it captured, per
- * project (spec 2026-09-21 §5). Spend is `source_verifications.cost_usd` (by
+ * What the organisation spent this month, how many pages it captured and how
+ * many runs it made, per project (spec 2026-09-21 §5; runs, samples excluded:
+ * spec 2026-10-24 metering §2.5). Spend is `source_verifications.cost_usd` (by
  * the verification's start) plus `runs.cost_usd` (by the run's creation);
  * pages are `captures` rows (by creation). Every project in the org is listed,
  * a quiet one at zero — the table is the org's projects, not its receipts.
@@ -63,15 +64,26 @@ export const usageRouter = router({
         .where(inOrgAndMonth(inMonth(captures.createdAt)))
         .groupBy(projects.id);
 
+      // Spec 2026-10-24 metering §2.5: runs this month, samples excluded — a count, shown to everyone.
+      const runCounts = await ctx.db
+        .select({ projectId: projects.id, n: sql<number>`count(*)::int` })
+        .from(runs)
+        .innerJoin(sources, eq(runs.sourceId, sources.id))
+        .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+        .innerJoin(projects, eq(datasets.projectId, projects.id))
+        .where(inOrgAndMonth(and(inMonth(runs.createdAt), sql`${runs.inputLabel} IS DISTINCT FROM 'probe'`)))
+        .groupBy(projects.id);
+
       const spend = new Map<string, number>();
       for (const r of [...verificationSpend, ...runSpend]) spend.set(r.projectId, (spend.get(r.projectId) ?? 0) + Number(r.usd));
       const captured = new Map(pages.map((r) => [r.projectId, Number(r.n)]));
+      const ran = new Map(runCounts.map((r) => [r.projectId, Number(r.n)]));
 
       // Four decimals in the column, four decimals out: summing floats from
       // two tables must not turn 0.03 + 0.02 into 0.049999….
       const round = (n: number) => Math.round(n * 10_000) / 10_000;
       const sees = viewerSeesMoney(ctx);
-      const priced = list.map((p) => ({ ...p, spendUsd: round(spend.get(p.id) ?? 0), pagesCaptured: captured.get(p.id) ?? 0 }));
+      const priced = list.map((p) => ({ ...p, spendUsd: round(spend.get(p.id) ?? 0), pagesCaptured: captured.get(p.id) ?? 0, runs: ran.get(p.id) ?? 0 }));
       // Staff: by spend, then name. A customer gets no spend (spec 2026-10-24 tenant isolation §2.3), and no order by
       // it either — that would rank it: by pages captured, then name.
       priced.sort(sees
@@ -83,6 +95,7 @@ export const usageRouter = router({
         total: {
           ...moneyFields(sees, { spendUsd: round(priced.reduce((s, r) => s + r.spendUsd, 0)) }),
           pagesCaptured: priced.reduce((s, r) => s + r.pagesCaptured, 0),
+          runs: priced.reduce((s, r) => s + r.runs, 0),
         },
       };
     }),

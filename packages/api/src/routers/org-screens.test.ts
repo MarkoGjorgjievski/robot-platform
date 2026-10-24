@@ -87,19 +87,19 @@ describe('usage.byProject', () => {
       expect(sep.month).toBe('2026-09');
       expect(sep.projects.map((r) => [r.name, r.pagesCaptured])).toEqual([['Busy', 2], ['Quiet', 0]]);
       expect(sep.projects.some((r) => 'spendUsd' in r)).toBe(false);
-      expect(sep.total).toEqual({ pagesCaptured: 2 });
+      expect(sep.total).toEqual({ pagesCaptured: 2, runs: 1 });
       expect((await a.caller.usage.byProject({ month: '2026-07' })).projects.map((r) => r.name)).toEqual(['Busy', 'Quiet']);
 
       // Staff: the spend, as before.
       await asOperator(a.user.email, async () => {
         const sepStaff = await a!.caller.usage.byProject({ month: '2026-09' });
         expect(sepStaff.projects.map((r) => [r.name, r.spendUsd, r.pagesCaptured])).toEqual([['Busy', 0.05, 2], ['Quiet', 0, 0]]);
-        expect(sepStaff.total).toEqual({ spendUsd: 0.05, pagesCaptured: 2 });
+        expect(sepStaff.total).toEqual({ spendUsd: 0.05, pagesCaptured: 2, runs: 1 });
         const aug = await a!.caller.usage.byProject({ month: '2026-08' });
-        expect(aug.total).toEqual({ spendUsd: 3, pagesCaptured: 1 });
+        expect(aug.total).toEqual({ spendUsd: 3, pagesCaptured: 1, runs: 1 });
         const empty = await a!.caller.usage.byProject({ month: '2026-07' });
         expect(empty.projects.map((r) => r.spendUsd)).toEqual([0, 0]);
-        expect(empty.total).toEqual({ spendUsd: 0, pagesCaptured: 0 });
+        expect(empty.total).toEqual({ spendUsd: 0, pagesCaptured: 0, runs: 0 });
       });
     } finally {
       if (a) await dropIdentity(a);
