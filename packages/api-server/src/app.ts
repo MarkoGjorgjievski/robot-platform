@@ -5,6 +5,7 @@ import { trpcServer } from '@hono/trpc-server';
 import { appRouter } from '@robot/api/routers';
 import { loadRunExport, loadProjectExport, orgIdForRun, orgIdForProject, orgIdForCaptureFile } from '@robot/api/export';
 import { loadSession } from '@robot/api/auth';
+import { loadRunFile, webhookSecretForRun } from '@robot/api/delivery';
 import { db } from '@robot/db';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +24,8 @@ export type AppDeps = {
   orgIdForRun: (runId: string) => ReturnType<typeof orgIdForRun>;
   orgIdForProject: (projectId: string) => ReturnType<typeof orgIdForProject>;
   orgIdForCaptureFile: (filename: string) => ReturnType<typeof orgIdForCaptureFile>;
+  loadRunFile: (runId: string, format: 'csv' | 'json' | 'xlsx') => Promise<{ bytes: Uint8Array; filename: string } | null>;
+  webhookSecretForRun: (runId: string) => Promise<string | null>;
 };
 
 export function createApp(deps: Partial<AppDeps> = {}) {
@@ -32,6 +35,8 @@ export function createApp(deps: Partial<AppDeps> = {}) {
   const loadRunOrgId = deps.orgIdForRun ?? ((runId: string) => orgIdForRun(db, runId));
   const loadProjectOrgId = deps.orgIdForProject ?? ((projectId: string) => orgIdForProject(db, projectId));
   const loadCaptureOrgId = deps.orgIdForCaptureFile ?? ((filename: string) => orgIdForCaptureFile(db, filename));
+  const loadSnapshot = deps.loadRunFile ?? ((runId: string, format: 'csv' | 'json' | 'xlsx') => loadRunFile(db, runId, format));
+  const loadWebhookSecret = deps.webhookSecretForRun ?? ((runId: string) => webhookSecretForRun(db, runId));
   const app = new Hono();
 
   // CORS — the app shell. `APP_ORIGINS` (comma-separated) lets an isolated pair
@@ -64,7 +69,9 @@ export function createApp(deps: Partial<AppDeps> = {}) {
 
   // Data export — CSV/JSON downloads of a run's rows, or of a whole project's.
   // Gated the same way as the tRPC context above: no session is 401, another
-  // org's run or project is 404 (never revealing which of the two it was).
+  // org's run or project is 404 (never revealing which of the two it was) —
+  // and a run's snapshot, by session (`?snapshot=1`) or by a webhook's signed
+  // link (no session).
   app.route(
     '/export',
     createExportRoutes({
@@ -73,6 +80,8 @@ export function createApp(deps: Partial<AppDeps> = {}) {
       loadSession: loadSessionForToken,
       orgIdForRun: loadRunOrgId,
       orgIdForProject: loadProjectOrgId,
+      loadRunFile: loadSnapshot,
+      webhookSecretForRun: loadWebhookSecret,
     })
   );
 

@@ -2,7 +2,7 @@
 // A settled run's file, written once per format by its run-delivery job (spec 2026-10-24 §3.3): the snapshot of
 // that moment. A later backfill's own delivery rewrites it; the run page's buttons keep serving the live rows.
 import { and, eq } from 'drizzle-orm';
-import { runFiles, type Database } from '@robot/db';
+import { runFiles, runs, sources, type Database } from '@robot/db';
 import { loadRunExport } from '../export/load-run-export.js';
 import { EXPORT_FORMATS, renderRunExport, type ExportFormat } from '../export/render-run-export.js';
 
@@ -28,4 +28,13 @@ export async function loadRunFile(dbh: Database, runId: string, format: ExportFo
     columns: { bytes: true, filename: true, rows: true },
   });
   return row ?? null;
+}
+
+/** The signing secret of the run's website, or null (no run, no website, no secret yet). */
+export async function webhookSecretForRun(dbh: Database, runId: string): Promise<string | null> {
+  const [row] = await dbh.select({ secret: sources.webhookSecret }).from(runs)
+    .innerJoin(sources, eq(runs.sourceId, sources.id))
+    .where(eq(runs.id, runId))
+    .limit(1);
+  return row?.secret ?? null;
 }
