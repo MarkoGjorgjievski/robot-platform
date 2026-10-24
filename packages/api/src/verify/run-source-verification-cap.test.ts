@@ -5,9 +5,11 @@ import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
-import { capLedgerOf, cappedAgent, isCapReached, resetCapLedgers, type ProposePathsAgent } from '@robot/agent';
+import { capLedgerOf, cappedAgent, isCapReached, recordUsage, resetCapLedgers, type ProposePathsAgent } from '@robot/agent';
+import { runInJob } from '../jobs/context.js';
 import { db, orgs, runs, sourceVerifications } from '@robot/db';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
@@ -139,6 +141,69 @@ describe('runSourceVerification and the monthly limit (spec 2026-10-24 metering 
       expect(propose).toHaveBeenCalledTimes(1);
       expect(results[0]).toBe('asked');
       expect(isCapReached(results[1])).toBe(true);
+    } finally { await f.cleanup(); }
+  });
+
+  // Review I2: what a Verify spent is recorded on every exit, before its slot is released — the org's next job reads it.
+  /** $0.06 of model use, as a billed call records it (10k in, 2k out on the extraction model's price). */
+  const billed = () => recordUsage('claude-sonnet-5', { input_tokens: 10_000, output_tokens: 2_000 });
+  const asksTwice = (f: { urls: string[] }, results: unknown[]) => async (_req: unknown, deps: { agent: ProposePathsAgent | null }) => {
+    for (const t of ['a', 'b']) results.push(await deps.agent!.proposePaths(t).then(() => 'asked', (e: unknown) => e));
+    return outcome(f.urls);
+  };
+  const newVerification = async (sourceId: string) =>
+    (await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'cap', completedAt: null }).returning({ id: sourceVerifications.id }))[0]!.id;
+  const rowOf = async (id: string) => (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, id) }))!;
+
+  it('review I2: a Verify that asked the model and then failed records what it spent; the next Verify of the org has less left', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    await db.update(orgs).set({ aiCapUsd: '0.40' }).where(eq(orgs.id, me.org.id));
+    const f = await site('failed');
+    await db.insert(runs).values({ sourceId: f.sourceId, status: 'completed', costUsd: '0.0400' }); // $0.36 left
+    try {
+      runVerificationMock.mockImplementationOnce(async (_req: unknown, deps: { agent: ProposePathsAgent | null }) => {
+        await deps.agent!.proposePaths('a');
+        billed();
+        throw new Error('the page went away');
+      });
+      await runSourceVerification(f.sourceId, f.verificationId, { startCoverage, startCheck });
+      const failed = await rowOf(f.verificationId);
+      expect(failed.errorMessage).not.toBeNull();
+      expect(failed.costUsd).toBe('0.0600');
+      // $0.30 left: one $0.18 call fits, the second does not (with the cost lost, two would).
+      const results: unknown[] = [];
+      runVerificationMock.mockImplementationOnce(asksTwice(f, results));
+      await runSourceVerification(f.sourceId, await newVerification(f.sourceId), { startCoverage, startCheck });
+      expect(results[0]).toBe('asked');
+      expect(isCapReached(results[1])).toBe(true);
+    } finally { await f.cleanup(); }
+  });
+
+  it('review I2: a stopped attempt records what it spent on its open row, and the retry on that row adds its own', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    const f = await site('stopped');
+    try {
+      const ac = new AbortController();
+      runVerificationMock.mockImplementationOnce(async (_req: unknown, deps: { agent: ProposePathsAgent | null }) => {
+        await deps.agent!.proposePaths('a');
+        billed();
+        ac.abort(); // stuck, lease lost or shutdown: the browser closes under the walk
+        return outcome(f.urls);
+      });
+      const job = { jobId: randomUUID(), claim: 'c', type: 'verify', lane: 'background' as const, attempt: 1, retry: false, signal: ac.signal, progress: () => {} };
+      await runInJob(job, () => runSourceVerification(f.sourceId, f.verificationId, { startCoverage, startCheck }));
+      const stopped = await rowOf(f.verificationId);
+      expect(stopped.completedAt).toBeNull(); // the row is still the runner's or the next claim's
+      expect(stopped.costUsd).toBe('0.0600');
+      runVerificationMock.mockImplementationOnce(async (_req: unknown, deps: { agent: ProposePathsAgent | null }) => {
+        await deps.agent!.proposePaths('a');
+        billed();
+        return outcome(f.urls);
+      });
+      await runSourceVerification(f.sourceId, f.verificationId, { startCoverage, startCheck });
+      const done = await rowOf(f.verificationId);
+      expect(done.completedAt).not.toBeNull();
+      expect(done.costUsd).toBe('0.1200');
     } finally { await f.cleanup(); }
   });
 
