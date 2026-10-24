@@ -128,7 +128,20 @@ export async function queueEmailsSafely(dbh: DbOrTx, event: EmailEvent, opts: { 
   try {
     return (await queueEmails(dbh, event, opts)).queued.length;
   } catch (err) {
-    console.error(`[email] ${event.kind} emails could not be queued:`, err);
+    console.error(`[email] ${event.kind} emails could not be queued: ${errorLine(err)}`);
     return 0;
   }
+}
+
+/**
+ * One log line for a failure (parked T3): the database's own message and its Postgres code, never the error object —
+ * a failed query's error carries the query and its values (addresses, rendered bodies) in its message and fields.
+ */
+export function errorLine(err: unknown): string {
+  const cause = err instanceof Error && err.cause instanceof Error ? err.cause : err;
+  // Without a database cause, a "Failed query: …" message is the query itself: say only that it failed.
+  const raw = cause instanceof Error ? cause.message : String(cause);
+  const message = raw.startsWith('Failed query:') ? 'a query failed' : raw;
+  const code = (cause as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? `${message} (${code})` : message;
 }

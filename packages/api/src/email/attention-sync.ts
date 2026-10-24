@@ -15,7 +15,7 @@ import { sources, type Database } from '@robot/db';
 import { needsAttention, websiteAttention } from '../verify/attention.js';
 import { loadCertificationState, runnableOf } from '../verify/current-certification.js';
 import { lockSource, verificationInFlight } from '../verify/in-flight.js';
-import { queueEmails } from './queue-emails.js';
+import { errorLine, queueEmails } from './queue-emails.js';
 
 export type AttentionSync = { on: boolean; turnedOn: boolean; queued: number };
 
@@ -55,7 +55,7 @@ export async function syncAttentionSafely(dbh: Database, sourceIds: string | str
     try {
       await syncAttention(dbh, id);
     } catch (err) {
-      console.error(`[email] "needs attention" for website ${id} could not be synced:`, err);
+      console.error(`[email] "needs attention" for website ${id} could not be synced: ${errorLine(err)}`);
     }
   }
 }
