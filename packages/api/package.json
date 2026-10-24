@@ -15,7 +15,8 @@
     "./test-helpers/identity": "./src/test-helpers/identity.ts",
     "./test-helpers/customer-source": "./src/test-helpers/customer-source.ts",
     "./test-helpers/seed-coverage-check": "./src/test-helpers/seed-coverage-check.ts",
-    "./isolation/two-orgs": "./src/isolation/two-orgs.ts"
+    "./isolation/two-orgs": "./src/isolation/two-orgs.ts",
+    "./isolation/rate-limit": "./src/isolation/rate-limit.ts"
   },
   "scripts": {
     "test": "vitest",

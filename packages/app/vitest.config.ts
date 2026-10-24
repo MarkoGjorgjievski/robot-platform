@@ -7,5 +7,7 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     environment: 'node',
+    // Off as in the api's own config, should a unit test ever reach an api procedure in-process.
+    env: { RATE_LIMITS: 'off' },
   },
 });

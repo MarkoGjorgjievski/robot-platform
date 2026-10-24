@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { db, users, runs, captures } from '@robot/db';
 import { deleteOwnOrg, signedInCaller } from '@robot/api/test-helpers/identity';
 import { createProjectWithSource } from '@robot/api/test-helpers/customer-source';
+import { RateLimiter, DEFAULT_LIMITS, useRateLimiter, RATE_LIMITED_MESSAGE } from '@robot/api/isolation/rate-limit';
 import { createApp } from './app.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -254,5 +255,48 @@ describe.skipIf(!process.env.DATABASE_URL)('captures route session gating (real 
       await owner.cleanup();
       await other.cleanup();
     }
+  });
+});
+
+// Rate limits over HTTP (spec 2026-10-24 tenant isolation §2.4): the client address reaches the limiter, a refusal is
+// a 429 with the customer sentence, and X-Forwarded-For counts only behind a trusted proxy. An invalid email is
+// refused by the input check after the limiter counted it, so nothing is written.
+describe('rate limits over HTTP', () => {
+  const saved = { RATE_LIMITS: process.env.RATE_LIMITS, TRUST_PROXY: process.env.TRUST_PROXY };
+  let previous: RateLimiter;
+  beforeEach(() => { process.env.RATE_LIMITS = 'on'; previous = useRateLimiter(new RateLimiter({ limits: { ...DEFAULT_LIMITS, signInIp: 2 } })); });
+  afterEach(() => {
+    useRateLimiter(previous);
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  });
+  const signInFrom = (remoteAddress: string, email: string, headers: Record<string, string> = {}) =>
+    createApp().request('/trpc/auth.signIn', {
+      method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ json: { email, password: 'x' } }),
+    }, { incoming: { socket: { remoteAddress } } } as never);
+
+  it('the third sign-in from one address is a 429 with the sentence', async () => {
+    expect((await signInFrom('10.9.0.1', 'a')).status).toBe(400);
+    expect((await signInFrom('10.9.0.1', 'b')).status).toBe(400);
+    const third = await signInFrom('10.9.0.1', 'c');
+    expect(third.status).toBe(429);
+    expect((await third.json()).error.json.message).toBe(RATE_LIMITED_MESSAGE);
+    expect((await signInFrom('10.9.0.2', 'd')).status).toBe(400);
+  });
+
+  it('RF2: a rotated X-Forwarded-For does not reset the sign-in limit; behind a proxy the last entry counts', async () => {
+    delete process.env.TRUST_PROXY;
+    expect((await signInFrom('10.9.1.1', 'a', { 'x-forwarded-for': '1.1.1.1' })).status).toBe(400);
+    expect((await signInFrom('10.9.1.1', 'b', { 'x-forwarded-for': '2.2.2.2' })).status).toBe(400);
+    expect((await signInFrom('10.9.1.1', 'c', { 'x-forwarded-for': '3.3.3.3' })).status).toBe(429);
+
+    process.env.TRUST_PROXY = 'on';
+    // Behind the proxy (one socket), each client is its own address…
+    for (const [n, client] of ['198.51.100.1', '198.51.100.2', '198.51.100.3'].entries()) {
+      expect((await signInFrom('10.9.2.1', `e${n}`, { 'x-forwarded-for': client })).status).toBe(400);
+    }
+    // …and what a client writes first is ignored: the proxy's last entry is the one counted.
+    expect((await signInFrom('10.9.2.1', 'f', { 'x-forwarded-for': '7.7.7.1, 198.51.100.9' })).status).toBe(400);
+    expect((await signInFrom('10.9.2.1', 'g', { 'x-forwarded-for': '7.7.7.2, 198.51.100.9' })).status).toBe(400);
+    expect((await signInFrom('10.9.2.1', 'h', { 'x-forwarded-for': '7.7.7.3, 198.51.100.9' })).status).toBe(429);
   });
 });

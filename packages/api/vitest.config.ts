@@ -3,12 +3,13 @@
 // (an env value already set wins over .env in @robot/db's loader, an empty one included), so no
 // test that runs a proof-page capture can send a real, paid TypeSafe request. The Jev tests turn
 // it on explicitly, with a fake client. Mail is off too (SMTP_URL empty), so no test sends a real email; a test that
-// sends passes its own env with the in-process sink's URL.
+// sends passes its own env with the in-process sink's URL. Rate limits are off too (RATE_LIMITS=off): a suite makes
+// hundreds of calls a minute on one session; isolation/rate-limit.test.ts turns them on with its own limiter.
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    env: { JEV_SHADOW: '', SMTP_URL: '' },
+    env: { JEV_SHADOW: '', SMTP_URL: '', RATE_LIMITS: 'off' },
     setupFiles: ['./src/test-setup/job-queue.ts'],
   },
 });

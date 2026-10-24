@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { createExportRoutes } from './routes/export.js';
 import { createCaptureGate } from './routes/captures-gate.js';
 import { sessionTokenFrom } from './session-cookie.js';
+import { clientIpOf } from './client-ip.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -58,6 +59,7 @@ export function createApp(deps: Partial<AppDeps> = {}) {
         return {
           db,
           session: await loadSession(db, sessionTokenFrom(c.req.header('cookie'))),
+          clientIp: clientIpOf(c),
           setCookie: (name: string, value: string, { maxAge }: { maxAge: number }) =>
             c.header('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`, { append: true }),
           clearCookie: (name: string) =>
