@@ -25,6 +25,8 @@ process.env.CAPTURES_DIR = join(tmpdir(), 'robot-isolation-captures');
 const MONEY_KEY = /usd|cost|spend|price(?!s?$)/i;
 /** An amount written into text ("up to $0.36"), wherever it sits. */
 const MONEY_TEXT = /\$\s?\d/;
+/** Internal counts a customer never receives, whatever their value (customer-copy rule: an AI-call count is ours). */
+const INTERNAL_KEY = /aiCalls/i;
 /** Scraped or customer-typed data, never searched — a customer's own "price" field is theirs, not our money. Anchored
  *  per procedure to the exact answer paths that carry it (array indexes as `[*]`), so an amount of ours added anywhere
  *  else, even under a key of the same name, is still found. */
@@ -35,8 +37,8 @@ const CUSTOMER_DATA: Record<string, string[]> = {
   'crawl.items': ['items[*].listingValues'],
 };
 
-/** Every path in `v` whose key reads as money and whose value is an amount (a number or a numeric string), or whose
- *  text carries an amount — outside the procedure's customer data. */
+/** Every path in `v` whose key reads as money and whose value is an amount (a number or a numeric string), whose key
+ *  is an internal count, or whose text carries an amount — outside the procedure's customer data. */
 function moneyPaths(v: unknown, procedure = '', path = ''): string[] {
   const skip = CUSTOMER_DATA[procedure] ?? [];
   if (skip.includes(path.replace(/\[\d+\]/g, '[*]'))) return [];
@@ -47,13 +49,14 @@ function moneyPaths(v: unknown, procedure = '', path = ''): string[] {
     const here = path ? `${path}.${k}` : k;
     if (skip.includes(here.replace(/\[\d+\]/g, '[*]'))) return [];
     const amount = typeof x === 'number' || (typeof x === 'string' && x.trim() !== '' && Number.isFinite(Number(x)));
-    const flagged = MONEY_KEY.test(k) && amount;
+    const flagged = (MONEY_KEY.test(k) && amount) || (INTERNAL_KEY.test(k) && x !== undefined && x !== null);
     return [...(flagged ? [here] : []), ...moneyPaths(x, procedure, here).filter((p) => p !== here || !flagged)];
   });
 }
 
 describe('the scan itself', () => {
-  it('finds an amount in text and our amount under a key named like customer data', () => {
+  it('finds an amount in text, an internal count, and our amount under a key named like customer data', () => {
+    expect(moneyPaths({ status: { aiCalls: 3 } })).toEqual(['status.aiCalls']);
     expect(moneyPaths({ label: 'up to $0.36', note: 'costs $ 4' })).toEqual(['label', 'note']);
     expect(moneyPaths({ fields: [{ key: 'price', perFieldUsd: 0.06 }] }, 'sources.verifyEstimate')).toEqual(['fields[0].perFieldUsd']);
     expect(moneyPaths({ rows: [{ costUsd: 1 }] }, 'runs.listByOrg')).toEqual(['rows[0].costUsd']);
@@ -68,7 +71,7 @@ describe('the scan itself', () => {
 /** What staff must still read, per procedure (spec §2.3's table, on this fixture: one project, one run, one staff action). */
 const STAFF_MONEY: Record<string, string[]> = {
   'runs.listByOrg': ['[0].costUsd'],
-  'sources.verificationStatus': ['costUsd'],
+  'sources.verificationStatus': ['costUsd', 'aiCalls'],
   'sources.verifyEstimate': ['perFieldUsd', 'upperBoundUsd'],
   'crawl.backfillPreview': ['estCostUsd'],
   'usage.byProject': ['projects[0].spendUsd', 'total.spendUsd'],
