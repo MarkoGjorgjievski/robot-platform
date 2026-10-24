@@ -7,17 +7,18 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Tenant isolation audit, as tests** — two organisations, every router and capture-file route called across them, all refused; money fields removed from customer answers; rate limits. *Done when:* the sweep test passes.
-2. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
-3. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
-4. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
-5. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
-6. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-7. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
+2. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
+3. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
+4. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
+5. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+6. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
 
+- **Real sign-in.** Sign-in still accepts any password (spec 2026-10-24 tenant isolation §6); the new limits slow guessing but do not stop it. Passwords, magic links, or an identity provider?
+- **Rate limits behind a proxy.** Rate limits are per api-server process; behind a real proxy set TRUST_PROXY=on, or all clients share one address (and its 30 sign-ins a minute). Several api-servers would need a shared store for the limits.
 - **Recurring runs are on by default** (`RECURRING_RUNS`): nothing runs until a customer saves a schedule. Keep on?
 - **Webhook links point at `PUBLIC_API_URL`** (default http://localhost:4000): a customer's endpoint outside this machine
   cannot open them until the api-server has a public address. Which address?
@@ -47,6 +48,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-24 — Tenant isolation audit, as tests (`84413343`): every procedure classified and swept across two organisations (85; one hole fixed — projects.list read every org's websites), every file route swept, no money in customer answers, rate limits (RATE_LIMITS, TRUST_PROXY). After merge: restart dev:all.
 - 2026-10-24 — Email, with a local catcher (`35fcfc3e`): "needs attention", failed-run and account emails over SMTP, once per event, with an Account panel to choose; Mailpit locally (one-liner and Compose), a provider by SMTP_URL; live check docs/testing/results/2026-10-24-email/live-email.json. After merge: pnpm install, pnpm db:migrate, restart dev:all.
 - 2026-10-24 — Recurring extraction (`2881058f`): a weekly schedule per website, a CSV/JSON/XLSX snapshot per run, a signed webhook with signed links on completion; live check docs/testing/results/2026-10-24-recurring/live-recurring.md. After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-24 — Run speed (`b0b0f994`): lean captures on certified runs with today's capture as the fallback, page starts 2 s apart per host, runs keep a browser for Verify; measured 1.6× per 1,000 pages one website at a time, 8.1× at six, same values (docs/testing/results/2026-10-23-run-speed/report.md). After merge: pnpm install, restart dev:all.

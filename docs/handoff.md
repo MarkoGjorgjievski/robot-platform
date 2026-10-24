@@ -35,11 +35,13 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Email (2026-10-24)](#email-2026-10-24).** Owners and admins get an email when a website needs attention or a run fails; account messages go out when staff enter, a role changes or someone is removed. Merged 2026-10-24.
+**Newest: [Tenant isolation (2026-10-24)](#tenant-isolation-2026-10-24).** Every api procedure and file route is proven, as tests, to refuse another organisation; customers receive no money amounts; sign-in, the heavy work and the address checks are rate limited. Merged 2026-10-24.
 
-**Before it: [Recurring extraction (2026-10-24)](#recurring-extraction-2026-10-24).** A website can run on a weekly schedule and post a signed webhook with download links when a run finishes. Merged 2026-10-24.
+**Before it: [Email (2026-10-24)](#email-2026-10-24).** Owners and admins get an email when a website needs attention or a run fails; account messages go out when staff enter, a role changes or someone is removed. Merged 2026-10-24.
 
-**Before that: [Run speed (2026-10-23)](#run-speed-2026-10-23).** Certified runs capture lean with today's capture as the fallback; page starts per host 2 s apart; several websites at once when `WORKER_RUNS` is raised. Measured 1.6× faster per 1,000 pages one website at a time, 8.1× at six, with the same values. Merged 2026-10-24.
+**Before that: [Recurring extraction (2026-10-24)](#recurring-extraction-2026-10-24).** A website can run on a weekly schedule and post a signed webhook with download links when a run finishes. Merged 2026-10-24.
+
+**Before it: [Run speed (2026-10-23)](#run-speed-2026-10-23).** Certified runs capture lean with today's capture as the fallback; page starts per host 2 s apart; several websites at once when `WORKER_RUNS` is raised. Measured 1.6× faster per 1,000 pages one website at a time, 8.1× at six, with the same values. Merged 2026-10-24.
 
 **Before it: [The whole stack in Docker Compose (2026-10-23)](#the-whole-stack-in-docker-compose-2026-10-23).** `docker compose up -d --build` runs Postgres, migrations, api, worker, app and a nightly backup as project `robot-stack` on :3200/:4200/:5442, keyless; a restore test proves a dump comes back whole.
 
@@ -120,6 +122,87 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Tenant isolation (2026-10-24)
+
+Spec `docs/superpowers/specs/2026-10-24-tenant-isolation-design.md`, plan
+`docs/superpowers/plans/2026-10-24-tenant-isolation.md`.
+
+**What changed.**
+- *The classification and the procedure sweep.* Every tRPC procedure has one row in
+  `packages/api/src/isolation/procedure-classes.ts` — scoped (takes an id of an org's row), org-wide, self,
+  membership, ops, public or stateless — and the table must equal `appRouter`'s procedures, so a new one fails the
+  sweep until it is classified. `procedure-sweep.test.ts` builds two throwaway organisations (`two-orgs.ts`, one of
+  everything a customer owns) and calls every procedure as A with B's ids: a scoped call answers `NOT_FOUND` in the
+  same words as for ids nobody has, B's rows are unchanged (snapshot before and after), the test queue's job count is
+  unchanged (`runAndWait`/`awaitJob` are mocked to throw), and B's own owner reaches the same rows with the same input;
+  org-wide calls name nothing of B; membership calls refuse B's members; ops calls are `FORBIDDEN` to customers; no
+  session answers `UNAUTHORIZED`.
+- *The file-route sweep.* `packages/api-server/src/isolation-routes.test.ts` calls `/captures/*`,
+  `/export/runs/*` (live and snapshot) and `/export/projects/*` across the two orgs: 401 without a session, 404 for
+  B's files, 400 for traversal, and every wrong signed link (tampered, expired, another run's, another org's secret,
+  made before rotation) the byte-identical 404 of a missing run.
+- *No money for a customer.* Six procedures leave their amount keys out for a customer and keep them for an operator
+  and a staff session — `runs.listByOrg` (`costUsd`), `sources.verificationStatus` (`costUsd` and the AI-call count
+  `aiCalls`), `sources.verifyEstimate` (`upperBoundUsd`, `perFieldUsd`), `crawl.backfillPreview` (`estCostUsd`),
+  `usage.byProject` (`spendUsd`) and `orgs.staffActivity` (`run.costUsd`; the run link stays) — through
+  `moneyFields(viewerSeesMoney(ctx), …)`, which spreads `{}` so the key's name never reaches the browser. A
+  customer's Usage is ordered by pages captured, then name (spend order would rank it). `money-sweep.test.ts` calls
+  every customer query and the org-wide and self mutations and flags any money-named key or `$<digit>` in text, except
+  at anchored paths that carry the customer's own data. The app's optional types compile and every screen still gates
+  on `showsMoney`.
+- *Rate limits.* `packages/api/src/isolation/rate-limit.ts`, one middleware on `publicProcedure`: sign-in 10 a minute
+  per email (trimmed, lower-cased) and 30 per client address; heavy work 30 a minute per org (Verify, confirm,
+  proof-page captures, planning, probe-and-sample, runs, backfill, variant detection, transfer marks, a manual drift
+  check, changing or removing a member); the address checks 60 per org; everything else 1,200 per session. Staff count
+  on `staff:<userId>`. Counting is all or nothing; a refusal is logged once per key per window and names no email or
+  address. `RATE_LIMITS=off` turns it off (every vitest config does); `TRUST_PROXY=on` takes the last
+  `X-Forwarded-For` entry. A refusal answers `TOO_MANY_REQUESTS` with "Too many requests. Wait a minute and try
+  again.", shown on the sign-in form and on every button through `mutationErrorText`; React Query never retries.
+- *The holes fixed.* `projects.list` read every org's websites (certifying each) and every org's runs — the answer was
+  filtered by project, so nothing leaked; now scoped, with a test. `runInOrg` / `captureInOrg` refused another org's
+  run or capture in words that confirmed it and named its website id (11 procedures); now the words of a missing one.
+
+**How it was proven.** The procedure sweep: 85 procedures (scoped 56, org-wide 8, self 8, membership 3, ops 5, public
+3, stateless 2), 252 tests; the file-route sweep, 9; the money sweep, 50 (30 customer queries, 9 mutations, staff
+still read amounts); the limiter, 17. Full runs on the final head (`84413343`): api 2,005, api-server 88, app 1,107,
+worker 18; tsc clean. The route smoke on the isolated pair with the limits on: 28 of 28, no `[rate-limit]` line in the
+api-server log; the customer's Usage screenshots show "Pages captured in October 2026" as the headline and a Project /
+Pages captured table with no spend column, the Runs screens and a run page show no cost, both themes intact. Reviews:
+per task with fix rounds, and a whole-branch review (0 Critical; its 2 Importants — the drift check outside the heavy
+group, and the final fix wave — fixed on the branch).
+
+**After pulling.** Nothing to install or migrate. Restart `pnpm dev:all` to get the limits; until then the running
+servers keep the old code. A customer's Usage and Runs show no money as before — now because the api sends none.
+
+**What NOT to redo.** Never add a procedure without its row in `procedure-classes.ts` (and, if it starts work, in the
+heavy or network group); never send money to a customer and hide it in the app — leave the key out with
+`moneyFields(viewerSeesMoney(ctx), …)`; never turn `TRUST_PROXY` on without a proxy that writes `X-Forwarded-For`;
+never let a sweep reach the worker — keep the `runAndWait`/`awaitJob` mocks; the tests run with `RATE_LIMITS=off`.
+
+**Open.**
+- Spec §6: distributed limits for several api-servers (one limiter per process today), per-role money, billing, abuse
+  detection beyond fixed windows, real authentication — sign-in still accepts any password.
+- Per-org limits can be dodged by minting orgs: any email signs in and gets its own personal org, each with its own
+  heavy and network budget (closes with real sign-in). The per-email key also lets anyone who knows an address slow
+  that user's sign-in (10 a minute) — inherent to per-email limits.
+- Client address behind Docker or a proxy: the Compose stack's published port reaches the api from the gateway's
+  address, so every browser shares one sign-in and one anonymous-session key (harmless while only the host connects);
+  behind a real proxy set `TRUST_PROXY=on`, or anyone's 30 bad sign-ins a minute lock everyone out. The app's SSR
+  session read with a stale cookie counts under the app container's address. IPv6 is keyed per address, not per /64.
+- The file routes (`/export/*`, `/captures/*`) are not rate limited; a large run's xlsx is costly to build.
+- Sweep coverage: the money sweep does not call scoped mutations or the `works` queries, or scan error messages; the
+  scoped sweep feeds an all-B input, so a future procedure taking A's id plus an unchecked secondary id would pass (the
+  four current multi-id cases are covered by hand); the B snapshot leaves out the legacy `extractors`,
+  `extractor_inputs` and `credentials` tables (no procedure touches them, the fixture has no rows there).
+- The money sweep's exclusions for sources.get cover verificationSet.expected/defaults but not
+  verificationSet.variants.<url>.spot.expected (a customer's own typed values) — add that path if a money-named field
+  ever appears there.
+- `sources.verifyEstimate` still sends `aiFields` / `aiAvailable` to a customer (not counts; the Verify label reads
+  them) — ruled to stay.
+- `sources.get` hands the webhook secret to every member, by design for the Settings tab.
+- A query refused by the limits shows the screen's own error line, not the sentence — only buttons and sign-in word it.
+- The worker's bench (`worker/src/bench/seed.ts`) runs the api in-process with the limits on (far under them).
 
 ## Email (2026-10-24)
 
