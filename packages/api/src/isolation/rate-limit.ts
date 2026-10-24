@@ -12,7 +12,7 @@ export const WINDOW_MS = 60_000;
 export const MAX_KEYS = 100_000;
 
 export type RateLimits = { signInEmail: number; signInIp: number; heavy: number; network: number; session: number };
-export const DEFAULT_LIMITS: RateLimits = { signInEmail: 10, signInIp: 30, heavy: 30, network: 60, session: 600 };
+export const DEFAULT_LIMITS: RateLimits = { signInEmail: 10, signInIp: 30, heavy: 30, network: 60, session: 1200 };
 
 export const HEAVY_PROCEDURES = [
   'sources.verify', 'sources.confirm', 'sources.captureProofPage', 'crawl.plan', 'crawl.probeAndSample', 'crawl.execute',
