@@ -8,13 +8,13 @@
 // Fix round 1: the whole sync is one transaction under the website row lock (`lockSource`), taken before attention
 // is read — every writer of what attention reads takes that lock or touches the row, so a sync reads all that
 // committed before it and the last sync decides: a reset can never land after another sync's claim (no second email
-// for one turn). And while a Verify is in flight (`resolveInFlightVerification`), a sync never claims — it may still
+// for one turn). And while a Verify is in flight (`verificationInFlight`, read-only: a sync never closes a stalled row), a sync never claims — it may still
 // reset — the Verify's own sync at its end decides (a refresh's momentary hold is never emailed by another writer).
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { sources, type Database } from '@robot/db';
 import { needsAttention, websiteAttention } from '../verify/attention.js';
 import { loadCertificationState, runnableOf } from '../verify/current-certification.js';
-import { lockSource, resolveInFlightVerification } from '../verify/in-flight.js';
+import { lockSource, verificationInFlight } from '../verify/in-flight.js';
 import { queueEmails } from './queue-emails.js';
 
 export type AttentionSync = { on: boolean; turnedOn: boolean; queued: number };
@@ -38,7 +38,7 @@ export async function syncAttention(
       await tx.update(sources).set({ attentionSince: null }).where(and(eq(sources.id, sourceId), isNotNull(sources.attentionSince)));
       return OFF;
     }
-    if (await resolveInFlightVerification(tx, sourceId)) return { on: true, turnedOn: false, queued: 0 };
+    if (await verificationInFlight(tx, sourceId)) return { on: true, turnedOn: false, queued: 0 };
     const runnable = runnableOf(await loadCertificationState(read, sourceId));
     const [won] = await tx.update(sources).set({ attentionSince: deps.now?.() ?? new Date() })
       .where(and(eq(sources.id, sourceId), isNull(sources.attentionSince)))
