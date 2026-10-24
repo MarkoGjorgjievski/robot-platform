@@ -417,15 +417,19 @@ describe('sources.verifyEstimate', () => {
     // that SETS the key.
     const savedKey = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
+    // The default limit is pinned to $25 (review minor 5): a `none` in .env would make `cap.capUsd` null.
+    const savedCap = process.env.ORG_AI_CAP_USD;
+    delete process.env.ORG_AI_CAP_USD;
     try {
       const est = await caller.sources.verifyEstimate({ sourceId: f.sourceId });
       // `stallMs` (C1) rides along on every estimate: the Schema screen needs the
       // server's own stall window to tell a live verification from a crash leftover.
       // No prior clean run at all, so both fields are un-certified and would
       // reach AI (aiFields === fields) — priced at 0 only because aiAvailable is false.
-      expect(est).toEqual({ fields: 2, aiFields: 2, perFieldUsd: 0.18, upperBoundUsd: 0, aiAvailable: false, capturesFresh: false, stallMs: VERIFY_STALL_MS, cap: expect.objectContaining({ capUsd: expect.any(Number) }) });
+      expect(est).toEqual({ fields: 2, aiFields: 2, perFieldUsd: 0.18, upperBoundUsd: 0, aiAvailable: false, capturesFresh: false, stallMs: VERIFY_STALL_MS, cap: expect.objectContaining({ capUsd: 25 }) });
     } finally {
       if (savedKey !== undefined) process.env.ANTHROPIC_API_KEY = savedKey;
+      if (savedCap !== undefined) process.env.ORG_AI_CAP_USD = savedCap;
       await f.cleanup();
     }
   });
