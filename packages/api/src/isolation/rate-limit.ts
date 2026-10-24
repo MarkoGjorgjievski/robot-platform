@@ -17,6 +17,8 @@ export const DEFAULT_LIMITS: RateLimits = { signInEmail: 10, signInIp: 30, heavy
 export const HEAVY_PROCEDURES = [
   'sources.verify', 'sources.confirm', 'sources.captureProofPage', 'crawl.plan', 'crawl.probeAndSample', 'crawl.execute',
   'crawl.backfill', 'sources.detectVariants', 'sources.transferMarks',
+  // Not in the spec's list (final review I1): a manual drift check enqueues a drift-check job in the background lane.
+  'sources.checkDrift',
 ] as const;
 export const NETWORK_PROCEDURES = ['sources.reachability', 'sources.checkListingPage', 'sources.variantLinksNear', 'sources.variantList'] as const;
 
