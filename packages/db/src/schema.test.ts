@@ -1,7 +1,7 @@
 // packages/db/src/schema.test.ts
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions, driftChecks, coverageChecks, fieldHolds, valueRefreshes, jobs } from './index.js';
+import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions, driftChecks, coverageChecks, fieldHolds, valueRefreshes, jobs, runFiles, webhookDeliveries } from './index.js';
 
 const SLUG = 'test-repair-engine-columns';
 
@@ -184,5 +184,64 @@ describe('jobs (2026-10-23)', () => {
     expect(cc!.jobId).toBe(jobId);
     const [none] = await db.insert(runs).values({ sourceId: source.id }).returning();
     expect(none!.jobId).toBeNull();
+  });
+});
+
+describe('recurring extraction columns (spec 2026-10-24)', () => {
+  it('a website keeps its schedule, next run, last outcome and webhook', async () => {
+    const schedule = { days: [1], time: '06:00', timeZone: 'Europe/Berlin' };
+    const next = new Date('2026-10-26T05:00:00Z');
+    const { orgId: seeded, source } = await seedSource({
+      schedule, nextRunAt: next, scheduleLast: { at: '2026-10-19T04:00:00.000Z', outcome: 'skipped', reason: 'busy' },
+      webhookUrl: 'https://hooks.example.com/robot', webhookSecret: 'ab'.repeat(32),
+    });
+    orgId = seeded;
+    const [row] = await db.select().from(sources).where(eq(sources.id, source.id));
+    expect(row!.schedule).toEqual(schedule);
+    expect(row!.nextRunAt!.toISOString()).toBe(next.toISOString());
+    expect(row!.scheduleLast).toMatchObject({ outcome: 'skipped', reason: 'busy' });
+    expect(row!.webhookUrl).toBe('https://hooks.example.com/robot');
+    expect(row!.webhookSecret).toHaveLength(64);
+  });
+
+  it('a website without them reads null everywhere', async () => {
+    const { orgId: seeded, source } = await seedSource();
+    orgId = seeded;
+    const [row] = await db.select().from(sources).where(eq(sources.id, source.id));
+    expect([row!.schedule, row!.nextRunAt, row!.scheduleLast, row!.webhookUrl, row!.webhookSecret]).toEqual([null, null, null, null, null]);
+  });
+
+  it('a run keeps one file per format, its bytes intact, replaced on conflict', async () => {
+    const { orgId: seeded, source } = await seedSource();
+    orgId = seeded;
+    const [run] = await db.insert(runs).values({ sourceId: source.id, status: 'completed' }).returning();
+    const first = Buffer.from([0xef, 0xbb, 0xbf, 0x61, 0x0d, 0x0a]);
+    await db.insert(runFiles).values({ runId: run!.id, format: 'csv', filename: 'a.csv', bytes: first, rows: 1 });
+    await expect(db.insert(runFiles).values({ runId: run!.id, format: 'csv', filename: 'b.csv', bytes: first, rows: 1 })).rejects.toThrow();
+    const second = Buffer.from([0x00, 0xff, 0x10]);
+    await db.insert(runFiles).values({ runId: run!.id, format: 'csv', filename: 'b.csv', bytes: second, rows: 2 })
+      .onConflictDoUpdate({ target: [runFiles.runId, runFiles.format], set: { filename: 'b.csv', bytes: second, rows: 2 } });
+    const rows = await db.select().from(runFiles).where(eq(runFiles.runId, run!.id));
+    expect(rows).toHaveLength(1);
+    expect(Buffer.isBuffer(rows[0]!.bytes)).toBe(true);
+    expect(rows[0]!.bytes.equals(second)).toBe(true);
+    expect(rows[0]).toMatchObject({ format: 'csv', filename: 'b.csv', rows: 2 });
+  });
+
+  it('a webhook attempt is one row, and files and attempts go with their run', async () => {
+    const { orgId: seeded, source } = await seedSource();
+    orgId = seeded;
+    const [run] = await db.insert(runs).values({ sourceId: source.id, status: 'completed' }).returning();
+    const deliveryId = '7d4f2b1a-3333-4333-8333-333333333333';
+    await db.insert(webhookDeliveries).values([
+      { runId: run!.id, deliveryId, attempt: 1, ok: false, statusCode: 500, error: 'answered 500' },
+      { runId: run!.id, deliveryId, attempt: 2, ok: true, statusCode: 200, error: null },
+    ]);
+    await db.insert(runFiles).values({ runId: run!.id, format: 'json', filename: 'a.json', bytes: Buffer.from('{}'), rows: 0 });
+    const attempts = await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.runId, run!.id));
+    expect(attempts.map((a) => [a.attempt, a.ok, a.statusCode])).toEqual(expect.arrayContaining([[1, false, 500], [2, true, 200]]));
+    await db.delete(runs).where(eq(runs.id, run!.id));
+    expect(await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.runId, run!.id))).toEqual([]);
+    expect(await db.select().from(runFiles).where(eq(runFiles.runId, run!.id))).toEqual([]);
   });
 });
