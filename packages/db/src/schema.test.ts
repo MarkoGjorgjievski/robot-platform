@@ -1,7 +1,7 @@
 // packages/db/src/schema.test.ts
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions, driftChecks, coverageChecks, fieldHolds, valueRefreshes, jobs, runFiles, webhookDeliveries } from './index.js';
+import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions, driftChecks, coverageChecks, fieldHolds, valueRefreshes, jobs, runFiles, webhookDeliveries, emailMessages } from './index.js';
 
 const SLUG = 'test-repair-engine-columns';
 
@@ -243,5 +243,43 @@ describe('recurring extraction columns (spec 2026-10-24)', () => {
     await db.delete(runs).where(eq(runs.id, run!.id));
     expect(await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.runId, run!.id))).toEqual([]);
     expect(await db.select().from(runFiles).where(eq(runFiles.runId, run!.id))).toEqual([]);
+  });
+});
+
+describe('email (spec 2026-10-24 email §3.2–§3.3)', () => {
+  it('a user keeps both email preferences, on by default; a website keeps when it turned to attention', async () => {
+    const [user] = await db.insert(users).values({ email: `email-prefs-${Date.now()}@example.com`, name: 'Prefs', avatarColour: '#3ddc84' }).returning();
+    try {
+      expect([user!.emailAttention, user!.emailFailedRuns]).toEqual([true, true]);
+      const [off] = await db.update(users).set({ emailAttention: false }).where(eq(users.id, user!.id)).returning();
+      expect([off!.emailAttention, off!.emailFailedRuns]).toEqual([false, true]);
+    } finally {
+      await db.delete(users).where(eq(users.id, user!.id));
+    }
+    const since = new Date('2026-10-24T09:00:00.123Z');
+    const { orgId: seeded, source } = await seedSource({ attentionSince: since });
+    orgId = seeded;
+    expect(source.attentionSince!.toISOString()).toBe(since.toISOString());
+    const [cleared] = await db.update(sources).set({ attentionSince: null }).where(eq(sources.id, source.id)).returning();
+    expect(cleared!.attentionSince).toBeNull();
+  });
+
+  it('a message is one row per dedupe key, queued with no attempts; it goes with its org and stays when its user goes', async () => {
+    const { orgId: seeded } = await seedSource();
+    orgId = seeded;
+    const [user] = await db.insert(users).values({ email: `email-row-${Date.now()}@example.com`, name: 'Row', avatarColour: '#3ddc84' }).returning();
+    const row = {
+      orgId: seeded, userId: user!.id, kind: 'attention', dedupeKey: `attention:test:${Date.now()}:${user!.id}`,
+      toAddress: user!.email, subject: 'Lamp shop needs your attention', text: 'Price needs you.\n', html: '<p>Price needs you.</p>',
+    };
+    const [m] = await db.insert(emailMessages).values(row).returning();
+    expect(m).toMatchObject({ status: 'queued', attempts: 0, error: null, sentAt: null });
+    await expect(db.insert(emailMessages).values(row)).rejects.toThrow();
+    expect(await db.insert(emailMessages).values(row).onConflictDoNothing({ target: emailMessages.dedupeKey }).returning()).toEqual([]);
+    await db.delete(users).where(eq(users.id, user!.id));
+    expect((await db.query.emailMessages.findFirst({ where: eq(emailMessages.id, m!.id) }))!.userId).toBeNull();
+    await db.delete(orgs).where(eq(orgs.id, seeded));
+    orgId = null;
+    expect(await db.query.emailMessages.findFirst({ where: eq(emailMessages.id, m!.id) })).toBeUndefined();
   });
 });

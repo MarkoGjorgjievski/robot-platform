@@ -43,6 +43,10 @@ export const users = pgTable('users', {
   name: varchar('name', { length: 255 }).notNull(),
   avatarColour: varchar('avatar_colour', { length: 7 }).notNull(),
   theme: varchar('theme', { length: 10 }).notNull().default('dark'),
+  // Email (spec 2026-10-24 email §3.3): which notification emails this person gets as an owner or admin.
+  // Account messages (staff access, a role change, a removal) are always sent.
+  emailAttention: boolean('email_attention').notNull().default(true),
+  emailFailedRuns: boolean('email_failed_runs').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -196,6 +200,9 @@ export const sources = pgTable('sources', {
   // (32 random bytes, hex; made on the first save, kept when the address is removed).
   webhookUrl: text('webhook_url'),
   webhookSecret: text('webhook_secret'),
+  // Email (spec 2026-10-24 email §3.2): when this website turned to "Needs attention" — null while it does not need
+  // it. `syncAttention` claims the off → on turn with `WHERE attention_since IS NULL`, so one writer sends.
+  attentionSince: timestamp('attention_since', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -802,4 +809,35 @@ export const staffActions = pgTable('staff_actions', {
 }, (table) => [
   index('staff_actions_org_at_idx').on(table.orgId, table.at),
   index('staff_actions_source_at_idx').on(table.sourceId, table.at),
+]);
+
+// ─── Email (spec 2026-10-24 email §3.3) ─────────────────────────────────────
+// One row per message per recipient, written with its `email` job; the worker sends it. The row is the record.
+
+export const EMAIL_KINDS = ['attention', 'run-failed', 'staff-access', 'role-changed', 'removed'] as const;
+export type EmailKind = (typeof EMAIL_KINDS)[number];
+export const EMAIL_STATUSES = ['queued', 'sent', 'failed', 'skipped'] as const;
+export type EmailStatus = (typeof EMAIL_STATUSES)[number];
+
+export const emailMessages = pgTable('email_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  // Null once the user is deleted; a removed member's row keeps their id (the user still exists).
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  kind: varchar('kind', { length: 20 }).notNull(),
+  // One message per recipient per event (spec §3.2): an insert that hits it does nothing.
+  dedupeKey: varchar('dedupe_key', { length: 200 }).notNull(),
+  toAddress: varchar('to_address', { length: 255 }).notNull(),
+  subject: text('subject').notNull(),
+  text: text('text').notNull(),
+  html: text('html').notNull(),
+  status: varchar('status', { length: 10 }).notNull().default('queued'),
+  attempts: integer('attempts').notNull().default(0),
+  // The last failed attempt's error. Staff only; never shown to a customer.
+  error: text('error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('email_messages_dedupe_key_idx').on(table.dedupeKey),
+  index('email_messages_org_created_idx').on(table.orgId, table.createdAt),
 ]);
