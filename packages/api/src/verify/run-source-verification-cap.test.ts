@@ -19,8 +19,13 @@ const { runVerificationMock, built, propose, hooks } = vi.hoisted(() => ({
   built: vi.fn(),
   propose: vi.fn(async () => [] as unknown[]),
   /** Runs right after the remainder is read from the database, before the read's answer is used. */
-  hooks: { afterRead: null as null | (() => void) },
+  hooks: { afterRead: null as null | (() => void), holdsThrow: false },
 }));
+// Re-review N1: the result write's own transaction can fail after its cost was added (here: in writeHolds).
+vi.mock('./holds.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./holds.js')>();
+  return { ...actual, writeHolds: vi.fn(async (...a: Parameters<typeof actual.writeHolds>) => { if (hooks.holdsThrow) throw new Error('holds could not be written'); return actual.writeHolds(...a); }) };
+});
 // Review I1: a sibling job may record its cost and close while this job's remainder is being read.
 vi.mock('../metering/cap-state.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../metering/cap-state.js')>();
@@ -50,6 +55,7 @@ const savedCap = process.env.ORG_AI_CAP_USD;
 afterEach(async () => {
   runVerificationMock.mockReset(); built.mockClear(); propose.mockClear();
   hooks.afterRead = null;
+  hooks.holdsThrow = false;
   resetCapLedgers();
   if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = savedKey;
   if (savedCap === undefined) delete process.env.ORG_AI_CAP_USD; else process.env.ORG_AI_CAP_USD = savedCap;
@@ -176,6 +182,22 @@ describe('runSourceVerification and the monthly limit (spec 2026-10-24 metering 
       await runSourceVerification(f.sourceId, await newVerification(f.sourceId), { startCoverage, startCheck });
       expect(results[0]).toBe('asked');
       expect(isCapReached(results[1])).toBe(true);
+    } finally { await f.cleanup(); }
+  });
+
+  it('re-review N1: a result write that rolls back after adding its cost still leaves the cost recorded', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    await db.update(orgs).set({ aiCapUsd: '0.40' }).where(eq(orgs.id, me.org.id));
+    const f = await site('rollback');
+    try {
+      hooks.holdsThrow = true;
+      runVerificationMock.mockImplementationOnce(async (_req: unknown, deps: { agent: ProposePathsAgent | null }) => {
+        await deps.agent!.proposePaths('a');
+        billed();
+        return outcome(f.urls);
+      });
+      await runSourceVerification(f.sourceId, f.verificationId, { startCoverage, startCheck });
+      expect((await rowOf(f.verificationId)).costUsd).toBe('0.0600');
     } finally { await f.cleanup(); }
   });
 
