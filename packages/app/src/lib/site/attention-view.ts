@@ -3,6 +3,7 @@
 // the Extract tab's line. Pure, so every sentence is tested without a server.
 // Never names a path, a source, a check, a hold, a model or money.
 import { driftBadge, formatDMMM, joinList } from './drift-view';
+import { attentionSentence } from '@robot/scraper/customer-copy';
 
 export const NEEDS_ATTENTION = 'Needs attention';
 
@@ -24,18 +25,7 @@ export function attentionBanner(args: {
   runnable: boolean;
 }): string | null {
   if (args.driftedFields && args.driftedFields.length > 0) return null;
-  const parts: string[] = [];
-  if (args.fields.length > 0) parts.push(needs(args.fields.map((k) => args.fieldNames[k] ?? k)));
-  if (args.goneProducts.length === 1) parts.push(`product ${args.goneProducts[0]} no longer loads`);
-  else if (args.goneProducts.length > 1) parts.push(`products ${joinList(args.goneProducts.map(String))} no longer load`);
-  if (parts.length === 0) return null;
-  const subject = joinList(parts);
-  const tail = !args.runnable
-    ? 'extraction waits for you.'
-    : args.heldSince
-      ? `runs go on with what you verified on ${day(args.heldSince)}.`
-      : 'runs go on as before.';
-  return `${subject.charAt(0).toUpperCase()}${subject.slice(1)} — ${tail}`;
+  return attentionSentence(args);
 }
 
 /** Beside a held field's badge. */
