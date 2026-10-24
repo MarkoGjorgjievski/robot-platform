@@ -5,10 +5,10 @@
 // terminal (`completedAt` set). A row closed meanwhile (the runner stopped
 // this attempt as stuck) is never written by it again (spec 2026-10-23 §7.6).
 
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
 import { BROWSER_UNAVAILABLE } from '@robot/browser';
-import { SchemaAgent, snapshotUsage, diffUsage, estimateCostUsd, cappedAgent, openCapLedger, type CapLedger, type ProposePathsAgent } from '@robot/agent';
+import { SchemaAgent, snapshotUsage, diffUsage, estimateCostUsd, cappedAgent, openCapLedger, type CapLedger, type ProposePathsAgent, type UsageByModel } from '@robot/agent';
 import {
   runVerification,
   CaptureProblemError,
@@ -104,6 +104,23 @@ const startVerifyCheck: StartVerifyCheck = async (sourceId, keys, refs) => {
 /** At the monthly limit no model is built: the capped wrapper refuses every call before this is ever reached. */
 const NO_MODEL: ProposePathsAgent = { proposePaths: async () => { throw new Error('no model at the monthly limit'); } };
 
+/**
+ * Review I2: a failed, stopped or closed-meanwhile attempt still spent what its model calls cost — added to its row
+ * (open or closed; only `cost_usd`, which metering reads), measured the way a passing Verify measures it: the
+ * process-wide usage counter since the attempt began. Never throws.
+ */
+async function recordSpend(verificationId: string, before: UsageByModel): Promise<void> {
+  const usd = estimateCostUsd(diffUsage(before, snapshotUsage())).usd;
+  if (!(usd > 0)) return;
+  try {
+    await db.update(sourceVerifications)
+      .set({ costUsd: sql`${sourceVerifications.costUsd} + ${usd.toFixed(4)}::numeric` })
+      .where(eq(sourceVerifications.id, verificationId));
+  } catch (err) {
+    console.error(`[verify] failed to record the cost of ${verificationId}:`, err);
+  }
+}
+
 export async function runSourceVerification(
   sourceId: string,
   verificationId: string,
@@ -121,6 +138,10 @@ export async function runSourceVerification(
   const startCoverage = opts.startCoverage ?? startCoverageCheck;
   const startCheck = opts.startCheck ?? startVerifyCheck;
   let ledger: CapLedger | undefined;
+  // Review I2: what this attempt's model calls cost is recorded on every exit (a pass, a failure, a stop), before its
+  // slot is released — the org's next job reads it from the database. `costRecorded` once the result write added it.
+  let before: UsageByModel | undefined;
+  let costRecorded = false;
   try {
     const source = await db.query.sources.findFirst({
       where: eq(sources.id, sourceId),
@@ -183,7 +204,7 @@ export async function runSourceVerification(
       for (const [url, p] of Object.entries(proofPages)) { reuse[url] = p.capture; reusedRefs.set(url, p.ref); }
     }
 
-    const before = snapshotUsage();
+    before = snapshotUsage();
     // A free run (spec 2026-10-17 §10 property 9) has no agent at all, so no field in it can reach the AI.
     // Spec 2026-10-24 metering §2.3: the organisation's monthly AI limit, read before any AI. At the limit no model is
     // built — every call is refused before it is made, so a field that needs AI resolves `ai_unavailable` (the existing
@@ -270,12 +291,14 @@ export async function runSourceVerification(
         captures: captureRefs,
         allPassed: run.outcome.allPassed,
         aiCalls: run.outcome.aiCalls,
-        costUsd: cost.toFixed(4),
+        // Added, never set: a stopped earlier attempt on this row already recorded what it spent (review I2).
+        costUsd: sql`${sourceVerifications.costUsd} + ${cost.toFixed(4)}::numeric`,
         completedAt: new Date(),
       }).where(and(eq(sourceVerifications.id, verificationId), isNull(sourceVerifications.completedAt)))
         .returning({ id: sourceVerifications.id });
       // Closed meanwhile (the runner stopped this attempt as stuck): a late attempt writes nothing (spec §7.6).
       if (!won) return false;
+      costRecorded = true;
       await writeHolds(tx, sourceId, holdPlan);
       // The pages were just read: the scheduled check need not read them again for a while (spec §3.3).
       await tx.update(sources).set({ nextCheckAt: nextCheckAt() }).where(eq(sources.id, sourceId));
@@ -316,7 +339,8 @@ export async function runSourceVerification(
       console.error(`[verify] failed to record failure for ${verificationId}:`, recoveryErr);
     }
   } finally {
-    ledger?.close(); // the cost is written (or the run failed): the org's other jobs read it from the database now
+    if (before && !costRecorded) await recordSpend(verificationId, before);
+    ledger?.close(); // the cost is recorded: the org's other jobs read it from the database now
     // Spec 2026-10-24 email §3.2: whatever this Verify wrote (holds, a pass, a failure) may have turned "Needs
     // attention" on or off — a customer's Verify and a refresh's re-verify alike. After the commit: the attention view
     // reads committed rows. A stopped attempt wrote nothing. Never throws.
