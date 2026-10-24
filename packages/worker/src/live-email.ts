@@ -139,6 +139,9 @@ try {
   await owner.caller.orgs.members.setRole({ userId: member.userId, role: 'admin' });
   const role = await rowsOf('role-changed');
   check('a role change: one message to that member', sameSet(role.map((r) => r.toAddress), [member.email]));
+  // A message is sent only while its recipient may still get it (send-email's recheck): let the role change
+  // go out before the removal, or the removal would rightly turn it into `skipped`.
+  await until('the role-change email to be sent', 60_000, async () => (await rowsOf('role-changed')).every((r) => r.status !== 'queued'));
 
   // 5. A removal; removing them again is refused.
   await owner.caller.orgs.members.remove({ userId: member.userId });
