@@ -31,7 +31,7 @@ export function isStaffBlocked(path: string): boolean {
 // leaving/entering and the operator's own account; the app reloads on this message.
 export const STAFF_SESSION_ENDED_MESSAGE = 'Your staff session ended';
 
-const allowedAfterExpiry = new Set<string>(['ops.leaveOrg', 'ops.enterOrg', 'auth.signOut', 'auth.setTheme', 'auth.updateName']);
+const allowedAfterExpiry = new Set<string>(['ops.leaveOrg', 'ops.enterOrg', 'auth.signOut', 'auth.setTheme', 'auth.updateName', 'account.updateEmailPrefs']);
 
 export function isRefusedAfterStaffExpiry(path: string, type: string): boolean {
   return type === 'mutation' && !allowedAfterExpiry.has(path);
