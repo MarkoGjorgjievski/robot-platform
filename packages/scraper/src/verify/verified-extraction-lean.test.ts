@@ -107,13 +107,13 @@ describe('runVerifiedExtraction — lean', () => {
   it('a lean probe that threw takes the full capture, even for a field whose lean miss is trusted', async () => {
     const { browser, asked } = fakeBrowser({ probe: undefined, text: 'Lamp' }, agreed);
     const state = newLeanRunState({ checks: 0 });
-    state.confirmed.set('rating', 3);
+    state.confirmedMiss.set('rating', 3);
     const r = await runVerifiedExtraction({ url: URL_, fields: FIELDS }, { browser, acquireLock: noLock, lean: state });
     expect(asked).toHaveLength(2);
     expect(r.data).toEqual({ name: 'Lamp', description: 'Long text', rating: 4.1 });
     expect(r.lean).toEqual({ mode: 'lean+full', reason: 'miss', fields: ['description', 'rating'], leanMs: 2000 });
     // A failed probe read nothing: it is not evidence about any field.
-    expect(state.confirmed.get('rating')).toBe(3);
+    expect(state.confirmedMiss.get('rating')).toBe(3);
     expect(state.mode).toBe('lean');
   });
 

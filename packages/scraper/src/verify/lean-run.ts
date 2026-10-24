@@ -1,7 +1,7 @@
 // When a certified run's lean read is enough (spec 2026-10-23 run speed §3.3–3.4). One state per run execution:
 // the first items are checked both ways; a miss or a not-shown flag takes today's full capture; three rescues in a
 // row, or any disagreement, switch the rest of the run to the full capture; a field whose lean misses the full
-// capture confirmed three times is trusted. Pure — runVerifiedExtraction owns the captures.
+// capture confirmed three times is trusted for misses, one whose not-shown flag it confirmed three times for that flag. Pure — runVerifiedExtraction owns the captures.
 import type { Shown } from './shown-on-page.js';
 
 export const LEAN_CHECK_ITEMS = 2;
@@ -25,15 +25,17 @@ export type LeanRunState = {
   note: string | null;
   checksLeft: number;
   rescueStreak: number;
-  /** Per field: confirmations since its last rescue. */
-  confirmed: Map<string, number>;
+  /** Per field: both captures missed it, times since its last rescue — excuses only the miss fallback (final review I2). */
+  confirmedMiss: Map<string, number>;
+  /** Per field: both captures read it not shown, times since its last rescue — excuses only the unshown fallback. */
+  confirmedUnshown: Map<string, number>;
   counts: { lean: number; leanFull: Record<FallbackReason, number>; full: number };
 };
 
 export function newLeanRunState(opts: { off?: boolean; variants?: boolean; checks?: number } = {}): LeanRunState {
   return {
     mode: opts.off || opts.variants ? 'full' : 'lean', why: opts.off ? 'off' : opts.variants ? 'variants' : null, note: null,
-    checksLeft: opts.checks ?? LEAN_CHECK_ITEMS, rescueStreak: 0, confirmed: new Map(),
+    checksLeft: opts.checks ?? LEAN_CHECK_ITEMS, rescueStreak: 0, confirmedMiss: new Map(), confirmedUnshown: new Map(),
     counts: { lean: 0, leanFull: { check: 0, miss: 0, unshown: 0, verdict: 0 }, full: 0 },
   };
 }
@@ -44,12 +46,12 @@ export function leanRunStateFromEnv(env: Record<string, string | undefined> = pr
   return newLeanRunState({ off: (env.RUN_CAPTURE ?? '').trim().toLowerCase() === 'full', variants: !!opts.variants });
 }
 
-const trusted = (s: LeanRunState, key: string) => (s.confirmed.get(key) ?? 0) >= LEAN_CONFIRM_STREAK;
+const trusted = (counts: Map<string, number>, key: string) => (counts.get(key) ?? 0) >= LEAN_CONFIRM_STREAK;
 
 /** Does this lean read need today's full capture of the same page? Null: the lean read is written. */
 export function fallbackFor(state: LeanRunState, lean: FieldReading[]): { reason: 'check' | 'miss' | 'unshown'; fields: string[] } | null {
-  const miss = lean.filter((x) => x.hasPaths && x.value === null && !trusted(state, x.key)).map((x) => x.key);
-  const unshown = lean.filter((x) => x.value !== null && x.shown === false && !trusted(state, x.key)).map((x) => x.key);
+  const miss = lean.filter((x) => x.hasPaths && x.value === null && !trusted(state.confirmedMiss, x.key)).map((x) => x.key);
+  const unshown = lean.filter((x) => x.value !== null && x.shown === false && !trusted(state.confirmedUnshown, x.key)).map((x) => x.key);
   if (state.checksLeft > 0) return { reason: 'check', fields: [] };
   if (miss.length > 0) return { reason: 'miss', fields: miss };
   if (unshown.length > 0) return { reason: 'unshown', fields: unshown };
@@ -57,7 +59,9 @@ export function fallbackFor(state: LeanRunState, lean: FieldReading[]): { reason
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-const confirm = (s: LeanRunState, key: string) => s.confirmed.set(key, (s.confirmed.get(key) ?? 0) + 1);
+const confirm = (counts: Map<string, number>, key: string) => counts.set(key, (counts.get(key) ?? 0) + 1);
+/** A rescue of either kind: the field's lean read is no longer trusted for anything. */
+const unconfirm = (s: LeanRunState, key: string) => { s.confirmedMiss.delete(key); s.confirmedUnshown.delete(key); };
 
 function switchToFull(state: LeanRunState, note: string): void {
   if (state.mode === 'full') return;
@@ -76,13 +80,13 @@ export function learn(state: LeanRunState, lean: FieldReading[], full: FieldRead
     const f = byKey.get(l.key);
     if (!f) continue;
     if (l.value === null) {
-      if (f.value !== null) { rescued.push(l.key); state.confirmed.delete(l.key); }
-      else if (l.hasPaths) confirm(state, l.key);
+      if (f.value !== null) { rescued.push(l.key); unconfirm(state, l.key); }
+      else if (l.hasPaths) confirm(state.confirmedMiss, l.key);
       continue;
     }
     if (!same(l.value, f.value)) { disagreed.push(l.key); continue; }
-    if (l.shown === false && f.shown === true) { rescued.push(l.key); state.confirmed.delete(l.key); }
-    else if (l.shown === false && f.shown === false) confirm(state, l.key);
+    if (l.shown === false && f.shown === true) { rescued.push(l.key); unconfirm(state, l.key); }
+    else if (l.shown === false && f.shown === false) confirm(state.confirmedUnshown, l.key);
     else if (l.shown !== f.shown) disagreed.push(l.key);
   }
   if (opts.check) state.checksLeft = Math.max(0, state.checksLeft - 1);
