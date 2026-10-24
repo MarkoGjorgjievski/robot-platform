@@ -257,6 +257,7 @@ export class PlaywrightBrowser implements IBrowser {
         }
 
         let probe: unknown = undefined;
+        // Awaited with no timeout of its own: the probe must be synchronous and quick (CaptureOptions.finalProbe).
         if (options.finalProbe) {
           probe = await page.evaluate(options.finalProbe).catch((err) => {
             if (isCrash(err)) throw err;

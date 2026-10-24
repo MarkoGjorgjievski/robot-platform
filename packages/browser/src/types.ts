@@ -190,7 +190,8 @@ export type CaptureOptions = {
   /**
    * A self-invoking page script evaluated once in the live tab right before the HTML is read (after the expand
    * pass, and on a full capture after the final pass); its value is `PageCapture.probe`. A throw leaves `probe`
-   * undefined; it never fails the capture.
+   * undefined; it never fails the capture. It must be synchronous and quick: it is awaited with no timeout of its
+   * own, so a script that returns a promise or loops holds the capture (and the host's lock) until it settles.
    */
   finalProbe?: string;
   /**
