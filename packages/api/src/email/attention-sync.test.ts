@@ -158,4 +158,17 @@ describe('fix round 1: one lock per sync, and a Verify in flight decides', () =>
       expect(await sent(s.sourceId)).toHaveLength(1);
     } finally { await s.cleanup(); }
   });
+
+  it('M1: a stalled Verify row is not in flight, and a sync never closes it (mail never writes a Verify row)', async () => {
+    const s = await website('stalled');
+    try {
+      const [row] = await db.insert(sourceVerifications)
+        .values({ sourceId: s.sourceId, definitionHash: 'x', startedAt: new Date(Date.now() - 60 * 60_000) })
+        .returning({ id: sourceVerifications.id });
+      await needsYou(s);
+      expect(await syncAttention(db, s.sourceId)).toEqual({ on: true, turnedOn: true, queued: 1 });
+      const after = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, row!.id) });
+      expect(after).toMatchObject({ completedAt: null, errorMessage: null });
+    } finally { await s.cleanup(); }
+  });
 });

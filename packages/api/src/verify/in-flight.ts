@@ -73,21 +73,36 @@ export async function resolveInFlightVerification(
   db: DbOrTx,
   sourceId: string,
 ): Promise<{ id: string } | null> {
-  const inFlight = await db.query.sourceVerifications.findFirst({
-    where: and(eq(sourceVerifications.sourceId, sourceId), isNull(sourceVerifications.completedAt)),
-    orderBy: [desc(sourceVerifications.startedAt)],
-    columns: { id: true, startedAt: true, jobId: true },
-  });
-  if (!inFlight) return null;
-  if (await isJobLive(db, inFlight.jobId)) return { id: inFlight.id };
-
-  if (Date.now() - inFlight.startedAt.getTime() < VERIFY_STALL_MS) {
-    return { id: inFlight.id };
-  }
+  const { inFlight, stale } = await readInFlight(db, sourceId);
+  if (inFlight) return { id: inFlight };
+  if (!stale) return null;
 
   await db
     .update(sourceVerifications)
     .set({ errorMessage: 'stalled', completedAt: new Date() })
-    .where(eq(sourceVerifications.id, inFlight.id));
+    .where(eq(sourceVerifications.id, stale));
   return null;
+}
+
+/**
+ * The same answer as `resolveInFlightVerification`, with the same stall rule, but read-only: a stale row is
+ * "not in flight" and is left as it is. For callers that must never write a Verify row (the email sync, spec
+ * 2026-10-24 email §4.3 — and no lock-order inversion with a Verify's result transaction, final review M1).
+ */
+export async function verificationInFlight(db: DbOrTx, sourceId: string): Promise<{ id: string } | null> {
+  const { inFlight } = await readInFlight(db, sourceId);
+  return inFlight ? { id: inFlight } : null;
+}
+
+/** The newest open verification row: in flight (live job, or younger than the stall limit), or stale. */
+async function readInFlight(db: DbOrTx, sourceId: string): Promise<{ inFlight: string | null; stale: string | null }> {
+  const open = await db.query.sourceVerifications.findFirst({
+    where: and(eq(sourceVerifications.sourceId, sourceId), isNull(sourceVerifications.completedAt)),
+    orderBy: [desc(sourceVerifications.startedAt)],
+    columns: { id: true, startedAt: true, jobId: true },
+  });
+  if (!open) return { inFlight: null, stale: null };
+  if (await isJobLive(db, open.jobId)) return { inFlight: open.id, stale: null };
+  if (Date.now() - open.startedAt.getTime() < VERIFY_STALL_MS) return { inFlight: open.id, stale: null };
+  return { inFlight: null, stale: open.id };
 }
