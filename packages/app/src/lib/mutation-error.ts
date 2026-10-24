@@ -6,6 +6,10 @@ import { captureWords } from './capture-words';
 
 export const SOMETHING_WENT_WRONG = 'Something went wrong. Try again.';
 
+/** A refused call over the rate limits (spec 2026-10-24 tenant isolation §2.4) — the api's own sentence, kept here so
+ *  a customer always reads exactly this, whatever the message carried. */
+export const TOO_MANY_REQUESTS_TEXT = 'Too many requests. Wait a minute and try again.';
+
 const WORDED = new Set(['PRECONDITION_FAILED', 'BAD_REQUEST', 'FORBIDDEN']);
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
 
@@ -13,6 +17,7 @@ const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i
 export type MutationErrorLike = { message: string; data?: { code?: string } | null };
 
 export function mutationErrorText(error: MutationErrorLike, staff = false): string {
+  if (error.data?.code === 'TOO_MANY_REQUESTS') return TOO_MANY_REQUESTS_TEXT;
   if (staff) return error.message;
   const code = error.data?.code;
   if (!code || !WORDED.has(code) || UUID.test(error.message)) return SOMETHING_WENT_WRONG;

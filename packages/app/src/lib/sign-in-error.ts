@@ -7,7 +7,13 @@
  * is not an option; and a dead api-server arrives as the browser's bare "Failed
  * to fetch", which says nothing about what to do.
  */
+import { TOO_MANY_REQUESTS_TEXT } from './mutation-error';
+
 export function signInErrorMessage(error: unknown): string {
+  // Rate limits (spec 2026-10-24 tenant isolation §2.4): ten sign-ins a minute per email, thirty per address.
+  const code = (error as { data?: { code?: unknown } } | null | undefined)?.data?.code;
+  if (code === 'TOO_MANY_REQUESTS') return TOO_MANY_REQUESTS_TEXT;
+
   const raw = error instanceof Error ? error.message : String(error ?? '');
 
   const issues = parseZodIssues(raw);
