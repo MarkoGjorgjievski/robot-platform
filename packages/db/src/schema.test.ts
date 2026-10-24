@@ -283,3 +283,18 @@ describe('email (spec 2026-10-24 email §3.2–§3.3)', () => {
     expect(await db.query.emailMessages.findFirst({ where: eq(emailMessages.id, m!.id) })).toBeUndefined();
   });
 });
+
+describe('metering (spec 2026-10-24 metering §2.2)', () => {
+  it('an org has no AI limit of its own by default, keeps one to the cent, and refuses a negative one', async () => {
+    const [org] = await db.insert(orgs).values({ name: SLUG, slug: `${SLUG}-cap` }).returning();
+    orgId = org!.id;
+    expect(org!.aiCapUsd).toBeNull();
+    const [set] = await db.update(orgs).set({ aiCapUsd: '40.50' }).where(eq(orgs.id, org!.id)).returning();
+    expect(set!.aiCapUsd).toBe('40.50');
+    const [zero] = await db.update(orgs).set({ aiCapUsd: '0' }).where(eq(orgs.id, org!.id)).returning();
+    expect(zero!.aiCapUsd).toBe('0.00');
+    await expect(db.update(orgs).set({ aiCapUsd: '-1' }).where(eq(orgs.id, org!.id))).rejects.toThrow();
+    const [cleared] = await db.update(orgs).set({ aiCapUsd: null }).where(eq(orgs.id, org!.id)).returning();
+    expect(cleared!.aiCapUsd).toBeNull();
+  });
+});
