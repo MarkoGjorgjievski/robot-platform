@@ -24,6 +24,10 @@ describe('previewSummary', () => {
     expect(previewSummary({ pages: 38, estCostUsd: 0, certified: true }, true)).toMatch(/38 .*free/);
     expect(previewSummary({ pages: 38, estCostUsd: 0, certified: true }, true)).not.toMatch(/\$/);
   });
+
+  it('a customer preview arrives with no figure (spec 2026-10-24 tenant isolation §2.3)', () => {
+    expect(previewSummary({ pages: 2 }, false)).toBe('2 pages');
+  });
 });
 
 it('previewSummary shows a price to staff only (spec 2026-10-17 §8a)', () => {

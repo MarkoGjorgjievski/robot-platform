@@ -48,6 +48,7 @@ import { latestCoverageCheck } from '../verify/run-coverage-check.js';
 import { requireCertification } from '../crawl/require-certification.js';
 import { createAxis, lockDatasetSchema, lockSources } from './datasets.js';
 import { syncAttentionSafely } from '../email/attention-sync.js';
+import { moneyFields, viewerSeesMoney } from '../isolation/money.js';
 
 /** An awaited job with no answer is a browser that could not start (the copy a crash showed before). */
 async function unavailableAsError<T>(p: Promise<T>): Promise<T> {
@@ -1047,8 +1048,8 @@ export const sourcesRouter = router({
       return {
         fields,
         aiFields,
-        perFieldUsd,
-        upperBoundUsd: aiAvailable ? Math.round(aiFields * perFieldUsd * 100) / 100 : 0,
+        // Spec 2026-10-24 tenant isolation §2.3: the prices are staff-only; a customer still gets the counts and `aiAvailable`.
+        ...moneyFields(viewerSeesMoney(ctx), { perFieldUsd, upperBoundUsd: aiAvailable ? Math.round(aiFields * perFieldUsd * 100) / 100 : 0 }),
         aiAvailable,
         capturesFresh,
         // The dashboard must not hardcode the stall window (C1): it decides
@@ -1191,7 +1192,8 @@ export const sourcesRouter = router({
         captures,
         stage,
         aiCalls: row.aiCalls,
-        costUsd: row.costUsd,
+        // Spec 2026-10-24 tenant isolation §2.3: staff-only.
+        ...moneyFields(viewerSeesMoney(ctx), { costUsd: row.costUsd }),
         // The newest run, when it failed or stalled (spec 2026-10-20 §3.3): the app says so in the Verify bar.
         failedRun: failure ? { id: newest.id, startedAt: newest.startedAt, stalled: failure === 'stalled' } : null,
         currentKeys,

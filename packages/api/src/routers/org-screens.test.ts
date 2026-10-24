@@ -9,6 +9,13 @@ const tag = `orgscr-${Date.now()}`;
 
 const dropIdentity = (r: { cleanup: () => Promise<void> }) => r.cleanup();
 
+/** Money is staff-only (spec 2026-10-24 tenant isolation §2.3): the amounts below are read as an operator. */
+async function asOperator<T>(email: string, fn: () => Promise<T>): Promise<T> {
+  const saved = process.env.OPS_EMAILS;
+  process.env.OPS_EMAILS = email;
+  try { return await fn(); } finally { if (saved === undefined) delete process.env.OPS_EMAILS; else process.env.OPS_EMAILS = saved; }
+}
+
 /** A fresh caller on the same token, after something changed the session row. */
 async function reload(r: Awaited<ReturnType<typeof signIn>>) {
   const session = (await loadSession(db, r.session.token))!;
@@ -37,7 +44,9 @@ describe('runs.listByOrg', () => {
 
       const got = await a.caller.runs.listByOrg();
       expect(got.map((r) => r.status)).toEqual(['extracting', 'completed']);
-      expect(got[1]).toMatchObject({ resultCount: 3, costUsd: 0.02, project: { name: 'Prices', slug: p.slug }, website: { name: 'Shop', slug: w.sourceSlug } });
+      expect(got[1]).toMatchObject({ resultCount: 3, project: { name: 'Prices', slug: p.slug }, website: { name: 'Shop', slug: w.sourceSlug } });
+      expect(got[1]).not.toHaveProperty('costUsd');
+      expect((await asOperator(a.user.email, () => a!.caller.runs.listByOrg()))[1]).toMatchObject({ costUsd: 0.02 });
       expect(got.every((r) => r.website.slug === w.sourceSlug)).toBe(true);
     } finally {
       if (a) await dropIdentity(a);
@@ -73,17 +82,25 @@ describe('usage.byProject', () => {
         { sourceId: w.sourceId, url: 'https://shop.example.com/3', createdAt: AUG },
       ]);
 
+      // A customer: pages only, ordered by pages then name, and no spend anywhere.
       const sep = await a.caller.usage.byProject({ month: '2026-09' });
       expect(sep.month).toBe('2026-09');
-      expect(sep.projects.map((r) => [r.name, r.spendUsd, r.pagesCaptured])).toEqual([['Busy', 0.05, 2], ['Quiet', 0, 0]]);
-      expect(sep.total).toEqual({ spendUsd: 0.05, pagesCaptured: 2 });
+      expect(sep.projects.map((r) => [r.name, r.pagesCaptured])).toEqual([['Busy', 2], ['Quiet', 0]]);
+      expect(sep.projects.some((r) => 'spendUsd' in r)).toBe(false);
+      expect(sep.total).toEqual({ pagesCaptured: 2 });
+      expect((await a.caller.usage.byProject({ month: '2026-07' })).projects.map((r) => r.name)).toEqual(['Busy', 'Quiet']);
 
-      const aug = await a.caller.usage.byProject({ month: '2026-08' });
-      expect(aug.total).toEqual({ spendUsd: 3, pagesCaptured: 1 });
-
-      const empty = await a.caller.usage.byProject({ month: '2026-07' });
-      expect(empty.projects.map((r) => r.spendUsd)).toEqual([0, 0]);
-      expect(empty.total).toEqual({ spendUsd: 0, pagesCaptured: 0 });
+      // Staff: the spend, as before.
+      await asOperator(a.user.email, async () => {
+        const sepStaff = await a!.caller.usage.byProject({ month: '2026-09' });
+        expect(sepStaff.projects.map((r) => [r.name, r.spendUsd, r.pagesCaptured])).toEqual([['Busy', 0.05, 2], ['Quiet', 0, 0]]);
+        expect(sepStaff.total).toEqual({ spendUsd: 0.05, pagesCaptured: 2 });
+        const aug = await a!.caller.usage.byProject({ month: '2026-08' });
+        expect(aug.total).toEqual({ spendUsd: 3, pagesCaptured: 1 });
+        const empty = await a!.caller.usage.byProject({ month: '2026-07' });
+        expect(empty.projects.map((r) => r.spendUsd)).toEqual([0, 0]);
+        expect(empty.total).toEqual({ spendUsd: 0, pagesCaptured: 0 });
+      });
     } finally {
       if (a) await dropIdentity(a);
     }

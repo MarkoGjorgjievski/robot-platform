@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
+import { describe, it, expect, afterEach, vi, afterAll, beforeAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, sources, sourceVerifications } from '@robot/db';
 import { VERIFY_STALL_MS, estAiCostPerFieldUsd, fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
@@ -391,6 +391,11 @@ describe('sources.verificationStatus', () => {
 });
 
 describe('sources.verifyEstimate', () => {
+  // The prices are staff-only (spec 2026-10-24 tenant isolation §2.3): read here as an operator.
+  const savedOps = process.env.OPS_EMAILS;
+  beforeAll(() => { process.env.OPS_EMAILS = me.user.email; });
+  afterAll(() => { if (savedOps === undefined) delete process.env.OPS_EMAILS; else process.env.OPS_EMAILS = savedOps; });
+
   it('returns fields, perFieldUsd 0.18, and upperBoundUsd 0 when aiAvailable is false', async () => {
     const urls = urlsFor('estimate');
     const f = await createProjectWithSource(caller, {
@@ -433,6 +438,11 @@ describe('sources.verifyEstimate', () => {
 });
 
 describe('sources.verifyEstimate re-verify pricing', () => {
+  // The prices are staff-only (spec 2026-10-24 tenant isolation §2.3): read here as an operator.
+  const savedOps = process.env.OPS_EMAILS;
+  beforeAll(() => { process.env.OPS_EMAILS = me.user.email; });
+  afterAll(() => { if (savedOps === undefined) delete process.env.OPS_EMAILS; else process.env.OPS_EMAILS = savedOps; });
+
   it('prices only the keys asked for and reports fresh captures from the latest clean run', async () => {
     const tag = `est-${Date.now()}`;
     const urls = urlsFor(tag);

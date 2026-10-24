@@ -28,10 +28,10 @@ export type FieldClassification = { name: string; fill: number; classification: 
  *
  * The cost is staff-only (spec 2026-10-17 §8a): a customer reads the page count alone.
  */
-export function previewSummary(p: { pages: number; estCostUsd: number; certified?: boolean }, showMoney: boolean): string {
+export function previewSummary(p: { pages: number; estCostUsd?: number; certified?: boolean }, showMoney: boolean): string {
   const pages = p.pages === 1 ? 'page' : 'pages';
   if (!showMoney) return `${p.pages} ${pages}`; // spec 2026-10-17 §8a
-  const cost = p.certified ? 'free' : `up to ~$${p.estCostUsd.toFixed(2)} if no cache answers`;
+  const cost = p.certified ? 'free' : `up to ~$${(p.estCostUsd ?? 0).toFixed(2)} if no cache answers`;
   return `${p.pages} ${pages} — ${cost}`;
 }
 

@@ -1,8 +1,8 @@
 import { runsView, type RunRow, type RunView } from './runs-view';
 
-/** One row of `runs.listByOrg`: a website's run row plus where it belongs. */
+/** One row of `runs.listByOrg`: a website's run row plus where it belongs. `costUsd` reaches staff only (spec 2026-10-24 tenant isolation §2.3). */
 export type OrgRunRow = RunRow & {
-  costUsd: number;
+  costUsd?: number;
   project: { name: string; slug: string };
   website: { name: string; slug: string };
 };

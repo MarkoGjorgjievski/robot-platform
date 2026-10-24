@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, runs, staffActions } from '@robot/db';
-import { signedInCaller, type SignedIn } from '../test-helpers/identity.js';
+import { db, runs, sessions, staffActions } from '@robot/db';
+import { enterAsStaff, signedInCaller, type SignedIn } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { recordStaffAction } from '../auth/staff-actions.js';
 
@@ -31,11 +31,12 @@ describe('staff activity (spec 2026-10-07 §2.4)', () => {
     await other.cleanup(); await customer.cleanup(); await staff.cleanup();
   });
 
-  it('the customer sees their own entries, newest first, 20 per page, with run cost read now', async () => {
+  it('the customer sees their own entries, newest first, 20 per page, with the run and no cost', async () => {
     const p0 = await customer.caller.orgs.staffActivity({ page: 0 });
     expect(p0.total).toBe(24);
     expect(p0.entries).toHaveLength(20);
-    expect(p0.entries[0]).toMatchObject({ summary: 'Ran an extraction on Nike', run: { id: runId, costUsd: 1.24 }, actor: { email: staff.user.email } });
+    expect(p0.entries[0]).toMatchObject({ summary: 'Ran an extraction on Nike', run: { id: runId }, actor: { email: staff.user.email } });
+    expect(p0.entries[0]!.run).not.toHaveProperty('costUsd');
     expect(p0.entries.every((e) => e.org.id === customer.org.id)).toBe(true);
     const p1 = await customer.caller.orgs.staffActivity({ page: 1 });
     expect(p1.entries).toHaveLength(4);
@@ -43,8 +44,14 @@ describe('staff activity (spec 2026-10-07 §2.4)', () => {
 
   it('cost is read at view time, not stored', async () => {
     await db.update(runs).set({ costUsd: '2.5000' }).where(eq(runs.id, runId));
-    const p0 = await customer.caller.orgs.staffActivity({ page: 0 });
-    expect(p0.entries[0]!.run!.costUsd).toBe(2.5);
+    // Staff in staff mode read the cost (spec 2026-10-24 tenant isolation §2.3), as it is now.
+    const inside = await enterAsStaff(staff, customer.org.id);
+    try {
+      const p0 = await inside.caller.orgs.staffActivity({ page: 0 });
+      expect(p0.entries[0]!.run!.costUsd).toBe(2.5);
+    } finally {
+      await db.update(sessions).set({ staffOrgId: null, staffEnteredAt: null }).where(eq(sessions.token, staff.session.token));
+    }
   });
 
   it('another org sees only its own entries', async () => {

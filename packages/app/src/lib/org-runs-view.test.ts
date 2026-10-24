@@ -25,6 +25,12 @@ describe('orgRunsView', () => {
     orgRunsView(rows, now);
     expect(rows.map((r) => r.id)).toEqual(['b', 'a']);
   });
+
+  it('a customer row with no cost reads as any other (spec 2026-10-24 tenant isolation §2.3)', () => {
+    const at = new Date('2026-10-24T12:00:00Z');
+    const r: OrgRunRow = { id: 'r1', status: 'completed', inputLabel: null, startedAt: at, completedAt: at, resultCount: 3, errorMessage: null, createdAt: at, project: { name: 'P', slug: 'p' }, website: { name: 'W', slug: 'w' } };
+    expect(orgRunsView([r], at)[0]).toMatchObject({ id: 'r1', projectSlug: 'p', websiteSlug: 'w' });
+  });
 });
 
 describe('orgRunsView and money (spec 2026-10-17 §8a)', () => {
