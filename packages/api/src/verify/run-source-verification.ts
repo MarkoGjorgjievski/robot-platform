@@ -8,12 +8,13 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
 import { BROWSER_UNAVAILABLE } from '@robot/browser';
-import { SchemaAgent, snapshotUsage, diffUsage, estimateCostUsd } from '@robot/agent';
+import { SchemaAgent, snapshotUsage, diffUsage, estimateCostUsd, cappedAgent, capLedgerOf, type CapLedger, type ProposePathsAgent } from '@robot/agent';
 import {
   runVerification,
   CaptureProblemError,
   saveVerifiedPaths,
   lookupVerifiedPaths,
+  estAiCostPerFieldUsd,
   type SchemaDefinitionField,
   type VerificationSet,
   type VerificationOutcome,
@@ -36,6 +37,7 @@ import { decideHolds, writeHolds, type HoldPlan } from './holds.js';
 import { nextCheckAt } from './check-schedule.js';
 import { jobStopped } from '../jobs/context.js';
 import { syncAttentionSafely } from '../email/attention-sync.js';
+import { capStateForSource } from '../metering/cap-state.js';
 
 /**
  * Strips ANSI escape codes (e.g. the dim/reset styling Playwright's own
@@ -98,6 +100,9 @@ const startVerifyCheck: StartVerifyCheck = async (sourceId, keys, refs) => {
   return startDriftCheck(sourceId, null, { trigger: 'verify', keys, storedRefs: refs });
 };
 
+/** At the monthly limit no model is built: the capped wrapper refuses every call before this is ever reached. */
+const NO_MODEL: ProposePathsAgent = { proposePaths: async () => { throw new Error('no model at the monthly limit'); } };
+
 export async function runSourceVerification(
   sourceId: string,
   verificationId: string,
@@ -114,6 +119,7 @@ export async function runSourceVerification(
 ): Promise<void> {
   const startCoverage = opts.startCoverage ?? startCoverageCheck;
   const startCheck = opts.startCheck ?? startVerifyCheck;
+  let ledger: CapLedger | undefined;
   try {
     const source = await db.query.sources.findFirst({
       where: eq(sources.id, sourceId),
@@ -178,7 +184,18 @@ export async function runSourceVerification(
 
     const before = snapshotUsage();
     // A free run (spec 2026-10-17 §10 property 9) has no agent at all, so no field in it can reach the AI.
-    const agent = !opts.free && process.env.ANTHROPIC_API_KEY ? new SchemaAgent() : null;
+    // Spec 2026-10-24 metering §2.3: the organisation's monthly AI limit, read before any AI. At the limit no model is
+    // built — every call is refused before it is made, so a field that needs AI resolves `ai_unavailable` (the existing
+    // badge and sentence); below it, each call is projected at the per-field estimate against what is left.
+    const cap = !opts.free && process.env.ANTHROPIC_API_KEY ? await capStateForSource(db, sourceId) : null;
+    const agent = cap
+      ? cappedAgent<ProposePathsAgent>(cap.reached ? NO_MODEL : new SchemaAgent(), {
+        remainingUsd: cap.remainingUsd,
+        perCallUsd: estAiCostPerFieldUsd(set.urls.length),
+        orgId: cap.orgId,
+      })
+      : null;
+    ledger = agent ? capLedgerOf(agent) : undefined;
     const onProgress = (stage: string) =>
       void writeStage(db, verificationId, stage).catch((err) => console.error(`[verify] failed to record stage for ${verificationId}:`, err));
     const { run, variantResults, holdPlan } = await withBrowserSession(async (browser) => {
@@ -292,6 +309,7 @@ export async function runSourceVerification(
       console.error(`[verify] failed to record failure for ${verificationId}:`, recoveryErr);
     }
   } finally {
+    ledger?.close(); // the cost is written (or the run failed): the org's other jobs read it from the database now
     // Spec 2026-10-24 email §3.2: whatever this Verify wrote (holds, a pass, a failure) may have turned "Needs
     // attention" on or off — a customer's Verify and a refresh's re-verify alike. After the commit: the attention view
     // reads committed rows. A stopped attempt wrote nothing. Never throws.

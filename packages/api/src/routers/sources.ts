@@ -49,6 +49,7 @@ import { requireCertification } from '../crawl/require-certification.js';
 import { createAxis, lockDatasetSchema, lockSources } from './datasets.js';
 import { syncAttentionSafely } from '../email/attention-sync.js';
 import { moneyFields, viewerSeesMoney } from '../isolation/money.js';
+import { orgCapState } from '../metering/cap-state.js';
 
 /** An awaited job with no answer is a browser that could not start (the copy a crash showed before). */
 async function unavailableAsError<T>(p: Promise<T>): Promise<T> {
@@ -1012,7 +1013,10 @@ export const sourcesRouter = router({
       const allKeys = Array.isArray(source.schemaDefinition) ? (source.schemaDefinition as SchemaDefinitionField[]).map((f) => f.key) : [];
       const estimateKeys = input.onlyKeys ? input.onlyKeys.filter((k) => allKeys.includes(k)) : allKeys;
       const fields = estimateKeys.length;
-      const aiAvailable = !!process.env.ANTHROPIC_API_KEY;
+      // Spec 2026-10-24 metering §2.3: AI is available while a key is set and the organisation's monthly limit is not
+      // reached — at the limit the Verify button behaves as with no key. The limit itself is staff-only.
+      const cap = await orgCapState(ctx.db, ctx.session.org.id);
+      const aiAvailable = !!process.env.ANTHROPIC_API_KEY && !cap.reached;
 
       // Fresh captures make a re-verify free of browser time and, when no
       // field needs AI, free of money too (spec 5.6 re-verify label).
@@ -1049,7 +1053,11 @@ export const sourcesRouter = router({
         fields,
         aiFields,
         // Spec 2026-10-24 tenant isolation §2.3: the prices are staff-only; a customer still gets the counts and `aiAvailable`.
-        ...moneyFields(viewerSeesMoney(ctx), { perFieldUsd, upperBoundUsd: aiAvailable ? Math.round(aiFields * perFieldUsd * 100) / 100 : 0 }),
+        ...moneyFields(viewerSeesMoney(ctx), {
+          perFieldUsd,
+          upperBoundUsd: aiAvailable ? Math.round(aiFields * perFieldUsd * 100) / 100 : 0,
+          cap: { capUsd: cap.capUsd, spentUsd: cap.spentUsd, remainingUsd: cap.remainingUsd },
+        }),
         aiAvailable,
         capturesFresh,
         // The dashboard must not hardcode the stall window (C1): it decides

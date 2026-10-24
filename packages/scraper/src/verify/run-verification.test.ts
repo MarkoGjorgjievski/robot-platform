@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { PlaywrightBrowser, verdictSentence, pageVariantFrom, CaptureError, BROWSER_UNAVAILABLE } from '@robot/browser';
 import type { IBrowser } from '@robot/browser';
+import { cappedAgent } from '@robot/agent';
 import { runVerification, definitionHash, fieldHash } from './run-verification.js';
 import type { FieldVerification, SchemaDefinitionField, VerificationSet } from './types.js';
 import { buildXPathProbeScript } from './dom-scripts.js';
@@ -662,6 +663,42 @@ describe("runVerification — one field's AI failure is that field's result (spe
     expect(run.outcome.allPassed).toBe(false);
     // The captures the run took are all there.
     for (const url of U) expect(run.captures[url]).not.toBeNull();
+  }, 60_000);
+  // Spec 2026-10-24 metering §2.3: the organisation's monthly limit, at the call.
+  const ref = { key: 'ref', name: 'Ref', type: 'text' as const, description: 'item number once more', concept: 'sku' };
+  const capSet: VerificationSet = { urls: U, expected: { product_name: set.expected.product_name, sku: typed, code: typed, ref: typed } };
+  const model = () => ({ proposePaths: vi.fn(async () => [GOOD]) });
+
+  it('metering: with room for two calls, two fields are asked; the third is ai_unavailable, not counted and not asked', async () => {
+    const inner = model();
+    const agent = cappedAgent(inner, { remainingUsd: 0.36, perCallUsd: 0.18 });
+    const run = await runVerification({ fields: [fields[0]!, sku, code, ref], verificationSet: capSet }, { browser, agent, captures: loadShopExample() });
+    expect(inner.proposePaths).toHaveBeenCalledTimes(2);
+    expect(run.outcome.aiCalls).toBe(2);
+    expect(run.outcome.fields.sku!.certified).toEqual([GOOD]);
+    expect(run.outcome.fields.code!.certified).toEqual([GOOD]);
+    expect(run.outcome.fields.ref).toMatchObject({ certified: [], failReason: 'ai_unavailable' });
+    expect(run.outcome.fields.ref!.aiCalled).not.toBe(true);
+    expect(run.outcome.fields.product_name!.certified.length).toBeGreaterThan(0);
+  }, 60_000);
+
+  it('metering: at the limit no call is made; every field needing AI is ai_unavailable and the mechanical field certifies', async () => {
+    const inner = model();
+    const agent = cappedAgent(inner, { remainingUsd: 0, perCallUsd: 0.18 });
+    const run = await runVerification({ fields: [fields[0]!, sku, code], verificationSet: skuSet }, { browser, agent, captures: loadShopExample() });
+    expect(inner.proposePaths).not.toHaveBeenCalled();
+    expect(run.outcome.aiCalls).toBe(0);
+    for (const k of ['sku', 'code']) expect(run.outcome.fields[k]).toMatchObject({ certified: [], failReason: 'ai_unavailable' });
+    expect(run.outcome.fields.product_name!.certified.length).toBeGreaterThan(0);
+    expect('failReason' in run.outcome.fields.product_name!).toBe(false);
+  }, 60_000);
+
+  it('metering: a Verify that needs no AI is the same at the limit (spec §3.2)', async () => {
+    const inner = model();
+    const capped = await runVerification({ fields: [fields[0]!], verificationSet: skuSet }, { browser, agent: cappedAgent(inner, { remainingUsd: 0, perCallUsd: 0.18 }), captures: loadShopExample() });
+    const open = await runVerification({ fields: [fields[0]!], verificationSet: skuSet }, { browser, agent: null, captures: loadShopExample() });
+    expect(inner.proposePaths).not.toHaveBeenCalled();
+    expect(capped.outcome).toEqual(open.outcome);
   }, 60_000);
 });
 
