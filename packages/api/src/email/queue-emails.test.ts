@@ -1,7 +1,7 @@
 // queueEmails (spec 2026-10-24 email §3.2–§3.3, §4): one row per recipient with its dedupe key and one email job each,
 // in one transaction; nobody outside the org; never twice; and a failure inside a caller's transaction never fails it.
-import { describe, it, expect, afterAll } from 'vitest';
-import { and, eq, inArray, like } from 'drizzle-orm';
+import { describe, it, expect, afterAll, vi } from 'vitest';
+import { and, DrizzleQueryError, eq, inArray, like } from 'drizzle-orm';
 import { db, emailMessages, memberships, orgs, runs, users } from '@robot/db';
 import { signedInCaller, enterAsStaff } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
@@ -138,5 +138,23 @@ describe('queueEmails', () => {
       expect(await queueEmailsSafely(tx, { kind: 'removed', orgId: 'not-a-uuid', userId: owner.user.id, at: new Date() })).toBe(0);
     });
     expect((await db.query.orgs.findFirst({ where: eq(orgs.id, owner.org.id) }))!.name).toBe(name);
+  });
+
+  it('T3: a queueing failure logs one line — the message and the Postgres code — never the query or its values', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(await queueEmailsSafely(db, { kind: 'removed', orgId: 'not-a-uuid', userId: owner.user.id, at: new Date() })).toBe(0);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0]).toHaveLength(1);
+      const line = spy.mock.calls[0]![0] as string;
+      expect(line).toMatch(/^\[email\] removed emails could not be queued: .*invalid input syntax.* \(22P02\)$/);
+      expect(line).not.toMatch(/Failed query|params:|select/i);
+
+      spy.mockClear();
+      const pgError = Object.assign(new Error('duplicate key value violates unique constraint "email_messages_dedupe_key_idx"'), { code: '23505' });
+      const failing = { transaction: async () => { throw new DrizzleQueryError('insert into email_messages values ($1, $2)', ['ana@example.com', '<p>Lamp shop</p>'], pgError); } };
+      expect(await queueEmailsSafely(failing as never, { kind: 'removed', orgId: owner.org.id, userId: owner.user.id, at: new Date() })).toBe(0);
+      expect(spy.mock.calls).toEqual([['[email] removed emails could not be queued: duplicate key value violates unique constraint "email_messages_dedupe_key_idx" (23505)']]);
+    } finally { spy.mockRestore(); }
   });
 });

@@ -81,7 +81,8 @@ describe('syncAttention (spec §3.2)', () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       await expect(syncAttentionSafely(db, ['not-a-uuid'])).resolves.toBeUndefined();
-      expect(errors).toHaveBeenCalled();
+      // T3: one line, the database message and code, never the failed query or its values.
+      expect(errors.mock.calls).toEqual([[expect.stringMatching(/^\[email\] "needs attention" for website not-a-uuid could not be synced: invalid input syntax.* \(22P02\)$/)]]);
     } finally { errors.mockRestore(); }
   });
 });
