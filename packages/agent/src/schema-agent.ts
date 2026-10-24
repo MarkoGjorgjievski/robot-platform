@@ -58,6 +58,11 @@ export class SchemaAgent {
       );
     }
   }
+  /** Which model provider this agent calls: 'ollama' is the free local model, never counted against an organisation's
+   *  monthly limit (cappedAgent; metering final review M7). */
+  get provider(): AgentProvider {
+    return this.providerName;
+  }
 
   async discoverSchema(capture: PageCapture, requestedFields?: SchemaField[]): Promise<DiscoveredSchema> {
     // Prepare intercepted API responses for the prompt (deduplicated, product-like APIs only)
