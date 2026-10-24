@@ -1,9 +1,39 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  recordUsage, snapshotUsage, resetUsage, diffUsage, estimateCostUsd, formatUsage,
+  recordUsage, snapshotUsage, resetUsage, diffUsage, estimateCostUsd, formatUsage, withUsageScope, currentUsageScope,
 } from './usage.js';
 
 beforeEach(resetUsage);
+
+describe('withUsageScope (per-job usage, metering final review I2)', () => {
+  const tick = () => new Promise((r) => setTimeout(r, 1));
+  /** A job that makes `calls` model calls of `tokens` input tokens each, interleaved with the other job's. */
+  const job = (calls: number, tokens: number) => withUsageScope(async (scope) => {
+    for (let i = 0; i < calls; i++) { await tick(); recordUsage('claude-sonnet-5', { input_tokens: tokens }); }
+    await tick();
+    return scope.snapshot();
+  });
+
+  it('two jobs running at once each see only their own calls; the process-wide total sees both', async () => {
+    const [a, b] = await Promise.all([job(3, 100), job(5, 1000)]);
+    expect(a['claude-sonnet-5']).toMatchObject({ inputTokens: 300, requests: 3 });
+    expect(b['claude-sonnet-5']).toMatchObject({ inputTokens: 5000, requests: 5 });
+    expect(snapshotUsage()['claude-sonnet-5']).toMatchObject({ inputTokens: 5300, requests: 8 });
+  });
+
+  it('costUsd prices the scope (since a snapshot of it, when given); a nested scope also counts in its parent', async () => {
+    recordUsage('claude-sonnet-5', { input_tokens: 1_000_000 }); // outside any scope: never in one
+    await withUsageScope(async (outer) => {
+      expect(currentUsageScope()).toBe(outer);
+      recordUsage('claude-sonnet-5', { input_tokens: 1_000_000 });
+      const mark = outer.snapshot();
+      await withUsageScope(async (inner) => { recordUsage('claude-sonnet-5', { input_tokens: 2_000_000 }); expect(inner.costUsd()).toBeCloseTo(6); });
+      expect(outer.costUsd()).toBeCloseTo(9);
+      expect(outer.costUsd(mark)).toBeCloseTo(6);
+    });
+    expect(currentUsageScope()).toBeUndefined();
+  });
+});
 
 describe('recordUsage', () => {
   it('accumulates across calls to the same model', () => {

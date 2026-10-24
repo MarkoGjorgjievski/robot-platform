@@ -435,6 +435,25 @@ describe('startExecution — inside a run job (spec 2026-10-23 §4.4)', () => {
     expect(execDeps.aborted!()).toBe(true);
   });
 
+  it('final review I2: two runs at once each record only their own model calls', async () => {
+    const { recordUsage } = await import('@robot/agent');
+    const [a] = await db.insert(runs).values({ status: 'extracting', inputLabel: 'cost-conc-a' }).returning({ id: runs.id });
+    const [b] = await db.insert(runs).values({ status: 'extracting', inputLabel: 'cost-conc-b' }).returning({ id: runs.id });
+    const tick = () => new Promise((r) => setTimeout(r, 5));
+    try {
+      // A's loop makes one model call, B's three, interleaved; each bills $0.06 (10k in, 2k out on claude-sonnet-5).
+      executeRunMock.mockImplementation(async (runId: unknown) => {
+        for (let i = 0; i < (runId === a!.id ? 1 : 3); i++) { await tick(); recordUsage('claude-sonnet-5', { input_tokens: 10_000, output_tokens: 2_000 }); }
+        await tick();
+        return { extracted: 0, failed: 0, recordingFailures: 0, cancelled: false, limitReached: false, status: 'completed' };
+      });
+      await Promise.all([startExecution(a!.id, SOURCE_ID, []), startExecution(b!.id, SOURCE_ID, [])]);
+      const cost = async (id: string) => (await db.query.runs.findFirst({ where: eq(runs.id, id), columns: { costUsd: true } }))!.costUsd;
+      expect(await cost(a!.id)).toBe('0.0600');
+      expect(await cost(b!.id)).toBe('0.1800');
+    } finally { await db.delete(runs).where(eq(runs.id, a!.id)); await db.delete(runs).where(eq(runs.id, b!.id)); }
+  });
+
   it('without hooks the loop has no abort', async () => {
     await startExecution(RUN_ID, SOURCE_ID, []);
     expect((executeRunMock.mock.calls[0]![1] as ExecuteDeps).aborted).toBeUndefined();

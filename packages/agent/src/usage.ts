@@ -10,6 +10,8 @@
 // table produces a wrong number that is obviously traceable rather than a
 // confident one that is not.
 
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 export type TokenUsage = {
   inputTokens: number;
   outputTokens: number;
@@ -50,10 +52,9 @@ export type ApiUsage = {
   cache_read_input_tokens?: number | null;
 };
 
-export function recordUsage(model: string, apiUsage: ApiUsage | null | undefined): void {
-  if (!apiUsage) return;
-  const current = usage[model] ?? { ...EMPTY };
-  usage[model] = {
+function add(into: UsageByModel, model: string, apiUsage: ApiUsage): void {
+  const current = into[model] ?? { ...EMPTY };
+  into[model] = {
     inputTokens: current.inputTokens + (apiUsage.input_tokens ?? 0),
     outputTokens: current.outputTokens + (apiUsage.output_tokens ?? 0),
     cacheCreationTokens: current.cacheCreationTokens + (apiUsage.cache_creation_input_tokens ?? 0),
@@ -62,9 +63,53 @@ export function recordUsage(model: string, apiUsage: ApiUsage | null | undefined
   };
 }
 
+/**
+ * What one unit of work (a job: a Verify, a plan, a run) spent, apart from every other unit running in the same
+ * process (metering final review I2): the process-wide counter below is shared by every job in flight, so a
+ * before/after diff of it bills a job for its neighbours' calls too.
+ */
+export type UsageScope = {
+  /** A copy of what this scope recorded so far. */
+  snapshot(): UsageByModel;
+  /** USD this scope recorded (since `since`, a snapshot of this scope, when given), at the list rates below. */
+  costUsd(since?: UsageByModel): number;
+};
+
+type ScopeState = { usage: UsageByModel; parent: ScopeState | undefined; scope: UsageScope };
+const scopes = new AsyncLocalStorage<ScopeState>();
+
+/** Runs `fn` in a new usage scope: every call recorded inside it (however deep, however async) is in the scope, and in
+ *  the scopes around it; calls recorded elsewhere at the same time are not. */
+export function withUsageScope<T>(fn: (scope: UsageScope) => T): T {
+  const state: ScopeState = {
+    usage: {},
+    parent: scopes.getStore(),
+    scope: {
+      snapshot: () => copy(state.usage),
+      costUsd: (since) => estimateCostUsd(since ? diffUsage(since, state.usage) : state.usage).usd,
+    },
+  };
+  return scopes.run(state, () => fn(state.scope));
+}
+
+/** The innermost usage scope this code runs in, if any. */
+export function currentUsageScope(): UsageScope | undefined {
+  return scopes.getStore()?.scope;
+}
+
+export function recordUsage(model: string, apiUsage: ApiUsage | null | undefined): void {
+  if (!apiUsage) return;
+  add(usage, model, apiUsage);
+  for (let s = scopes.getStore(); s; s = s.parent) add(s.usage, model, apiUsage);
+}
+
+function copy(byModel: UsageByModel): UsageByModel {
+  return Object.fromEntries(Object.entries(byModel).map(([m, u]) => [m, { ...u }]));
+}
+
 /** A copy of the totals so far — safe to hold and diff against a later snapshot. */
 export function snapshotUsage(): UsageByModel {
-  return Object.fromEntries(Object.entries(usage).map(([m, u]) => [m, { ...u }]));
+  return copy(usage);
 }
 
 export function resetUsage(): void {
