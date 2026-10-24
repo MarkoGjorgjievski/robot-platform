@@ -35,9 +35,11 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Tenant isolation (2026-10-24)](#tenant-isolation-2026-10-24).** Every api procedure and file route is proven, as tests, to refuse another organisation; customers receive no money amounts; sign-in, the heavy work and the address checks are rate limited. Merged 2026-10-24.
+**Newest: [Metering and monthly AI limits (2026-10-24)](#metering-and-monthly-ai-limits-2026-10-24).** Pages, runs and AI spend are counted per organisation and month; AI work stops at each organisation's monthly limit ($25 by default); staff see and set it in ops and Settings. Merged 2026-10-24.
 
-**Before it: [Email (2026-10-24)](#email-2026-10-24).** Owners and admins get an email when a website needs attention or a run fails; account messages go out when staff enter, a role changes or someone is removed. Merged 2026-10-24.
+**Before it: [Tenant isolation (2026-10-24)](#tenant-isolation-2026-10-24).** Every api procedure and file route is proven, as tests, to refuse another organisation; customers receive no money amounts; sign-in, the heavy work and the address checks are rate limited. Merged 2026-10-24.
+
+**Before that: [Email (2026-10-24)](#email-2026-10-24).** Owners and admins get an email when a website needs attention or a run fails; account messages go out when staff enter, a role changes or someone is removed. Merged 2026-10-24.
 
 **Before that: [Recurring extraction (2026-10-24)](#recurring-extraction-2026-10-24).** A website can run on a weekly schedule and post a signed webhook with download links when a run finishes. Merged 2026-10-24.
 
@@ -122,6 +124,88 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Metering and monthly AI limits (2026-10-24)
+
+Spec `docs/superpowers/specs/2026-10-24-metering-design.md`, plan `docs/superpowers/plans/2026-10-24-metering.md`.
+
+**What changed.**
+- *The measures.* `packages/api/src/metering/org-usage.ts` computes `orgUsage(db, orgId, month)` per UTC month from the
+  recorded rows: pages (`captures`), runs (samples, `input_label = 'probe'`, excluded), AI spend
+  (`source_verifications.cost_usd` + `runs.cost_usd`, samples included, the same as `usage.byProject`, with a test that
+  they are equal) and Jev apart (`jev_readings`, never limited). There is no counter table, so it cannot drift from the
+  costs. Each Verify, plan and run now records only what its own model calls cost (`withUsageScope` in
+  `@robot/agent`). The process-wide diff used before would charge one org's spend to another's row under concurrency.
+- *The limit.* `orgs.ai_cap_usd numeric(10,2)` (migration 0023, nullable, non-negative) or `ORG_AI_CAP_USD` (default
+  $25; `none` = no default; a typo falls back to $25 with a warning). `orgCapState` gives spent, limit and what is left.
+  It is `reached` when spent ≥ limit, and what is left is never negative. A limit of 0 means no AI at all.
+- *The capped agent.* `cappedAgent` (`@robot/agent`) guards every model method. Each job projects calls × an estimate
+  against what was left when it started, plus the calls of the org's other open jobs in the same process (an in-process
+  registry per org). A refused call is never made and never counted as an AI call, and free local-model (Ollama) calls
+  are not counted. Where it applies:
+  - **Verify:** at the limit no `SchemaAgent` is built (a stub whose every call is refused). Fields needing AI read the
+    existing `ai_unavailable` badge; a mechanical Verify is identical.
+  - **The estimate:** `verifyEstimate.aiAvailable` is false at the limit or with less than one field's estimate left.
+    Staff also receive `cap`; a customer does not.
+  - **Planning:** a refused call fails the run with "This organisation has reached this month's limit for automatic
+    setup. Ask us to raise it." It writes no items and no logs, and the answer carries that sentence as its only
+    error. A refusal escaping the walk is `PRECONDITION_FAILED` with the same words, so the job is not retried. A walk
+    with no model call is planned even at a limit of 0.
+  - **Legacy runs:** a refused item fails with the sentence and its row is deleted. Three in a row stop the run
+    (`stopForCap`). A refused catalogue lookup is counted apart and never fails a page. Certified runs never call the
+    agent.
+- *Setting it.* `orgs.setAiCap({ capUsd })` is for operators only (`ctx.isOperator`, staff mode included; anyone else
+  is `FORBIDDEN`). It takes 0 to 1,000,000, rounded to cents, and is not on the deny list. In staff mode it is logged in
+  staff words ("Set the monthly AI limit to $40" / "Reset the monthly AI limit to the default"). The customer's staff
+  log reads it as "Changed a setting of this organisation" (`CUSTOMER_SUMMARIES`) and never receives the `action` key.
+- *Screens.* Ops → Organisations (`/ops/orgs`, `ops.orgs`, batched) shows one row per org: websites, pages, runs, AI
+  spend, the limit ("(default)"), % used ("Limit reached" at 100 %) and Jev muted. It is sorted by % used, offers this
+  month and six before, and has a name filter. Settings shows staff a "Monthly AI limit" panel (spent · limit · left, a
+  dollars field, "Leave empty to use the default ($25)", Save); a customer never sees it. Usage gains a Runs column
+  and "N runs" under the headline, with no money.
+
+**How it was proven.** Full runs on the final code head (`28948402`): db 34, agent 67, scraper 1,318, api 2,057,
+api-server 88, worker 18, app 1,115; tsc clean in all seven. The feature's own tests: metering 9, capped agent 14,
+usage scope 14, Verify at the limit 8 + 3, planning 8, execution 34, `setAiCap` / `ops.orgs` 8, app views 21. The
+procedure sweep covers 87 procedures, and the money sweep (51) checks that `cap` reaches staff only. On one isolated
+keyless pair from the branch, the route smoke passed 28 of 28 and the staff smoke 1 of 1, with no `[rate-limit]` line.
+The screenshots show:
+- the customer's Usage: "0 runs" and a Runs column, no money, in both themes;
+- no limit panel in the customer's Settings;
+- `staff-settings-ai-limit.png`: "$0.00 spent this month · $40 limit · $40.00 left";
+- `staff-ops-orgs.png`: the throwaway org at $40 and 0 %.
+
+Reviews ran per task with fix rounds, plus a whole-branch review (0 Critical, 2 Important: the capped plan's walk
+warnings and the per-job cost). Both were fixed in one wave on the branch.
+
+**After pulling.** Run `pnpm db:migrate` (migration 0023), then restart `pnpm dev:all`. Every org starts at the $25
+default, and a busy org may already be at it this month. Look at ops → Organisations first, and raise that org's limit
+from its Settings, as staff.
+
+**What NOT to redo.**
+- Never call a model in org work outside `cappedAgent`. Wrap the agent with `capStateForSource`'s state, and `close()`
+  its ledger after the cost is written.
+- Never count a refused call as an AI call.
+- Never add a counter table: metering reads the recorded costs.
+- Never send the limit or its amount to a customer. `cap` goes out through `moneyFields`, and a staff-log entry
+  through `CUSTOMER_SUMMARIES`. A new staff-only staff-log sentence needs its customer wording there.
+
+**Open.**
+- Spec §5 leaves out: billing, notifying anyone at the limit, per-project limits, page and run limits, Jev in the limit,
+  and a customer-visible limit page.
+- The limit holds per worker process only. Several worker processes do not share one org's remainder; today there is
+  one worker per queue.
+- It counts estimated dollars per call ($0.05 for planning and legacy runs, Verify's per-field figure), not the real
+  cost. A large call can pass the limit by more than its estimate.
+- The operator CLI `crawl-plan.ts` is capped: it plans a customer org's website and keeps to that org's limit.
+- A past month's % in ops is against today's limit.
+- A job that crashes before `close()` keeps its projection until the process restarts. That is the safe direction.
+- Also still open: a limit lowered mid-job, `recordSpend` losing the spend if its write fails, and a job that runs
+  across a month boundary.
+- Staff Verify work inside a customer org counts against that org's limit.
+- After staff save a limit, the panel updates but the staff-activity list on the same page does not, until a reload.
+- The ops rail also highlights "All websites" on `/ops/orgs` (the `/ops` link matches its children). The same happens
+  on Staff activity.
 
 ## Tenant isolation (2026-10-24)
 
