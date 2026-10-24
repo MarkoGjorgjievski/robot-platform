@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { db, captures, extractions, runs } from '@robot/db';
 import { appRouter } from '../routers/index.js';
-import { enterAsStaff, signedInCaller, type SignedIn } from '../test-helpers/identity.js';
+import { enterAsStaff, signIn, signedInCaller, type SignedIn } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { PROCEDURE_CLASSES } from './procedure-classes.js';
 import { buildTwoOrgs, type TwoOrgs } from './two-orgs.js';
@@ -144,5 +144,26 @@ describe('RF5: a customer still reads their own money-named data', () => {
     } finally {
       await me.cleanup();
     }
+  });
+});
+
+// The org-wide and self mutations the procedure sweep already makes as org A, on its own org: cheap, and none starts
+// work. Each runs on a session of its own (`auth.signOut` ends one, `orgs.create` moves one); a refusal by design
+// (`orgs.delete` on a personal org) is scanned as its message. Scoped mutations would change A's fixture under the
+// queries above and many start work, so they are not called here.
+const mutations = Object.entries(PROCEDURE_CLASSES)
+  .filter(([p, e]) => (e.class === 'org-wide' || e.class === 'self') && procedures[p]!._def.type === 'mutation')
+  .map(([p]) => p);
+
+describe('a customer receives no amount from a mutation either', () => {
+  it('the scan calls the org-wide and self mutations', () => {
+    expect(mutations).toEqual(expect.arrayContaining(['orgs.rename', 'projects.create', 'auth.updateName', 'orgs.create']));
+  });
+
+  it.each(mutations)('%s carries no amount to a customer of the org', async (path) => {
+    const fresh = await signIn(t.a.owner.user.email);
+    let answer: unknown;
+    try { answer = await at(fresh.caller, path)(inputFor(path)); } catch (e) { answer = { message: (e as Error).message }; }
+    expect(moneyPaths(answer, path)).toEqual([]);
   });
 });
