@@ -214,4 +214,35 @@ describe("RF1: an own id paired with the other org's id", () => {
     // The answer is keyed by the addresses asked for; nothing else of B may be in it.
     namesNothingOf(out.ok ? out.value : null, needlesOf(t.b).filter((n) => !t.b.urls.some((u) => u.includes(n))), 'proofPageCaptures');
   });
+
+  /**
+   * A's own id with B's ids beside it (`input(t.b)`) must answer exactly as with ids nobody has (`input(ghost)`), modulo
+   * what was sent, and name nothing of B the caller did not send: B's rows are never read for the answer.
+   */
+  async function asForNobody(label: string, input: (f: OrgFixture) => unknown, call: (input: unknown) => Promise<unknown>): Promise<Settled> {
+    const ghost = ghostOf(t.b);
+    const toB = await leavesBAlone(label, () => call(input(t.b)));
+    const toNobody = await leavesBAlone(label, () => call(input(ghost)));
+    const shown = (s: Settled, sent: unknown) => masked(JSON.stringify(s.ok ? { answered: s.value ?? null } : { code: s.error.code, message: s.error.message }), sent);
+    expect(shown(toB, input(t.b)), label).toBe(shown(toNobody, input(ghost)));
+    const sent = JSON.stringify(input(t.b));
+    namesNothingOf(toB.ok ? toB.value : toB.error.message, needlesOf(t.b).filter((n) => !sent.includes(n)), label);
+    return toB;
+  }
+
+  it("RF1: A's project with B's website slug is NOT_FOUND, as a slug nobody has", async () => {
+    const out = await asForNobody('sources.get', (f) => ({ projectSlug: t.a.projectSlug, sourceSlug: f.sourceSlug }), (i) => t.a.owner.caller.sources.get(i as never));
+    expect(codeOf(out)).toBe('NOT_FOUND');
+  });
+
+  it("RF1: a plain customer asking for B's captures under A's website gets no readings, as for captures nobody has", async () => {
+    const out = await asForNobody('sources.jevReadings', (f) => ({ sourceId: t.a.sourceId, captureIds: [t.a.captureId, f.captureId] }), (i) => t.a.owner.caller.sources.jevReadings(i as never));
+    expect(out.ok ? out.value : out.error.code).toEqual({});
+  });
+
+  it("RF1: A's backfill preview asked for B's fields answers as for fields nobody has", async () => {
+    // B's field keys are A's own words (minted from the same names), so B's fields are named by what only B has.
+    const out = await asForNobody('crawl.backfillPreview', (f) => ({ runId: t.a.runId, targetFields: [`Title ${f.tag}`, f.sourceName] }), (i) => t.a.owner.caller.crawl.backfillPreview(i as never));
+    expect(out.ok, out.ok ? '' : out.error.message).toBe(true);
+  });
 });
