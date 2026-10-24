@@ -11,6 +11,13 @@ import type { Context } from '../trpc.js';
 const notFound = (what: string, id: string) => new TRPCError({ code: 'NOT_FOUND', message: `${what} ${id} not found` });
 
 export async function sourceInOrg(ctx: Pick<Context, 'db' | 'session'>, sourceId: string) {
+  const s = await findSourceInOrg(ctx, sourceId);
+  if (!s) throw notFound('Website', sourceId);
+  return s;
+}
+
+/** The website inside the caller's org, or null — so a run or capture guard can refuse in its own words. */
+async function findSourceInOrg(ctx: Pick<Context, 'db' | 'session'>, sourceId: string) {
   if (!ctx.session) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sign in first' });
   const orgId = ctx.session.org.id;
   const row = await ctx.db
@@ -21,8 +28,7 @@ export async function sourceInOrg(ctx: Pick<Context, 'db' | 'session'>, sourceId
     .where(eq(sources.id, sourceId))
     .limit(1);
   const s = row[0];
-  if (!s || s.orgId !== orgId) throw notFound('Website', sourceId);
-  return s;
+  return s && s.orgId === orgId ? s : null;
 }
 
 /**
@@ -33,8 +39,8 @@ export async function sourceInOrg(ctx: Pick<Context, 'db' | 'session'>, sourceId
 export async function runInOrg(ctx: Pick<Context, 'db' | 'session'>, runId: string) {
   if (!ctx.session) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sign in first' });
   const run = await ctx.db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { id: true, sourceId: true } });
-  if (!run || !run.sourceId) throw notFound('Run', runId);
-  await sourceInOrg(ctx, run.sourceId);
+  // Another org's run reads exactly as a missing one: its own words and id, never its website's (spec 2026-10-24 §2.1).
+  if (!run || !run.sourceId || !(await findSourceInOrg(ctx, run.sourceId))) throw notFound('Run', runId);
   return run;
 }
 
@@ -42,7 +48,6 @@ export async function runInOrg(ctx: Pick<Context, 'db' | 'session'>, runId: stri
 export async function captureInOrg(ctx: Pick<Context, 'db' | 'session'>, captureId: string) {
   if (!ctx.session) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sign in first' });
   const row = await ctx.db.query.captures.findFirst({ where: eq(captures.id, captureId), columns: { id: true, sourceId: true } });
-  if (!row || !row.sourceId) throw notFound('Page capture', captureId);
-  await sourceInOrg(ctx, row.sourceId);
+  if (!row || !row.sourceId || !(await findSourceInOrg(ctx, row.sourceId))) throw notFound('Page capture', captureId);
   return { id: row.id, sourceId: row.sourceId };
 }
