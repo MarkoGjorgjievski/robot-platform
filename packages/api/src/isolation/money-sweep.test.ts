@@ -23,20 +23,47 @@ vi.mock('../jobs/queue.js', async (importOriginal) => ({
 process.env.CAPTURES_DIR = join(tmpdir(), 'robot-isolation-captures');
 
 const MONEY_KEY = /usd|cost|spend|price(?!s?$)/i;
-/** Scraped or customer-typed data, never searched: a customer's own "price" field is theirs, not our money. */
-const CUSTOMER_DATA = new Set(['data', 'values', 'rows', 'fields', 'expected', 'defaults', 'listingValues']);
+/** An amount written into text ("up to $0.36"), wherever it sits. */
+const MONEY_TEXT = /\$\s?\d/;
+/** Scraped or customer-typed data, never searched — a customer's own "price" field is theirs, not our money. Anchored
+ *  per procedure to the exact answer paths that carry it (array indexes as `[*]`), so an amount of ours added anywhere
+ *  else, even under a key of the same name, is still found. */
+const CUSTOMER_DATA: Record<string, string[]> = {
+  'runs.getWithDetails': ['extraction.data'],
+  'sources.get': ['verificationSet.expected', 'verificationSet.defaults'],
+  'projects.output': ['rows'],
+  'crawl.items': ['items[*].listingValues'],
+};
 
-/** Every path in `v` whose key reads as money and whose value is an amount (a number or a numeric string). */
-function moneyPaths(v: unknown, path = ''): string[] {
-  if (Array.isArray(v)) return v.flatMap((x, i) => moneyPaths(x, `${path}[${i}]`));
+/** Every path in `v` whose key reads as money and whose value is an amount (a number or a numeric string), or whose
+ *  text carries an amount — outside the procedure's customer data. */
+function moneyPaths(v: unknown, procedure = '', path = ''): string[] {
+  const skip = CUSTOMER_DATA[procedure] ?? [];
+  if (skip.includes(path.replace(/\[\d+\]/g, '[*]'))) return [];
+  if (typeof v === 'string') return MONEY_TEXT.test(v) ? [path] : [];
+  if (Array.isArray(v)) return v.flatMap((x, i) => moneyPaths(x, procedure, `${path}[${i}]`));
   if (v === null || typeof v !== 'object' || v instanceof Date) return [];
   return Object.entries(v as Record<string, unknown>).flatMap(([k, x]) => {
-    if (CUSTOMER_DATA.has(k)) return [];
     const here = path ? `${path}.${k}` : k;
+    if (skip.includes(here.replace(/\[\d+\]/g, '[*]'))) return [];
     const amount = typeof x === 'number' || (typeof x === 'string' && x.trim() !== '' && Number.isFinite(Number(x)));
-    return [...(MONEY_KEY.test(k) && amount ? [here] : []), ...moneyPaths(x, here)];
+    const flagged = MONEY_KEY.test(k) && amount;
+    return [...(flagged ? [here] : []), ...moneyPaths(x, procedure, here).filter((p) => p !== here || !flagged)];
   });
 }
+
+describe('the scan itself', () => {
+  it('finds an amount in text and our amount under a key named like customer data', () => {
+    expect(moneyPaths({ label: 'up to $0.36', note: 'costs $ 4' })).toEqual(['label', 'note']);
+    expect(moneyPaths({ fields: [{ key: 'price', perFieldUsd: 0.06 }] }, 'sources.verifyEstimate')).toEqual(['fields[0].perFieldUsd']);
+    expect(moneyPaths({ rows: [{ costUsd: 1 }] }, 'runs.listByOrg')).toEqual(['rows[0].costUsd']);
+  });
+  it('leaves the anchored customer data alone, and only there', () => {
+    const answer = { extraction: { data: [{ price: '$4.20', costUsd: 4.2 }] }, data: [{ costUsd: 1 }] };
+    expect(moneyPaths(answer, 'runs.getWithDetails')).toEqual(['data[0].costUsd']);
+    expect(moneyPaths({ verificationSet: { expected: { p: { u: '$4.20' } } } }, 'sources.get')).toEqual([]);
+  });
+});
 
 /** What staff must still read, per procedure (spec §2.3's table, on this fixture: one project, one run, one staff action). */
 const STAFF_MONEY: Record<string, string[]> = {
@@ -83,13 +110,13 @@ describe('a customer receives no amount (spec §2.3)', () => {
   });
 
   it.each(swept)('%s carries no amount to a customer of the org', async (path) => {
-    expect(moneyPaths(await at(t.a.owner.caller, path)(inputFor(path)))).toEqual([]);
+    expect(moneyPaths(await at(t.a.owner.caller, path)(inputFor(path)), path)).toEqual([]);
   });
 });
 
 describe('staff in staff mode still read the amounts (spec §2.3)', () => {
   it.each(Object.entries(STAFF_MONEY))('%s gives staff %j', async (path, paths) => {
-    expect(moneyPaths(await at(staff.caller, path)(inputFor(path)))).toEqual(expect.arrayContaining(paths));
+    expect(moneyPaths(await at(staff.caller, path)(inputFor(path)), path)).toEqual(expect.arrayContaining(paths));
   });
 });
 
