@@ -22,9 +22,6 @@ const SITES = Number(a.sites); const PAGES = Number(a.pages); const RUNS = Numbe
 
 try { loadEnvFile(join(repo, '.env')); } catch { /* no .env: the default URL below */ }
 const { createBenchDatabase } = await import('./bench-db.js');
-const bench = await createBenchDatabase(process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:5432/robot_platform');
-// Before anything imports @robot/db: every row of this process goes to the throwaway database.
-process.env.DATABASE_URL = bench.url;
 process.env.JOB_QUEUE = `bench-${randomUUID()}`;
 process.env.ANTHROPIC_API_KEY = ''; process.env.JEV_SHADOW = ''; process.env.TYPESAFE_API_KEY = ''; process.env.WEBSITE_CHECKS = 'off';
 const capturesDir = mkdtempSync(join(tmpdir(), 'bench-captures-'));
@@ -32,7 +29,13 @@ process.env.CAPTURES_DIR = capturesDir;
 
 let exitCode = 0;
 let close: (() => Promise<void>) | null = null;
+let bench: Awaited<ReturnType<typeof createBenchDatabase>> | null = null;
 try {
+  // Inside the try (final review M4): a bench that fails from here on still reports and cleans up. A failed
+  // migration drops its own database (bench-db.ts).
+  bench = await createBenchDatabase(process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:5432/robot_platform');
+  // Before anything imports @robot/db: every row of this process goes to the throwaway database.
+  process.env.DATABASE_URL = bench.url;
   const { startFixtureShop, REALISTIC, INSTANT } = await import('./fixture-shop.js');
   const shop = await startFixtureShop({ sites: SITES, latency: a.latency === 'instant' ? INSTANT : REALISTIC });
   close = shop.close;
@@ -81,6 +84,7 @@ try {
 } finally {
   await close?.();
   rmSync(capturesDir, { recursive: true, force: true });
-  await bench.drop().catch((err) => { console.error(`[bench] could not drop ${bench.name}:`, err); exitCode = 1; });
+  const made = bench;
+  if (made) await made.drop().catch((err) => { console.error(`[bench] could not drop ${made.name}:`, err); exitCode = 1; });
 }
 process.exit(exitCode);

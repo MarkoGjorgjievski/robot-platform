@@ -21,7 +21,8 @@ async function admin<T>(base: string, fn: (sql: postgres.Sql) => Promise<T>): Pr
   try { return await fn(sql); } finally { await sql.end(); }
 }
 
-export async function createBenchDatabase(base: string): Promise<{ name: string; url: string; drop(): Promise<void> }> {
+/** A migration that fails drops the new database before rethrowing: a broken bench leaves nothing behind (final review M4). */
+export async function createBenchDatabase(base: string, opts: { migrationsFolder?: string } = {}): Promise<{ name: string; url: string; drop(): Promise<void> }> {
   const stamp = Date.now();
   const name = `robot_bench_${stamp}`;
   await admin(base, async (sql) => {
@@ -33,7 +34,15 @@ export async function createBenchDatabase(base: string): Promise<{ name: string;
     await sql.unsafe(`CREATE DATABASE "${name}"`);
   });
   const url = databaseUrl(base, name);
+  const drop = () => admin(base, async (sql) => { await sql.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`); });
   const client = postgres(url, { max: 1, onnotice: () => {} });
-  try { await migrate(drizzle(client), { migrationsFolder: MIGRATIONS }); } finally { await client.end(); }
-  return { name, url, drop: () => admin(base, async (sql) => { await sql.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`); }) };
+  try {
+    await migrate(drizzle(client), { migrationsFolder: opts.migrationsFolder ?? MIGRATIONS });
+  } catch (err) {
+    await client.end();
+    await drop();
+    throw err;
+  }
+  await client.end();
+  return { name, url, drop };
 }
