@@ -22,7 +22,7 @@ const urls = process.argv.slice(2).length > 0 ? process.argv.slice(2) : [
   'https://webscraper.io/test-sites/e-commerce/allinone/computers/laptops',
   'https://www.allbirds.com/collections/mens',
 ];
-const worker = await startWorker({ ...readWorkerConfig(process.env), websiteChecks: false });
+const worker = await startWorker({ ...readWorkerConfig(process.env), websiteChecks: false, recurringRuns: false });
 let bad = 0;
 try {
   for (const url of urls) {

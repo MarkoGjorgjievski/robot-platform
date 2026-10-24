@@ -53,7 +53,7 @@ try {
   const { startMemorySampler, collectRun, waitForRuns, stats } = await import('./measure.js');
   const sampler = startMemorySampler(process.pid);
   const t0 = Date.now();
-  const worker = await startWorker({ ...readWorkerConfig({ JOB_QUEUE: process.env.JOB_QUEUE, WORKER_RUNS: String(RUNS), WORKER_BROWSERS: String(BROWSERS) }), websiteChecks: false });
+  const worker = await startWorker({ ...readWorkerConfig({ JOB_QUEUE: process.env.JOB_QUEUE, WORKER_RUNS: String(RUNS), WORKER_BROWSERS: String(BROWSERS) }), websiteChecks: false, recurringRuns: false });
   try {
     await waitForRuns(seeded.map((s) => s.runId), SITES * PAGES * 30_000);
   } finally {

@@ -22,7 +22,7 @@ const until = async (pred: () => Promise<boolean>, ms = 60_000) => {
 function worker(stopFile: string): ChildProcess {
   const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
     cwd: pkg, stdio: 'ignore',
-    env: { ...process.env, JOB_QUEUE: jobQueueName(), WORKER_TEST_JOBS: '1', WEBSITE_CHECKS: 'off', WORKER_LEASE_MS: '2000',
+    env: { ...process.env, JOB_QUEUE: jobQueueName(), WORKER_TEST_JOBS: '1', WEBSITE_CHECKS: 'off', RECURRING_RUNS: 'off', WORKER_LEASE_MS: '2000',
       WORKER_POLL_MS: '100', WORKER_RETRY_MS: '100', WORKER_MIN_FREE_MB: '0', WORKER_SHUTDOWN_MS: '500', WORKER_STOP_FILE: stopFile,
       ANTHROPIC_API_KEY: '', JEV_SHADOW: '', TYPESAFE_API_KEY: '' },
   });

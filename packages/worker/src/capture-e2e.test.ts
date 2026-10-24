@@ -26,7 +26,7 @@ describe('a capture end to end through the worker', () => {
   it('captures the page and leaves no browser open after stop', async () => {
     const me = await signedInCaller('worker-e2e');
     const f = await createProjectWithSource(me.caller, { tag: 'worker-e2e', fields: [{ name: 'Title', type: 'text' }] });
-    const worker = await startWorker({ ...readWorkerConfig({ JOB_QUEUE: process.env.JOB_QUEUE }), browsers: 1, minFreeMb: 0, pollMs: 50, websiteChecks: false });
+    const worker = await startWorker({ ...readWorkerConfig({ JOB_QUEUE: process.env.JOB_QUEUE }), browsers: 1, minFreeMb: 0, pollMs: 50, websiteChecks: false, recurringRuns: false });
     try {
       const { captureId } = await me.caller.sources.captureProofPage({ sourceId: f.sourceId, url: `${base}/p/1` });
       let state = await me.caller.sources.proofPageCapture({ captureId });
