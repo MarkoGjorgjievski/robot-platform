@@ -21,7 +21,7 @@
 //   # its worker: every page load runs here (the api-server starts no browser);
 //   # stop it by creating the stop file — it gives its jobs back and closes its browsers
 //   cd packages/worker
-//   ANTHROPIC_API_KEY= JEV_SHADOW= TYPESAFE_API_KEY= WEBSITE_CHECKS=off JOB_QUEUE=isolated-4100 \
+//   ANTHROPIC_API_KEY= JEV_SHADOW= TYPESAFE_API_KEY= WEBSITE_CHECKS=off RECURRING_RUNS=off JOB_QUEUE=isolated-4100 \
 //     WORKER_STOP_FILE=<a temp file> npx tsx src/index.ts
 //   # the app on :3100, pointed at it
 //   cd packages/app && VITE_API_URL=http://localhost:4100 pnpm exec vite dev --port 3100

@@ -1,35 +1,35 @@
 {
- "at": "2026-10-24T07:07:35.341Z",
- "runId": "56cf5b2f-f2a8-461e-8159-3b6c627432e4",
+ "at": "2026-10-24T07:43:50.693Z",
+ "runId": "c2d99933-0b7b-4f30-9190-5bfb864c8a95",
  "status": "completed",
  "rows": 3,
- "scheduleSavedAt": "2026-10-24T07:06:10.195Z",
- "scheduledFor": "2026-10-24T07:07:00.000Z",
- "startedAt": "2026-10-24T07:07:20.390Z",
- "completedAt": "2026-10-24T07:07:30.349Z",
- "webhookAt": "2026-10-24T07:07:30.776Z",
+ "scheduleSavedAt": "2026-10-24T07:42:25.686Z",
+ "scheduledFor": "2026-10-24T07:43:00.000Z",
+ "startedAt": "2026-10-24T07:43:35.755Z",
+ "completedAt": "2026-10-24T07:43:45.798Z",
+ "webhookAt": "2026-10-24T07:43:46.188Z",
  "timings": {
-  "saveToStartMs": 70195,
-  "scheduledToStartMs": 20390,
-  "startToCompleteMs": 9959,
-  "completeToWebhookMs": 427
+  "saveToStartMs": 70069,
+  "scheduledToStartMs": 35755,
+  "startToCompleteMs": 10043,
+  "completeToWebhookMs": 390
  },
  "files": [
   {
    "format": "csv",
-   "filename": "site-bench-0-56cf5b2f-2026-10-24.csv",
+   "filename": "site-bench-0-c2d99933-2026-10-24.csv",
    "bytes": 501,
    "rows": 3
   },
   {
    "format": "json",
-   "filename": "site-bench-0-56cf5b2f-2026-10-24.json",
+   "filename": "site-bench-0-c2d99933-2026-10-24.json",
    "bytes": 1567,
    "rows": 3
   },
   {
    "format": "xlsx",
-   "filename": "site-bench-0-56cf5b2f-2026-10-24.xlsx",
+   "filename": "site-bench-0-c2d99933-2026-10-24.xlsx",
    "bytes": 6942,
    "rows": 3
   }
@@ -51,11 +51,11 @@
    "files",
    "filesExpireAt"
   ],
-  "filesExpireAt": "2026-10-31T07:07:30.000Z",
+  "filesExpireAt": "2026-10-31T07:43:46.000Z",
   "headers": {
    "user-agent": "robot-platform-webhook/1",
    "x-robot-event": "run.finished",
-   "x-robot-delivery": "6a6f9610-1bd7-47a7-a354-7cb0a066d0c5",
+   "x-robot-delivery": "2e03fa9f-b75b-44b7-ad6a-1c9ca4c135fc",
    "content-type": "application/json"
   }
  },
@@ -85,12 +85,12 @@
   {
    "name": "the schedule is due within two minutes",
    "ok": true,
-   "detail": "07:07 UTC → 2026-10-24T07:07:00.000Z"
+   "detail": "07:43 UTC → 2026-10-24T07:43:00.000Z"
   },
   {
    "name": "a run started by itself, labelled scheduled",
    "ok": true,
-   "detail": "56cf5b2f-f2a8-461e-8159-3b6c627432e4"
+   "detail": "c2d99933-0b7b-4f30-9190-5bfb864c8a95"
   },
   {
    "name": "the run completed",
@@ -122,7 +122,7 @@
   {
    "name": "the csv link is on the api-server",
    "ok": true,
-   "detail": "http://127.0.0.1:4310/export/runs/56cf5b2f-f2a8-461e-8159-3b6c627432e4.csv?expires=1793430450&sig=…"
+   "detail": "http://127.0.0.1:4310/export/runs/c2d99933-0b7b-4f30-9190-5bfb864c8a95.csv?expires=1793432626&sig=…"
   },
   {
    "name": "the csv link downloads the run's file",
@@ -136,7 +136,7 @@
   {
    "name": "the json link is on the api-server",
    "ok": true,
-   "detail": "http://127.0.0.1:4310/export/runs/56cf5b2f-f2a8-461e-8159-3b6c627432e4.json?expires=1793430450&sig=…"
+   "detail": "http://127.0.0.1:4310/export/runs/c2d99933-0b7b-4f30-9190-5bfb864c8a95.json?expires=1793432626&sig=…"
   },
   {
    "name": "the json link downloads the run's file",
@@ -150,7 +150,7 @@
   {
    "name": "the xlsx link is on the api-server",
    "ok": true,
-   "detail": "http://127.0.0.1:4310/export/runs/56cf5b2f-f2a8-461e-8159-3b6c627432e4.xlsx?expires=1793430450&sig=…"
+   "detail": "http://127.0.0.1:4310/export/runs/c2d99933-0b7b-4f30-9190-5bfb864c8a95.xlsx?expires=1793432626&sig=…"
   },
   {
    "name": "the xlsx link downloads the run's file",

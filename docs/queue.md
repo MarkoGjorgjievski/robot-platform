@@ -7,19 +7,23 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Recurring extraction** — a schedule per website (e.g. every Monday 06:00); each run produces a downloadable file and a webhook on completion. *Done when:* a scheduled run fires, writes its file and posts its webhook; tests, smoke.
-2. **Email, with a local catcher** — SMTP sending (Mailpit in Docker for local) for "Needs attention", failed runs and account messages. *Done when:* each message is sent and seen in Mailpit; a real provider is a config change.
-3. **Tenant isolation audit, as tests** — two organisations, every router and capture-file route called across them, all refused; money fields removed from customer answers; rate limits. *Done when:* the sweep test passes.
-4. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
-5. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
-6. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
-7. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
-8. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-9. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **Email, with a local catcher** — SMTP sending (Mailpit in Docker for local) for "Needs attention", failed runs and account messages. *Done when:* each message is sent and seen in Mailpit; a real provider is a config change.
+2. **Tenant isolation audit, as tests** — two organisations, every router and capture-file route called across them, all refused; money fields removed from customer answers; rate limits. *Done when:* the sweep test passes.
+3. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
+4. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
+5. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
+6. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
+7. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+8. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
 
+- **Recurring runs are on by default** (`RECURRING_RUNS`): nothing runs until a customer saves a schedule. Keep on?
+- **Webhook links point at `PUBLIC_API_URL`** (default http://localhost:4000): a customer's endpoint outside this machine
+  cannot open them until the api-server has a public address. Which address?
+- **How long to keep run files?** Each delivered run stores its CSV/JSON/XLSX in the database (`run_files`), never
+  pruned, so the database and every nightly backup grow with each scheduled run. Keep forever, or e.g. 90 days?
 - **Two pages at a time per website during runs?** It would roughly halve a large website's run again; it is a politeness
   choice (2026-10-23, run speed).
 - **More browsers on this machine?** Defaults stay WORKER_BROWSERS=3 / WORKER_RUNS=1. Measured (docs/testing/results/2026-10-23-run-speed/report.md): 1,000 pages
@@ -41,6 +45,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-24 — Recurring extraction (`2881058f`): a weekly schedule per website, a CSV/JSON/XLSX snapshot per run, a signed webhook with signed links on completion; live check docs/testing/results/2026-10-24-recurring/live-recurring.md. After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-24 — Run speed (`b0b0f994`): lean captures on certified runs with today's capture as the fallback, page starts 2 s apart per host, runs keep a browser for Verify; measured 1.6× per 1,000 pages one website at a time, 8.1× at six, same values (docs/testing/results/2026-10-23-run-speed/report.md). After merge: pnpm install, restart dev:all.
 - 2026-10-23 — Playwright aligned on 1.62.1 everywhere (`baf5f5d`).
 - 2026-10-23 — The whole stack in Docker Compose, with nightly backups and a tested restore (`feat/docker-compose`).
