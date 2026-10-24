@@ -251,3 +251,25 @@ describe('deliverRun re-checks the run when the job runs (task 6 review M3)', ()
     } finally { await f.cleanup(); }
   });
 });
+
+describe('a delivery that fails before any post (final review M5)', () => {
+  const broken = async () => { throw new Error('disk full'); };
+  it('records a failed attempt with no status code and the error, so the run page has a state; the job retries', async () => {
+    const f = await websiteWithRun('prepost', { webhook: true });
+    try {
+      await expect(deliverRun({ runId: f.runId, deliveryId: DELIVERY }, { attempt: 1 }, { env: ENV, writeFiles: broken })).rejects.toThrow('disk full');
+      expect(receiver.hits).toHaveLength(0);
+      const [attempt] = await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.runId, f.runId));
+      expect(attempt).toMatchObject({ deliveryId: DELIVERY, attempt: 1, ok: false, statusCode: null });
+      expect(attempt!.error).toMatch(/files could not be written.*disk full/);
+      expect(await loadRunDelivery(db, f.runId, true)).toMatchObject({ state: 'failed', statusCode: null, error: expect.stringMatching(/disk full/) });
+    } finally { await f.cleanup(); }
+  });
+  it('a website with no webhook records nothing', async () => {
+    const f = await websiteWithRun('prepost-files', { schedule: true });
+    try {
+      await expect(deliverRun({ runId: f.runId, deliveryId: DELIVERY }, { attempt: 1 }, { env: ENV, writeFiles: broken })).rejects.toThrow('disk full');
+      expect(await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.runId, f.runId))).toEqual([]);
+    } finally { await f.cleanup(); }
+  });
+});
