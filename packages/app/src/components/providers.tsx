@@ -3,6 +3,7 @@ import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react
 import { useRouter } from '@tanstack/react-router';
 import { trpc, createTrpcClient } from '../lib/trpc';
 import { isStaffSessionEnded } from '../lib/staff-view';
+import { QUERY_DEFAULTS } from '../lib/query-defaults';
 import { TooltipProvider } from './ui/tooltip';
 
 /**
@@ -22,7 +23,7 @@ export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
-        defaultOptions: { queries: { staleTime: 30_000, retry: false } },
+        defaultOptions: QUERY_DEFAULTS,
         mutationCache: new MutationCache({
           onError: (err) => {
             if (isStaffSessionEnded(err)) void routerRef.current.invalidate();
