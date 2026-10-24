@@ -3,10 +3,13 @@
 // An operator (an address in the api-server's `OPS_EMAILS`) opens a customer's
 // website in ops, chooses "Work on this website", confirms, and lands inside
 // the customer's organisation under the staff banner. A rename goes through
-// and is logged; Delete website is disabled and says why; "Back to ops" leaves.
-// Then the customer signs in and reads all three entries in Settings' "Robot
-// staff activity" — with real website names, which is also the HTTP-path proof
-// that the logger middleware sees superjson-deserialized input.
+// and is logged; Delete website is disabled and says why; the operator sets the
+// customer's monthly AI limit in the org's Settings (spec 2026-10-24 metering
+// §2.4); "Back to ops" leaves, and ops → Organisations shows the new limit.
+// Then the customer signs in and reads every entry in Settings' "Robot
+// staff activity" (the limit change only as a changed setting, never the
+// amount) — with real website names, which is also the HTTP-path proof that
+// the logger middleware sees superjson-deserialized input.
 //
 // It runs only against an ISOLATED pair, never the dev servers on :4000/:3000:
 // the operator address has to be in that api-server's `OPS_EMAILS`, and nobody
@@ -34,7 +37,8 @@
 // cascades its project, website and staff log. It never clicks Verify,
 // Extract, Sample or Check, and the website it creates points at a dead local
 // address, so nothing is ever fetched. Screenshots (dark theme only) go to
-// `docs/testing/screens/staff-*.png`.
+// `docs/testing/screens/staff-*.png`, among them `staff-settings-ai-limit.png`
+// and `staff-ops-orgs.png`.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
@@ -219,6 +223,20 @@ describe.skipIf(!ENABLED)('staff access', () => {
     expect(await dangerRow.count(), `"${BLOCKED}" is not beside Delete website`).toBe(1);
     await shoot(page, 'staff-settings-blocked.png');
 
+    // 5b. The monthly AI limit (spec 2026-10-24 metering §2.4), on the customer's org Settings, as staff.
+    await page.goto(`${APP}/settings`, { waitUntil: 'networkidle', timeout: 30_000 });
+    const limitPanel = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Monthly AI limit' }) });
+    await limitPanel.waitFor({ timeout: 20_000 });
+    expect(await limitPanel.innerText()).toContain('Leave empty to use the default ($25)');
+    await waitForHydration(page, '#ai-limit');
+    await page.locator('#ai-limit').fill('40');
+    const capSaved = page.waitForResponse((r) => r.url().includes('orgs.setAiCap'), { timeout: 15_000 });
+    await limitPanel.getByRole('button', { name: 'Save' }).click();
+    expect((await capSaved).ok(), 'orgs.setAiCap failed in staff mode').toBe(true);
+    await expect.poll(() => page.getByTestId('ai-limit-state').innerText(), { timeout: 10_000 }).toContain('$40 limit');
+    await limitPanel.scrollIntoViewIfNeeded();
+    await shoot(page, 'staff-settings-ai-limit.png');
+
     // 6. Back to ops: the banner goes with the staff session.
     await banner(page).getByRole('button', { name: 'Back to ops' }).click();
     await page.waitForURL(`${APP}/ops`, { timeout: 30_000 });
@@ -234,6 +252,17 @@ describe.skipIf(!ENABLED)('staff access', () => {
     await expect.poll(() => rows.count(), { timeout: 10_000, message: 'the ops search did not narrow to the throwaway customer' }).toBe(1);
     expect(await rows.first().innerText()).toContain(CUSTOMER_ORG);
     await shoot(page, 'staff-back-to-ops.png');
+
+    // 6b. Ops → Organisations, narrowed to this run's customer before the screenshot (no real name in docs/).
+    await page.goto(`${APP}/ops/orgs?q=${encodeURIComponent(CUSTOMER_ORG)}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.getByRole('heading', { name: 'Organisations' }).waitFor({ timeout: 20_000 });
+    const orgRows = page.locator('tbody tr');
+    await expect.poll(() => orgRows.count(), { timeout: 15_000, message: 'ops Organisations did not narrow to the throwaway customer' }).toBe(1);
+    const orgRow = await orgRows.first().innerText();
+    expect(orgRow).toContain(CUSTOMER_ORG);
+    expect(orgRow).toContain('$40');
+    expect(orgRow).toContain('1 website');
+    await shoot(page, 'staff-ops-orgs.png');
     expect(pageErrors, `the operator's pages threw:\n  ${pageErrors.join('\n  ')}`).toEqual([]);
 
     // 7. The customer, in a fresh browser, reads it all in Settings.
@@ -249,6 +278,10 @@ describe.skipIf(!ENABLED)('staff access', () => {
       const text = await panel.innerText();
       expect(text).toContain(`Renamed website ${WEBSITE} to ${RENAMED}`);
       expect(text).toContain('Stopped working as staff');
+      // Spec 2026-10-24 metering §3.3: the customer reads that a setting changed, never the amount, and no panel.
+      expect(text).toContain('Changed a setting of this organisation');
+      expect(text).not.toMatch(/\$\s?\d|\bAI\b/);
+      expect(await cp.getByRole('heading', { name: 'Monthly AI limit' }).count(), 'the customer sees the AI limit panel').toBe(0);
       await panel.scrollIntoViewIfNeeded();
       await shoot(cp, 'staff-customer-settings.png');
     } finally {

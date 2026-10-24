@@ -445,6 +445,8 @@ const ORG_SCREENS = [
       expect(await page.locator('tbody tr').filter({ hasText: PROJECT_NAME }).count(), 'Usage has no row for this run’s project').toBe(1);
       // `expectNoMoney` skips table cells, so the Spend column is checked by its header.
       expect(await page.getByRole('columnheader', { name: 'Spend' }).count(), 'Usage shows a customer the Spend column').toBe(0);
+      // Spec 2026-10-24 metering §2.5: Runs beside Pages captured, for a customer too.
+      expect(await page.getByRole('columnheader', { name: 'Runs' }).count(), 'Usage has no Runs column').toBe(1);
       await expectNoMoney(page);
     },
   },
@@ -462,6 +464,8 @@ const ORG_SCREENS = [
       const del = page.getByRole('button', { name: 'Delete organisation' });
       expect(await del.isDisabled(), 'Delete organisation is live on a personal organisation').toBe(true);
       expect(await page.locator('main').innerText()).toContain('Your personal organisation cannot be deleted');
+      // Spec 2026-10-24 metering §2.4: the monthly limit panel is staff only.
+      expect(await page.getByRole('heading', { name: 'Monthly AI limit' }).count(), 'a customer sees the AI limit panel').toBe(0);
     },
   },
   {

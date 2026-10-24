@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { monthKey, shiftMonth, monthLabel, usdLabel, pagesLabel, usageView, usageHeadline, usageScreenState } from './usage-view';
+import { monthKey, shiftMonth, monthLabel, usdLabel, pagesLabel, runsLabel, usageView, usageHeadline, usageScreenState } from './usage-view';
 
 describe('months', () => {
   it('keys a date by its UTC month', () => {
@@ -39,8 +39,8 @@ describe('pagesLabel', () => {
 describe('usageView', () => {
   it('labels each row and keeps the order it was given', () => {
     const rows = usageView([
-      { id: 'a', name: 'Busy', slug: 'busy', spendUsd: 0.05, pagesCaptured: 2 },
-      { id: 'b', name: 'Quiet', slug: 'quiet', spendUsd: 0, pagesCaptured: 0 },
+      { id: 'a', name: 'Busy', slug: 'busy', spendUsd: 0.05, pagesCaptured: 2, runs: 0 },
+      { id: 'b', name: 'Quiet', slug: 'quiet', spendUsd: 0, pagesCaptured: 0, runs: 0 },
     ], true);
     expect(rows.map((r) => [r.name, r.spendLabel, r.pagesLabel])).toEqual([['Busy', '$0.05', '2 pages'], ['Quiet', '$0.00', '0 pages']]);
   });
@@ -64,17 +64,30 @@ describe('usageScreenState', () => {
 });
 
 describe('usage without money for a customer (spec 2026-10-17 §8a)', () => {
-  const rows = [{ id: 'p', name: 'Prices', slug: 'prices', spendUsd: 1.24, pagesCaptured: 60 }];
+  const rows = [{ id: 'p', name: 'Prices', slug: 'prices', spendUsd: 1.24, pagesCaptured: 60, runs: 0 }];
   it('rows carry no spend label for a customer, and one for staff', () => {
     expect(usageView(rows, false)[0]!.spendLabel).toBeNull();
     expect(usageView(rows, true)[0]!.spendLabel).toBe('$1.24');
   });
   it('the headline is pages for a customer, spend for staff', () => {
-    expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60 }, '2026-10', false)).toEqual({ label: 'Pages captured in October 2026', figure: '60 pages', sub: '' });
-    expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60 }, '2026-10', true)).toEqual({ label: 'Spend in October 2026', figure: '$1.24', sub: '60 pages captured' });
+    expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60, runs: 0 }, '2026-10', false)).toEqual({ label: 'Pages captured in October 2026', figure: '60 pages', sub: '0 runs' });
+    expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60, runs: 0 }, '2026-10', true)).toEqual({ label: 'Spend in October 2026', figure: '$1.24', sub: '60 pages captured · 0 runs' });
   });
   it('a customer row and total arrive with no spend at all (spec 2026-10-24 tenant isolation §2.3)', () => {
-    expect(usageView([{ id: 'p', name: 'P', slug: 'p', pagesCaptured: 3 }], false)).toEqual([{ id: 'p', name: 'P', slug: 'p', pagesCaptured: 3, spendLabel: null, pagesLabel: '3 pages' }]);
-    expect(usageHeadline({ pagesCaptured: 3 }, '2026-10', false)).toEqual({ label: 'Pages captured in October 2026', figure: '3 pages', sub: '' });
+    expect(usageView([{ id: 'p', name: 'P', slug: 'p', pagesCaptured: 3, runs: 0 }], false)).toEqual([{ id: 'p', name: 'P', slug: 'p', pagesCaptured: 3, runs: 0, spendLabel: null, pagesLabel: '3 pages', runsLabel: '0 runs' }]);
+    expect(usageHeadline({ pagesCaptured: 3, runs: 0 }, '2026-10', false)).toEqual({ label: 'Pages captured in October 2026', figure: '3 pages', sub: '0 runs' });
+  });
+});
+
+describe('runs on Usage (spec 2026-10-24 metering §2.5)', () => {
+  it('counts runs', () => {
+    expect(runsLabel(0)).toBe('0 runs');
+    expect(runsLabel(1)).toBe('1 run');
+    expect(runsLabel(12)).toBe('12 runs');
+  });
+  it('each row and the headline carry the runs, for a customer and for staff', () => {
+    expect(usageView([{ id: 'p', name: 'P', slug: 'p', pagesCaptured: 3, runs: 2 }], false)[0]).toMatchObject({ pagesLabel: '3 pages', runsLabel: '2 runs', spendLabel: null });
+    expect(usageHeadline({ pagesCaptured: 60, runs: 4 }, '2026-10', false)).toEqual({ label: 'Pages captured in October 2026', figure: '60 pages', sub: '4 runs' });
+    expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60, runs: 4 }, '2026-10', true)).toEqual({ label: 'Spend in October 2026', figure: '$1.24', sub: '60 pages captured · 4 runs' });
   });
 });

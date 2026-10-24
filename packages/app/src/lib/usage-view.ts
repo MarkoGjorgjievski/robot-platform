@@ -34,21 +34,28 @@ export function pagesLabel(n: number): string {
   return `${n} ${n === 1 ? 'page' : 'pages'}`;
 }
 
+export function runsLabel(n: number): string {
+  return `${n} ${n === 1 ? 'run' : 'runs'}`;
+}
+
 /** `spendUsd` reaches staff only (spec 2026-10-24 tenant isolation §2.3). */
-export type UsageRow = { id: string; name: string; slug: string; spendUsd?: number; pagesCaptured: number };
+export type UsageRow = { id: string; name: string; slug: string; spendUsd?: number; pagesCaptured: number; runs: number };
 /** `spendLabel` is null for a customer (spec 2026-10-17 §8a): spend is staff-only. */
-export type UsageRowView = UsageRow & { spendLabel: string | null; pagesLabel: string };
+export type UsageRowView = UsageRow & { spendLabel: string | null; pagesLabel: string; runsLabel: string };
 
 /** Labels only; the API orders the rows (staff: by spend, then name; a customer: by pages captured, then name). Pure. */
 export function usageView(rows: readonly UsageRow[], showMoney: boolean): UsageRowView[] {
-  return rows.map((r) => ({ ...r, spendLabel: showMoney ? usdLabel(r.spendUsd ?? 0) : null, pagesLabel: pagesLabel(r.pagesCaptured) }));
+  return rows.map((r) => ({ ...r, spendLabel: showMoney ? usdLabel(r.spendUsd ?? 0) : null, pagesLabel: pagesLabel(r.pagesCaptured), runsLabel: runsLabel(r.runs) }));
 }
 
-/** The usage headline (spec 2026-10-17 §8a): spend for staff; pages captured for a customer. */
-export function usageHeadline(total: { spendUsd?: number; pagesCaptured: number }, month: string, showMoney: boolean): { label: string; figure: string; sub: string } {
+/**
+ * The usage headline (spec 2026-10-17 §8a): spend for staff; pages captured for a customer. Runs beside pages
+ * captured, spec 2026-10-24 metering §2.5: the secondary line counts the month's runs, for a customer too.
+ */
+export function usageHeadline(total: { spendUsd?: number; pagesCaptured: number; runs: number }, month: string, showMoney: boolean): { label: string; figure: string; sub: string } {
   return showMoney
-    ? { label: `Spend in ${monthLabel(month)}`, figure: usdLabel(total.spendUsd ?? 0), sub: `${pagesLabel(total.pagesCaptured)} captured` }
-    : { label: `Pages captured in ${monthLabel(month)}`, figure: pagesLabel(total.pagesCaptured), sub: '' };
+    ? { label: `Spend in ${monthLabel(month)}`, figure: usdLabel(total.spendUsd ?? 0), sub: `${pagesLabel(total.pagesCaptured)} captured · ${runsLabel(total.runs)}` }
+    : { label: `Pages captured in ${monthLabel(month)}`, figure: pagesLabel(total.pagesCaptured), sub: runsLabel(total.runs) };
 }
 
 export type UsageScreenState = 'loading' | 'empty' | 'error' | 'table';

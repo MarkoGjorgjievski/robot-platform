@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { keepPreviousData } from '@tanstack/react-query';
 import { Page } from '../../components/page';
 import { DeleteOrgDialog } from '../../components/org/delete-org-dialog';
+import { AiLimitPanel } from '../../components/org/ai-limit-panel';
 import { GeneralPanel } from '../../components/org/general-panel';
 import { MembersTable } from '../../components/org/members-table';
 import { StaffActivityList } from '../../components/staff/staff-activity-list';
@@ -32,6 +33,9 @@ function SettingsPage() {
     <Page title="Settings">
       <div className="space-y-4">
         <GeneralPanel key={org.id} name={org.name} role={org.role} staff={staff} />
+
+        {/* Staff only (spec 2026-10-24 metering §2.4): a customer never sees the limit or any amount. */}
+        {session.isOperator ? <AiLimitPanel key={`l-${org.id}`} orgId={org.id} /> : null}
 
         <MembersTable key={`m-${org.id}`} callerRole={org.role} callerUserId={session.user.id} staff={staff} />
 
