@@ -45,6 +45,7 @@ export function runStatusLine(run: {
   const label = runDotLabel(state);
   if (run.inputLabel === 'probe') return { state, label: `${label} · sample` };
   if (run.inputLabel === 'backfill') return { state, label: `${label} · repair` };
+  if (run.inputLabel === 'scheduled') return { state, label: `${label} · scheduled` };
   return { state, label };
 }
 

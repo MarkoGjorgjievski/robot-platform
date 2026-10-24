@@ -16,7 +16,7 @@ export type RunRow = {
 export type RunView = {
   id: string;
   state: RunDotStatus;
-  /** The dot's word, plus " · sample" (a `probe` run) or " · backfill" (a `backfill` run). */
+  /** The dot's word, plus " · sample" (a `probe` run), " · backfill" (a `backfill` run) or " · scheduled" (a run its schedule started). */
   statusLabel: string;
   /** relativeTime(startedAt ?? createdAt) — a run that has not started yet still has an age. */
   startedLabel: string;
@@ -51,6 +51,7 @@ function statusLabel(state: RunDotStatus, inputLabel: string | null): string {
   const label = runDotLabel(state);
   if (inputLabel === 'probe') return `${label} · sample`;
   if (inputLabel === 'backfill') return `${label} · backfill`;
+  if (inputLabel === 'scheduled') return `${label} · scheduled`;
   return label;
 }
 

@@ -60,6 +60,10 @@ describe('runStatusLine', () => {
       .toBe('Partial · repair');
   });
 
+  it('a scheduled run reads scheduled beside its state (spec 2026-10-24 §3.6)', () => {
+    expect(runStatusLine({ status: 'completed', completedAt: new Date(), inputLabel: 'scheduled' }).label).toMatch(/ · scheduled$/);
+  });
+
   it('pulses only while something is actually moving', () => {
     expect(runStatusLine({ status: 'extracting', completedAt: null, inputLabel: null }).state).toBe('running');
     // An abandoned run: still `extracting`, but finished. Grey, not a pulse.

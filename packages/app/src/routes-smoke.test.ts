@@ -411,6 +411,13 @@ const SITE_SCREENS = [
         'the Name row does not hold the website name',
       ).toBe(WEBSITE_NAME);
       expect(await page.getByRole('button', { name: 'Delete website' }).count(), 'the Danger zone has no delete').toBe(1);
+      // Spec 2026-10-24 §3.6: both rows are on the tab. The smoke never saves a schedule or a webhook.
+      expect(await page.locator('dt').filter({ hasText: /^Schedule$/ }).count(), 'the Settings tab has no Schedule row').toBe(1);
+      expect(await page.locator('dt').filter({ hasText: /^Webhook$/ }).count(), 'the Settings tab has no Webhook row').toBe(1);
+      expect(await page.getByRole('combobox', { name: 'How often' }).count(), 'the Schedule row has no Off / Every day choice').toBe(1);
+      expect(await page.getByRole('textbox', { name: 'Webhook address' }).count(), 'the Webhook row has no address field').toBe(1);
+      expect(await page.locator('main').innerText(), 'the Webhook row lost its help line').toContain('We send a POST with the run');
+      await expectNoMoney(page);
     },
   },
 ] as const;

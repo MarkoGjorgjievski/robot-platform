@@ -64,6 +64,15 @@ describe('runsView', () => {
     expect(v!.statusLabel).toBe('Done');
   });
 
+  it('a scheduled run says so (spec 2026-10-24 §3.6); a manual run says nothing extra', () => {
+    const [scheduled, manual] = runsView([
+      row({ id: 's', inputLabel: 'scheduled', createdAt: new Date('2026-09-22T10:00:00Z') }),
+      row({ id: 'm', inputLabel: 'https://shop.example.com/c', createdAt: new Date('2026-09-22T09:00:00Z') }),
+    ], NOW);
+    expect(scheduled!.statusLabel).toMatch(/ · scheduled$/);
+    expect(manual!.statusLabel).not.toMatch(/·/);
+  });
+
   it('reads an extracting run with no completedAt as running', () => {
     const [v] = runsView(
       [row({ id: 'r', status: 'extracting', startedAt: new Date('2026-09-22T09:00:00Z'), completedAt: null })],
