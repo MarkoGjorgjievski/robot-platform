@@ -1191,9 +1191,9 @@ export const sourcesRouter = router({
         results: row.results,
         captures,
         stage,
-        aiCalls: row.aiCalls,
-        // Spec 2026-10-24 tenant isolation §2.3: staff-only.
-        ...moneyFields(viewerSeesMoney(ctx), { costUsd: row.costUsd }),
+        // Spec 2026-10-24 tenant isolation §2.3: staff-only. The AI-call count too — an internal measure under the
+        // customer-copy rule (ruling, final fix wave).
+        ...moneyFields(viewerSeesMoney(ctx), { costUsd: row.costUsd, aiCalls: row.aiCalls }),
         // The newest run, when it failed or stalled (spec 2026-10-20 §3.3): the app says so in the Verify bar.
         failedRun: failure ? { id: newest.id, startedAt: newest.startedAt, stalled: failure === 'stalled' } : null,
         currentKeys,
