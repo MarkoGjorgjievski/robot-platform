@@ -67,6 +67,17 @@ async function fieldNames(db: Database, sourceId: string): Promise<Record<string
 }
 const VARIANT_MODES: Record<string, string> = { ignore: 'one row per product', row_per_variant: 'one row per variant', nested: 'variants in one row' };
 
+/** "$40", "$40.56" — the monthly AI limit as the staff log writes it (spec 2026-10-24 metering §2.2). */
+export function capAmountText(usd: number): string {
+  return Number.isInteger(usd) ? `$${usd}` : `$${usd.toFixed(2)}`;
+}
+
+/** What a customer reads in place of a staff-only sentence (spec 2026-10-24 metering §3.3): that staff changed
+ *  something, never an amount, the limit or "AI". Staff and ops read the stored sentence. */
+export const CUSTOMER_SUMMARIES: Record<string, string> = {
+  'orgs.setAiCap': 'Changed a setting of this organisation',
+};
+
 export const STAFF_ACTIONS: Record<string, StaffAction | null> = {
   // ─ Never logged ─
   'auth.signIn': null, // no session yet
@@ -86,6 +97,13 @@ export const STAFF_ACTIONS: Record<string, StaffAction | null> = {
   'datasets.deleteAxis': null, // deny-listed
   'ops.enterOrg': null, // writes its own row
   'ops.leaveOrg': null, // writes its own row
+
+  // ─ The organisation ─
+  'orgs.setAiCap': {
+    describe: ({ input }) => input.capUsd === null
+      ? 'Reset the monthly AI limit to the default'
+      : `Set the monthly AI limit to ${capAmountText(Math.round(input.capUsd * 100) / 100)}`,
+  },
 
   // ─ Runs ─
   'crawl.plan': {

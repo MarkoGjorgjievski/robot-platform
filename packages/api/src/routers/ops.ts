@@ -13,6 +13,8 @@ import { listStaffActivity } from '../auth/staff-activity.js';
 import { queueEmailsSafely } from '../email/queue-emails.js';
 import type { JevAgreement } from '../verify/jev-agreement.js';
 import { monthBounds } from './usage.js';
+import { NO_USAGE, usageByOrg, websitesByOrg } from '../metering/org-usage.js';
+import { capStateOf, effectiveCap, percentUsed } from '../metering/cap-state.js';
 
 /** The host for the quiet mono line under a website's name. Never throws: a
  * Source's `urlTemplate` is free text, and a malformed one just reads as no
@@ -381,4 +383,38 @@ export const opsRouter = router({
       .from(staffActions).leftJoin(users, eq(staffActions.userId, users.id)).orderBy(staffActions.actorEmail);
     return { customers, staff };
   }),
+
+  /**
+   * Organisations (spec 2026-10-24 metering §2.4): one row per org — its websites, the month's pages, runs and AI
+   * spend, its effective monthly AI limit ("default" when it is ORG_AI_CAP_USD's), % used, and Jev spend (never against
+   * the limit). A past month's % is against the limit as it stands now. Highest % first; no limit last. `orgId`
+   * narrows it to one org (the staff Settings panel). Batched: the usage queries group every org at once (unscoped
+   * when no `orgId` is given, so no id list grows with the org count), plus one website count.
+   */
+  orgs: opsProcedure
+    .input(z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'YYYY-MM').optional(), orgId: z.string().uuid().optional() }).default({}))
+    .query(async ({ ctx, input }) => {
+      const month = input.month ?? currentMonthKey(new Date());
+      const list = await ctx.db.select({ id: orgs.id, name: orgs.name, slug: orgs.slug, aiCapUsd: orgs.aiCapUsd })
+        .from(orgs).where(input.orgId ? eq(orgs.id, input.orgId) : undefined);
+      const ids = list.map((o) => o.id);
+      const [usage, sites] = await Promise.all([
+        usageByOrg(ctx.db, month, input.orgId ? ids : undefined),
+        websitesByOrg(ctx.db, ids),
+      ]);
+      const rows = list.map((o) => {
+        const setting = effectiveCap(o.aiCapUsd);
+        const used = usage.get(o.id) ?? NO_USAGE;
+        const state = capStateOf(setting.capUsd, used.aiUsd);
+        return {
+          org: { id: o.id, name: o.name, slug: o.slug },
+          websites: sites.get(o.id) ?? 0,
+          pages: used.pages, runs: used.runs, aiUsd: used.aiUsd, jevUsd: used.jevUsd,
+          capUsd: setting.capUsd, capIsDefault: setting.isDefault, ownCapUsd: setting.ownCapUsd, defaultCapUsd: setting.defaultCapUsd,
+          remainingUsd: state.remainingUsd, reached: state.reached, percentUsed: percentUsed(setting.capUsd, used.aiUsd),
+        };
+      });
+      rows.sort((a, b) => (b.percentUsed ?? -1) - (a.percentUsed ?? -1) || a.org.name.localeCompare(b.org.name));
+      return { month, rows };
+    }),
 });

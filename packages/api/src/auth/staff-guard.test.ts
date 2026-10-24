@@ -23,9 +23,12 @@ describe('deny-list (spec 2026-10-07 §2.3)', () => {
     }
   });
 
-  it('every orgs.* mutation is listed', () => {
-    const orgMutations = Object.entries(procedures).filter(([p, v]) => p.startsWith('orgs.') && v._def.type === 'mutation').map(([p]) => p);
+  // Except the monthly AI limit (spec 2026-10-24 metering §2.2): staff set it in a customer's org, logged, never deny-listed.
+  it('every orgs.* mutation but setAiCap is listed', () => {
+    const orgMutations = Object.entries(procedures).filter(([p, v]) => p.startsWith('orgs.') && v._def.type === 'mutation').map(([p]) => p)
+      .filter((p) => p !== 'orgs.setAiCap');
     for (const p of orgMutations) expect(isStaffBlocked(p), p).toBe(true);
+    expect(isStaffBlocked('orgs.setAiCap')).toBe(false);
   });
 });
 

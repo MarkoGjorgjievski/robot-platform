@@ -12,7 +12,7 @@ export type ProcedureEntry =
    *  exercised as a refusal; the money sweep does not call it. */
   | { class: 'scoped'; input: Build; works?: string }
   /** No ids; answers about, or acts on, the caller's own org. `refuses`: the refusal the fixture's caller gets by design. */
-  | { class: 'org-wide'; input?: Build; refuses?: 'PRECONDITION_FAILED' }
+  | { class: 'org-wide'; input?: Build; refuses?: 'PRECONDITION_FAILED' | 'FORBIDDEN' }
   /** Only the caller's own user or session. */
   | { class: 'self'; input?: Build }
   /** Takes a user or org id that must be a membership of the caller; each of `inputs(B)` is refused with `refusal`. */
@@ -49,6 +49,8 @@ export const PROCEDURE_CLASSES: Record<string, ProcedureEntry> = {
   'orgs.members.setRole': { class: 'membership', inputs: (b) => [{ userId: b.member.id, role: 'admin' }, { userId: b.owner.user.id, role: 'member' }], refusal: 'NOT_FOUND' },
   'orgs.members.remove': { class: 'membership', inputs: (b) => [{ userId: b.member.id }, { userId: b.owner.user.id }], refusal: 'NOT_FOUND' },
   'orgs.staffActivity': { class: 'org-wide', input: () => ({ page: 0 }) },
+  // Staff only (spec 2026-10-24 metering §2.2): A's owner is a plain customer, so the sweep sees the refusal.
+  'orgs.setAiCap': { class: 'org-wide', input: () => ({ capUsd: 40 }), refuses: 'FORBIDDEN' },
   // ─── projects ───
   'projects.list': { class: 'org-wide' },
   'projects.get': { class: 'scoped', input: (f) => ({ projectSlug: f.projectSlug }) },
@@ -109,6 +111,7 @@ export const PROCEDURE_CLASSES: Record<string, ProcedureEntry> = {
   'ops.leaveOrg': { class: 'self' },
   'ops.staffActivity': { class: 'ops', input: (f) => ({ orgId: f.org.id }) },
   'ops.staffActivityFilters': { class: 'ops' },
+  'ops.orgs': { class: 'ops', input: (f) => ({ orgId: f.org.id }) },
   // ─── runs ───
   'runs.getWithDetails': { class: 'scoped', input: (f) => ({ id: f.runId }) },
   'runs.listBySource': { class: 'scoped', input: site },
