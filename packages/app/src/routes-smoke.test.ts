@@ -469,6 +469,10 @@ const ORG_SCREENS = [
     assert: async () => {
       expect(await page.locator('main').innerText(), '/account does not show the signed-in email').toContain(EMAIL);
       expect(await page.getByRole('radio', { name: /Dark/ }).count()).toBe(1);
+      // Spec 2026-10-24 email §3.4: the Email panel's two switches and its line — rendered, never toggled here.
+      await page.getByRole('switch', { name: 'When a website needs attention' }).waitFor();
+      expect(await page.getByRole('switch', { name: 'When a run fails' }).count()).toBe(1);
+      expect(await page.locator('main').innerText()).toContain('Account messages are always sent.');
     },
   },
 ] as const;

@@ -73,6 +73,7 @@ export const STAFF_ACTIONS: Record<string, StaffAction | null> = {
   'auth.signOut': null, // logged by the procedure itself, before the session row goes
   'auth.setTheme': null, // the staff member's own account
   'auth.updateName': null, // the staff member's own account
+  'account.updateEmailPrefs': null, // the staff member's own account
   'auth.switchOrg': null, // deny-listed: never succeeds in staff mode
   'orgs.create': null, // deny-listed
   'orgs.rename': null, // deny-listed

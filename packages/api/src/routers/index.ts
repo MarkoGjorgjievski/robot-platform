@@ -1,5 +1,6 @@
 import { router } from '../trpc';
 import { authRouter } from './auth.js';
+import { accountRouter } from './account.js';
 import { orgsRouter } from './orgs.js';
 import { projectsRouter } from './projects';
 import { datasetsRouter } from './datasets';
@@ -11,6 +12,7 @@ import { usageRouter } from './usage.js';
 
 export const appRouter = router({
   auth: authRouter,
+  account: accountRouter,
   orgs: orgsRouter,
   projects: projectsRouter,
   datasets: datasetsRouter,
