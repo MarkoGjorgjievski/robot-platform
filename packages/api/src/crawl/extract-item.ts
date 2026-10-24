@@ -71,6 +71,9 @@ export type ExtractItemDeps = {
   queueVariants?: typeof queueVariantGroup;
   /** The run's lean-capture state (spec 2026-10-23 run speed §3.4), one per execution — start-execution.ts. Unset: today's capture. */
   lean?: LeanRunState;
+  /** Spec 2026-10-24 metering §2.3: reserves one AI call made outside the agent (catalogue discovery) against the
+   *  organisation's monthly limit; throws CapReachedError when it is refused. Unset: not limited. */
+  reserveAiCall?: () => void;
 };
 
 export async function extractItem(
@@ -300,9 +303,13 @@ export async function extractItem(
   // Catalogue discovery is an enrichment, injected only when we have a key to
   // pay for it — undefined skips discovery entirely (see ExtractionDeps).
   const apiKey = process.env.ANTHROPIC_API_KEY;
+  // A discovery is one model call outside the agent: it is reserved against the monthly limit first (spec 2026-10-24
+  // metering §2.3), and a refusal rejects before any request is made.
   const discoverCatalogue = apiKey
-    ? (evidence: Parameters<typeof discoverCandidateCatalogue>[0]) =>
-        discoverCandidateCatalogue(evidence, { apiKey })
+    ? async (evidence: Parameters<typeof discoverCandidateCatalogue>[0]) => {
+        deps.reserveAiCall?.();
+        return discoverCandidateCatalogue(evidence, { apiKey });
+      }
     : undefined;
 
   // runExtraction takes the per-domain lock itself, and this loop is sequential,

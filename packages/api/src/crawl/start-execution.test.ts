@@ -7,8 +7,12 @@
 // an API key, or a database.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, orgs, projects, datasets, sources } from '@robot/db';
+import { db, orgs, projects, datasets, sources, captures, extractions, runs } from '@robot/db';
 import { HARD_ITEM_CEILING, type VariantRunPlan } from '@robot/scraper';
+import { CapReachedError, capLedgerOf, capJobsOpen } from '@robot/agent';
+import { CAP_REACHED_MESSAGE } from '@robot/scraper/customer-copy';
+import { signedInCaller } from '../test-helpers/identity.js';
+import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import type { ClaimedItem } from './claim-item.js';
 import type { ExecuteDeps } from './execute-run.js';
 import type { Certification } from '../verify/current-certification.js';
@@ -26,7 +30,8 @@ const { executeRunMock, extractItemMock, loadCurrentCertificationMock, loadVaria
   // `ExecuteDeps` type below, instead of inferring a zero-arg signature from `() => ...`.
   executeRunMock: vi.fn(async (_runId: string, _deps: import('./execute-run.js').ExecuteDeps, _opts?: { limit?: number }) =>
     ({ extracted: 0, failed: 0, recordingFailures: 0, cancelled: false, limitReached: false, status: 'completed' })),
-  extractItemMock: vi.fn(async (..._args: unknown[]) => ({ row: {}, extractionId: null, targetFields: null })),
+  extractItemMock: vi.fn(async (..._args: unknown[]): Promise<{ row: Record<string, unknown>; extractionId: string | null; targetFields: string[] | null }> =>
+    ({ row: {}, extractionId: null, targetFields: null })),
   loadCurrentCertificationMock: vi.fn(async (..._args: unknown[]) => null as import('../verify/current-certification.js').Certification | null),
   loadVariantRunPlanMock: vi.fn(async (..._args: unknown[]) => null as import('@robot/scraper').VariantRunPlan | null),
 }));
@@ -479,5 +484,108 @@ describe('startExecution — inside a run job (spec 2026-10-23 §4.4)', () => {
       if (runId) await db.delete(jobs).where(eq(jobs.key, `run-delivery:${runId}`));
       await deleteTestSource(sourceId);
     }
+  });
+});
+
+describe('startExecution — the monthly limit on a legacy website (spec 2026-10-24 metering §2.3)', () => {
+  afterEach(() => {
+    executeRunMock.mockClear();
+    extractItemMock.mockReset();
+    extractItemMock.mockImplementation(async () => ({ row: {}, extractionId: null, targetFields: null }));
+    loadCurrentCertificationMock.mockReset();
+    loadVariantRunPlanMock.mockReset();
+  });
+
+  /** A legacy website of a throwaway org at its limit, with one run, one capture and one kept extraction. */
+  async function cappedSite(tag: string) {
+    const me = await signedInCaller(tag);
+    const site = await createProjectWithSource(me.caller, { tag, fields: [{ name: 'Title', type: 'text' }] });
+    await db.update(orgs).set({ aiCapUsd: '0.00' }).where(eq(orgs.id, me.org.id));
+    const [run] = await db.insert(runs).values({ sourceId: site.sourceId, status: 'extracting' }).returning({ id: runs.id });
+    const [cap] = await db.insert(captures).values({ sourceId: site.sourceId, runId: run!.id, url: site.urls[0]! }).returning({ id: captures.id });
+    const [ext] = await db.insert(extractions).values({ sourceId: site.sourceId, captureId: cap!.id, runId: run!.id, data: [{ title: 'x' }], rowCount: 1 }).returning({ id: extractions.id });
+    return { site, runId: run!.id, extractionId: ext!.id, cleanup: async () => { await site.cleanup(); await me.cleanup(); } };
+  }
+  const extractionExists = async (id: string) => (await db.query.extractions.findFirst({ where: eq(extractions.id, id) })) !== undefined;
+
+  it('an item whose model call the limit refused fails with the sentence and keeps no row; the breaker is wired', async () => {
+    const t = await cappedSite('start-exec-cap');
+    try {
+      // The legacy chain swallows a failed model step and returns what it read mechanically.
+      extractItemMock.mockImplementation(async (_db: unknown, _item: unknown, deps: unknown) => {
+        await (deps as { agent: { generateSelectors: () => Promise<unknown> } }).agent.generateSelectors().catch(() => undefined);
+        return { row: { title: 'x' }, extractionId: t.extractionId, targetFields: null };
+      });
+
+      await startExecution(t.runId, t.site.sourceId, []);
+      const deps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
+      await expect(deps.extractItem(dummyItem)).rejects.toThrow(CAP_REACHED_MESSAGE);
+      expect(await extractionExists(t.extractionId)).toBe(false);
+      await expect(deps.extractItem(dummyItem)).rejects.toBeInstanceOf(CapReachedError);
+      expect(deps.stopForCap).toBeTypeOf('function');
+      // The run's slot is released once its cost is recorded.
+      expect(capJobsOpen()).toBe(0);
+    } finally {
+      await t.cleanup();
+    }
+  });
+
+  it('a refusal that escapes the chain fails the item with the sentence, not the internal text', async () => {
+    const t = await cappedSite('start-exec-cap-throw');
+    try {
+      extractItemMock.mockImplementation(async (_db: unknown, _item: unknown, deps: unknown) => {
+        await (deps as { agent: { generateSelectors: () => Promise<unknown> } }).agent.generateSelectors();
+        return { row: {}, extractionId: null, targetFields: null };
+      });
+      await startExecution(t.runId, t.site.sourceId, []);
+      const deps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
+      await expect(deps.extractItem(dummyItem)).rejects.toThrow(CAP_REACHED_MESSAGE);
+    } finally {
+      await t.cleanup();
+    }
+  });
+
+  it('only the catalogue enrichment refused: the page needed no AI, so the item and its row are kept (spec §3.2)', async () => {
+    const t = await cappedSite('start-exec-cap-catalogue');
+    try {
+      // The chain read every field mechanically; the optional catalogue discovery after it was refused and swallowed.
+      extractItemMock.mockImplementation(async (_db: unknown, _item: unknown, deps: unknown) => {
+        const reserve = (deps as { reserveAiCall?: () => void }).reserveAiCall!;
+        expect(() => reserve()).toThrow(CapReachedError);
+        return { row: { title: 'x' }, extractionId: t.extractionId, targetFields: null };
+      });
+      await startExecution(t.runId, t.site.sourceId, []);
+      const deps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
+      await expect(deps.extractItem(dummyItem)).resolves.toMatchObject({ extractionId: t.extractionId });
+      expect(await extractionExists(t.extractionId)).toBe(true);
+    } finally {
+      await t.cleanup();
+    }
+  });
+
+  it('a certified website is untouched: its agent is not limited and nothing is reserved', async () => {
+    const t = await cappedSite('start-exec-cap-certified');
+    try {
+      const cert: Certification = { verificationId: 'v', completedAt: new Date(), paths: {}, concepts: {}, hostname: 'shop.example.com' };
+      loadCurrentCertificationMock.mockResolvedValueOnce(cert);
+      loadVariantRunPlanMock.mockResolvedValueOnce(null);
+      extractItemMock.mockResolvedValue({ row: { title: 'x' }, extractionId: t.extractionId, targetFields: null });
+      await startExecution(t.runId, t.site.sourceId, []);
+      const deps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
+      await expect(deps.extractItem(dummyItem)).resolves.toMatchObject({ extractionId: t.extractionId });
+      const passed = extractItemMock.mock.calls[0]![2] as { agent: object; reserveAiCall?: unknown };
+      expect(capLedgerOf(passed.agent)).toBeUndefined();
+      expect(passed.reserveAiCall).toBeUndefined();
+      expect(await extractionExists(t.extractionId)).toBe(true);
+    } finally {
+      await t.cleanup();
+    }
+  });
+
+  it('an item that makes no model call is untouched: no refusal, no row deleted', async () => {
+    extractItemMock.mockResolvedValue({ row: {}, extractionId: null, targetFields: null });
+    await startExecution('00000000-0000-0000-0000-00000000a001', '00000000-0000-0000-0000-00000000a002', []);
+    const deps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
+    await expect(deps.extractItem(dummyItem)).resolves.toEqual({ row: {}, extractionId: null, targetFields: null });
   });
 });

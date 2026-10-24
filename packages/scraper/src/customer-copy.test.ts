@@ -1,6 +1,6 @@
 // The customer sentences the app shows and the emails send (spec 2026-10-24 email §3.1): one module, two importers.
 import { describe, it, expect } from 'vitest';
-import { attentionSentence, captureWords, formatDMMM, joinList, PAGE_NOT_READ_SENTENCE } from './customer-copy.js';
+import { attentionSentence, captureWords, formatDMMM, joinList, PAGE_NOT_READ_SENTENCE, CAP_REACHED_MESSAGE } from './customer-copy.js';
 
 const names = { price: 'Price', rating: 'Rating', description: 'Description' };
 const oct8 = new Date(2026, 9, 8);
@@ -25,5 +25,14 @@ describe('joinList / formatDMMM / captureWords', () => {
     expect(formatDMMM(oct8)).toBe('8 Oct');
     expect(captureWords("That page doesn't exist on shop.example.com (404). Check the address.")).toBe("That page doesn't exist. Check the address.");
     expect(captureWords('page.goto: Timeout 30000ms exceeded.')).toBe(PAGE_NOT_READ_SENTENCE);
+  });
+});
+
+describe('the monthly limit sentence (spec 2026-10-24 metering §2.3)', () => {
+  it('names no AI, model, budget, money or mechanism, and reaches a customer as it is', () => {
+    expect(CAP_REACHED_MESSAGE).toBe("This organisation has reached this month's limit for automatic setup. Ask us to raise it.");
+    expect(CAP_REACHED_MESSAGE).not.toMatch(/\bAI\b|model|budget|\$|\d|job|queue|worker/i);
+    expect(captureWords(CAP_REACHED_MESSAGE)).toBe(CAP_REACHED_MESSAGE);
+    expect(captureWords(`Not tried: ${CAP_REACHED_MESSAGE}`)).toBe(`Not tried: ${CAP_REACHED_MESSAGE}`);
   });
 });

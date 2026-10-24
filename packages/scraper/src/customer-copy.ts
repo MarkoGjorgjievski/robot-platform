@@ -10,6 +10,10 @@ export const PAGE_NOT_READ_SENTENCE = "We couldn't read this page. Try again.";
 /** The blocked-run diagnosis's fallback when its evidence is not one of our verdict sentences. */
 export const BLOCKED_SENTENCE = 'This website turned us away for now. Wait a few minutes and try again.';
 
+/** Spec 2026-10-24 metering §2.3: the one sentence a customer reads when the organisation's monthly limit stops
+ *  automatic setup (planning a run; a legacy website's pages). It names no AI, no money and no mechanism. */
+export const CAP_REACHED_MESSAGE = "This organisation has reached this month's limit for automatic setup. Ask us to raise it.";
+
 /** One rule per verdict sentence shape in verdict-copy.ts; `.+` is the host (or the raw URL when it did not parse). */
 const RULES: ReadonlyArray<readonly [RegExp, string]> = [
   [/^Reached .+ \(HTTP \d+\)\.$/, 'This website opens normally.'],
