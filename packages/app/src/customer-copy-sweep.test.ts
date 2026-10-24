@@ -12,9 +12,10 @@ const STAFF = [
   /^routes\/_app\/ops\//,
   /^components\/ops\//,
   /^lib\/ops-view\.ts$/,
-  // The mapper itself: its rules match the stored staff sentences by shape.
-  /^lib\/capture-words\.ts$/,
 ];
+// The customer sentences the app and the emails share live in @robot/scraper (spec 2026-10-24 email §3.1):
+// swept here too, with no exemption.
+const SHARED = [fileURLToPath(new URL('../../scraper/src/customer-copy.ts', import.meta.url))];
 const FORBIDDEN = [/\bbudget\b/i, /\bHTTP \d/, /refused the browser/, /CAPTCHA/];
 // "proxy line item" is not swept: diagnose-run.ts keeps it in its staff-only branch, and
 // diagnose-run.test.ts pins that a customer never reads it.
@@ -40,6 +41,10 @@ function texts(path: string): string[] {
 }
 
 describe('customer copy sweep', () => {
+  it('the shared customer copy is read', () => {
+    expect(texts(SHARED[0]!).length).toBeGreaterThan(20);
+  });
+
   it('no customer string says budget, an HTTP code or a verdict\'s staff wording', () => {
     const hits: string[] = [];
     for (const f of files(SRC)) {
@@ -47,6 +52,7 @@ describe('customer copy sweep', () => {
       if (STAFF.some((re) => re.test(rel))) continue;
       for (const t of texts(f)) if (FORBIDDEN.some((re) => re.test(t))) hits.push(`${rel}: ${t.trim().slice(0, 80)}`);
     }
+    for (const f of SHARED) for (const t of texts(f)) if (FORBIDDEN.some((re) => re.test(t))) hits.push(`scraper/customer-copy.ts: ${t.trim().slice(0, 80)}`);
     expect(hits).toEqual([]);
   });
 });
