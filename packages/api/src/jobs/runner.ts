@@ -8,7 +8,7 @@ import { db } from '@robot/db';
 import type { JobPolicy, Lane } from './types.js';
 import { runSentenceFor } from './types.js';
 import type { JobSubject } from './rows.js';
-import { closeJobRows } from './rows.js';
+import { closeJobRows, deliverClosedRuns } from './rows.js';
 import { runInJob, type JobContext } from './context.js';
 import { serializeError } from './errors.js';
 import type { WorkerBrowserGate } from './browser-gate.js';
@@ -93,7 +93,10 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       try {
         // Started before (a retry, or given back at attempt 1): the rows an earlier start left half-done
         // are closed, except the one the payload names.
-        if (ctx.retry) await closeJobRows(db, job.id, { runSentence: runSentenceFor(job.type), except: def.subject?.(job.payload) ?? null });
+        if (ctx.retry) {
+          const closed = await closeJobRows(db, job.id, { runSentence: runSentenceFor(job.type), except: def.subject?.(job.payload) ?? null });
+          await deliverClosedRuns(db, closed.runIds);
+        }
         value = await runInJob(ctx, () => def.run(job.payload, ctx));
       } catch (err) {
         if (a.over) return;

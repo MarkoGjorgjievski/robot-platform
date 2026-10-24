@@ -10,7 +10,8 @@ import { signedInCaller } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { seedUnshownRun } from '../test-helpers/seed-unshown-run.js';
 import { jobsOf, withJobRunner, JOB_TEST_MS } from '../test-helpers/jobs.js';
-import { JOB_POLICIES } from '../jobs/types.js';
+import { JOB_POLICIES, RUN_STOPPED } from '../jobs/types.js';
+import { enqueueJob, jobQueueName, reapJobs } from '../jobs/queue.js';
 import { loadRunExport } from '../export/load-run-export.js';
 import { renderRunExport } from '../export/render-run-export.js';
 import { bodySignature, checkFileSignature } from './signing.js';
@@ -200,6 +201,40 @@ describe('a delivery that stops for good before its fifth attempt', () => {
       // Purged a week later: still failed, never "trying again".
       await db.delete(jobs).where(eq(jobs.id, jobId));
       expect(await loadRunDelivery(db, f.runId, true)).toMatchObject({ state: 'failed', statusCode: 503 });
+    } finally { await f.cleanup(); }
+  });
+});
+
+describe('a run closed by the job layer delivers like a finalised one (final review I1)', () => {
+  /** Stamps `runId` with a `run` job on this file's queue whose worker died on its last attempt (its lease lapsed). */
+  async function deadRunJob(runId: string): Promise<string> {
+    const { id } = await enqueueJob(db, { type: 'run', payload: { runId }, key: `run:${runId}`, maxAttempts: 3 });
+    await db.update(jobs).set({ status: 'running', attempts: 3, lockedBy: 'gone#00000000', lockedUntil: new Date(Date.now() - 60_000) }).where(eq(jobs.id, id));
+    await db.update(runs).set({ status: 'extracting', resultCount: 0, completedAt: null, jobId: id }).where(eq(runs.id, runId));
+    return id;
+  }
+  const deliveryJob = async (runId: string) => (await jobsOf('run-delivery')).find((j) => j.key === `run-delivery:${runId}` && j.status === 'queued');
+  const dropDeliveryJobs = (runId: string) => db.delete(jobs).where(eq(jobs.key, `run-delivery:${runId}`));
+
+  it('a reaped run with rows is recounted and gets its delivery', async () => {
+    const f = await websiteWithRun('reaped', { webhook: true });
+    try {
+      const jobId = await deadRunJob(f.runId);
+      expect((await reapJobs(jobQueueName(), { retryBaseMs: 30_000 })).failed).toContain(jobId);
+      expect(await db.query.runs.findFirst({ where: eq(runs.id, f.runId), columns: { status: true, resultCount: true, errorMessage: true } }))
+        .toEqual({ status: 'failed', resultCount: 2, errorMessage: RUN_STOPPED });
+      expect(await deliveryJob(f.runId)).toMatchObject({ payload: { runId: f.runId, deliveryId: expect.any(String) } });
+    } finally { await dropDeliveryJobs(f.runId); await f.cleanup(); }
+  });
+
+  it('a reaped run with no rows delivers nothing', async () => {
+    const f = await websiteWithRun('reaped-empty', { webhook: true });
+    try {
+      const [empty] = await db.insert(runs).values({ sourceId: f.sourceId, status: 'extracting' }).returning({ id: runs.id });
+      const jobId = await deadRunJob(empty!.id);
+      expect((await reapJobs(jobQueueName(), { retryBaseMs: 30_000 })).failed).toContain(jobId);
+      expect(await db.query.runs.findFirst({ where: eq(runs.id, empty!.id), columns: { status: true, resultCount: true } })).toEqual({ status: 'failed', resultCount: 0 });
+      expect(await deliveryJob(empty!.id)).toBeUndefined();
     } finally { await f.cleanup(); }
   });
 });

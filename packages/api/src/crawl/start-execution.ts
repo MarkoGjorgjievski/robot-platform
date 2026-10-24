@@ -5,10 +5,10 @@
 // exercised in tests (via `vi.mock` on this module's own path) without ever
 // launching a browser.
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { SchemaAgent, snapshotUsage } from '@robot/agent';
 import { HARD_ITEM_CEILING, leanRunStateFromEnv, leanSummary, type OriginField, type SchemaDefinitionField, type VariantRunPlan } from '@robot/scraper';
-import { db, runs, sources } from '@robot/db';
+import { db, extractions, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
 import { loadCurrentCertification, type Certification } from '../verify/current-certification.js';
@@ -236,9 +236,19 @@ export async function startExecution(
     // run. The run is left as it is; the job's retry resumes it.
     if (hooks?.aborted?.()) return;
     try {
+      // Its rows are counted here (no finalise ran), so delivery can tell a failed run with rows from one without.
       await db.update(runs)
-        .set({ status: 'failed', errorMessage: safeErrorMessage(err).slice(0, 1000), completedAt: new Date() })
+        .set({
+          status: 'failed', errorMessage: safeErrorMessage(err).slice(0, 1000), completedAt: new Date(),
+          resultCount: sql`(SELECT coalesce(sum(jsonb_array_length(${extractions.data})), 0)::int FROM ${extractions} WHERE ${extractions.runId} = ${runId})`,
+        })
         .where(eq(runs.id, runId));
+      // Spec 2026-10-24 §3.3: a failed run with rows gets its file and its post like a finalised one (final review I1).
+      try {
+        await enqueueRunDelivery(db, runId);
+      } catch (deliveryErr) {
+        console.error(`[crawl] run delivery could not be queued for run ${runId}:`, deliveryErr);
+      }
     } catch (recoveryErr) {
       // If the DB is what broke, recording the failure will break the same
       // way — that must not become a second, uncaught throw. There's nothing
