@@ -191,25 +191,29 @@ export async function startExecution(
       // A website with variants builds its rows from the capture, which no lean check compares: today's capture throughout (final review I1).
       const lean = certification ? leanRunStateFromEnv(process.env, { variants: variantPlan != null }) : undefined;
 
-      await executeRun(runId, {
-        claim: (id) => claimNextItem(db, id),
-        extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema, certification, schemaDefinition, variantPlan, itemCap: runItemCap, ...(lean ? { lean } : {}) }),
-        onDone: async (...args) => { await onDone(...args); hooks?.onItem?.(); },
-        onFailed: async (itemId, message) => { await markItemFailed(db, itemId, message); hooks?.onItem?.(); },
-        ...(hooks?.aborted ? { aborted: hooks.aborted } : {}),
-        // Both `cancelling` (the stop request) and `cancelled` (a stop another
-        // loop already carried out) end this loop — see is-cancelled.ts.
-        isCancelled: () => isRunCancelled(db, runId),
-        stopForWall: (message) => failPendingForWall(db, runId, message),
-        // No rowCount passed: finaliseRun derives it from the DB itself, so a
-        // stale local counter from this loop can never overwrite a truer total.
-        // `cancelled` and `limitReached` ARE threaded through — executeRun's
-        // own record of why the loop stopped with items still pending, and
-        // finaliseRun needs both to roll a still-pending run up to
-        // 'cancelled'/'partial' instead of leaving it stuck at 'extracting'.
-        finalise: buildFinalise(db, runId, sourceId, certification),
-      }, { limit });
-      if (lean) console.log(`[crawl] ${leanSummary(runId, lean)}`);
+      try {
+        await executeRun(runId, {
+          claim: (id) => claimNextItem(db, id),
+          extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema, certification, schemaDefinition, variantPlan, itemCap: runItemCap, ...(lean ? { lean } : {}) }),
+          onDone: async (...args) => { await onDone(...args); hooks?.onItem?.(); },
+          onFailed: async (itemId, message) => { await markItemFailed(db, itemId, message); hooks?.onItem?.(); },
+          ...(hooks?.aborted ? { aborted: hooks.aborted } : {}),
+          // Both `cancelling` (the stop request) and `cancelled` (a stop another
+          // loop already carried out) end this loop — see is-cancelled.ts.
+          isCancelled: () => isRunCancelled(db, runId),
+          stopForWall: (message) => failPendingForWall(db, runId, message),
+          // No rowCount passed: finaliseRun derives it from the DB itself, so a
+          // stale local counter from this loop can never overwrite a truer total.
+          // `cancelled` and `limitReached` ARE threaded through — executeRun's
+          // own record of why the loop stopped with items still pending, and
+          // finaliseRun needs both to roll a still-pending run up to
+          // 'cancelled'/'partial' instead of leaving it stuck at 'extracting'.
+          finalise: buildFinalise(db, runId, sourceId, certification),
+        }, { limit });
+      } finally {
+        // Logged on every way out, a loop that threw included: what the run took up to there.
+        if (lean) console.log(`[crawl] ${leanSummary(runId, lean)}`);
+      }
     });
   } catch (err) {
     console.error(`[crawl] execution of run ${runId} failed:`, err);
