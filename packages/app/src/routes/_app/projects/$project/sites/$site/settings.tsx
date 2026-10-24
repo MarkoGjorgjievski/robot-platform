@@ -10,8 +10,8 @@ import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
 /**
- * Settings: this website's own options (task 9 — rename, listing mode, budget,
- * active, delete). The layout owns the title and the tabs; this is one panel of
+ * Settings: this website's own options (task 9 — rename, listing mode, run limits,
+ * schedule, webhook, active, delete). The layout owns the title and the tabs; this is one panel of
  * rows that are only ever read and corrected here, and the Danger zone below
  * it.
  */
@@ -53,6 +53,13 @@ function SettingsTab() {
           confirmedAt: source.confirmedAt,
           budget: source.budget,
           isActive: source.isActive,
+          project: projectSlug,
+          siteSlug,
+          schedule: source.schedule,
+          nextRunAt: source.nextRunAt,
+          scheduleLast: source.scheduleLast,
+          webhookUrl: source.webhookUrl,
+          webhookSecret: source.webhookSecret,
         }}
       />
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { InlineRename } from '../site/inline-rename';
 import { NumberBox } from '../ui/number-box';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -6,6 +6,10 @@ import { Button } from '../ui/button';
 import { trpc } from '../../lib/trpc';
 import { budgetFromForm } from '../../lib/site/extract-view';
 import { listingModeLabel, modeLockNote, budgetSummary } from '../../lib/site-settings-view';
+import type { Schedule, ScheduleLast } from '../../lib/site/recurring-view';
+import { SettingsRow } from './settings-row';
+import { ScheduleRow } from './schedule-row';
+import { WebhookRow } from './webhook-row';
 
 /** Where a `custom` box starts when the dropdown flips to it — same starters as the Extract tab's. */
 const DEFAULT_ITEMS = 40;
@@ -21,11 +25,18 @@ export type SettingsSite = {
   confirmedAt: Date | null;
   budget: Budget;
   isActive: boolean;
+  project: string;
+  siteSlug: string;
+  schedule: Schedule | null;
+  nextRunAt: Date | null;
+  scheduleLast: ScheduleLast | null;
+  webhookUrl: string | null;
+  webhookSecret: string | null;
 };
 
 /**
  * The Settings tab's definition-list panel: Name, Address, Listing mode,
- * Budget, Active — everything a website has that is only ever read and
+ * Run limits, Schedule, Webhook, Active — everything a website has that is only ever read and
  * corrected here, not on the tabs that do the work. Owns its own
  * `sources.update` calls the same way `InlineRename` owns `sources.rename`:
  * one row's edit is one round trip, not a form with a single Save at the
@@ -97,15 +108,15 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
 
   return (
     <dl className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
-      <Row label="Name">
+      <SettingsRow label="Name">
         <InlineRename sourceId={site.id} name={site.name} ariaLabel="Name" size="row" />
-      </Row>
+      </SettingsRow>
 
-      <Row label="Address">
+      <SettingsRow label="Address">
         <span className="block max-w-full font-mono text-base break-all">{site.url ?? '—'}</span>
-      </Row>
+      </SettingsRow>
 
-      <Row label="Listing mode">
+      <SettingsRow label="Listing mode">
         <div className="flex flex-wrap items-center gap-3">
           <Select
             value={site.listingMode ?? undefined}
@@ -128,10 +139,10 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
             {modeError}
           </p>
         ) : null}
-      </Row>
+      </SettingsRow>
 
       {/* Products and pages per run (spec 2026-10-21 §4): "budget" read as money to a customer. */}
-      <Row label="Run limits">
+      <SettingsRow label="Run limits">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-base">
             <span className="text-muted-foreground">Products</span>
@@ -211,9 +222,13 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
             ) : null}
           </div>
         </div>
-      </Row>
+      </SettingsRow>
 
-      <Row label="Active">
+      {/* Recurring extraction (spec 2026-10-24 §3.6): after Run limits. */}
+      <ScheduleRow siteId={site.id} project={site.project} site={site.siteSlug} schedule={site.schedule} nextRunAt={site.nextRunAt} scheduleLast={site.scheduleLast} />
+      <WebhookRow siteId={site.id} webhookUrl={site.webhookUrl} webhookSecret={site.webhookSecret} />
+
+      <SettingsRow label="Active">
         <div className="flex flex-wrap items-center gap-3">
           <Button
             type="button"
@@ -235,17 +250,8 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
             </span>
           ) : null}
         </div>
-      </Row>
+      </SettingsRow>
     </dl>
   );
 }
 
-/** One row of the definition list: a quiet label on the left, the control on the right. */
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid grid-cols-[140px_1fr] items-start gap-x-4 gap-y-1 border-b border-line px-4 py-3 last:border-0 sm:items-center">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
-    </div>
-  );
-}

@@ -41,7 +41,8 @@ import { useSite } from '../../$site';
  *
  * Nothing here polls on its own. `ExecuteControls` polls `crawl.status` at 3 s
  * while the run is active and invalidates everything else on the falling edge
- * into "settled" — one poll for the screen, not one per panel.
+ * into "settled" — one poll for the screen, not one per panel — except the
+ * webhook line, refetched every 15 s while it reads 'trying again'.
  *
  * Three more free reads sit behind gates rather than running on every visit:
  * `crawl.coverage` (the repair bar and the repair panel) only on a settled,
@@ -67,7 +68,12 @@ function RunScreen() {
   const site = useSite();
   // Spec 2026-10-21: a customer reads a failed run's capture text in customer words; staff read it as stored.
   const staff = useStaffDetail();
-  const detail = trpc.runs.getWithDetails.useQuery({ id: runId }, { enabled: valid });
+  // Spec 2026-10-24: while its webhook is being retried, the page looks again every 15 s (the only poll here
+  // besides ExecuteControls'), so "trying again" turns into delivered or not without a reload.
+  const detail = trpc.runs.getWithDetails.useQuery({ id: runId }, {
+    enabled: valid,
+    refetchInterval: (q) => (q.state.data?.delivery?.state === 'retrying' ? 15_000 : false),
+  });
   // An ended session is a trip to /login, not a Retry button that can only fail
   // again; nothing is drawn while that navigation is in flight.
   const unauthorized = useUnauthorizedRedirect(detail);
@@ -230,7 +236,7 @@ function RunScreen() {
     );
   }
 
-  const { run, source, capture, extraction, backfillRuns } = detail.data;
+  const { run, source, capture, extraction, backfillRuns, delivery } = detail.data;
   const rowCount = extraction?.rowCount ?? 0;
   const variantLines = variantCountLines(run.variantSummary as VariantSummary | null);
 
@@ -278,6 +284,8 @@ function RunScreen() {
         run={run}
         backfillRuns={backfillRuns}
         downloadable={extraction !== null}
+        delivery={delivery ?? null}
+        staff={staff}
       />
 
       <RunFacts facts={runFacts(run)} />
