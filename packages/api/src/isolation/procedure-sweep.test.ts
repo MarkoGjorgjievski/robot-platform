@@ -3,6 +3,7 @@
 // scoped before it can merge. No call may reach the worker: `runAndWait` and `awaitJob` throw, and every call below
 // must leave org B's rows and the test queue exactly as they were.
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { db } from '@robot/db';
@@ -10,7 +11,7 @@ import { appRouter } from '../routers/index.js';
 import { createCallerFactory } from '../trpc.js';
 import { enterAsStaff, signIn, signedInCaller } from '../test-helpers/identity.js';
 import { PROCEDURE_CLASSES, type ProcedureEntry } from './procedure-classes.js';
-import { buildTwoOrgs, needlesOf, queuedJobCount, snapshotOrg, type TwoOrgs } from './two-orgs.js';
+import { buildTwoOrgs, needlesOf, queuedJobCount, snapshotOrg, type OrgFixture, type TwoOrgs } from './two-orgs.js';
 
 vi.mock('../jobs/enqueue.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../jobs/enqueue.js')>()),
@@ -43,6 +44,33 @@ const codeOf = (s: Settled) => (s.ok ? 'answered' : s.error.code);
 function namesNothingOf(answer: unknown, needles: string[], label: string) {
   const text = JSON.stringify(answer) ?? '';
   for (const n of needles) expect(text.includes(n), `${label} names ${n} of the other organisation`).toBe(false);
+}
+
+/** An org that does not exist: every id a fresh uuid, every slug, name, key and address one nobody has. */
+function ghostOf(f: OrgFixture): OrgFixture {
+  const g = `ghost-${randomUUID().slice(0, 8)}`;
+  const host = `${g}.example.com`;
+  const id = () => randomUUID();
+  return {
+    ...f, tag: g, org: { id: id(), slug: g, name: g },
+    projectId: id(), projectSlug: `${g}-project`, projectName: g, datasetId: id(),
+    sourceId: id(), sourceSlug: `${g}-site`, sourceName: g, host, urls: f.urls.map((_, i) => `https://${host}/p/${i + 1}`),
+    keys: { title: `${g}_title`, price: `${g}_price` }, axisKey: `${g}_axis`,
+    runId: id(), itemIds: f.itemIds.map(id), runCaptureId: id(), captureId: id(), tileFile: `${g}.png`,
+    verificationId: id(), driftCheckId: id(), coverageCheckId: id(), jevReadingId: id(),
+  };
+}
+
+/** Every string the input carries, replaced: two refusals compared modulo the ids they were asked about. */
+function masked(message: string, input: unknown): string {
+  const sent: string[] = [];
+  const walk = (v: unknown): void => {
+    if (typeof v === 'string') sent.push(v);
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+  };
+  walk(input);
+  return sent.filter((s) => s.length >= 3).sort((x, y) => y.length - x.length).reduce((m, s) => m.split(s).join('<sent>'), message);
 }
 
 let t: TwoOrgs;
@@ -88,6 +116,22 @@ describe("scoped: org B's ids from org A's caller (spec §2.1)", () => {
   it.each(pathsOf('scoped'))('%s is NOT_FOUND and leaves B alone', async (path) => {
     const e = entry(path, 'scoped');
     expect(codeOf(await leavesBAlone(path, () => at(t.a.owner.caller, path)(e.input(t.b))))).toBe('NOT_FOUND');
+  });
+
+  // NOT_FOUND must be the whole answer, not only its code: B's row refused reads exactly as a row that does not exist
+  // (so a guessed id learns nothing), and the refusal names nothing of B the caller did not send itself.
+  it.each(pathsOf('scoped'))("%s refuses B's row exactly as it refuses one that does not exist", async (path) => {
+    const e = entry(path, 'scoped');
+    const ghost = ghostOf(t.b);
+    const toB = await leavesBAlone(path, () => at(t.a.owner.caller, path)(e.input(t.b)));
+    const toNobody = await leavesBAlone(path, () => at(t.a.owner.caller, path)(e.input(ghost)));
+    expect(toB.ok, path).toBe(false);
+    expect(toNobody.ok, path).toBe(false);
+    if (toB.ok || toNobody.ok) return;
+    const sent = JSON.stringify(e.input(t.b));
+    namesNothingOf(toB.error.message, needlesOf(t.b).filter((n) => !sent.includes(n)), `${path}'s refusal`);
+    expect({ code: toB.error.code, message: masked(toB.error.message, e.input(t.b)) }, path)
+      .toEqual({ code: toNobody.error.code, message: masked(toNobody.error.message, e.input(ghost)) });
   });
 
   // The inputs aim at real rows: B's own owner, with the same input, is not told NOT_FOUND (queries only — a mutation
