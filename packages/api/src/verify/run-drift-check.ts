@@ -39,6 +39,8 @@ import { lockSource } from './in-flight.js';
 import { enqueue } from '../jobs/enqueue.js';
 import { currentJobId, jobStopped } from '../jobs/context.js';
 import { isJobLive } from '../jobs/queue.js';
+import type { Database } from '@robot/db';
+import { syncAttentionSafely } from '../email/attention-sync.js';
 
 type Session = typeof withBrowserSession;
 
@@ -233,7 +235,7 @@ async function unlinkedRefreshes(checkId: string): Promise<string[]> {
  */
 export async function runDriftCheck(
   checkId: string,
-  deps: { capture?: CaptureProofPagesFn; session?: Session; applyRefreshes?: typeof applyRefreshes; startRefreshVerify?: typeof startRefreshVerify } = {},
+  deps: { capture?: CaptureProofPagesFn; session?: Session; applyRefreshes?: typeof applyRefreshes; startRefreshVerify?: typeof startRefreshVerify; syncAttention?: (dbh: Database, sourceId: string) => Promise<void> } = {},
 ): Promise<void> {
   const capture = deps.capture ?? defaultCaptureProofPages;
   const session = deps.session ?? withBrowserSession;
@@ -359,6 +361,10 @@ export async function runDriftCheck(
     // refresh-origin, so it never starts another check (spec §7.6).
     // It names itself in this check's refresh log as it starts (review Minor 1).
     if (toReverify.length > 0) await (deps.startRefreshVerify ?? startRefreshVerify)(check.sourceId, toReverify, refs, { checkId });
+    // Spec 2026-10-24 email §3.2: a finished check may turn "Needs attention" on (a gone page, a change it could not
+    // refresh) or off. A check that refreshed values leaves it to the re-verify it just started — its refresh holds
+    // the field only until that re-verify, which syncs (Review Focus 1).
+    else await (deps.syncAttention ?? syncAttentionSafely)(db, check.sourceId);
   } catch (err) {
     if (jobStopped()) return;    console.error(`[drift] check ${checkId} failed:`, err);
     try {

@@ -35,6 +35,7 @@ import { certifyingResult, loadFieldCurrency } from './current-certification.js'
 import { decideHolds, writeHolds, type HoldPlan } from './holds.js';
 import { nextCheckAt } from './check-schedule.js';
 import { jobStopped } from '../jobs/context.js';
+import { syncAttentionSafely } from '../email/attention-sync.js';
 
 /**
  * Strips ANSI escape codes (e.g. the dim/reset styling Playwright's own
@@ -290,5 +291,10 @@ export async function runSourceVerification(
     } catch (recoveryErr) {
       console.error(`[verify] failed to record failure for ${verificationId}:`, recoveryErr);
     }
+  } finally {
+    // Spec 2026-10-24 email §3.2: whatever this Verify wrote (holds, a pass, a failure) may have turned "Needs
+    // attention" on or off — a customer's Verify and a refresh's re-verify alike. After the commit: the attention view
+    // reads committed rows. A stopped attempt wrote nothing. Never throws.
+    if (!jobStopped()) await syncAttentionSafely(db, sourceId);
   }
 }

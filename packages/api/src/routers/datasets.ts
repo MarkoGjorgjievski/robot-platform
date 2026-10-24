@@ -6,6 +6,7 @@ import { CUSTOMER_FIELD_TYPES, DETAIL_URL_FIELD, deriveConcept, deriveKey, type 
 import { router, publicProcedure, protectedProcedure, type Context } from '../trpc';
 import { contractFields, contractAxes, effectiveLevel, type ContractField, type ContractAxis, type VariantMode, type FieldLevel, type VariantSetup } from '../contract.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
+import { syncAttentionSafely } from '../email/attention-sync.js';
 import { CATALOGUE } from '../schema-catalogue.js';
 import { resolveOrg } from '../auth/session.js';
 
@@ -154,7 +155,7 @@ export const datasetsRouter = router({
       // the new field is appended to — and the name check and minted key derived from it —
       // come from the locked re-read inside the transaction.
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
-      return ctx.db.transaction(async (tx) => {
+      const added = await ctx.db.transaction(async (tx) => {
         const schema = await lockDatasetSchema(tx, ds.id);
         const contract = contractFields(schema);
         const axes = contractAxes(schema);
@@ -168,6 +169,9 @@ export const datasetsRouter = router({
         const affectedSourceIds = await propagate(tx, locked, key, { add: { key, name: input.name, type: input.type, description, concept } });
         return { key, name: input.name, type: input.type, concept, description, affectedSourceIds };
       });
+      // Spec 2026-10-24 email §3.2: a field edit changes each website's field hashes, which can release a hold.
+      await syncAttentionSafely(ctx.db, added.affectedSourceIds);
+      return added;
     }),
 
   renameField: protectedProcedure
@@ -184,6 +188,7 @@ export const datasetsRouter = router({
         const locked = await lockSources(tx, ds.id);
         return propagate(tx, locked, input.key, { name: input.name });
       });
+      await syncAttentionSafely(ctx.db, affectedSourceIds);
       return { key: input.key, name: input.name, affectedSourceIds };
     }),
 
@@ -205,6 +210,7 @@ export const datasetsRouter = router({
         const locked = await lockSources(tx, ds.id);
         return propagate(tx, locked, input.key, { type: input.type });
       });
+      await syncAttentionSafely(ctx.db, affectedSourceIds);
       return { key: input.key, type: input.type, affectedSourceIds };
     }),
 
@@ -219,6 +225,7 @@ export const datasetsRouter = router({
         const locked = await lockSources(tx, ds.id);
         return propagate(tx, locked, input.key, null);
       });
+      await syncAttentionSafely(ctx.db, affectedSourceIds);
       return { key: input.key, affectedSourceIds };
     }),
 
