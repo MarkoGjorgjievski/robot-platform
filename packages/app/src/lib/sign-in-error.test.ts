@@ -42,4 +42,11 @@ describe('signInErrorMessage', () => {
   it('leaves a message that merely starts with a bracket alone', () => {
     expect(signInErrorMessage(new Error('[unparseable'))).toBe('[unparseable');
   });
+
+  it('a rate-limited sign-in reads the rate-limit sentence (spec 2026-10-24 tenant isolation §2.4)', () => {
+    const limited = Object.assign(new Error('Too many requests. Wait a minute and try again.'), { data: { code: 'TOO_MANY_REQUESTS', httpStatus: 429 } });
+    expect(signInErrorMessage(limited)).toBe('Too many requests. Wait a minute and try again.');
+    const odd = Object.assign(new Error('rate limited by something'), { data: { code: 'TOO_MANY_REQUESTS' } });
+    expect(signInErrorMessage(odd)).toBe('Too many requests. Wait a minute and try again.');
+  });
 });

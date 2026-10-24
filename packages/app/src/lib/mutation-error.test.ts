@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SOMETHING_WENT_WRONG, mutationErrorText } from './mutation-error';
+import { SOMETHING_WENT_WRONG, TOO_MANY_REQUESTS_TEXT, mutationErrorText } from './mutation-error';
 
 const err = (message: string, code?: string) => ({ message, data: code ? { code } : null });
 
@@ -18,8 +18,14 @@ describe('mutationErrorText (spec 2026-10-21)', () => {
   it('a server error, a network failure or no code at all reads as the generic sentence', () => {
     expect(mutationErrorText(err('Cannot read properties of undefined (reading \'id\')', 'INTERNAL_SERVER_ERROR'))).toBe(SOMETHING_WENT_WRONG);
     expect(mutationErrorText(err('Failed to fetch'))).toBe(SOMETHING_WENT_WRONG);
-    expect(mutationErrorText(err('Too many requests', 'TOO_MANY_REQUESTS'))).toBe(SOMETHING_WENT_WRONG);
     expect(SOMETHING_WENT_WRONG).toBe('Something went wrong. Try again.');
+  });
+
+  it('a rate-limited call reads the rate-limit sentence, for a customer and for staff (spec 2026-10-24 tenant isolation §2.4)', () => {
+    expect(TOO_MANY_REQUESTS_TEXT).toBe('Too many requests. Wait a minute and try again.');
+    expect(mutationErrorText(err('Too many requests. Wait a minute and try again.', 'TOO_MANY_REQUESTS'))).toBe(TOO_MANY_REQUESTS_TEXT);
+    expect(mutationErrorText(err('anything at all', 'TOO_MANY_REQUESTS'))).toBe(TOO_MANY_REQUESTS_TEXT);
+    expect(mutationErrorText(err('anything at all', 'TOO_MANY_REQUESTS'), true)).toBe(TOO_MANY_REQUESTS_TEXT);
   });
 
   it('a worded refusal holding library text, a host or an id reads as the generic sentence', () => {
