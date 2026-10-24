@@ -1,5 +1,6 @@
 // Spec 2026-10-24 §3.2, §4.1–4.3. DB-backed against the shared dev database: every sweep passes `only` (a bare
-// sweep would claim real websites), and a website is made due right before the sweep that claims it.
+// sweep would claim real websites), and every test website is due only relative to a test clock 30 days ahead
+// (`now: AT`), so a dev worker sweeping on the real clock at the same time never sees one as due (final review M2).
 import { describe, it, expect, afterAll, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { db, runs, sources } from '@robot/db';
@@ -15,9 +16,12 @@ import { SCHEDULED_LABEL } from './schedule.js';
 const me = await signedInCaller('recurring-sweep');
 afterAll(async () => { await me.cleanup(); });
 const LD: CertifiedPath = { source: 'json-ld', path: 'offers.price', transform: 'identity' };
+/** The test clock: every sweep here runs at AT; a test website is due relative to it, never to the real now. */
+const T = Date.now() + 30 * 86_400_000;
+const AT = new Date(T);
 const EVERY_DAY = { days: [1, 2, 3, 4, 5, 6, 7], time: '06:00', timeZone: 'Europe/Berlin' };
 
-/** A website (certified unless told otherwise) with a schedule, due `agoMs` ago. */
+/** A website (certified unless told otherwise) with a schedule, due `agoMs` before the test clock. */
 async function scheduled(tag: string, opts: { certified?: boolean; agoMs?: number; patch?: Partial<typeof sources.$inferInsert> } = {}) {
   const host = `test-recurring-${tag}.example.com`;
   const urls = [1, 2, 3].map((n) => `https://${host}/p/${n}`);
@@ -26,7 +30,7 @@ async function scheduled(tag: string, opts: { certified?: boolean; agoMs?: numbe
     expected: { Price: Object.fromEntries(urls.map((u, i) => [u, `${i + 1}.00`])) },
   });
   if (opts.certified !== false) await seedPassingVerification(f.sourceId, { [f.keys.Price!]: [LD] });
-  await db.update(sources).set({ schedule: EVERY_DAY, nextRunAt: new Date(Date.now() - (opts.agoMs ?? 1000)), ...opts.patch }).where(eq(sources.id, f.sourceId));
+  await db.update(sources).set({ schedule: EVERY_DAY, nextRunAt: new Date(T - (opts.agoMs ?? 1000)), ...opts.patch }).where(eq(sources.id, f.sourceId));
   return f;
 }
 const sourceRow = async (id: string) => (await db.query.sources.findFirst({ where: eq(sources.id, id), columns: { nextRunAt: true, scheduleLast: true } }))!;
@@ -36,7 +40,7 @@ describe('sweepDueSchedules', () => {
   it('starts a due certified website: a planning run labelled scheduled, its scheduled-run job, the next time from now', async () => {
     const f = await scheduled('start');
     try {
-      const [out, ...rest] = await sweepDueSchedules({ only: [f.sourceId] });
+      const [out, ...rest] = await sweepDueSchedules({ now: AT, only: [f.sourceId] });
       expect(rest).toEqual([]);
       expect(out).toMatchObject({ sourceId: f.sourceId, outcome: 'started', runId: expect.any(String) });
       const [run] = await scheduledRuns(f.sourceId);
@@ -45,8 +49,8 @@ describe('sweepDueSchedules', () => {
       expect(job).toMatchObject({ payload: { sourceId: f.sourceId, runId: run!.id }, priority: 20, maxAttempts: 1, expiresAt: null, status: 'queued' });
       expect(run!.jobId).toBe(job.id);
       const src = await sourceRow(f.sourceId);
-      expect(src.nextRunAt!.getTime()).toBeGreaterThan(Date.now());
-      expect(src.nextRunAt!.getTime()).toBeLessThan(Date.now() + 2 * 86_400_000);
+      expect(src.nextRunAt!.getTime()).toBeGreaterThan(T);
+      expect(src.nextRunAt!.getTime()).toBeLessThan(T + 2 * 86_400_000);
       expect(src.scheduleLast).toMatchObject({ outcome: 'started', runId: run!.id });
       expect(JOB_POLICIES['scheduled-run']).toMatchObject({ lane: 'background', priority: 20, maxAttempts: 1, startWithinMs: null });
     } finally { await f.cleanup(); }
@@ -56,7 +60,7 @@ describe('sweepDueSchedules', () => {
     const later = await scheduled('later', { agoMs: -3_600_000 });
     const off = await scheduled('off', { patch: { schedule: null } });
     try {
-      expect(await sweepDueSchedules({ only: [later.sourceId, off.sourceId] })).toEqual([]);
+      expect(await sweepDueSchedules({ now: AT, only: [later.sourceId, off.sourceId] })).toEqual([]);
       expect(await scheduledRuns(later.sourceId)).toEqual([]);
       expect(await scheduledRuns(off.sourceId)).toEqual([]);
     } finally { await later.cleanup(); await off.cleanup(); }
@@ -69,12 +73,12 @@ describe('sweepDueSchedules', () => {
   ] as const)('skips %s: recorded, no run, not retried before the next time', async (reason, opts) => {
     const f = await scheduled(`skip-${reason}`, opts as Parameters<typeof scheduled>[1]);
     try {
-      expect(await sweepDueSchedules({ only: [f.sourceId] })).toEqual([{ sourceId: f.sourceId, at: expect.any(String), outcome: 'skipped', reason }]);
+      expect(await sweepDueSchedules({ now: AT, only: [f.sourceId] })).toEqual([{ sourceId: f.sourceId, at: expect.any(String), outcome: 'skipped', reason }]);
       expect(await scheduledRuns(f.sourceId)).toEqual([]);
       const src = await sourceRow(f.sourceId);
       expect(src.scheduleLast).toMatchObject({ outcome: 'skipped', reason });
-      expect(src.nextRunAt!.getTime()).toBeGreaterThan(Date.now());
-      expect(await sweepDueSchedules({ only: [f.sourceId] })).toEqual([]);
+      expect(src.nextRunAt!.getTime()).toBeGreaterThan(T);
+      expect(await sweepDueSchedules({ now: AT, only: [f.sourceId] })).toEqual([]);
     } finally { await f.cleanup(); }
   });
 
@@ -82,7 +86,7 @@ describe('sweepDueSchedules', () => {
     const f = await scheduled(`busy-${status}`);
     try {
       await db.insert(runs).values({ sourceId: f.sourceId, status });
-      expect(await sweepDueSchedules({ only: [f.sourceId] })).toEqual([{ sourceId: f.sourceId, at: expect.any(String), outcome: 'skipped', reason: 'busy' }]);
+      expect(await sweepDueSchedules({ now: AT, only: [f.sourceId] })).toEqual([{ sourceId: f.sourceId, at: expect.any(String), outcome: 'skipped', reason: 'busy' }]);
       expect(await scheduledRuns(f.sourceId)).toEqual([]);
     } finally { await f.cleanup(); }
   });
@@ -90,14 +94,14 @@ describe('sweepDueSchedules', () => {
   it('a product-URL website needs no confirmation', async () => {
     const f = await scheduled('detail', { patch: { listingMode: 'detail', confirmedAt: null } });
     try {
-      expect((await sweepDueSchedules({ only: [f.sourceId] }))[0]).toMatchObject({ outcome: 'started' });
+      expect((await sweepDueSchedules({ now: AT, only: [f.sourceId] }))[0]).toMatchObject({ outcome: 'started' });
     } finally { await f.cleanup(); }
   });
 
   it('two sweeps at once start one run (§4.2)', async () => {
     const f = await scheduled('race');
     try {
-      const [a, b] = await Promise.all([sweepDueSchedules({ only: [f.sourceId] }), sweepDueSchedules({ only: [f.sourceId] })]);
+      const [a, b] = await Promise.all([sweepDueSchedules({ now: AT, only: [f.sourceId] }), sweepDueSchedules({ now: AT, only: [f.sourceId] })]);
       expect([...a, ...b]).toHaveLength(1);
       expect(await scheduledRuns(f.sourceId)).toHaveLength(1);
     } finally { await f.cleanup(); }
@@ -106,10 +110,10 @@ describe('sweepDueSchedules', () => {
   it('a worker down for a week fires once, and the next time is from now (§4.3)', async () => {
     const f = await scheduled('week', { agoMs: 7 * 86_400_000 });
     try {
-      expect(await sweepDueSchedules({ only: [f.sourceId] })).toHaveLength(1);
-      expect(await sweepDueSchedules({ only: [f.sourceId] })).toEqual([]);
+      expect(await sweepDueSchedules({ now: AT, only: [f.sourceId] })).toHaveLength(1);
+      expect(await sweepDueSchedules({ now: AT, only: [f.sourceId] })).toEqual([]);
       expect(await scheduledRuns(f.sourceId)).toHaveLength(1);
-      expect((await sourceRow(f.sourceId)).nextRunAt!.getTime()).toBeGreaterThan(Date.now());
+      expect((await sourceRow(f.sourceId)).nextRunAt!.getTime()).toBeGreaterThan(T);
     } finally { await f.cleanup(); }
   });
 
@@ -117,9 +121,9 @@ describe('sweepDueSchedules', () => {
     const a = await scheduled('limit-a', { agoMs: 120_000 });
     const b = await scheduled('limit-b', { agoMs: 60_000 });
     try {
-      const first = await sweepDueSchedules({ only: [a.sourceId, b.sourceId], limit: 1 });
+      const first = await sweepDueSchedules({ now: AT, only: [a.sourceId, b.sourceId], limit: 1 });
       expect(first.map((o) => o.sourceId)).toEqual([a.sourceId]);
-      expect((await sweepDueSchedules({ only: [a.sourceId, b.sourceId] })).map((o) => o.sourceId)).toEqual([b.sourceId]);
+      expect((await sweepDueSchedules({ now: AT, only: [a.sourceId, b.sourceId] })).map((o) => o.sourceId)).toEqual([b.sourceId]);
     } finally { await a.cleanup(); await b.cleanup(); }
   });
 
@@ -132,18 +136,28 @@ describe('sweepDueSchedules', () => {
         if (sourceId === a.sourceId) throw new Error('enqueue failed');
         return startScheduledRun(tx, sourceId, at);
       };
-      const out = await sweepDueSchedules({ only: [a.sourceId, b.sourceId], startRun });
+      const out = await sweepDueSchedules({ now: AT, only: [a.sourceId, b.sourceId], startRun });
       expect(out.map((o) => [o.sourceId, o.outcome])).toEqual([[a.sourceId, 'skipped'], [b.sourceId, 'started']]);
       expect(errors).toHaveBeenCalled();
       expect(await scheduledRuns(a.sourceId)).toEqual([]);
       expect(await scheduledRuns(b.sourceId)).toHaveLength(1);
-      expect((await sourceRow(a.sourceId)).nextRunAt!.getTime()).toBeGreaterThan(Date.now());
-      expect(await sweepDueSchedules({ only: [a.sourceId] })).toEqual([]);
+      expect((await sourceRow(a.sourceId)).nextRunAt!.getTime()).toBeGreaterThan(T);
+      expect(await sweepDueSchedules({ now: AT, only: [a.sourceId] })).toEqual([]);
     } finally { errors.mockRestore(); await a.cleanup(); await b.cleanup(); }
   });
 
+  it('a website due on the test clock is not due on the real one: a sweep without `now` leaves it (M2)', async () => {
+    const f = await scheduled('real-clock');
+    try {
+      expect(await sweepDueSchedules({ only: [f.sourceId] })).toEqual([]);
+      expect((await sweepDueSchedules({ now: AT, only: [f.sourceId] }))[0]).toMatchObject({ sourceId: f.sourceId, outcome: 'started', at: AT.toISOString() });
+      const [run] = await scheduledRuns(f.sourceId);
+      expect(run!.startedAt!.toISOString()).toBe(AT.toISOString());
+    } finally { await f.cleanup(); }
+  });
+
   it('an empty only claims nothing', async () => {
-    expect(await sweepDueSchedules({ only: [] })).toEqual([]);
+    expect(await sweepDueSchedules({ now: AT, only: [] })).toEqual([]);
   });
 
   it('RECURRING_RUNS: on unless off', () => {
