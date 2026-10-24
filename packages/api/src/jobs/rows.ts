@@ -3,11 +3,13 @@
 // already words: 'stalled'. A run row gets the job's own sentence. On a retry, the rows an earlier
 // attempt left half-done are closed the same way, except the one the payload names (it is reused).
 import { sql } from 'drizzle-orm';
+import type { Database } from '@robot/db';
 import type { DbOrTx } from './queue.js';
 
 export type JobSubject = { table: 'source_verifications' | 'drift_checks' | 'coverage_checks' | 'captures' | 'runs'; id: string };
 
-export async function closeJobRows(tx: DbOrTx, jobId: string, opts: { runSentence: string; except?: JobSubject | null }): Promise<void> {
+/** Returns the runs it closed: the caller hands them to `deliverClosedRuns` once its transaction committed. */
+export async function closeJobRows(tx: DbOrTx, jobId: string, opts: { runSentence: string; except?: JobSubject | null }): Promise<{ runIds: string[] }> {
   const not = (table: JobSubject['table']) => (opts.except?.table === table ? sql`AND id <> ${opts.except.id}` : sql``);
   await tx.execute(sql`UPDATE source_verifications SET error_message = 'stalled', completed_at = now()
     WHERE job_id = ${jobId} AND completed_at IS NULL ${not('source_verifications')}`);
@@ -23,9 +25,37 @@ export async function closeJobRows(tx: DbOrTx, jobId: string, opts: { runSentenc
   await tx.execute(sql`UPDATE run_items SET status = 'pending', started_at = NULL
     WHERE kind = 'detail' AND status = 'running' AND run_id IN (
       SELECT id FROM runs WHERE job_id = ${jobId} AND status IN ('planning', 'extracting', 'cancelling') ${not('runs')})`);
-  await tx.execute(sql`UPDATE runs SET
+  // Its row count is counted here (no finalise ran): delivery reads it to decide whether a failed or cancelled
+  // run has rows to send (spec 2026-10-24 §3.3).
+  const closed = (await tx.execute(sql`UPDATE runs SET
       error_message = CASE WHEN status = 'cancelling' THEN error_message ELSE ${opts.runSentence} END,
       status = CASE WHEN status = 'cancelling' THEN 'cancelled' ELSE 'failed' END,
+      result_count = (SELECT coalesce(sum(jsonb_array_length(e.data)), 0)::int FROM extractions e WHERE e.run_id = runs.id),
       completed_at = now()
-    WHERE job_id = ${jobId} AND status IN ('planning', 'extracting', 'cancelling') ${not('runs')}`);
+    WHERE job_id = ${jobId} AND status IN ('planning', 'extracting', 'cancelling') ${not('runs')}
+    RETURNING id`)) as unknown as Array<{ id: string }>;
+  return { runIds: closed.map((r) => String(r.id)) };
+}
+
+/**
+ * Spec 2026-10-24 §3.3 for the runs a job closed (failed for good, reaped, stopped as stuck): the same delivery a
+ * finalised run gets — `enqueueRunDelivery` applies the same rules (terminal; failed or cancelled only with rows; a
+ * website with a schedule or a webhook; never a sample; a backfill its parent). Called after the closing
+ * transaction committed. Never throws: a delivery that cannot be queued never changes how a job closes.
+ */
+export async function deliverClosedRuns(dbh: Database, runIds: string[]): Promise<void> {
+  if (runIds.length === 0) return;
+  try {
+    // Imported when needed: the delivery module enqueues through the queue module, which imports this one.
+    const { enqueueRunDelivery } = await import('../delivery/run-delivery.js');
+    for (const id of runIds) {
+      try {
+        await enqueueRunDelivery(dbh, id);
+      } catch (err) {
+        console.error(`[jobs] run delivery could not be queued for closed run ${id}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error('[jobs] run delivery could not be queued for closed runs:', err);
+  }
 }

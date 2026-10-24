@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { sql, type SQL } from 'drizzle-orm';
 import { db } from '@robot/db';
 import type { Database } from '@robot/db';
-import { closeJobRows } from './rows.js';
+import { closeJobRows, deliverClosedRuns } from './rows.js';
 import { JobUnavailableError, rebuildError, type SerializedError } from './errors.js';
 import { runSentenceFor } from './types.js';
 
@@ -144,14 +144,17 @@ export async function failJobTerminal(id: string, guard: FailGuard, detail: Seri
   const where = guard === 'lapsed' ? sql`status = 'running' AND locked_until < now()`
     : guard === 'queued' ? sql`status = 'queued'`
     : sql`status = 'running' AND locked_by = ${guard.owner}`;
-  return db.transaction(async (tx) => {
+  const closed = await db.transaction(async (tx) => {
     const r = rows(await tx.execute(sql`UPDATE jobs SET status = 'failed', error = ${detail.message.slice(0, 1000)},
         result = ${JSON.stringify({ error: detail })}::jsonb, finished_at = now(), locked_by = NULL, locked_until = NULL
       WHERE id = ${id} AND ${where} RETURNING id`));
-    if (r.length === 0) return false;
-    await closeJobRows(tx, id, { runSentence });
-    return true;
+    if (r.length === 0) return null;
+    return (await closeJobRows(tx, id, { runSentence })).runIds;
   });
+  if (closed === null) return false;
+  // A run it closed gets the delivery a finalised run gets (spec 2026-10-24 §3.3; final review I1).
+  await deliverClosedRuns(db, closed);
+  return true;
 }
 
 /**

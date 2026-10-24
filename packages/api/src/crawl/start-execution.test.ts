@@ -424,4 +424,30 @@ describe('startExecution — inside a run job (spec 2026-10-23 §4.4)', () => {
       await deleteTestSource(sourceId);
     }
   });
+
+  it('an execution that throws closes the run failed with its rows counted, and a run with rows gets its delivery (final review I1)', async () => {
+    const { createTestSource, deleteTestSource } = await import('../test-helpers/source.js');
+    const { seedUnshownRun } = await import('../test-helpers/seed-unshown-run.js');
+    const { jobsOf } = await import('../test-helpers/jobs.js');
+    const { runs, jobs } = await import('@robot/db');
+    const sourceId = await createTestSource({ schema: [] });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let runId = '';
+    try {
+      await db.update(sources).set({ schedule: { days: [1], time: '06:00', timeZone: 'UTC' } }).where(eq(sources.id, sourceId));
+      runId = await seedUnshownRun(sourceId, { items: [
+        { url: 'https://test-throw.example.com/p/1', row: { price: '1.00' } },
+        { url: 'https://test-throw.example.com/p/2', row: { price: '2.00' } },
+      ] });
+      await db.update(runs).set({ status: 'extracting', resultCount: 0, completedAt: null }).where(eq(runs.id, runId));
+      executeRunMock.mockImplementationOnce(async () => { throw new Error('boom'); });
+      await startExecution(runId, sourceId, [], undefined, { hooks: { aborted: () => false } });
+      expect(await db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { status: true, resultCount: true } })).toEqual({ status: 'failed', resultCount: 2 });
+      expect((await jobsOf('run-delivery')).find((j) => j.key === `run-delivery:${runId}`)).toMatchObject({ status: 'queued', payload: { runId } });
+    } finally {
+      errors.mockRestore();
+      if (runId) await db.delete(jobs).where(eq(jobs.key, `run-delivery:${runId}`));
+      await deleteTestSource(sourceId);
+    }
+  });
 });
