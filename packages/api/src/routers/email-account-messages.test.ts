@@ -45,6 +45,14 @@ describe('orgs.members.setRole (spec §3.1)', () => {
     await owner.caller.orgs.members.setRole({ userId: m.user.id, role: 'member' });
     expect(await mine()).toHaveLength(2);
   });
+
+  it('T6: two changes to the same new role at once send one email', async () => {
+    for (let i = 0; i < 3; i++) {
+      const m = await joined(`role-race-${i}`, 'member');
+      await Promise.all([1, 2].map(() => owner.caller.orgs.members.setRole({ userId: m.user.id, role: 'admin' })));
+      expect((await mail('role-changed')).filter((r) => r.userId === m.user.id)).toHaveLength(1);
+    }
+  });
 });
 
 describe('orgs.members.remove (spec §3.1, §4.1)', () => {

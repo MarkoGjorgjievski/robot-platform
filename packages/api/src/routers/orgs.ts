@@ -63,13 +63,16 @@ export const orgsRouter = router({
       .input(z.object({ userId: z.string().uuid(), role: z.enum(MEMBERSHIP_ROLES) }))
       .mutation(async ({ ctx, input }) => {
         requireRole(ctx.session, ['owner', 'admin']);
-        const target = await ctx.db.query.memberships.findFirst({ where: and(eq(memberships.userId, input.userId), eq(memberships.orgId, ctx.session.org.id)) });
-        if (!target) throw new TRPCError({ code: 'NOT_FOUND', message: 'Not a member of this organisation' });
-        if (target.role === 'owner') throw new TRPCError({ code: 'FORBIDDEN', message: "The owner's role cannot be changed" });
-        if (input.role === 'owner') requireRole(ctx.session, ['owner']);
-        // The same role again changes nothing, and sends nothing.
-        if (target.role === input.role) return { userId: input.userId, role: input.role };
         await ctx.db.transaction(async (tx) => {
+          // The current role is read under the membership row lock, so two changes at once are decided one after the
+          // other: the second sees the first's role (parked T6 — one email, not two).
+          const [target] = await tx.select({ id: memberships.id, role: memberships.role }).from(memberships)
+            .where(and(eq(memberships.userId, input.userId), eq(memberships.orgId, ctx.session.org.id))).for('update');
+          if (!target) throw new TRPCError({ code: 'NOT_FOUND', message: 'Not a member of this organisation' });
+          if (target.role === 'owner') throw new TRPCError({ code: 'FORBIDDEN', message: "The owner's role cannot be changed" });
+          if (input.role === 'owner') requireRole(ctx.session, ['owner']);
+          // The same role again changes nothing, and sends nothing.
+          if (target.role === input.role) return;
           await tx.update(memberships).set({ role: input.role }).where(eq(memberships.id, target.id));
           // Spec 2026-10-24 email §3.1: that member hears of it (always). Its own savepoint: mail never fails the change.
           await queueEmailsSafely(tx, { kind: 'role-changed', membershipId: target.id, orgId: ctx.session.org.id, userId: input.userId, role: input.role, at: new Date() });
