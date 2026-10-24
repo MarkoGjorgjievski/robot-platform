@@ -2,7 +2,7 @@
 // edit that can change "Needs attention" syncs it.
 import { describe, it, expect, afterAll, vi } from 'vitest';
 import { eq, like } from 'drizzle-orm';
-import { db, driftChecks, emailMessages, fieldHolds, sources, users } from '@robot/db';
+import { db, driftChecks, emailMessages, fieldHolds, sources, sourceVerifications, users } from '@robot/db';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { seedAttention } from '../test-helpers/seed-attention.js';
@@ -116,6 +116,46 @@ describe('the edits that can change it sync it (spec §3.2)', () => {
       await mark(s.sourceId);
       await me.caller.datasets.retypeField({ datasetId: s.datasetId, key: added.key, type: 'number' });
       expect(await sinceOf(s.sourceId)).toBeNull();
+    } finally { await s.cleanup(); }
+  });
+});
+
+describe('fix round 1: one lock per sync, and a Verify in flight decides', () => {
+  it('a reset racing a claim never leaves the website on with attention_since cleared (no second email for one turn)', async () => {
+    const s = await website('reset-race');
+    try {
+      let raced: Promise<unknown> | null = null;
+      // X reads "off"; between X's read and its reset, the website turns on and Y syncs. Under the row lock the turn
+      // waits for X to finish, so X can never clear Y's claim.
+      const x = syncAttention(db, s.sourceId, {
+        onRead: async (on) => {
+          if (on || raced) return;
+          raced = needsYou(s).then(() => syncAttention(db, s.sourceId));
+          await Promise.race([raced, new Promise((r) => setTimeout(r, 1500))]);
+        },
+      });
+      expect(await x).toMatchObject({ on: false });
+      await raced;
+      expect(await sinceOf(s.sourceId)).not.toBeNull();
+      expect(await syncAttention(db, s.sourceId)).toEqual({ on: true, turnedOn: false, queued: 0 });
+      expect(await sent(s.sourceId)).toHaveLength(1);
+    } finally { await s.cleanup(); }
+  }, 30_000);
+
+  it('while a Verify is in flight a sync never claims, but still resets; the sync after it decides', async () => {
+    const s = await website('in-flight');
+    try {
+      const [row] = await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x' }).returning({ id: sourceVerifications.id });
+      await mark(s.sourceId);
+      expect(await syncAttention(db, s.sourceId)).toEqual({ on: false, turnedOn: false, queued: 0 });
+      expect(await sinceOf(s.sourceId)).toBeNull();
+      await needsYou(s);
+      expect(await syncAttention(db, s.sourceId)).toEqual({ on: true, turnedOn: false, queued: 0 });
+      expect(await sinceOf(s.sourceId)).toBeNull();
+      expect(await sent(s.sourceId)).toEqual([]);
+      await db.update(sourceVerifications).set({ completedAt: new Date(), errorMessage: 'stalled' }).where(eq(sourceVerifications.id, row!.id));
+      expect(await syncAttention(db, s.sourceId)).toEqual({ on: true, turnedOn: true, queued: 1 });
+      expect(await sent(s.sourceId)).toHaveLength(1);
     } finally { await s.cleanup(); }
   });
 });
