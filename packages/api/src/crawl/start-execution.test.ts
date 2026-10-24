@@ -257,6 +257,27 @@ describe('buildFinalise', () => {
 
     await expect(finalise(10, false, false)).resolves.toBe('partial');
   });
+
+  it('queues the run delivery once the run settles (spec 2026-10-24 §3.3), never while extracting', async () => {
+    const enqueueDelivery = vi.fn(async () => 'job-1');
+    const settled = buildFinalise({} as never, 'run-1', 'source-1', null, { finaliseRun: vi.fn(async () => 'partial' as const), enqueueDelivery });
+    expect(await settled(3, false, true)).toBe('partial');
+    expect(enqueueDelivery).toHaveBeenCalledWith({}, 'run-1');
+    const going = buildFinalise({} as never, 'run-2', 'source-1', null, { finaliseRun: vi.fn(async () => 'extracting' as const), enqueueDelivery });
+    await going(3, false, false);
+    expect(enqueueDelivery).toHaveBeenCalledTimes(1);
+  });
+
+  it('a delivery that cannot be queued never changes the run’s status', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const finalise = buildFinalise({} as never, 'run-1', 'source-1', null, {
+      finaliseRun: vi.fn(async () => 'completed' as const),
+      enqueueDelivery: vi.fn(async () => { throw new Error('db down'); }),
+    });
+    expect(await finalise(3, false, false)).toBe('completed');
+    expect(errors).toHaveBeenCalled();
+    errors.mockRestore();
+  });
 });
 
 describe('startExecution — variant plan wiring', () => {

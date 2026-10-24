@@ -3,6 +3,8 @@
 import { describe, it, expect, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, runs, sources, webhookDeliveries } from '@robot/db';
+import { enqueue } from '../jobs/enqueue.js';
+import { runDeliveryKey } from '../delivery/delivery-state.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { nextRunAt } from '../recurring/schedule.js';
@@ -112,8 +114,10 @@ describe('sources.update — webhook', () => {
 
 describe('runs.getWithDetails — delivery', () => {
   const DELIVERY = '7d4f2b1a-3333-4333-8333-333333333333';
-  async function runWith(f: { sourceId: string }, attempts: Array<{ attempt: number; ok: boolean; statusCode: number | null; error: string | null }>) {
+  /** `live`: the run's delivery job is still queued (a retry is coming) — with none, a failed attempt is final. */
+  async function runWith(f: { sourceId: string }, attempts: Array<{ attempt: number; ok: boolean; statusCode: number | null; error: string | null }>, opts: { live?: boolean } = {}) {
     const [run] = await db.insert(runs).values({ sourceId: f.sourceId, status: 'completed', completedAt: new Date() }).returning({ id: runs.id });
+    if (opts.live) await enqueue(db, 'run-delivery', { runId: run!.id, deliveryId: DELIVERY }, { key: runDeliveryKey(run!.id) });
     for (const [i, a] of attempts.entries()) {
       await db.insert(webhookDeliveries).values({ runId: run!.id, deliveryId: DELIVERY, ...a, at: new Date(Date.now() - (attempts.length - i) * 1000) });
     }
@@ -125,8 +129,11 @@ describe('runs.getWithDetails — delivery', () => {
       expect((await me.caller.runs.getWithDetails({ id: await runWith(f, []) }))!.delivery).toBeNull();
       const delivered = (await me.caller.runs.getWithDetails({ id: await runWith(f, [{ attempt: 1, ok: false, statusCode: 500, error: 'answered 500' }, { attempt: 2, ok: true, statusCode: 200, error: null }]) }))!.delivery;
       expect(delivered).toEqual({ state: 'delivered', at: expect.any(Date) });
-      const retrying = (await me.caller.runs.getWithDetails({ id: await runWith(f, [{ attempt: 2, ok: false, statusCode: 503, error: 'answered 503' }]) }))!.delivery;
+      const retrying = (await me.caller.runs.getWithDetails({ id: await runWith(f, [{ attempt: 2, ok: false, statusCode: 503, error: 'answered 503' }], { live: true }) }))!.delivery;
       expect(retrying).toEqual({ state: 'retrying', at: expect.any(Date) });
+      // The job stopped for good before its fifth attempt (failed, reaped, purged): no retry is coming.
+      const stopped = (await me.caller.runs.getWithDetails({ id: await runWith(f, [{ attempt: 2, ok: false, statusCode: 503, error: 'answered 503' }]) }))!.delivery;
+      expect(stopped).toEqual({ state: 'failed', at: expect.any(Date) });
       const failed = (await me.caller.runs.getWithDetails({ id: await runWith(f, [{ attempt: 5, ok: false, statusCode: null, error: 'no answer within 10 s' }]) }))!.delivery;
       expect(failed).toEqual({ state: 'failed', at: expect.any(Date) });
     } finally { await f.cleanup(); }
@@ -136,7 +143,7 @@ describe('runs.getWithDetails — delivery', () => {
     const saved = process.env.OPS_EMAILS;
     process.env.OPS_EMAILS = me.user.email;
     try {
-      const id = await runWith(f, [{ attempt: 2, ok: false, statusCode: 503, error: 'answered 503' }]);
+      const id = await runWith(f, [{ attempt: 2, ok: false, statusCode: 503, error: 'answered 503' }], { live: true });
       expect((await me.caller.runs.getWithDetails({ id }))!.delivery).toEqual({ state: 'retrying', at: expect.any(Date), statusCode: 503, error: 'answered 503' });
     } finally {
       if (saved === undefined) delete process.env.OPS_EMAILS; else process.env.OPS_EMAILS = saved;
