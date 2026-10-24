@@ -17,6 +17,18 @@ export const SKIP_SENTENCES: Record<SkipReason, string> = {
   busy: 'Skipped: the last run was still going.',
 };
 export const WEBHOOK_HELP = "We send a POST with the run's results and download links when a run finishes.";
+/** The Replace secret confirm (review round 1): what a new secret breaks, said before it does. */
+export const REPLACE_SECRET_TITLE = 'Replace the signing secret?';
+export const REPLACE_SECRET_TEXT =
+  'Download links in webhooks already sent stop working, and your endpoint’s signature check fails until you give it the new secret.';
+export const COPY_FAILED = 'That could not be copied. Show the secret and copy it by hand.';
+
+/** Why Save webhook is disabled (said beside it), or null when it is live. */
+export function webhookSaveReason(dirty: boolean, url: string, hasSaved = false): string | null {
+  if (!dirty) return 'No changes to save';
+  if (url.trim() === '') return hasSaved ? 'Use Remove to stop sending' : 'Enter your endpoint’s web address';
+  return null;
+}
 
 const EVERY_DAY = [1, 2, 3, 4, 5, 6, 7];
 const WEEKDAYS = [1, 2, 3, 4, 5];
