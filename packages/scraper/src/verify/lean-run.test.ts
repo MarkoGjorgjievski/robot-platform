@@ -76,6 +76,30 @@ describe('learn', () => {
     for (const u of ['a', 'b', 'c']) learn(s, [r('sku', 'A', false)], [r('sku', 'A', false)], { check: false, url: u });
     expect(fallbackFor(s, [r('sku', 'B', false)])).toBeNull();
   });
+  // Final review I2: each kind of confirmation excuses only its own fallback.
+  it('a field confirmed not shown three times still takes the full capture on a lean miss', () => {
+    const s = newLeanRunState({ checks: 0 });
+    for (const u of ['a', 'b', 'c']) learn(s, [r('description', 'Long', false)], [r('description', 'Long', false)], { check: false, url: u });
+    expect(fallbackFor(s, [r('description', 'Long', false)])).toBeNull();
+    expect(fallbackFor(s, [r('description', null)])).toEqual({ reason: 'miss', fields: ['description'] });
+  });
+  it('a field whose miss was confirmed three times still takes the full capture when its lean value is not shown', () => {
+    const s = newLeanRunState({ checks: 0 });
+    for (const u of ['a', 'b', 'c']) learn(s, [r('rating', null)], [r('rating', null)], { check: false, url: u });
+    expect(fallbackFor(s, [r('rating', null)])).toBeNull();
+    expect(fallbackFor(s, [r('rating', 4.1, false)])).toEqual({ reason: 'unshown', fields: ['rating'] });
+  });
+  it('a rescue of either kind clears both confirmations', () => {
+    const s = newLeanRunState({ checks: 0 });
+    s.confirmedMiss.set('rating', 3);
+    s.confirmedUnshown.set('rating', 3);
+    learn(s, [r('rating', null)], [r('rating', 4.1)], { check: false, url: 'd' });
+    expect(s.confirmedMiss.has('rating') || s.confirmedUnshown.has('rating')).toBe(false);
+    s.confirmedMiss.set('sku', 3);
+    s.confirmedUnshown.set('sku', 3);
+    learn(s, [r('sku', 'A', false)], [r('sku', 'A', true)], { check: false, url: 'e' });
+    expect(s.confirmedMiss.has('sku') || s.confirmedUnshown.has('sku')).toBe(false);
+  });
 });
 
 describe('state, counts, summary', () => {
