@@ -51,7 +51,8 @@ export async function startScheduledRun(tx: DbOrTx, sourceId: string, at: Date):
   return runId;
 }
 
-type SweepOpts = { only?: string[]; exclude?: string[]; startRun?: typeof startScheduledRun };
+/** `now`: the sweep's clock (default the real now) — what is due, the outcome's time and the next time are read off it. */
+type SweepOpts = { only?: string[]; exclude?: string[]; startRun?: typeof startScheduledRun; now?: Date };
 
 /** `sweepOne` could not even move a claimed website on (its row would not write): the sweep passes it by this round. */
 class SweepWebsiteError extends Error {
@@ -66,12 +67,13 @@ export async function sweepOne(opts: SweepOpts = {}): Promise<SweepOutcome | nul
   const only = opts.only ? sql`AND id IN (${uuidList(opts.only)})` : sql``;
   const exclude = opts.exclude?.length ? sql`AND id NOT IN (${uuidList(opts.exclude)})` : sql``;
   const startRun = opts.startRun ?? startScheduledRun;
+  const at = opts.now ?? new Date();
   let claimed: string | null = null;
   try {
     return await db.transaction(async (tx) => {
       const picked = (await tx.execute(sql`
         SELECT id FROM sources
-         WHERE schedule IS NOT NULL AND next_run_at IS NOT NULL AND next_run_at <= now() ${only} ${exclude}
+         WHERE schedule IS NOT NULL AND next_run_at IS NOT NULL AND next_run_at <= ${at.toISOString()}::timestamptz ${only} ${exclude}
          ORDER BY next_run_at ASC, id
          LIMIT 1
          FOR UPDATE SKIP LOCKED`)) as unknown as Array<{ id: string }>;
@@ -82,7 +84,6 @@ export async function sweepOne(opts: SweepOpts = {}): Promise<SweepOutcome | nul
         where: eq(sources.id, id),
         columns: { id: true, schedule: true, isActive: true, listingMode: true, confirmedAt: true },
       }))!;
-      const at = new Date();
       const parsed = parseSchedule(s.schedule);
       if (!parsed.ok) {
         // A stored schedule that no longer reads never fires again, rather than once a minute.
@@ -113,7 +114,7 @@ export async function sweepOne(opts: SweepOpts = {}): Promise<SweepOutcome | nul
 }
 
 /** One sweep: due websites one at a time, at most `limit`. */
-export async function sweepDueSchedules(opts: { limit?: number; only?: string[]; startRun?: typeof startScheduledRun } = {}): Promise<SweepOutcome[]> {
+export async function sweepDueSchedules(opts: { limit?: number; only?: string[]; startRun?: typeof startScheduledRun; now?: Date } = {}): Promise<SweepOutcome[]> {
   const out: SweepOutcome[] = [];
   const passed: string[] = [];
   for (let i = 0; i < (opts.limit ?? RECURRING_SWEEP_LIMIT); i++) {
