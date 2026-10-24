@@ -1,8 +1,12 @@
 # Recurring extraction: a schedule per website, a file per run, a webhook on completion — design
 
-**Status:** written 2026-10-24 under the standing approval (`CLAUDE.md`, "Autonomous runs"; `docs/queue.md` item 1,
+**Status:** implemented on `feat/recurring-extraction` and merged to `main` on 2026-10-24 (`2881058f`); written 2026-10-24 under the standing approval (`CLAUDE.md`, "Autonomous runs"; `docs/queue.md` item 1,
 "Recurring extraction"). Plan: `docs/superpowers/plans/2026-10-24-recurring-extraction.md`. Branch
 `feat/recurring-extraction` from `main` @ `e950e093`, worktree `C:\Users\Marko\Documents\projects\robot-platform-recurring`.
+
+**Proven:** the live check (`docs/testing/results/2026-10-24-recurring/live-recurring.md`) — a website scheduled one minute ahead started by itself 20 s after its time, completed in 10 s, wrote CSV/JSON/XLSX snapshots, and the local receiver got one signed POST 0.4 s later whose three signed links downloaded the same bytes; a tampered link answered 404. Tests: api 1,599, app 1,092, plus worker, api-server and db suites; the route smoke on the isolated pair.
+
+**Deviations and settled here** (reviews, 2026-10-24): runs closed by the job layer (failed for good, reaped, stalled) with rows deliver too; a scheduled run left `planned` by a dead worker is closed failed; a delivery that fails before any POST records an attempt; a backfill that lands while its parent's delivery is running re-delivers once with a new delivery id; a sample never delivers; the "Scheduled" label reads "· scheduled" after the status, like "· sample"; replacing the secret asks first; the sweep takes a `now` so tests never make a dev website due.
 
 ## 1. Why
 

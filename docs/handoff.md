@@ -35,7 +35,9 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Run speed (2026-10-23)](#run-speed-2026-10-23).** Certified runs capture lean with today's capture as the fallback; page starts per host 2 s apart; several websites at once when `WORKER_RUNS` is raised. Measured 1.6× faster per 1,000 pages one website at a time, 8.1× at six, with the same values. Merged 2026-10-24.
+**Newest: [Recurring extraction (2026-10-24)](#recurring-extraction-2026-10-24).** A website can run on a weekly schedule and post a signed webhook with download links when a run finishes. Merged 2026-10-24.
+
+**Before it: [Run speed (2026-10-23)](#run-speed-2026-10-23).** Certified runs capture lean with today's capture as the fallback; page starts per host 2 s apart; several websites at once when `WORKER_RUNS` is raised. Measured 1.6× faster per 1,000 pages one website at a time, 8.1× at six, with the same values. Merged 2026-10-24.
 
 **Before it: [The whole stack in Docker Compose (2026-10-23)](#the-whole-stack-in-docker-compose-2026-10-23).** `docker compose up -d --build` runs Postgres, migrations, api, worker, app and a nightly backup as project `robot-stack` on :3200/:4200/:5442, keyless; a restore test proves a dump comes back whole.
 
@@ -116,6 +118,49 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Recurring extraction (2026-10-24)
+
+Spec `docs/superpowers/specs/2026-10-24-recurring-extraction-design.md`, plan
+`docs/superpowers/plans/2026-10-24-recurring-extraction.md`, live check `docs/testing/results/2026-10-24-recurring/live-recurring.md`.
+
+**What changed.**
+- *The schedule.* A website's Settings tab has a "Schedule" row: Off / Every day / Weekdays / Choose days, a time and a
+  time zone. `sources.schedule` and `next_run_at` hold it; `nextRunAt` (Intl only) runs a DST gap's time at the end
+  of the gap and an overlap's once.
+- *The sweep.* The worker sweeps every minute (`RECURRING_RUNS`, on unless `off`), claims due websites with
+  `FOR UPDATE SKIP LOCKED`, moves `next_run_at` on from now, and starts a `scheduled-run` job — unless the website
+  is paused, uncertified, an unconfirmed listing, or still running; `schedule_last` records why, and Settings says it.
+- *The run's file.* A settled run of a website with a schedule or a webhook (finalised, or closed by the job layer with
+  rows) gets a `run-delivery` job: CSV, JSON and XLSX snapshots in `run_files`, downloadable with the session
+  (`?snapshot=1`) or by a signed link (`?expires=&sig=`, 7 days, HMAC with the website's secret).
+- *The webhook.* One `run.finished` POST, signed (`X-Robot-Signature: sha256=…`), the same `X-Robot-Delivery` id
+  on every retry (receivers dedupe on it), five attempts. Never to a private or loopback address — checked at save and
+  on every resolved address at send, no redirects, 10 s, 64 KB — unless `WEBHOOK_ALLOW_PRIVATE=on`.
+- *What a customer sees.* Settings: Schedule (next run, last outcome) and Webhook (URL, masked secret with Show / Copy,
+  "Replace secret" behind a confirm). Runs: "· scheduled". Run page: "Webhook delivered …" / "not delivered yet —
+  trying again" / "could not be delivered"; staff also see the code and error.
+
+**How it was proven.** The live check (fixture shop, throwaway database, local receiver, real export route): a website
+scheduled a minute ahead started itself 20 s after its time, completed in 10 s with 3 rows, wrote three files; one
+signed POST arrived 0.4 s later, its signature verified, its three links returned the stored bytes; a tampered link
+answered 404. Tests: api 1,599, app 1,092, worker, api-server and db suites, tsc clean; the route smoke on the
+isolated pair. Reviews: per task (security review of the address check), and a whole-branch review (2 Important —
+runs closed by the job layer did not deliver; the isolated pair and Docker settings — both fixed and re-reviewed).
+
+**After pulling.** `pnpm db:migrate` (migration 0021), then restart `pnpm dev:all` so the worker starts the sweep.
+Nothing runs until a customer saves a schedule. Any other worker on the dev database (the isolated smoke pair) must
+set `RECURRING_RUNS=off`.
+
+**What NOT to redo.** Never follow a webhook redirect; check every resolved address, not just the first; keep the
+snapshot separate from the live download; a backfill re-delivers its parent; a sample never delivers; tests sweep with
+a `now` in the future, never the real clock.
+
+**Open.** Spec §6 (email, monthly/cron schedules, other destinations, other events). `projects.default_schedule` /
+`output_destination` / `notification_channel` stay unused. The secret is stored in plain text. `run_files` is never
+pruned (Needs Marko). Links name `PUBLIC_API_URL`, which must be reachable from the customer's endpoint. The backfill
+re-delivery compares the Node clock with the database's (fine on one host; stamping `completed_at` with `now()` would
+remove it).
 
 ## Run speed (2026-10-23)
 
