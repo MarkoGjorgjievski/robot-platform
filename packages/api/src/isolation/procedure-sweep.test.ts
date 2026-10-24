@@ -149,6 +149,8 @@ describe("org-wide: about the caller's own org (spec §2.1)", () => {
   it.each(pathsOf('org-wide'))('%s names nothing of B and leaves B alone', async (path) => {
     const e = entry(path, 'org-wide');
     const out = await leavesBAlone(path, () => at(t.a.owner.caller, path)(e.input?.(t.a)));
+    // It answers — a throw would pass the scan below on its message alone — unless the table names its refusal.
+    expect(codeOf(out), out.ok ? path : `${path}: ${out.error.message}`).toBe(e.refuses ?? 'answered');
     namesNothingOf(out.ok ? out.value : out.error.message, needlesOf(t.b), path);
   });
 });

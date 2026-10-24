@@ -11,8 +11,8 @@ export type ProcedureEntry =
   /** Takes ids of one org's rows. `works`: the real work the call does for its own org (a worker job) — only ever
    *  exercised as a refusal; the money sweep does not call it. */
   | { class: 'scoped'; input: Build; works?: string }
-  /** No ids; answers about, or acts on, the caller's own org. */
-  | { class: 'org-wide'; input?: Build }
+  /** No ids; answers about, or acts on, the caller's own org. `refuses`: the refusal the fixture's caller gets by design. */
+  | { class: 'org-wide'; input?: Build; refuses?: 'PRECONDITION_FAILED' }
   /** Only the caller's own user or session. */
   | { class: 'self'; input?: Build }
   /** Takes a user or org id that must be a membership of the caller; each of `inputs(B)` is refused with `refusal`. */
@@ -43,7 +43,8 @@ export const PROCEDURE_CLASSES: Record<string, ProcedureEntry> = {
   // ─── orgs ───
   'orgs.create': { class: 'self', input: () => ({ name: 'Sweep side org' }) },
   'orgs.rename': { class: 'org-wide', input: (f) => ({ name: `${f.org.name} renamed` }) },
-  'orgs.delete': { class: 'org-wide' },
+  // A's org is its owner's personal one, which cannot be deleted: the sweep sees the refusal, never a deleted org.
+  'orgs.delete': { class: 'org-wide', refuses: 'PRECONDITION_FAILED' },
   'orgs.members.list': { class: 'org-wide' },
   'orgs.members.setRole': { class: 'membership', inputs: (b) => [{ userId: b.member.id, role: 'admin' }, { userId: b.owner.user.id, role: 'member' }], refusal: 'NOT_FOUND' },
   'orgs.members.remove': { class: 'membership', inputs: (b) => [{ userId: b.member.id }, { userId: b.owner.user.id }], refusal: 'NOT_FOUND' },
