@@ -201,8 +201,8 @@ export class PlaywrightBrowser implements IBrowser {
         let ready = options.ready && readyWhen === 'after-navigation' ? await this.waitUntilReady(page, url, intercepted, options.ready) : null;
         if (ready) await stage(`ready: ${ready.state}`);
         // Spec 2026-10-23 run speed §3.1: a lean capture closes nothing — a popup changes no JSON-LD, meta or API
-        // body, and dismissal keeps a hidden overlay's text in the HTML anyway — and expands only when asked
-        // (certified XPaths were proven on the expanded page).
+        // body, and its text is not a field value: certified paths read the product, not the popup — and expands
+        // only when asked (certified XPaths were proven on the expanded page).
         const lean = options.lean;
         if (!lean) {
           await this.dismissPopups(page);
