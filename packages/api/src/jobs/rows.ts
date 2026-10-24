@@ -47,19 +47,24 @@ export async function closeJobRows(tx: DbOrTx, jobId: string, opts: { runSentenc
  * Spec 2026-10-24 §3.3 for the runs a job closed (failed for good, reaped, stopped as stuck): the same delivery a
  * finalised run gets — `enqueueRunDelivery` applies the same rules (terminal; failed or cancelled only with rows; a
  * website with a schedule or a webhook; never a sample; a backfill its parent). Called after the closing
- * transaction committed. Never throws: a delivery that cannot be queued never changes how a job closes.
+ * transaction committed. Never throws: a delivery that cannot be queued never changes how a job closes. And the
+ * failed-run email (spec 2026-10-24 email §3.1): only `failed` sends; the dedupe key keeps a run reported twice to one
+ * email per person.
  */
 export async function deliverClosedRuns(dbh: Database, runIds: string[]): Promise<void> {
   if (runIds.length === 0) return;
   try {
     // Imported when needed: the delivery module enqueues through the queue module, which imports this one.
     const { enqueueRunDelivery } = await import('../delivery/run-delivery.js');
+    const { notifyRunFailed } = await import('../email/run-failed.js');
     for (const id of runIds) {
       try {
         await enqueueRunDelivery(dbh, id);
       } catch (err) {
         console.error(`[jobs] run delivery could not be queued for closed run ${id}:`, err);
       }
+      // Spec 2026-10-24 email §3.1: a run this job closed failed tells its owners and admins (never throws).
+      await notifyRunFailed(dbh, id);
     }
   } catch (err) {
     console.error('[jobs] run delivery could not be queued for closed runs:', err);

@@ -25,6 +25,7 @@ import { startDriftCheck } from '../verify/run-drift-check.js';
 import { safeErrorMessage } from './plan-source.js';
 import { addRunCost, costSince } from './record-run-cost.js';
 import { enqueueRunDelivery } from '../delivery/run-delivery.js';
+import { notifyRunFailed } from '../email/run-failed.js';
 
 /**
  * The one decision `startExecution` wires into `executeRun`'s `onDone`:
@@ -94,7 +95,8 @@ export function buildOnDone(
  * and never touches the run's status either.
  *
  * After drift, a settled run's delivery (its file and webhook, spec 2026-10-24) is queued the same way —
- * logged and swallowed if it fails.
+ * logged and swallowed if it fails — and a failed run's email to its owners and admins (spec 2026-10-24 email) the
+ * same way.
  *
  * Pulled out and exported, mirroring `buildOnDone` above, so this is testable
  * with stubbed `finaliseRun`/`flagDrift`/`startDriftCheck` — no browser, no real DB.
@@ -109,12 +111,14 @@ export function buildFinalise(
     flagDrift?: typeof flagDrift;
     startDriftCheck?: typeof startDriftCheck;
     enqueueDelivery?: (db: typeof Database, runId: string) => Promise<unknown>;
+    notifyFailed?: (db: typeof Database, runId: string) => Promise<unknown>;
   } = {},
 ): ExecuteDeps['finalise'] {
   const doFinaliseRun = deps.finaliseRun ?? finaliseRun;
   const doFlagDrift = deps.flagDrift ?? flagDrift;
   const doStartDriftCheck = deps.startDriftCheck ?? startDriftCheck;
   const doEnqueueDelivery = deps.enqueueDelivery ?? enqueueRunDelivery;
+  const doNotifyFailed = deps.notifyFailed ?? notifyRunFailed;
 
   return async (_rowCount, cancelled, limitReached) => {
     const status = await doFinaliseRun(db, runId, cancelled, limitReached);
@@ -145,6 +149,10 @@ export function buildFinalise(
       } catch (err) {
         console.error(`[crawl] run delivery could not be queued for run ${runId}:`, err);
       }
+    }
+    // Spec 2026-10-24 email §3.1: a failed run tells the org's owners and admins. Its own catch, like delivery.
+    if (status === 'failed') {
+      await doNotifyFailed(db, runId).catch((err) => console.error(`[crawl] failed-run email could not be queued for run ${runId}:`, err));
     }
     return status;
   };
@@ -249,6 +257,8 @@ export async function startExecution(
       } catch (deliveryErr) {
         console.error(`[crawl] run delivery could not be queued for run ${runId}:`, deliveryErr);
       }
+      // Spec 2026-10-24 email §3.1: the owners and admins hear of it. Never throws.
+      await notifyRunFailed(db, runId);
     } catch (recoveryErr) {
       // If the DB is what broke, recording the failure will break the same
       // way — that must not become a second, uncaught throw. There's nothing

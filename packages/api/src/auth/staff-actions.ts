@@ -16,10 +16,12 @@ export type StaffDb = Database | Parameters<Parameters<Database['transaction']>[
 /**
  * `at` is `clock_timestamp()`, not the column's `now()` default: `now()` is the
  * transaction's start, so the "Stopped" and "Started" rows `ops.enterOrg` writes
- * in one transaction would tie and could list in either order.
+ * in one transaction would tie and could list in either order. Returns the row's
+ * id: `ops.enterOrg` keys its staff-access email on it (spec 2026-10-24 email §3.2).
  */
-export async function recordStaffAction(db: StaffDb, row: StaffActionRow): Promise<void> {
-  await db.insert(staffActions).values({ ...row, at: sql`clock_timestamp()` });
+export async function recordStaffAction(db: StaffDb, row: StaffActionRow): Promise<{ id: string }> {
+  const [inserted] = await db.insert(staffActions).values({ ...row, at: sql`clock_timestamp()` }).returning({ id: staffActions.id });
+  return { id: inserted!.id };
 }
 
 /**

@@ -10,6 +10,7 @@ import { latestDriftCheck } from '../verify/run-drift-check.js';
 import { opsRefreshes } from '../verify/attention.js';
 import { recordStaffAction, recordStaffStop } from '../auth/staff-actions.js';
 import { listStaffActivity } from '../auth/staff-activity.js';
+import { queueEmailsSafely } from '../email/queue-emails.js';
 import type { JevAgreement } from '../verify/jev-agreement.js';
 import { monthBounds } from './usage.js';
 
@@ -343,7 +344,10 @@ export const opsRouter = router({
         await recordStaffStop(tx, { ...actor, orgId: ctx.session.staffExpired.orgId, summary: 'Staff session ended after 8 hours' });
       }
       await tx.update(sessions).set({ staffOrgId: row.orgId, staffEnteredAt: new Date() }).where(eq(sessions.token, ctx.session.token));
-      await recordStaffAction(tx, { orgId: row.orgId, userId: ctx.session.user.id, actorEmail: ctx.session.user.email, action: 'ops.enterOrg', summary: 'Started working as staff', projectId: row.projectId, sourceId: input.sourceId });
+      const { id: staffActionId } = await recordStaffAction(tx, { orgId: row.orgId, userId: ctx.session.user.id, actorEmail: ctx.session.user.email, action: 'ops.enterOrg', summary: 'Started working as staff', projectId: row.projectId, sourceId: input.sourceId });
+      // Spec 2026-10-24 email §3.1, §4.5: the org's owners and admins hear that our team is working there — never the
+      // operator. In this transaction; a queueing failure is its own savepoint and never refuses the entry.
+      await queueEmailsSafely(tx, { kind: 'staff-access', staffActionId, orgId: row.orgId, actorUserId: ctx.session.user.id, sourceId: input.sourceId });
     });
     return out;
   }),

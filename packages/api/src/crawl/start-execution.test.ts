@@ -52,6 +52,14 @@ vi.mock('../browser-session.js', async (importOriginal) => {
   return { ...actual, withBrowserSession: vi.fn(async (fn: (browser: unknown) => Promise<unknown>) => fn({} as never)) };
 });
 
+// Spec 2026-10-24 email §3.1: the executor's catch tells the owners of a failed run — spied on, the real body kept.
+const { notifyRunFailedSpy } = vi.hoisted(() => ({ notifyRunFailedSpy: vi.fn() }));
+vi.mock('../email/run-failed.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../email/run-failed.js')>();
+  notifyRunFailedSpy.mockImplementation(actual.notifyRunFailed);
+  return { notifyRunFailed: notifyRunFailedSpy };
+});
+
 const { buildOnDone, buildFinalise, startExecution } = await import('./start-execution.js');
 
 const dummyItem: ClaimedItem = {
@@ -278,6 +286,26 @@ describe('buildFinalise', () => {
     expect(errors).toHaveBeenCalled();
     errors.mockRestore();
   });
+  it('a failed run tells its owners and admins (spec 2026-10-24 email §3.1); any other status does not', async () => {
+    const notifyFailed = vi.fn(async () => 1);
+    const finalise = (status: 'failed' | 'completed' | 'partial' | 'cancelled' | 'extracting') =>
+      buildFinalise({} as never, 'run-1', 'source-1', null, { finaliseRun: vi.fn(async () => status), enqueueDelivery: vi.fn(async () => null), notifyFailed });
+    expect(await finalise('failed')(0, false, false)).toBe('failed');
+    expect(notifyFailed).toHaveBeenCalledWith({}, 'run-1');
+    for (const s of ['completed', 'partial', 'cancelled', 'extracting'] as const) await finalise(s)(0, false, false);
+    expect(notifyFailed).toHaveBeenCalledTimes(1);
+  });
+
+  it('a notice that cannot be queued never changes the run’s status', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const finalise = buildFinalise({} as never, 'run-1', 'source-1', null, {
+      finaliseRun: vi.fn(async () => 'failed' as const), enqueueDelivery: vi.fn(async () => null), notifyFailed: vi.fn(async () => { throw new Error('db down'); }),
+    });
+    expect(await finalise(0, false, false)).toBe('failed');
+    expect(errors).toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
 });
 
 describe('startExecution — variant plan wiring', () => {
@@ -444,6 +472,8 @@ describe('startExecution — inside a run job (spec 2026-10-23 §4.4)', () => {
       await startExecution(runId, sourceId, [], undefined, { hooks: { aborted: () => false } });
       expect(await db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { status: true, resultCount: true } })).toEqual({ status: 'failed', resultCount: 2 });
       expect((await jobsOf('run-delivery')).find((j) => j.key === `run-delivery:${runId}`)).toMatchObject({ status: 'queued', payload: { runId } });
+      expect(notifyRunFailedSpy).toHaveBeenCalledWith(db, runId);
+
     } finally {
       errors.mockRestore();
       if (runId) await db.delete(jobs).where(eq(jobs.key, `run-delivery:${runId}`));
