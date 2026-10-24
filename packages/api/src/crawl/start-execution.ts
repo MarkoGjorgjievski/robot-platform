@@ -188,7 +188,8 @@ export async function startExecution(
       const runItemCap = HARD_ITEM_CEILING;
       const onDone = buildOnDone(db, opts?.mergeToParent, { variantPlan });
       // Spec 2026-10-23 run speed §3.4: one lean state per execution of a certified run; RUN_CAPTURE=full turns it off.
-      const lean = certification ? leanRunStateFromEnv() : undefined;
+      // A website with variants builds its rows from the capture, which no lean check compares: today's capture throughout (final review I1).
+      const lean = certification ? leanRunStateFromEnv(process.env, { variants: variantPlan != null }) : undefined;
 
       await executeRun(runId, {
         claim: (id) => claimNextItem(db, id),

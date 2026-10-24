@@ -9,7 +9,8 @@ export const LEAN_RESCUE_STREAK = 3;
 export const LEAN_CONFIRM_STREAK = 3;
 export const LEAN_FIRST_PATH_MS = 1_500;
 
-export type LeanReason = 'check' | 'miss' | 'unshown' | 'verdict' | 'switched' | 'off';
+/** `variants`: the website has a variant plan, so every item takes today's capture (final review I1: nothing compares the variant list a lean capture reads). */
+export type LeanReason = 'check' | 'miss' | 'unshown' | 'verdict' | 'switched' | 'off' | 'variants';
 type FallbackReason = 'check' | 'miss' | 'unshown' | 'verdict';
 /** What one item took — `captures.metadata.lean` (spec §3.5). `fields`: what triggered the fallback, or what a check item disagreed on. */
 export type LeanOutcome = { mode: 'lean' | 'full' | 'lean+full'; reason: LeanReason | null; fields: string[]; leanMs: number | null };
@@ -18,8 +19,8 @@ export type FieldReading = { key: string; value: unknown; shown: Shown; hasPaths
 
 export type LeanRunState = {
   mode: 'lean' | 'full';
-  /** Why the run takes the full capture: switched part-way, or turned off by RUN_CAPTURE=full. */
-  why: 'switched' | 'off' | null;
+  /** Why the run takes the full capture: switched part-way, turned off by RUN_CAPTURE=full, or a website with variants. */
+  why: 'switched' | 'off' | 'variants' | null;
   /** The one sentence for the log when switched. */
   note: string | null;
   checksLeft: number;
@@ -29,17 +30,18 @@ export type LeanRunState = {
   counts: { lean: number; leanFull: Record<FallbackReason, number>; full: number };
 };
 
-export function newLeanRunState(opts: { off?: boolean; checks?: number } = {}): LeanRunState {
+export function newLeanRunState(opts: { off?: boolean; variants?: boolean; checks?: number } = {}): LeanRunState {
   return {
-    mode: opts.off ? 'full' : 'lean', why: opts.off ? 'off' : null, note: null,
+    mode: opts.off || opts.variants ? 'full' : 'lean', why: opts.off ? 'off' : opts.variants ? 'variants' : null, note: null,
     checksLeft: opts.checks ?? LEAN_CHECK_ITEMS, rescueStreak: 0, confirmed: new Map(),
     counts: { lean: 0, leanFull: { check: 0, miss: 0, unshown: 0, verdict: 0 }, full: 0 },
   };
 }
 
-/** `RUN_CAPTURE=full` turns lean captures off for every run this process executes (the kill switch, spec §3.4). */
-export function leanRunStateFromEnv(env: Record<string, string | undefined> = process.env): LeanRunState {
-  return newLeanRunState({ off: (env.RUN_CAPTURE ?? '').trim().toLowerCase() === 'full' });
+/** `RUN_CAPTURE=full` turns lean captures off for every run this process executes (the kill switch, spec §3.4).
+ * `variants`: the website has a variant plan — its rows are built from the capture, so it runs today's capture throughout. */
+export function leanRunStateFromEnv(env: Record<string, string | undefined> = process.env, opts: { variants?: boolean } = {}): LeanRunState {
+  return newLeanRunState({ off: (env.RUN_CAPTURE ?? '').trim().toLowerCase() === 'full', variants: !!opts.variants });
 }
 
 const trusted = (s: LeanRunState, key: string) => (s.confirmed.get(key) ?? 0) >= LEAN_CONFIRM_STREAK;

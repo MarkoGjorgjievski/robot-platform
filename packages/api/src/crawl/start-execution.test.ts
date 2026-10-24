@@ -288,6 +288,23 @@ describe('startExecution — variant plan wiring', () => {
     expect(extractItemMock).toHaveBeenCalledWith(db, dummyItem, expect.objectContaining({ variantPlan: plan }));
   });
 
+  // Final review I1: a website with variants runs today's capture throughout; one without starts lean.
+  it('a certified run with a variant plan gets a lean state that is full from the start (variants); without one, lean', async () => {
+    const cert: Certification = { verificationId: 'v', completedAt: new Date(), paths: {}, concepts: {}, hostname: 'shop.example.com' };
+    const plan: VariantRunPlan = { method: 'links', collector: '//a/@href', entryPaths: {}, fromProduct: [], axes: [], fields: [] };
+    loadCurrentCertificationMock.mockResolvedValueOnce(cert);
+    loadVariantRunPlanMock.mockResolvedValueOnce(plan);
+    await startExecution(RUN_ID, SOURCE_ID, []);
+    await (executeRunMock.mock.calls[0]![1] as ExecuteDeps).extractItem(dummyItem);
+    expect(extractItemMock).toHaveBeenLastCalledWith(db, dummyItem, expect.objectContaining({ lean: expect.objectContaining({ mode: 'full', why: 'variants' }) }));
+
+    loadCurrentCertificationMock.mockResolvedValueOnce(cert);
+    loadVariantRunPlanMock.mockResolvedValueOnce(null);
+    await startExecution(RUN_ID, SOURCE_ID, []);
+    await (executeRunMock.mock.calls[1]![1] as ExecuteDeps).extractItem(dummyItem);
+    expect(extractItemMock).toHaveBeenLastCalledWith(db, dummyItem, expect.objectContaining({ lean: expect.objectContaining({ mode: 'lean', why: null }) }));
+  });
+
   it('passes a null variant plan through unchanged when the certification carries none', async () => {
     loadCurrentCertificationMock.mockResolvedValueOnce(null);
     loadVariantRunPlanMock.mockResolvedValueOnce(null);
