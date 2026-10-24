@@ -8,7 +8,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
 import { BROWSER_UNAVAILABLE } from '@robot/browser';
-import { SchemaAgent, snapshotUsage, diffUsage, estimateCostUsd, cappedAgent, capLedgerOf, type CapLedger, type ProposePathsAgent } from '@robot/agent';
+import { SchemaAgent, snapshotUsage, diffUsage, estimateCostUsd, cappedAgent, openCapLedger, type CapLedger, type ProposePathsAgent } from '@robot/agent';
 import {
   runVerification,
   CaptureProblemError,
@@ -37,7 +37,8 @@ import { decideHolds, writeHolds, type HoldPlan } from './holds.js';
 import { nextCheckAt } from './check-schedule.js';
 import { jobStopped } from '../jobs/context.js';
 import { syncAttentionSafely } from '../email/attention-sync.js';
-import { capStateForSource } from '../metering/cap-state.js';
+import { orgCapState, type CapState } from '../metering/cap-state.js';
+import { orgIdForSource } from '../export/org-for-export.js';
 
 /**
  * Strips ANSI escape codes (e.g. the dim/reset styling Playwright's own
@@ -187,15 +188,21 @@ export async function runSourceVerification(
     // Spec 2026-10-24 metering §2.3: the organisation's monthly AI limit, read before any AI. At the limit no model is
     // built — every call is refused before it is made, so a field that needs AI resolves `ai_unavailable` (the existing
     // badge and sentence); below it, each call is projected at the per-field estimate against what is left.
-    const cap = !opts.free && process.env.ANTHROPIC_API_KEY ? await capStateForSource(db, sourceId) : null;
-    const agent = cap
+    // The org's slot is taken before the remainder is read (review I1): a sibling job that records its cost and closes
+    // meanwhile is then in the read or counted by the slot, never in neither. A website with no org has no limit.
+    let cap: CapState | null = null;
+    if (!opts.free && process.env.ANTHROPIC_API_KEY) {
+      const orgId = await orgIdForSource(db, sourceId);
+      ledger = openCapLedger(orgId);
+      cap = orgId ? await orgCapState(db, orgId) : { capUsd: null, spentUsd: 0, remainingUsd: null, reached: false };
+    }
+    const agent = cap && ledger
       ? cappedAgent<ProposePathsAgent>(cap.reached ? NO_MODEL : new SchemaAgent(), {
         remainingUsd: cap.remainingUsd,
         perCallUsd: estAiCostPerFieldUsd(set.urls.length),
-        orgId: cap.orgId,
+        ledger,
       })
       : null;
-    ledger = agent ? capLedgerOf(agent) : undefined;
     const onProgress = (stage: string) =>
       void writeStage(db, verificationId, stage).catch((err) => console.error(`[verify] failed to record stage for ${verificationId}:`, err));
     const { run, variantResults, holdPlan } = await withBrowserSession(async (browser) => {

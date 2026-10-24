@@ -1,7 +1,7 @@
 // The monthly AI limit at the call (spec 2026-10-24 metering §2.3): calls × the estimate against what was left, before
 // the call is made; an org's open jobs in one process share what is left (§3.1).
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CapReachedError, capLedgerOf, cappedAgent, isCapReached, resetCapLedgers } from './capped-agent.js';
+import { CapReachedError, capLedgerOf, cappedAgent, capJobsOpen, isCapReached, openCapLedger, resetCapLedgers } from './capped-agent.js';
 
 afterEach(() => resetCapLedgers());
 const fake = () => ({ proposePaths: vi.fn(async (_text: string) => [] as unknown[]) });
@@ -88,5 +88,47 @@ describe('RF1: two jobs of one org share what is left', () => {
     // c starts after both recorded: the database says nothing is left, and closed jobs are not counted twice.
     await expect(cappedAgent(fake(), { remainingUsd: 0, perCallUsd: 0.18, orgId: 'org-1' }).proposePaths('1')).rejects.toBeInstanceOf(CapReachedError);
     await cappedAgent(fake(), { remainingUsd: 0.18, perCallUsd: 0.18, orgId: 'org-1' }).proposePaths('1');
+  });
+
+  it('RF1: a job that takes its slot before reading the database sees a sibling that records and closes during the read', async () => {
+    const a = cappedAgent(fake(), { remainingUsd: 0.54, perCallUsd: 0.18, orgId: 'org-1' });
+    await a.proposePaths('1');
+    const slot = openCapLedger('org-1'); // b takes its slot …
+    capLedgerOf(a)!.close();             // … a records its cost and closes while b's read is in flight …
+    const b = cappedAgent(fake(), { remainingUsd: 0.54, perCallUsd: 0.18, ledger: slot }); // … so b's remainder is stale
+    expect(capLedgerOf(b)).toBe(slot);
+    await b.proposePaths('1');
+    await b.proposePaths('2');
+    await expect(b.proposePaths('3')).rejects.toBeInstanceOf(CapReachedError); // a's call still counts
+  });
+
+  it('a slot refuses every call until an agent adopts it, takes the org from the slot, and is adopted once', async () => {
+    const slot = openCapLedger('org-1');
+    expect(() => slot.reserve()).toThrow(CapReachedError);
+    const b = cappedAgent(fake(), { remainingUsd: 0.18, perCallUsd: 0.18, orgId: 'org-2', ledger: slot });
+    await b.proposePaths('1');
+    // the slot's org (org-1), not the option's: org-1 has nothing left for a second job opened now
+    const c = cappedAgent(fake(), { remainingUsd: 0.18, perCallUsd: 0.18, orgId: 'org-1' });
+    await expect(c.proposePaths('1')).rejects.toBeInstanceOf(CapReachedError);
+    expect(() => cappedAgent(fake(), { remainingUsd: 1, perCallUsd: 0.18, ledger: slot })).toThrow(/once/);
+    expect(() => cappedAgent(fake(), { remainingUsd: 1, perCallUsd: 0.18, ledger: { calls: 0, refused: 0, projectedUsd: 0, reserve() {}, close() {} } })).toThrow(/openCapLedger/);
+  });
+
+  it('a slot closed without an agent (the read failed) leaves nothing behind', () => {
+    openCapLedger('org-9').close();
+    expect(capJobsOpen()).toBe(0);
+  });
+
+  it('many orgs and jobs leave nothing behind once each job closes; a closed job stays only while an older one is open', async () => {
+    const old = cappedAgent(fake(), { remainingUsd: 1, perCallUsd: 0.18, orgId: 'org-0' });
+    for (let i = 0; i < 500; i++) {
+      const j = cappedAgent(fake(), { remainingUsd: 1, perCallUsd: 0.18, orgId: `org-${i % 50}` });
+      await j.proposePaths('x');
+      capLedgerOf(j)!.close();
+    }
+    expect(capJobsOpen()).toBeGreaterThan(1); // org-0's closed jobs are kept: `old` started before they closed
+    capLedgerOf(old)!.close();
+    capLedgerOf(old)!.close(); // twice is harmless
+    expect(capJobsOpen()).toBe(0);
   });
 });
