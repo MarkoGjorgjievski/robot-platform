@@ -238,3 +238,16 @@ describe('a run closed by the job layer delivers like a finalised one (final rev
     } finally { await f.cleanup(); }
   });
 });
+
+describe('deliverRun re-checks the run when the job runs (task 6 review M3)', () => {
+  it.each([['extracting', 2], ['failed', 0]] as const)('a run that is %s with %s rows by then finishes without files or a post', async (status, resultCount) => {
+    const f = await websiteWithRun(`recheck-${status}`, { webhook: true });
+    try {
+      await db.update(runs).set({ status, resultCount }).where(eq(runs.id, f.runId));
+      expect(await deliverRun({ runId: f.runId, deliveryId: DELIVERY }, { attempt: 1 }, { env: ENV })).toEqual({ files: false, delivered: null });
+      expect(receiver.hits).toHaveLength(0);
+      expect(await db.select().from(runFiles).where(eq(runFiles.runId, f.runId))).toEqual([]);
+      expect(await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.runId, f.runId))).toEqual([]);
+    } finally { await f.cleanup(); }
+  });
+});
