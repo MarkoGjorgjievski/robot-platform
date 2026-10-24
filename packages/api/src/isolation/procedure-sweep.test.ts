@@ -56,7 +56,7 @@ function ghostOf(f: OrgFixture): OrgFixture {
     projectId: id(), projectSlug: `${g}-project`, projectName: g, datasetId: id(),
     sourceId: id(), sourceSlug: `${g}-site`, sourceName: g, host, urls: f.urls.map((_, i) => `https://${host}/p/${i + 1}`),
     keys: { title: `${g}_title`, price: `${g}_price` }, axisKey: `${g}_axis`,
-    runId: id(), itemIds: f.itemIds.map(id), runCaptureId: id(), captureId: id(), tileFile: `${g}.png`,
+    runId: id(), itemIds: f.itemIds.map(id), runCaptureId: id(), extractionId: id(), captureId: id(), tileFile: `${g}.png`,
     verificationId: id(), driftCheckId: id(), coverageCheckId: id(), jevReadingId: id(),
   };
 }

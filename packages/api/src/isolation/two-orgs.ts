@@ -32,7 +32,7 @@ export type OrgFixture = {
   projectId: string; projectSlug: string; projectName: string; datasetId: string;
   sourceId: string; sourceSlug: string; sourceName: string; host: string; urls: string[];
   keys: { title: string; price: string }; axisKey: string;
-  runId: string; itemIds: string[]; runCaptureId: string;
+  runId: string; itemIds: string[]; runCaptureId: string; extractionId: string;
   captureId: string; tileFile: string;
   verificationId: string; driftCheckId: string; coverageCheckId: string; jevReadingId: string;
   staffActionId: string; staffEmail: string; emailMessageId: string; webhookSecret: string;
@@ -135,7 +135,7 @@ async function buildOrg(tag: string, dir: string, made: Made): Promise<OrgFixtur
     projectId: site.projectId, projectSlug: site.projectSlug, projectName: `Test ${tag}`, datasetId: site.datasetId,
     sourceId: site.sourceId, sourceSlug: site.sourceSlug, sourceName: `Site ${tag}`, host, urls,
     keys, axisKey: axis.key,
-    runId: run!.id, itemIds: items.map((i) => i.id), runCaptureId: runCapture!.id,
+    runId: run!.id, itemIds: items.map((i) => i.id), runCaptureId: runCapture!.id, extractionId: extraction!.id,
     captureId: capture!.id, tileFile,
     verificationId, driftCheckId, coverageCheckId: coverage!.id, jevReadingId: readingId,
     staffActionId: action!.id, staffEmail, emailMessageId: mail!.id, webhookSecret,
@@ -177,9 +177,9 @@ export async function buildTwoOrgs(opts: { tag: string; capturesDir?: string }):
 /** Everything that names `f`: what another org's answer must never contain. */
 export function needlesOf(f: OrgFixture): string[] {
   return [
-    f.org.id, f.org.slug, f.org.name, f.owner.user.id, f.owner.user.email, f.member.id, f.member.email,
+    f.tag, f.org.id, f.org.slug, f.org.name, f.owner.user.id, f.owner.user.email, f.member.id, f.member.email,
     f.projectId, f.projectSlug, f.projectName, f.datasetId, f.sourceId, f.sourceSlug, f.sourceName, f.host,
-    f.runId, ...f.itemIds, f.runCaptureId, f.captureId, f.tileFile, f.verificationId, f.driftCheckId, f.coverageCheckId,
+    f.runId, ...f.itemIds, f.runCaptureId, f.extractionId, f.captureId, f.tileFile, f.verificationId, f.driftCheckId, f.coverageCheckId,
     f.jevReadingId, f.staffActionId, f.staffEmail, f.emailMessageId, f.webhookSecret,
   ];
 }
