@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./routers": "./src/routers/index.ts",
     "./export": "./src/export/index.ts",
+    "./delivery": "./src/delivery/index.ts",
     "./auth": "./src/auth/session.ts",
     "./website-checks": "./src/verify/website-checks.ts",
     "./verify/current-certification": "./src/verify/current-certification.ts",
