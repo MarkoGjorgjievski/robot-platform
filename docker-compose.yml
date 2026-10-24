@@ -77,6 +77,9 @@ services:
       WORKER_BROWSERS: ${STACK_WORKER_BROWSERS:-2}
       WORKER_MIN_FREE_MB: ${STACK_WORKER_MIN_FREE_MB:-512}
       WORKER_NAME: stack-worker
+      # Webhook download links point at this stack's api-server, not the default :4000 of `pnpm dev:all`
+      # (spec 2026-10-24 ruling 13). Scheduled runs (RECURRING_RUNS) stay on, the default.
+      PUBLIC_API_URL: http://127.0.0.1:${STACK_API_PORT:-4200}
     volumes:
       - captures:/repo/packages/api-server/public/captures
     # Chromium needs more than Docker's 64 MB /dev/shm.
