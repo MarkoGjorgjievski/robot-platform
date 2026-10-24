@@ -49,6 +49,10 @@ describe('two throwaway organisations (spec 2026-10-24 tenant isolation §2.1)',
       for (const n of needlesOf(t.b)) expect(aRows.includes(n), `B's ${n} is in A's rows`).toBe(false);
       for (const n of needlesOf(t.a)) expect(bRows.includes(n), `A's ${n} is in B's rows`).toBe(false);
       for (const n of needlesOf(t.b)) expect(bRows.includes(n), `B's ${n} is not in B's own rows`).toBe(true);
+      // The tag is in every name B's rows carry (its files' names among them), and the extraction is B's data.
+      for (const f of [t.a, t.b]) expect(needlesOf(f)).toEqual(expect.arrayContaining([f.tag, f.extractionId]));
+      // Field keys are minted from field names, so both orgs' are the same words: they are not needles.
+      expect(t.a.keys).toEqual(t.b.keys);
       expect(await snapshotOrg(t.b)).toBe(bRows);
       // Built without queueing any work.
       expect(await queuedJobCount()).toBe(jobsBefore);
