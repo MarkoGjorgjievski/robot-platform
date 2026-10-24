@@ -10,20 +10,24 @@ import '@robot/db';
 
 const BASE = process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:5432/robot_platform';
 
-async function benchDatabases(): Promise<string[]> {
+// Only this test's own database is checked and dropped: a bench running at the same time keeps its own.
+async function onAdmin<T>(fn: (sql: postgres.Sql) => Promise<T>): Promise<T> {
   const sql = postgres(databaseUrl(BASE, 'postgres'), { max: 1, onnotice: () => {} });
-  try { return (await sql<{ datname: string }[]>`SELECT datname FROM pg_database WHERE datname LIKE 'robot_bench_%'`).map((r) => r.datname); } finally { await sql.end(); }
+  try { return await fn(sql); } finally { await sql.end(); }
 }
+const exists = (name: string) => onAdmin(async (sql) => (await sql`SELECT 1 FROM pg_database WHERE datname = ${name}`).length > 0);
 
 describe('createBenchDatabase', () => {
   it('drops the database it created when the migration fails', async () => {
     const empty = mkdtempSync(join(tmpdir(), 'bench-no-migrations-'));
-    const before = new Set(await benchDatabases());
+    // Not a number after the prefix, so another bench's six-hour sweep never touches it.
+    const name = `robot_bench_test_${process.pid}_${Date.now()}`;
     try {
-      await expect(createBenchDatabase(BASE, { migrationsFolder: empty })).rejects.toThrow();
-      expect((await benchDatabases()).filter((d) => !before.has(d))).toEqual([]);
+      await expect(createBenchDatabase(BASE, { migrationsFolder: empty, name })).rejects.toThrow();
+      expect(await exists(name)).toBe(false);
     } finally {
       rmSync(empty, { recursive: true, force: true });
+      await onAdmin(async (sql) => { await sql.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`); });
     }
   });
 });
