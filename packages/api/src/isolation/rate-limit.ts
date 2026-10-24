@@ -65,7 +65,7 @@ export class RateLimiter {
   private readonly windowMs: number;
   private readonly maxKeys: number;
   private readonly clock: () => number;
-  private readonly windows = new Map<string, { start: number; count: number }>();
+  private readonly windows = new Map<string, { start: number; count: number; refusalLogged?: boolean }>();
   private lastPrune: number;
 
   constructor(opts: { limits?: RateLimits; windowMs?: number; maxKeys?: number; now?: () => number } = {}) {
@@ -107,6 +107,20 @@ export class RateLimiter {
     }
   }
 
+  /** After a refused `take`: true when a full key among `keys` is refused for the first time in its window, so the
+   *  caller logs one line per key per window, never one per refused call. */
+  firstRefusal(keys: RateKey[]): boolean {
+    const now = this.clock();
+    let first = false;
+    for (const k of keys) {
+      const w = this.windows.get(k.key);
+      if (!w || now - w.start >= this.windowMs || w.count < k.limit || w.refusalLogged) continue;
+      w.refusalLogged = true;
+      first = true;
+    }
+    return first;
+  }
+
   prune(): void {
     const now = this.clock();
     for (const [key, w] of this.windows) if (now - w.start >= this.windowMs) this.windows.delete(key);
@@ -131,12 +145,14 @@ export function rateLimitsOn(env: Record<string, string | undefined> = process.e
   return (env.RATE_LIMITS ?? '').trim().toLowerCase() !== 'off';
 }
 
-/** The middleware's body: counts the call, or refuses it with the customer sentence. The log line names the procedure
- *  and its group, never the email or the address. */
+/** The middleware's body: counts the call, or refuses it with the customer sentence. One log line per refused key per
+ *  window (a flood writes one line, not one per call); it names the procedure and its group, never the email or the
+ *  address. */
 export async function enforceRateLimit(path: string, who: RateCaller, getRawInput: () => Promise<unknown>): Promise<void> {
   if (!rateLimitsOn()) return;
   const raw = groupOf(path) === 'sign-in' ? await getRawInput().catch(() => undefined) : undefined;
-  if (limiter.take(rateKeys(path, who, raw, limiter.limits))) return;
-  console.warn(`[rate-limit] refused ${path} (${groupOf(path)})`);
+  const keys = rateKeys(path, who, raw, limiter.limits);
+  if (limiter.take(keys)) return;
+  if (limiter.firstRefusal(keys)) console.warn(`[rate-limit] refused ${path} (${groupOf(path)})`);
   throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: RATE_LIMITED_MESSAGE });
 }
