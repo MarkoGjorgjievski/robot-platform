@@ -1,6 +1,6 @@
 // Spec 2026-10-24 §3.2, §4.1–4.3. DB-backed against the shared dev database: every sweep passes `only` (a bare
 // sweep would claim real websites), and a website is made due right before the sweep that claims it.
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { db, runs, sources } from '@robot/db';
 import type { CertifiedPath } from '@robot/scraper';
@@ -9,7 +9,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { seedPassingVerification } from '../test-helpers/seed-coverage-check.js';
 import { jobsOf } from '../test-helpers/jobs.js';
 import { JOB_POLICIES } from '../jobs/types.js';
-import { recurringRunsEnabled, sweepDueSchedules } from './sweep.js';
+import { recurringRunsEnabled, startScheduledRun, sweepDueSchedules } from './sweep.js';
 import { SCHEDULED_LABEL } from './schedule.js';
 
 const me = await signedInCaller('recurring-sweep');
@@ -121,6 +121,25 @@ describe('sweepDueSchedules', () => {
       expect(first.map((o) => o.sourceId)).toEqual([a.sourceId]);
       expect((await sweepDueSchedules({ only: [a.sourceId, b.sourceId] })).map((o) => o.sourceId)).toEqual([b.sourceId]);
     } finally { await a.cleanup(); await b.cleanup(); }
+  });
+
+  it('a website whose start throws is logged and moved on; the next due website still starts (fix round 1)', async () => {
+    const a = await scheduled('throws-a', { agoMs: 120_000 });
+    const b = await scheduled('throws-b', { agoMs: 60_000 });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const startRun: typeof startScheduledRun = async (tx, sourceId, at) => {
+        if (sourceId === a.sourceId) throw new Error('enqueue failed');
+        return startScheduledRun(tx, sourceId, at);
+      };
+      const out = await sweepDueSchedules({ only: [a.sourceId, b.sourceId], startRun });
+      expect(out.map((o) => [o.sourceId, o.outcome])).toEqual([[a.sourceId, 'skipped'], [b.sourceId, 'started']]);
+      expect(errors).toHaveBeenCalled();
+      expect(await scheduledRuns(a.sourceId)).toEqual([]);
+      expect(await scheduledRuns(b.sourceId)).toHaveLength(1);
+      expect((await sourceRow(a.sourceId)).nextRunAt!.getTime()).toBeGreaterThan(Date.now());
+      expect(await sweepDueSchedules({ only: [a.sourceId] })).toEqual([]);
+    } finally { errors.mockRestore(); await a.cleanup(); await b.cleanup(); }
   });
 
   it('an empty only claims nothing', async () => {
