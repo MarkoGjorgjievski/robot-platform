@@ -4,6 +4,8 @@ import { orgs, projects, runs, sources, staffActions, users, type Database } fro
 
 export type StaffEntry = {
   id: string; at: Date;
+  /** The procedure the row logs — for staff, and for rewording the customer's answer; never sent to a customer. */
+  action: string;
   actor: { name: string | null; email: string };
   org: { id: string; name: string };
   project: { id: string; name: string } | null;
@@ -25,7 +27,7 @@ export async function listStaffActivity(
 
   const [rows, [{ n }]] = await Promise.all([
     db.select({
-      id: staffActions.id, at: staffActions.at, summary: staffActions.summary, actorEmail: staffActions.actorEmail,
+      id: staffActions.id, at: staffActions.at, action: staffActions.action, summary: staffActions.summary, actorEmail: staffActions.actorEmail,
       userName: users.name, orgId: orgs.id, orgName: orgs.name,
       projectId: projects.id, projectName: projects.name, sourceId: sources.id, sourceName: sources.name,
       runId: runs.id, runCost: runs.costUsd,
@@ -46,7 +48,7 @@ export async function listStaffActivity(
   return {
     total: Number(n),
     entries: rows.map((r) => ({
-      id: r.id, at: r.at, summary: r.summary,
+      id: r.id, at: r.at, action: r.action, summary: r.summary,
       actor: { name: r.userName ?? null, email: r.actorEmail },
       org: { id: r.orgId, name: r.orgName },
       project: r.projectId ? { id: r.projectId, name: r.projectName! } : null,

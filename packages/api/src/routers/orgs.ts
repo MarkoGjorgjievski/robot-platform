@@ -7,9 +7,11 @@ import { slugify, uniqueSlug } from '../slug.js';
 import { listStaffActivity, type StaffEntry } from '../auth/staff-activity.js';
 import { queueEmailsSafely } from '../email/queue-emails.js';
 import { viewerSeesMoney } from '../isolation/money.js';
+import { CUSTOMER_SUMMARIES } from '../auth/staff-actions.js';
 
-/** A staff-activity entry as a customer reads it (spec 2026-10-24 tenant isolation §2.3): which run, never its cost. */
-export type CustomerStaffEntry = Omit<StaffEntry, 'run'> & { run: { id: string; costUsd?: number } | null };
+/** A staff-activity entry as a customer reads it (spec 2026-10-24 tenant isolation §2.3): which run, never its cost;
+ *  no procedure name, and a staff-only sentence reworded (spec 2026-10-24 metering §3.3). */
+export type CustomerStaffEntry = Omit<StaffEntry, 'run' | 'action'> & { run: { id: string; costUsd?: number } | null };
 
 /** Organisations and who is in them (spec 2026-09-21 §2). Every procedure acts on the session's current org. */
 export const orgsRouter = router({
@@ -108,6 +110,27 @@ export const orgsRouter = router({
     .query(async ({ ctx, input }): Promise<{ entries: CustomerStaffEntry[]; total: number }> => {
       const page = await listStaffActivity(ctx.db, { orgId: ctx.session.org.id }, { offset: input.page * 20, limit: 20 });
       if (viewerSeesMoney(ctx)) return page;
-      return { ...page, entries: page.entries.map((e) => ({ ...e, run: e.run ? { id: e.run.id } : null })) };
+      // A staff-only sentence (the monthly AI limit's amount) reads as a plain change to a customer (spec 2026-10-24
+      // metering §3.3), and the procedure name stays ours.
+      return {
+        ...page,
+        entries: page.entries.map(({ action, ...e }) => ({ ...e, summary: CUSTOMER_SUMMARIES[action] ?? e.summary, run: e.run ? { id: e.run.id } : null })),
+      };
+    }),
+
+  /**
+   * The organisation's monthly AI limit (spec 2026-10-24 metering §2.2): staff only — an operator in their own org, or
+   * staff working in a customer's (a staff session's user is an operator). `null` goes back to the default
+   * (`ORG_AI_CAP_USD`). In staff mode the middleware logs it in staff words; a customer reads it reworded.
+   */
+  setAiCap: protectedProcedure
+    .input(z.object({ capUsd: z.number().finite().min(0).max(1_000_000).nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.isOperator) throw new TRPCError({ code: 'FORBIDDEN', message: 'Operators only' });
+      const capUsd = input.capUsd === null ? null : Math.round(input.capUsd * 100) / 100;
+      await ctx.db.update(orgs)
+        .set({ aiCapUsd: capUsd === null ? null : capUsd.toFixed(2), updatedAt: new Date() })
+        .where(eq(orgs.id, ctx.session.org.id));
+      return { capUsd };
     }),
 });
