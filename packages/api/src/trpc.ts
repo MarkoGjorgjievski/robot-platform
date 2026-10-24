@@ -4,6 +4,7 @@ import type { Database, MembershipRole, UserTheme } from '@robot/db';
 import { STAFF_BLOCKED_MESSAGE, STAFF_SESSION_ENDED_MESSAGE, isRefusedAfterStaffExpiry, isStaffBlocked } from './auth/staff-guard.js';
 import { beforeStaffMutation, logStaffMutation } from './auth/staff-actions.js';
 import { VerifyRefusal } from './verify/verify-refusal.js';
+import { enforceRateLimit } from './isolation/rate-limit.js';
 
 export type SessionInfo = {
   token: string;
@@ -20,6 +21,9 @@ export type SessionInfo = {
 export type Context = {
   db: Database;
   session: SessionInfo | null;
+  /** The caller's address, for the sign-in rate limit (spec 2026-10-24 tenant isolation §2.4): the api-server's socket
+   *  address, or `X-Forwarded-For`'s last entry with `TRUST_PROXY=on`. A test caller may omit it ("unknown"). */
+  clientIp?: string;
   setCookie?: (name: string, value: string, opts: { maxAge: number }) => void;
   clearCookie?: (name: string) => void;
 };
@@ -61,7 +65,14 @@ const withOperatorFlag = t.middleware(({ ctx, next }) =>
   next({ ctx: { ...ctx, isOperator: isOperatorEmail(ctx.session?.user.email) } })
 );
 
-export const publicProcedure = t.procedure.use(withOperatorFlag);
+/** Rate limits (spec 2026-10-24 tenant isolation §2.4), on every procedure — before the session check, so a flood with
+ *  no session counts against its address. */
+const withRateLimit = t.middleware(async ({ ctx, path, getRawInput, next }) => {
+  await enforceRateLimit(path, ctx, getRawInput);
+  return next();
+});
+
+export const publicProcedure = t.procedure.use(withOperatorFlag).use(withRateLimit);
 
 /** A procedure that needs a signed-in user; `ctx.session` is non-null inside.
  * Staff working inside a customer org (spec 2026-10-07) are refused the deny-listed paths;
