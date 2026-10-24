@@ -305,6 +305,22 @@ describe('startExecution — variant plan wiring', () => {
     expect(extractItemMock).toHaveBeenLastCalledWith(db, dummyItem, expect.objectContaining({ lean: expect.objectContaining({ mode: 'lean', why: null }) }));
   });
 
+  it('logs the run\'s lean summary even when the loop throws', async () => {
+    const cert: Certification = { verificationId: 'v', completedAt: new Date(), paths: {}, concepts: {}, hostname: 'shop.example.com' };
+    loadCurrentCertificationMock.mockResolvedValueOnce(cert);
+    loadVariantRunPlanMock.mockResolvedValueOnce(null);
+    executeRunMock.mockImplementationOnce(async () => { throw new Error('boom'); });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await startExecution(RUN_ID, SOURCE_ID, []);
+      expect(log).toHaveBeenCalledWith(`[crawl] run ${RUN_ID}: lean 0, lean+full 0 (check 0, miss 0, unshown 0, verdict 0), full 0`);
+    } finally {
+      log.mockRestore();
+      err.mockRestore();
+    }
+  });
+
   it('passes a null variant plan through unchanged when the certification carries none', async () => {
     loadCurrentCertificationMock.mockResolvedValueOnce(null);
     loadVariantRunPlanMock.mockResolvedValueOnce(null);
