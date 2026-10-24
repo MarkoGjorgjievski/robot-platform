@@ -5,10 +5,15 @@
 // browser — the route and the table only call these and render/save what
 // comes back.
 //
-// The app never imports `@robot/scraper`/`@robot/api`, so the shapes read
+// The app never imports `@robot/api` or `@robot/scraper`'s engine (only its pure
+// entries, like /customer-copy), so the shapes read
 // here are re-declared, narrowed to what these functions need.
 import { captureWords } from '../capture-words';
+import { formatDMMM, joinList } from '@robot/scraper/customer-copy';
 import { answer, type Board, type Mark } from './verification-model';
+
+// Shared with the emails (spec 2026-10-24 email §3.1); every importer of drift-view keeps its names.
+export { formatDMMM, joinList };
 
 /** `sources.checkDrift`'s row, narrowed to what the banner reads. `results` is
  *  null until the check is `done` — `emptyShare` is what carries percentages
@@ -24,20 +29,6 @@ export function driftBadge(driftedFields: string[] | null): string | null {
   if (!driftedFields || driftedFields.length === 0) return null;
   const n = driftedFields.length;
   return n === 1 ? '1 field stopped extracting' : `${n} fields stopped extracting`;
-}
-
-/** "a", "a and b", "a, b and c" — no Oxford comma (matches the badge's own field list). */
-export function joinList(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? '';
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** `d MMM`, e.g. "26 Sep" — locale-free, like the rest of the app's dates. */
-export function formatDMMM(d: Date): string {
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
 /**

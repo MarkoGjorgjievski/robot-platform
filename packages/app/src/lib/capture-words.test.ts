@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 // imports nothing from @robot/browser.
 import { verdictSentence } from '../../../browser/src/verdict-copy';
 import { BLOCKED_SENTENCE, PAGE_NOT_READ_SENTENCE, captureWords } from './capture-words';
+import * as shared from '@robot/scraper/customer-copy';
 
 const HOSTS = ['https://www.shop.example/p/1', 'https://scan.co.uk/c/gpu', 'http://localhost:4321/blocked', 'not a url'];
 const VENDORS = ['cloudflare', 'akamai', 'perimeterx', 'datadome', 'aws-waf', 'unknown', undefined] as const;
@@ -82,5 +83,13 @@ describe('captureWords (spec 2026-10-21 §3)', () => {
     expect(captureWords('Extract stopped. Every page was saved.')).toBe('Extract stopped. Every page was saved.');
     // The planning wrapper with no recorded reason is our own sentence.
     expect(captureWords('This run failed while planning: no reason was recorded')).toBe('This run failed while planning: no reason was recorded');
+  });
+});
+
+describe('one captureWords for the app and the emails (spec 2026-10-24 email §3.1)', () => {
+  it('the app re-exports the shared function, so an email rewords a stored sentence exactly as the app does', () => {
+    expect(captureWords).toBe(shared.captureWords);
+    expect(PAGE_NOT_READ_SENTENCE).toBe(shared.PAGE_NOT_READ_SENTENCE);
+    expect(BLOCKED_SENTENCE).toBe(shared.BLOCKED_SENTENCE);
   });
 });
