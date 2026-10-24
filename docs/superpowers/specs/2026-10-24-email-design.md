@@ -1,8 +1,25 @@
 # Email, with a local catcher — design
 
-**Status:** written 2026-10-24 under the standing approval (`CLAUDE.md`, "Autonomous runs"; `docs/queue.md` item 1,
+**Status:** implemented on `feat/email` and merged to `main` on 2026-10-24 (`35fcfc3e`); written 2026-10-24 under the standing approval (`CLAUDE.md`, "Autonomous runs"; `docs/queue.md` item 1,
 "Email, with a local catcher"). Plan: `docs/superpowers/plans/2026-10-24-email.md`. Branch `feat/email` from `main` @
 `310371e1`, worktree `C:\Users\Marko\Documents\projects\robot-platform-email`.
+
+**Proven:** the live check (`docs/testing/results/2026-10-24-email/live-email.md`, re-run on the final head) — each of
+the five messages through its real path into a throwaway Mailpit: eight messages, each to the right person once, with its
+link in text and HTML; the repeats (a second check, the same failed run again, entering again, the same role twice, a
+second removal) sent nothing; nothing reached the operator or an outsider; no message named the shop's host. Tests: db 33,
+scraper 1,314, api 1,680, worker 18, app 1,096, api-server 74, tsc clean; the route smoke on the isolated pair (28 of 28),
+its Account screenshots showing the Email panel in both themes.
+
+**Deviations and settled here** (reviews, 2026-10-24): an email is sent only while its recipient may still get it — at
+send time attention and failed-run messages need an owner or admin with that switch on, staff access an owner or admin,
+a role change any member; otherwise the row is `skipped` with the reason (a removal always sends); the attention sync
+only reads whether a Verify is in flight and never closes a stalled Verify row; one sync per website at a time, under its
+row lock; a queueing failure logs one line (the database message and code, never the query or its values); a role change
+reads the current role under the membership row lock. Mailpit (§3.5) keeps its messages in a file inside its container,
+not in memory: they survive a restart and go when the container is recreated; nothing reaches the host. A real provider
+must use `smtps://…:465` or `smtp://…:587?requireTLS=true` — never `tls.rejectUnauthorized=false` — and not before
+real sign-in (anyone can sign in as any address today).
 
 ## 1. Why
 

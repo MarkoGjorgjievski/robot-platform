@@ -35,9 +35,11 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Recurring extraction (2026-10-24)](#recurring-extraction-2026-10-24).** A website can run on a weekly schedule and post a signed webhook with download links when a run finishes. Merged 2026-10-24.
+**Newest: [Email (2026-10-24)](#email-2026-10-24).** Owners and admins get an email when a website needs attention or a run fails; account messages go out when staff enter, a role changes or someone is removed. Merged 2026-10-24.
 
-**Before it: [Run speed (2026-10-23)](#run-speed-2026-10-23).** Certified runs capture lean with today's capture as the fallback; page starts per host 2 s apart; several websites at once when `WORKER_RUNS` is raised. Measured 1.6× faster per 1,000 pages one website at a time, 8.1× at six, with the same values. Merged 2026-10-24.
+**Before it: [Recurring extraction (2026-10-24)](#recurring-extraction-2026-10-24).** A website can run on a weekly schedule and post a signed webhook with download links when a run finishes. Merged 2026-10-24.
+
+**Before that: [Run speed (2026-10-23)](#run-speed-2026-10-23).** Certified runs capture lean with today's capture as the fallback; page starts per host 2 s apart; several websites at once when `WORKER_RUNS` is raised. Measured 1.6× faster per 1,000 pages one website at a time, 8.1× at six, with the same values. Merged 2026-10-24.
 
 **Before it: [The whole stack in Docker Compose (2026-10-23)](#the-whole-stack-in-docker-compose-2026-10-23).** `docker compose up -d --build` runs Postgres, migrations, api, worker, app and a nightly backup as project `robot-stack` on :3200/:4200/:5442, keyless; a restore test proves a dump comes back whole.
 
@@ -118,6 +120,60 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Email (2026-10-24)
+
+Spec `docs/superpowers/specs/2026-10-24-email-design.md`, plan `docs/superpowers/plans/2026-10-24-email.md`, live check
+`docs/testing/results/2026-10-24-email/live-email.md`.
+
+**What changed.**
+- *The five messages.* "<website> needs your attention" and "A run of <website> failed" go to the org's owners and
+  admins (members get neither); "Our team is working in your organisation" goes to owners and admins when staff enter
+  (never to the operator); "Your role in <org> changed" to that person; "You were removed from <org>" to the former
+  member. `partial`, `cancelled` and sample runs send nothing.
+- *Once per event.* A website's turn to "Needs attention" is stored in `sources.attention_since`; `syncAttention`
+  claims it `WHERE attention_since IS NULL` under the website's row lock, after every Verify, finished check,
+  `updateBinding` and field edit (a check that started a refresh's re-verify leaves it to that re-verify), and resets
+  it when attention clears. Every message has a unique dedupe key and every insert is `ON CONFLICT DO NOTHING`.
+- *Queueing and the job.* One `email_messages` row per recipient and one `email` job each (background lane, priority
+  25, five attempts). The worker sends with nodemailer over `SMTP_URL` (15 s limits); with mail off the row is
+  `skipped`. At send time it checks the recipient may still get it (role, membership, the Account switch); otherwise
+  `skipped` with the reason. Callers use never-throwing wrappers (`queueEmailsSafely`, `syncAttentionSafely`,
+  `notifyRunFailed`): queueing never fails what caused it.
+- *The Account panel.* "Email" between Profile and Appearance: "When a website needs attention" and "When a run fails",
+  both on by default, saved on change; "Account messages are always sent."
+- *The catcher.* Locally a Mailpit container (one-liner in `CLAUDE.md` and `.env.example`); the Compose stack has
+  its own Mailpit (UI http://127.0.0.1:8225, SMTP not published; messages in a file inside the container). A provider is
+  `SMTP_URL` + a verified `MAIL_FROM`, over `smtps://…:465` or `smtp://…:587?requireTLS=true`, never
+  `tls.rejectUnauthorized=false`.
+
+**How it was proven.** The live check (its own Mailpit, a throwaway database, the fixture shop, an in-process worker),
+re-run on the final head: eight messages, each to the right person once, with its link in text and HTML; every repeat
+sent nothing; nothing to the operator or an outsider; no shop host in any body; all eight rows `sent`
+(`live-email.json`). Tests: db 33, scraper 1,314, api 1,680, worker 18, app 1,096, api-server 74, tsc clean. The route
+smoke on the isolated pair (28 of 28); its Account screenshots show the Email panel in both themes. Reviews: per task
+and a whole-branch review (0 Critical, 0 Important; four Minors fixed — read-only in-flight check, send-time recheck,
+one-line queueing log, role read under lock).
+
+**After pulling.** `pnpm install` (nodemailer is new); `pnpm db:migrate` (migration 0022); restart `pnpm dev:all`.
+Mail stays off until `SMTP_URL` is set — run the Mailpit one-liner to see it. Any other worker or api-server on the
+dev database (the isolated smoke pair) sets `SMTP_URL=`.
+
+**What NOT to redo.** Never queue inside the transaction whose rows `syncAttention` reads — call it after the commit;
+never sync at the end of a check that started a refresh's re-verify; never resend a row that is not `queued`; a
+removal is queued before its delete; every caller uses the never-throwing wrappers; tests keep `SMTP_URL` empty; the
+sync never writes a Verify row.
+
+**Open.** Spec §8 (sign-in links, digests, per-website recipients, staff emails and an ops view of email, unsubscribe by
+link, bounces, a "back to normal" email). A website that already needed attention when this shipped sends one email at
+its next sync (only with `SMTP_URL` set). Links name `PUBLIC_APP_URL`, which must be where customers open the app.
+Links carry no organisation: someone in two orgs whose session is in the other one lands there (follow-up: an
+org-switching link). A job that dies on its fifth attempt without an answer leaves its row `queued`. Emails wait
+behind queued background work (priority 25). The dev-database CLIs (`packages/worker/src/live-check.ts`,
+`packages/api/src/crawl-execute.ts`, `packages/api/src/scripts/reverify-one-source.ts`) start job runners that send
+email through `.env`'s `SMTP_URL` — safe only while `.env` has none or names a local Mailpit. A failed run's stored
+sentence can be raw error text the copy filter misses; the email carries it as the run page shows it. The route smoke
+leaves one `skipped` attention row in its throwaway org (mail is off on the pair).
 
 ## Recurring extraction (2026-10-24)
 

@@ -7,14 +7,13 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Email, with a local catcher** — SMTP sending (Mailpit in Docker for local) for "Needs attention", failed runs and account messages. *Done when:* each message is sent and seen in Mailpit; a real provider is a config change.
-2. **Tenant isolation audit, as tests** — two organisations, every router and capture-file route called across them, all refused; money fields removed from customer answers; rate limits. *Done when:* the sweep test passes.
-3. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
-4. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
-5. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
-6. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
-7. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-8. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **Tenant isolation audit, as tests** — two organisations, every router and capture-file route called across them, all refused; money fields removed from customer answers; rate limits. *Done when:* the sweep test passes.
+2. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
+3. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
+4. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
+5. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
+6. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+7. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
@@ -37,7 +36,10 @@ reason and goes on to the next.
   every 3 days (free, proof pages + 20 listing products). Off by default.
 - **Backfill holds for other websites** whose last Verify failed only on stale values (e.g. Decathlon,
   Lookfantastic)? Only the 10 were approved.
-- **Customer-marked "changes on its own" fields** and **email notices** — later?
+- **Customer-marked "changes on its own" fields** — later?
+- **Which mail provider, and which sender?** Mail is off until SMTP_URL is set (a Mailpit one-liner shows it locally). A provider is SMTP_URL + a verified MAIL_FROM; PUBLIC_APP_URL must be where customers open the app.
+- **Don't connect a real mail provider before real sign-in** — anyone could sign in as any address and get emails sent there.
+- **Email links carry no organisation** — someone in two orgs may land in the other one (follow-up: an org-switching link, or a line naming the org).
 - **Jev's agreement** — read 2026-10-21 (`docs/testing/results/2026-10-21-jev-agreement.md`): 86 %
   at confidence 0.9+, most other disagreements are how we compare. Recommendation: do not apply
   Jev's pick yet; fix the comparison and two candidate follow-ups, read again, then consider Price
@@ -45,6 +47,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-24 — Email, with a local catcher (`35fcfc3e`): "needs attention", failed-run and account emails over SMTP, once per event, with an Account panel to choose; Mailpit locally (one-liner and Compose), a provider by SMTP_URL; live check docs/testing/results/2026-10-24-email/live-email.json. After merge: pnpm install, pnpm db:migrate, restart dev:all.
 - 2026-10-24 — Recurring extraction (`2881058f`): a weekly schedule per website, a CSV/JSON/XLSX snapshot per run, a signed webhook with signed links on completion; live check docs/testing/results/2026-10-24-recurring/live-recurring.md. After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-24 — Run speed (`b0b0f994`): lean captures on certified runs with today's capture as the fallback, page starts 2 s apart per host, runs keep a browser for Verify; measured 1.6× per 1,000 pages one website at a time, 8.1× at six, same values (docs/testing/results/2026-10-23-run-speed/report.md). After merge: pnpm install, restart dev:all.
 - 2026-10-23 — Playwright aligned on 1.62.1 everywhere (`baf5f5d`).
