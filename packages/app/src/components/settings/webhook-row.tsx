@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { getQueryKey } from '@trpc/react-query';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -6,7 +8,7 @@ import { trpc } from '../../lib/trpc';
 import { mutationErrorText, type MutationErrorLike } from '../../lib/mutation-error';
 import { useStaffDetail } from '../../lib/use-staff-detail';
 import {
-  COPY_FAILED, REPLACE_SECRET_TEXT, REPLACE_SECRET_TITLE, WEBHOOK_HELP, maskSecret, webhookSaveReason,
+  COPY_FAILED, REPLACE_SECRET_TEXT, REPLACE_SECRET_TITLE, WEBHOOK_HELP, maskSecret, webhookSaveReason, withRotatedSecret,
 } from '../../lib/site/recurring-view';
 import { SettingsRow } from './settings-row';
 
@@ -16,6 +18,7 @@ const COPIED_MS = 2000;
 /** Spec 2026-10-24 §3.6: where a finished run is posted, and the secret that signs it. */
 export function WebhookRow({ siteId, webhookUrl, webhookSecret }: { siteId: string; webhookUrl: string | null; webhookSecret: string | null }) {
   const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
   const staff = useStaffDetail();
   const save = trpc.sources.update.useMutation();
   const remove = trpc.sources.update.useMutation();
@@ -64,6 +67,20 @@ export function WebhookRow({ siteId, webhookUrl, webhookSecret }: { siteId: stri
     clipboard.writeText(secret).then(() => setCopied(true), () => setError(COPY_FAILED));
   }
 
+  /** The new secret goes into every cached `sources.get` of this website straight from the answer (M4): the row shows it
+   * even when the refetch after it fails, never the old one a customer might copy. */
+  async function replaceSecret() {
+    const { webhookSecret: secret } = await rotate.mutateAsync({ id: siteId });
+    queryClient.setQueriesData({ queryKey: getQueryKey(trpc.sources.get) },
+      (old) => withRotatedSecret(old as { id: string; webhookSecret: string | null } | undefined, siteId, secret));
+  }
+
+  /** Closing the confirm without replacing clears its error, so it never shows up later under the row. */
+  function closeConfirm() {
+    setConfirming(false);
+    setError(null);
+  }
+
   const saveReason = webhookSaveReason(dirty, url, !!webhookUrl);
 
   return (
@@ -105,7 +122,7 @@ export function WebhookRow({ siteId, webhookUrl, webhookSecret }: { siteId: stri
         {error && !confirming ? <p role="alert" className="text-sm text-fail">{error}</p> : null}
       </div>
 
-      <Dialog open={confirming} onOpenChange={(open) => { if (!rotate.isPending) setConfirming(open); }}>
+      <Dialog open={confirming} onOpenChange={(open) => { if (rotate.isPending) return; if (open) setConfirming(true); else closeConfirm(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{REPLACE_SECRET_TITLE}</DialogTitle>
@@ -113,9 +130,9 @@ export function WebhookRow({ siteId, webhookUrl, webhookSecret }: { siteId: stri
           </DialogHeader>
           {error ? <p role="alert" className="text-sm text-fail">{error}</p> : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)} disabled={rotate.isPending}>Cancel</Button>
+            <Button variant="outline" onClick={closeConfirm} disabled={rotate.isPending}>Cancel</Button>
             <Button variant="destructive" disabled={rotate.isPending}
-              onClick={() => void act(() => rotate.mutateAsync({ id: siteId })).then((ok) => {
+              onClick={() => void act(replaceSecret).then((ok) => {
                 if (ok) { setConfirming(false); setCopied(false); setShown(false); }
               })}>
               {rotate.isPending ? 'Replacing…' : 'Replace'}

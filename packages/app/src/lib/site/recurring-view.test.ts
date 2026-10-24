@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   choiceOf, scheduleFromForm, scheduleFormProblem, whenLabel, nextRunLine, lastOutcomeLine, timeZoneOptions,
   maskSecret, webhookLine, CHOICE_LABELS, WEBHOOK_HELP,
-  REPLACE_SECRET_TITLE, REPLACE_SECRET_TEXT, webhookSaveReason, COPY_FAILED,
+  REPLACE_SECRET_TITLE, REPLACE_SECRET_TEXT, webhookSaveReason, COPY_FAILED, withRotatedSecret,
 } from './recurring-view';
 
 const MON_6 = { days: [1], time: '06:00', timeZone: 'Europe/Berlin' };
@@ -91,5 +91,18 @@ describe('the Webhook row, review round 1', () => {
   });
   it('a clipboard the browser does not offer reads as a sentence', () => {
     expect(COPY_FAILED).toBe('That could not be copied. Show the secret and copy it by hand.');
+  });
+});
+
+describe('Replace secret (final review M4)', () => {
+  it('puts the new secret on the website the mutation answered for, at once, whatever the refetch does', () => {
+    const site = { id: 's1', name: 'Shop', webhookUrl: 'https://hooks.example.com/x', webhookSecret: 'old' };
+    expect(withRotatedSecret(site, 's1', 'new')).toEqual({ ...site, webhookSecret: 'new' });
+    expect(site.webhookSecret).toBe('old');
+  });
+  it('leaves another website, and an empty cache, as they are', () => {
+    const other = { id: 's2', webhookSecret: 'theirs' };
+    expect(withRotatedSecret(other, 's1', 'new')).toBe(other);
+    expect(withRotatedSecret(undefined, 's1', 'new')).toBeUndefined();
   });
 });

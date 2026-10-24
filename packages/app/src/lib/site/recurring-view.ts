@@ -105,3 +105,12 @@ export function webhookLine(d: Delivery, staff: boolean, timeZone: string): stri
   if (!staff || d.state === 'delivered') return text;
   return `${text} (${d.statusCode ?? 'no answer'}${d.error ? `: ${d.error}` : ''})`;
 }
+
+/**
+ * A cached `sources.get` answer with the secret `sources.rotateWebhookSecret` returned (final review M4): written
+ * into the cache straight from the mutation, so the row never shows the old, now invalid secret — even when the
+ * refetch after it fails. Another website's answer, or none, is returned as it is.
+ */
+export function withRotatedSecret<T extends { id: string; webhookSecret: string | null }>(old: T | undefined, siteId: string, secret: string): T | undefined {
+  return old && old.id === siteId ? { ...old, webhookSecret: secret } : old;
+}
