@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowLeftRight, History, List, Menu } from 'lucide-react';
+import { ArrowLeftRight, Building2, History, List, Menu } from 'lucide-react';
 import type { Session } from '../../lib/session';
 import { UserMenu } from './user-menu';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '../ui/sheet';
@@ -12,8 +12,8 @@ type OpsSidebarProps = {
 
 /**
  * The ops shell's own rail (spec "Ops design → Ops mode"): a static "Robot
- * ops" header with "Staff" instead of the org switcher, one nav item ("All
- * websites" — later staff pages slot in beside it), and nothing of the
+ * ops" header with "Staff" instead of the org switcher, the nav — All
+ * websites, Staff activity, Organisations — and nothing of the
  * customer shell (Projects, Runs, Usage, Settings, the org switcher). Visible
  * only to operators — the route itself is the real gate (`ops.*` FORBIDDEN);
  * this is only what is shown.
@@ -45,6 +45,15 @@ export function OpsSidebarBody({ session, onNavigate }: OpsSidebarProps) {
           >
             <History className="size-4 shrink-0" />
             Staff activity
+          </Link>
+          <Link
+            to="/ops/orgs"
+            onClick={onNavigate}
+            className="flex items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-base text-muted-foreground hover:text-text"
+            activeProps={{ className: 'bg-raised font-medium text-text!' }}
+          >
+            <Building2 className="size-4 shrink-0" />
+            Organisations
           </Link>
         </nav>
       </div>

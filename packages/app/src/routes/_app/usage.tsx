@@ -40,6 +40,7 @@ function UsagePage() {
             month={month}
             spendUsd={usage.data?.total.spendUsd ?? 0}
             pagesCaptured={usage.data?.total.pagesCaptured ?? 0}
+            runs={usage.data?.total.runs ?? 0}
             loading={state === 'loading'}
             showMoney={showMoney}
           />
