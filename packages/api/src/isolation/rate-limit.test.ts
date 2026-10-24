@@ -1,6 +1,6 @@
 // Rate limits (spec 2026-10-24 tenant isolation §2.4, §4.4): a fixed-window counter per process, by group. Every
 // procedure test file runs with RATE_LIMITS=off (vitest.config.ts); this one turns it on, with its own limiter.
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { db } from '@robot/db';
 import { appRouter } from '../routers/index.js';
@@ -180,6 +180,32 @@ describe('the procedures, refused (spec §2.4)', () => {
     for (let i = 0; i < 3; i++) expect(await codeOf(s.auth.me())).toBe('answered');
     expect(await codeOf(s.auth.me())).toBe('TOO_MANY_REQUESTS');
     expect(await codeOf(createCaller({ db, session: sessionIn(randomUUID()) }).auth.me())).toBe('answered');
+  });
+
+  it('a refusal is logged once per key per window, not once per refused call', async () => {
+    let now = 5_000_000;
+    useRateLimiter(new RateLimiter({ limits: { ...DEFAULT_LIMITS, session: 1 }, now: () => now }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const a = createCaller({ db, session: sessionIn(randomUUID()) });
+      const b = createCaller({ db, session: sessionIn(randomUUID()) });
+      expect(await codeOf(a.auth.me())).toBe('answered');
+      for (let i = 0; i < 5; i++) expect(await codeOf(a.auth.me())).toBe('TOO_MANY_REQUESTS');
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]![0])).toContain('auth.me');
+      // Another key is its own line.
+      expect(await codeOf(b.auth.me())).toBe('answered');
+      expect(await codeOf(b.auth.me())).toBe('TOO_MANY_REQUESTS');
+      expect(await codeOf(b.auth.me())).toBe('TOO_MANY_REQUESTS');
+      expect(warn).toHaveBeenCalledTimes(2);
+      // A new window refused again logs again, once.
+      now += 60_000;
+      expect(await codeOf(a.auth.me())).toBe('answered');
+      for (let i = 0; i < 3; i++) expect(await codeOf(a.auth.me())).toBe('TOO_MANY_REQUESTS');
+      expect(warn).toHaveBeenCalledTimes(3);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('RATE_LIMITS=off lets every call through', async () => {
