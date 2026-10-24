@@ -1,10 +1,10 @@
 {
- "at": "2026-10-24T03:14:04.467Z",
+ "at": "2026-10-24T04:48:54.007Z",
  "summary": {
   "pages": 15,
   "errors": 0,
-  "todayMedianMs": 11827,
-  "leanMedianMs": 12180,
+  "todayMedianMs": 8272,
+  "leanMedianMs": 9475,
   "modes": {
    "lean": 5,
    "full": 0,
@@ -14,11 +14,11 @@
   "valueDiffPages": 0,
   "leanWrittenValueDiffPages": 0,
   "shownDiffPages": 0,
-  "chromiumPeakMb": 1049,
+  "chromiumPeakMb": 1164,
   "runLike": [
    {
     "site": "www.ikea.com",
-    "summary": "run run-like: lean 1, lean+full 3 (check 2, miss 0, unshown 1, verdict 0), full 0",
+    "summary": "run run-like: lean 1, lean+full 4 (check 2, miss 0, unshown 2, verdict 0), full 0",
     "switched": null
    },
    {
@@ -39,8 +39,8 @@
    "site": "www.ikea.com",
    "pages": 5,
    "errors": 0,
-   "todayMedianMs": 12805,
-   "leanMedianMs": 16120,
+   "todayMedianMs": 8272,
+   "leanMedianMs": 9475,
    "modes": {
     "lean": 0,
     "full": 0,
@@ -53,8 +53,8 @@
    "site": "www.gymshark.com",
    "pages": 5,
    "errors": 0,
-   "todayMedianMs": 10423,
-   "leanMedianMs": 5308,
+   "todayMedianMs": 10176,
+   "leanMedianMs": 5332,
    "modes": {
     "lean": 5,
     "full": 0,
@@ -67,8 +67,8 @@
    "site": "www.skullcandy.com",
    "pages": 5,
    "errors": 0,
-   "todayMedianMs": 8020,
-   "leanMedianMs": 12180,
+   "todayMedianMs": 7897,
+   "leanMedianMs": 11045,
    "modes": {
     "lean": 0,
     "full": 0,
@@ -84,10 +84,10 @@
    "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
    "url": "https://www.ikea.com/my/en/p/soederhamn-3-seat-sofa-with-open-end-kelinge-beige-s89622109/",
    "order": "today-first",
-   "todayMs": 15639,
-   "leanMs": 16120,
-   "todayCaptureMs": 14281,
-   "leanCaptureMs": 5595,
+   "todayMs": 11887,
+   "leanMs": 8440,
+   "todayCaptureMs": 11462,
+   "leanCaptureMs": 2141,
    "lean": {
     "mode": "lean+full",
     "reason": "unshown",
@@ -95,7 +95,7 @@
      "title",
      "description"
     ],
-    "leanMs": 5595
+    "leanMs": 2141
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -145,17 +145,17 @@
      "description": false
     }
    },
-   "chromiumMb": 485
+   "chromiumMb": 567
   },
   {
    "site": "www.ikea.com",
    "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
    "url": "https://www.ikea.com/my/en/p/vimle-3-seat-sofa-with-chaise-longue-with-wide-armrests-knaebaeck-grey-green-s69635037/",
    "order": "lean-first",
-   "todayMs": 12119,
-   "leanMs": 16812,
-   "todayCaptureMs": 11004,
-   "leanCaptureMs": 6002,
+   "todayMs": 7690,
+   "leanMs": 13000,
+   "todayCaptureMs": 7339,
+   "leanCaptureMs": 5899,
    "lean": {
     "mode": "lean+full",
     "reason": "unshown",
@@ -163,7 +163,7 @@
      "title",
      "description"
     ],
-    "leanMs": 6002
+    "leanMs": 5899
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -213,17 +213,17 @@
      "description": false
     }
    },
-   "chromiumMb": 438
+   "chromiumMb": 420
   },
   {
    "site": "www.ikea.com",
    "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
    "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
    "order": "today-first",
-   "todayMs": 12805,
-   "leanMs": 16099,
-   "todayCaptureMs": 11722,
-   "leanCaptureMs": 5393,
+   "todayMs": 8272,
+   "leanMs": 8974,
+   "todayCaptureMs": 7857,
+   "leanCaptureMs": 2224,
    "lean": {
     "mode": "lean+full",
     "reason": "unshown",
@@ -231,7 +231,7 @@
      "title",
      "description"
     ],
-    "leanMs": 5393
+    "leanMs": 2224
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -281,17 +281,17 @@
      "description": false
     }
    },
-   "chromiumMb": 437
+   "chromiumMb": 418
   },
   {
    "site": "www.ikea.com",
    "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
    "url": "https://www.ikea.com/my/en/p/lillesaeter-4-seat-sofa-gunnared-bright-green-yellow-s49614272/",
    "order": "lean-first",
-   "todayMs": 12311,
-   "leanMs": 18443,
-   "todayCaptureMs": 11142,
-   "leanCaptureMs": 8040,
+   "todayMs": 7465,
+   "leanMs": 11059,
+   "todayCaptureMs": 7073,
+   "leanCaptureMs": 5022,
    "lean": {
     "mode": "lean+full",
     "reason": "unshown",
@@ -300,7 +300,7 @@
      "rating",
      "description"
     ],
-    "leanMs": 8040
+    "leanMs": 5022
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -350,17 +350,17 @@
      "description": false
     }
    },
-   "chromiumMb": 430
+   "chromiumMb": 409
   },
   {
    "site": "www.ikea.com",
    "sourceId": "104e5e56-3d48-47af-80f7-8846f9ee672b",
    "url": "https://www.ikea.com/my/en/p/landskrona-three-seat-sofa-grann-bomstad-black-metal-s79031701/",
    "order": "today-first",
-   "todayMs": 12871,
-   "leanMs": 15945,
-   "todayCaptureMs": 11767,
-   "leanCaptureMs": 5481,
+   "todayMs": 8857,
+   "leanMs": 9475,
+   "todayCaptureMs": 8492,
+   "leanCaptureMs": 2235,
    "lean": {
     "mode": "lean+full",
     "reason": "unshown",
@@ -368,7 +368,7 @@
      "title",
      "description"
     ],
-    "leanMs": 5481
+    "leanMs": 2235
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -418,22 +418,22 @@
      "description": false
     }
    },
-   "chromiumMb": 436
+   "chromiumMb": 409
   },
   {
    "site": "www.gymshark.com",
    "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
    "url": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26",
    "order": "today-first",
-   "todayMs": 12809,
-   "leanMs": 4892,
-   "todayCaptureMs": 12294,
-   "leanCaptureMs": 4811,
+   "todayMs": 12852,
+   "leanMs": 4644,
+   "todayCaptureMs": 12376,
+   "leanCaptureMs": 4551,
    "lean": {
     "mode": "lean",
     "reason": null,
     "fields": [],
-    "leanMs": 4811
+    "leanMs": 4551
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -483,22 +483,22 @@
      "description": true
     }
    },
-   "chromiumMb": 1044
+   "chromiumMb": 1164
   },
   {
    "site": "www.gymshark.com",
    "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
    "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-pink-aw26",
    "order": "lean-first",
-   "todayMs": 9017,
-   "leanMs": 7822,
-   "todayCaptureMs": 8338,
-   "leanCaptureMs": 7748,
+   "todayMs": 7794,
+   "leanMs": 7889,
+   "todayCaptureMs": 7279,
+   "leanCaptureMs": 7805,
    "lean": {
     "mode": "lean",
     "reason": null,
     "fields": [],
-    "leanMs": 7748
+    "leanMs": 7805
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -548,22 +548,22 @@
      "description": true
     }
    },
-   "chromiumMb": 1049
+   "chromiumMb": 916
   },
   {
    "site": "www.gymshark.com",
    "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
    "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-leggings-leggings-blue-aw26-b4b8h-uctn",
    "order": "today-first",
-   "todayMs": 11827,
-   "leanMs": 4899,
-   "todayCaptureMs": 11308,
-   "leanCaptureMs": 4824,
+   "todayMs": 10273,
+   "leanMs": 5332,
+   "todayCaptureMs": 9818,
+   "leanCaptureMs": 5249,
    "lean": {
     "mode": "lean",
     "reason": null,
     "fields": [],
-    "leanMs": 4824
+    "leanMs": 5249
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -613,22 +613,22 @@
      "description": true
     }
    },
-   "chromiumMb": 829
+   "chromiumMb": 911
   },
   {
    "site": "www.gymshark.com",
    "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
    "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-shorts-shorts-brown-aw26",
    "order": "lean-first",
-   "todayMs": 7916,
-   "leanMs": 8693,
-   "todayCaptureMs": 7371,
-   "leanCaptureMs": 8613,
+   "todayMs": 7415,
+   "leanMs": 6520,
+   "todayCaptureMs": 6887,
+   "leanCaptureMs": 6436,
    "lean": {
     "mode": "lean",
     "reason": null,
     "fields": [],
-    "leanMs": 8613
+    "leanMs": 6436
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -678,22 +678,22 @@
      "description": true
     }
    },
-   "chromiumMb": 825
+   "chromiumMb": 724
   },
   {
    "site": "www.gymshark.com",
    "sourceId": "7f5cde3b-d233-4ee9-b8ee-25483a06c07d",
    "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-shorts-black-aw23",
    "order": "today-first",
-   "todayMs": 10423,
-   "leanMs": 5308,
-   "todayCaptureMs": 9887,
-   "leanCaptureMs": 5223,
+   "todayMs": 10176,
+   "leanMs": 4768,
+   "todayCaptureMs": 9675,
+   "leanCaptureMs": 4676,
    "lean": {
     "mode": "lean",
     "reason": null,
     "fields": [],
-    "leanMs": 5223
+    "leanMs": 4676
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -743,17 +743,17 @@
      "description": true
     }
    },
-   "chromiumMb": 700
+   "chromiumMb": 731
   },
   {
    "site": "www.skullcandy.com",
    "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
    "url": "https://www.skullcandy.com/products/crusher-plyr-720-gaming-headphones",
    "order": "today-first",
-   "todayMs": 12166,
-   "leanMs": 12180,
-   "todayCaptureMs": 11659,
-   "leanCaptureMs": 4410,
+   "todayMs": 12173,
+   "leanMs": 12253,
+   "todayCaptureMs": 11699,
+   "leanCaptureMs": 4747,
    "lean": {
     "mode": "lean+full",
     "reason": "unshown",
@@ -761,7 +761,7 @@
      "sku",
      "brand"
     ],
-    "leanMs": 4410
+    "leanMs": 4747
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -811,17 +811,17 @@
      "description": true
     }
    },
-   "chromiumMb": 822
+   "chromiumMb": 852
   },
   {
    "site": "www.skullcandy.com",
    "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
    "url": "https://www.skullcandy.com/products/icon-anc",
    "order": "lean-first",
-   "todayMs": 7082,
-   "leanMs": 13047,
-   "todayCaptureMs": 6615,
-   "leanCaptureMs": 6183,
+   "todayMs": 7430,
+   "leanMs": 9979,
+   "todayCaptureMs": 6966,
+   "leanCaptureMs": 3437,
    "lean": {
     "mode": "lean+full",
     "reason": "unshown",
@@ -829,7 +829,7 @@
      "sku",
      "brand"
     ],
-    "leanMs": 6183
+    "leanMs": 3437
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -879,17 +879,17 @@
      "description": true
     }
    },
-   "chromiumMb": 828
+   "chromiumMb": 860
   },
   {
    "site": "www.skullcandy.com",
    "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
    "url": "https://www.skullcandy.com/products/hesh-360-wireless-headphones",
    "order": "today-first",
-   "todayMs": 7618,
-   "leanMs": 10173,
-   "todayCaptureMs": 7092,
-   "leanCaptureMs": 3538,
+   "todayMs": 7614,
+   "leanMs": 9738,
+   "todayCaptureMs": 7162,
+   "leanCaptureMs": 3213,
    "lean": {
     "mode": "lean+full",
     "reason": "unshown",
@@ -897,7 +897,7 @@
      "sku",
      "brand"
     ],
-    "leanMs": 3538
+    "leanMs": 3213
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -947,17 +947,17 @@
      "description": true
     }
    },
-   "chromiumMb": 831
+   "chromiumMb": 861
   },
   {
    "site": "www.skullcandy.com",
    "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
    "url": "https://www.skullcandy.com/products/hesh-540-anc-noise-canceling-headphones",
    "order": "lean-first",
-   "todayMs": 8020,
-   "leanMs": 11626,
-   "todayCaptureMs": 7455,
-   "leanCaptureMs": 4417,
+   "todayMs": 7897,
+   "leanMs": 11045,
+   "todayCaptureMs": 7436,
+   "leanCaptureMs": 3970,
    "lean": {
     "mode": "lean+full",
     "reason": "unshown",
@@ -965,7 +965,7 @@
      "sku",
      "brand"
     ],
-    "leanMs": 4417
+    "leanMs": 3970
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -1015,17 +1015,17 @@
      "description": true
     }
    },
-   "chromiumMb": 835
+   "chromiumMb": 869
   },
   {
    "site": "www.skullcandy.com",
    "sourceId": "f210ced9-645e-4b82-8c10-2e9683a2098f",
    "url": "https://www.skullcandy.com/products/aviator-900-anc-headphones",
    "order": "today-first",
-   "todayMs": 10206,
-   "leanMs": 13697,
-   "todayCaptureMs": 9656,
-   "leanCaptureMs": 5340,
+   "todayMs": 9928,
+   "leanMs": 13817,
+   "todayCaptureMs": 9409,
+   "leanCaptureMs": 5235,
    "lean": {
     "mode": "lean+full",
     "reason": "unshown",
@@ -1033,7 +1033,7 @@
      "sku",
      "brand"
     ],
-    "leanMs": 5340
+    "leanMs": 5235
    },
    "switched": null,
    "leanFullDisagreed": [],
@@ -1083,7 +1083,7 @@
      "description": true
     }
    },
-   "chromiumMb": 844
+   "chromiumMb": 863
   }
  ],
  "runLike": [
@@ -1097,7 +1097,7 @@
       "mode": "lean+full",
       "reason": "check",
       "fields": [],
-      "leanMs": 6287
+      "leanMs": 3191
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1108,15 +1108,22 @@
       "mode": "lean+full",
       "reason": "check",
       "fields": [],
-      "leanMs": 9630
+      "leanMs": 3340
      },
      "valueDiffs": [],
      "shownDiffs": []
     },
     {
      "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
-     "lean": null,
-     "error": "ikea.com could not be reached (no response).",
+     "lean": {
+      "mode": "lean+full",
+      "reason": "unshown",
+      "fields": [
+       "title",
+       "description"
+      ],
+      "leanMs": 2836
+     },
      "valueDiffs": [],
      "shownDiffs": []
     },
@@ -1126,11 +1133,9 @@
       "mode": "lean+full",
       "reason": "unshown",
       "fields": [
-       "title",
-       "rating",
-       "description"
+       "rating"
       ],
-      "leanMs": 11052
+      "leanMs": 4836
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1141,13 +1146,13 @@
       "mode": "lean",
       "reason": null,
       "fields": [],
-      "leanMs": 3984
+      "leanMs": 2969
      },
      "valueDiffs": [],
      "shownDiffs": []
     }
    ],
-   "summary": "run run-like: lean 1, lean+full 3 (check 2, miss 0, unshown 1, verdict 0), full 0",
+   "summary": "run run-like: lean 1, lean+full 4 (check 2, miss 0, unshown 2, verdict 0), full 0",
    "switched": null
   },
   {
@@ -1160,7 +1165,7 @@
       "mode": "lean+full",
       "reason": "check",
       "fields": [],
-      "leanMs": 5310
+      "leanMs": 4669
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1171,7 +1176,7 @@
       "mode": "lean+full",
       "reason": "check",
       "fields": [],
-      "leanMs": 5483
+      "leanMs": 5138
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1182,7 +1187,7 @@
       "mode": "lean",
       "reason": null,
       "fields": [],
-      "leanMs": 4911
+      "leanMs": 4833
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1193,7 +1198,7 @@
       "mode": "lean",
       "reason": null,
       "fields": [],
-      "leanMs": 4865
+      "leanMs": 4434
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1204,7 +1209,7 @@
       "mode": "lean",
       "reason": null,
       "fields": [],
-      "leanMs": 4853
+      "leanMs": 4612
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1223,7 +1228,7 @@
       "mode": "lean+full",
       "reason": "check",
       "fields": [],
-      "leanMs": 4191
+      "leanMs": 4628
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1234,7 +1239,7 @@
       "mode": "lean+full",
       "reason": "check",
       "fields": [],
-      "leanMs": 3207
+      "leanMs": 3239
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1248,7 +1253,7 @@
        "sku",
        "brand"
       ],
-      "leanMs": 3349
+      "leanMs": 3572
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1259,7 +1264,7 @@
       "mode": "lean",
       "reason": null,
       "fields": [],
-      "leanMs": 3818
+      "leanMs": 3708
      },
      "valueDiffs": [],
      "shownDiffs": []
@@ -1270,7 +1275,7 @@
       "mode": "lean",
       "reason": null,
       "fields": [],
-      "leanMs": 5799
+      "leanMs": 4988
      },
      "valueDiffs": [],
      "shownDiffs": []
