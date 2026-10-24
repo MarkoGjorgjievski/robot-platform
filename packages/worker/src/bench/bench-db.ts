@@ -22,9 +22,9 @@ async function admin<T>(base: string, fn: (sql: postgres.Sql) => Promise<T>): Pr
 }
 
 /** A migration that fails drops the new database before rethrowing: a broken bench leaves nothing behind (final review M4). */
-export async function createBenchDatabase(base: string, opts: { migrationsFolder?: string } = {}): Promise<{ name: string; url: string; drop(): Promise<void> }> {
+export async function createBenchDatabase(base: string, opts: { migrationsFolder?: string; name?: string } = {}): Promise<{ name: string; url: string; drop(): Promise<void> }> {
   const stamp = Date.now();
-  const name = `robot_bench_${stamp}`;
+  const name = opts.name ?? `robot_bench_${stamp}`;
   await admin(base, async (sql) => {
     const old = await sql<{ datname: string }[]>`SELECT datname FROM pg_database WHERE datname LIKE 'robot_bench_%'`;
     for (const { datname } of old) {
@@ -39,8 +39,9 @@ export async function createBenchDatabase(base: string, opts: { migrationsFolder
   try {
     await migrate(drizzle(client), { migrationsFolder: opts.migrationsFolder ?? MIGRATIONS });
   } catch (err) {
-    await client.end();
-    await drop();
+    // Cleanup never hides the migration's error.
+    await client.end().catch(() => {});
+    await drop().catch(() => {});
     throw err;
   }
   await client.end();
