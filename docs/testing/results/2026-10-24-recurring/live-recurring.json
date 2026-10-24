@@ -1,0 +1,186 @@
+{
+ "at": "2026-10-24T07:07:35.341Z",
+ "runId": "56cf5b2f-f2a8-461e-8159-3b6c627432e4",
+ "status": "completed",
+ "rows": 3,
+ "scheduleSavedAt": "2026-10-24T07:06:10.195Z",
+ "scheduledFor": "2026-10-24T07:07:00.000Z",
+ "startedAt": "2026-10-24T07:07:20.390Z",
+ "completedAt": "2026-10-24T07:07:30.349Z",
+ "webhookAt": "2026-10-24T07:07:30.776Z",
+ "timings": {
+  "saveToStartMs": 70195,
+  "scheduledToStartMs": 20390,
+  "startToCompleteMs": 9959,
+  "completeToWebhookMs": 427
+ },
+ "files": [
+  {
+   "format": "csv",
+   "filename": "site-bench-0-56cf5b2f-2026-10-24.csv",
+   "bytes": 501,
+   "rows": 3
+  },
+  {
+   "format": "json",
+   "filename": "site-bench-0-56cf5b2f-2026-10-24.json",
+   "bytes": 1567,
+   "rows": 3
+  },
+  {
+   "format": "xlsx",
+   "filename": "site-bench-0-56cf5b2f-2026-10-24.xlsx",
+   "bytes": 6942,
+   "rows": 3
+  }
+ ],
+ "webhook": {
+  "requests": 1,
+  "bodyKeys": [
+   "event",
+   "deliveryId",
+   "runId",
+   "status",
+   "scheduled",
+   "website",
+   "project",
+   "startedAt",
+   "completedAt",
+   "rows",
+   "failedItems",
+   "files",
+   "filesExpireAt"
+  ],
+  "filesExpireAt": "2026-10-31T07:07:30.000Z",
+  "headers": {
+   "user-agent": "robot-platform-webhook/1",
+   "x-robot-event": "run.finished",
+   "x-robot-delivery": "6a6f9610-1bd7-47a7-a354-7cb0a066d0c5",
+   "content-type": "application/json"
+  }
+ },
+ "downloads": {
+  "csv": {
+   "status": 200,
+   "bytes": 501
+  },
+  "json": {
+   "status": 200,
+   "bytes": 1567
+  },
+  "xlsx": {
+   "status": 200,
+   "bytes": 6942
+  }
+ },
+ "tamperedStatus": 404,
+ "deliveries": [
+  {
+   "attempt": 1,
+   "ok": true,
+   "statusCode": 200
+  }
+ ],
+ "checks": [
+  {
+   "name": "the schedule is due within two minutes",
+   "ok": true,
+   "detail": "07:07 UTC → 2026-10-24T07:07:00.000Z"
+  },
+  {
+   "name": "a run started by itself, labelled scheduled",
+   "ok": true,
+   "detail": "56cf5b2f-f2a8-461e-8159-3b6c627432e4"
+  },
+  {
+   "name": "the run completed",
+   "ok": true,
+   "detail": "completed, 3 rows"
+  },
+  {
+   "name": "three files were written",
+   "ok": true,
+   "detail": "csv 501 B, 3 rows; json 1567 B, 3 rows; xlsx 6942 B, 3 rows"
+  },
+  {
+   "name": "one POST reached the receiver",
+   "ok": true,
+   "detail": "1 request(s), POST /hook"
+  },
+  {
+   "name": "the POST is signed with the website secret",
+   "ok": true
+  },
+  {
+   "name": "the headers",
+   "ok": true
+  },
+  {
+   "name": "the body names the run",
+   "ok": true
+  },
+  {
+   "name": "the csv link is on the api-server",
+   "ok": true,
+   "detail": "http://127.0.0.1:4310/export/runs/56cf5b2f-f2a8-461e-8159-3b6c627432e4.csv?expires=1793430450&sig=…"
+  },
+  {
+   "name": "the csv link downloads the run's file",
+   "ok": true,
+   "detail": "200, 501 B"
+  },
+  {
+   "name": "the csv file holds the run's rows",
+   "ok": true
+  },
+  {
+   "name": "the json link is on the api-server",
+   "ok": true,
+   "detail": "http://127.0.0.1:4310/export/runs/56cf5b2f-f2a8-461e-8159-3b6c627432e4.json?expires=1793430450&sig=…"
+  },
+  {
+   "name": "the json link downloads the run's file",
+   "ok": true,
+   "detail": "200, 1567 B"
+  },
+  {
+   "name": "the json file holds the run's rows",
+   "ok": true
+  },
+  {
+   "name": "the xlsx link is on the api-server",
+   "ok": true,
+   "detail": "http://127.0.0.1:4310/export/runs/56cf5b2f-f2a8-461e-8159-3b6c627432e4.xlsx?expires=1793430450&sig=…"
+  },
+  {
+   "name": "the xlsx link downloads the run's file",
+   "ok": true,
+   "detail": "200, 6942 B"
+  },
+  {
+   "name": "the row count matches the run",
+   "ok": true,
+   "detail": "webhook 3 / export 3 / run 3 / files 3,3,3"
+  },
+  {
+   "name": "a tampered link is refused",
+   "ok": true,
+   "detail": "404"
+  },
+  {
+   "name": "one delivery attempt, delivered",
+   "ok": true,
+   "detail": "1 attempt(s), status 200"
+  },
+  {
+   "name": "the worker closed its browsers",
+   "ok": true,
+   "detail": "0 open"
+  },
+  {
+   "name": "no Chromium of this check is left",
+   "ok": true,
+   "detail": "none"
+  }
+ ]
+}
