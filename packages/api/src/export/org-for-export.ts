@@ -19,6 +19,22 @@ export async function orgIdForRun(db: typeof Database, runId: string): Promise<s
   return row[0]?.orgId ?? null;
 }
 
+/**
+ * Which org owns a website (spec 2026-10-24 metering §2.3): worker jobs resolve their org's monthly AI limit with
+ * this, with no session. Null for an unknown website or one with no dataset (a legacy/sandbox source) — that one is
+ * not org work and is not limited.
+ */
+export async function orgIdForSource(db: typeof Database, sourceId: string): Promise<string | null> {
+  const row = await db
+    .select({ orgId: projects.orgId })
+    .from(sources)
+    .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+    .innerJoin(projects, eq(datasets.projectId, projects.id))
+    .where(eq(sources.id, sourceId))
+    .limit(1);
+  return row[0]?.orgId ?? null;
+}
+
 export async function orgIdForProject(db: typeof Database, projectId: string): Promise<string | null> {
   const row = await db.select({ orgId: projects.orgId }).from(projects).where(eq(projects.id, projectId)).limit(1);
   return row[0]?.orgId ?? null;

@@ -16,9 +16,14 @@ export const orgs = pgTable('orgs', {
   personal: boolean('personal').notNull().default(false),
   // Set for a personal org (its one owner); null for a shared org. Set null if that user is removed.
   ownerUserId: uuid('owner_user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  // Metering (spec 2026-10-24 metering §2.2): this org's monthly AI limit in USD. Null: the default
+  // (`ORG_AI_CAP_USD`, $25 unless set; `none` = no default). Staff set it (`orgs.setAiCap`); a customer never reads it.
+  aiCapUsd: numeric('ai_cap_usd', { precision: 10, scale: 2 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  check('orgs_ai_cap_usd_nonnegative', sql`${table.aiCapUsd} >= 0`),
+]);
 
 export const orgsRelations = relations(orgs, ({ many }) => ({
   extractors: many(extractors),

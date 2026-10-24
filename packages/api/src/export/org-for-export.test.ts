@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { db, runs, captures } from '@robot/db';
-import { orgIdForRun, orgIdForProject, orgIdForCaptureFile } from './org-for-export.js';
+import { eq } from 'drizzle-orm';
+import { db, runs, captures, sources } from '@robot/db';
+import { orgIdForRun, orgIdForProject, orgIdForCaptureFile, orgIdForSource } from './org-for-export.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 
@@ -86,6 +87,23 @@ describe('orgIdForCaptureFile', () => {
       await siteB.cleanup();
       await a.cleanup();
       await b.cleanup();
+    }
+  });
+});
+
+describe('orgIdForSource (spec 2026-10-24 metering §2.3)', () => {
+  it('resolves a website to its org, and answers null for an unknown one or one with no dataset', async () => {
+    expect(await orgIdForSource(db, MISSING)).toBeNull();
+    const me = await signedInCaller('org-for-source');
+    const site = await createProjectWithSource(me.caller, { tag: 'org-for-source', fields: [{ name: 'Title', type: 'text' }] });
+    const [loose] = await db.insert(sources).values({ name: 'org-for-source loose', slug: `org-for-source-loose-${Date.now()}`, country: 'US', isSandbox: true }).returning({ id: sources.id });
+    try {
+      expect(await orgIdForSource(db, site.sourceId)).toBe(me.org.id);
+      expect(await orgIdForSource(db, loose!.id)).toBeNull();
+    } finally {
+      await db.delete(sources).where(eq(sources.id, loose!.id));
+      await site.cleanup();
+      await me.cleanup();
     }
   });
 });
