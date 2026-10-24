@@ -83,6 +83,15 @@ describe('state, counts, summary', () => {
     expect(leanRunStateFromEnv({ RUN_CAPTURE: ' Full ' })).toMatchObject({ mode: 'full', why: 'off' });
     expect(leanRunStateFromEnv({})).toMatchObject({ mode: 'lean', why: null, checksLeft: 2 });
   });
+  it('a website with variants starts every run on the full capture (final review I1); RUN_CAPTURE=full still names itself', () => {
+    expect(newLeanRunState({ variants: true })).toMatchObject({ mode: 'full', why: 'variants' });
+    expect(leanRunStateFromEnv({}, { variants: true })).toMatchObject({ mode: 'full', why: 'variants' });
+    expect(leanRunStateFromEnv({ RUN_CAPTURE: 'full' }, { variants: true })).toMatchObject({ mode: 'full', why: 'off' });
+    expect(leanRunStateFromEnv({}, { variants: false })).toMatchObject({ mode: 'lean', why: null });
+    const s = newLeanRunState({ variants: true });
+    recordOutcome(s, { mode: 'full', reason: 'variants', fields: [], leanMs: null });
+    expect(leanSummary('r1', s)).toBe('run r1: lean 0, lean+full 0 (check 0, miss 0, unshown 0, verdict 0), full 1 (variants)');
+  });
   it('counts each outcome and says them in one line', () => {
     const s = newLeanRunState();
     recordOutcome(s, { mode: 'lean', reason: null, fields: [], leanMs: 2000 });

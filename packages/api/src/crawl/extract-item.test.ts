@@ -1,7 +1,7 @@
 // packages/api/src/crawl/extract-item.test.ts
 import { describe, it, expect, vi } from 'vitest';
 import { verdictSentence, type CaptureVerdict, type IBrowser, type PageCapture } from '@robot/browser';
-import { CaptureProblemError, _resetBackoffForTests, type VerifiedField, type VerifiedExtractionResult, type VariantRunPlan, newLeanRunState } from '@robot/scraper';
+import { CaptureProblemError, _resetBackoffForTests, type VerifiedField, type VerifiedExtractionResult, type VariantRunPlan, newLeanRunState, leanRunStateFromEnv } from '@robot/scraper';
 import { extractItem } from './extract-item.js';
 import type { ClaimedItem } from './claim-item.js';
 import type { Certification } from '../verify/current-certification.js';
@@ -508,6 +508,44 @@ describe('extractItem — with a certification', () => {
         })).rejects.toThrow("example.com refused the browser (HTTP 403, Akamai). We can't read this website from here yet.");
         expect(cap.data).toBeUndefined();
         expect(recordStats).not.toHaveBeenCalled();
+      } finally {
+        _resetBackoffForTests();
+      }
+    });
+
+    // Final review I1: a lean capture skips the dismissal settle and the expand pass, and nothing compares the
+    // variant list it carries. A website with variants takes today's capture on every item, and its rows come from it.
+    it('a run with a variant plan never captures lean: its rows come from the full capture (the real verified extraction)', async () => {
+      _resetBackoffForTests();
+      const asked: Array<{ lean?: unknown }> = [];
+      const product = { '@type': 'Product', offers: { price: '129.99' } };
+      const full = fakeCapture([{ ...product, hasVariant: [{ sku: 'SKU-BLK', color: 'Black' }, { sku: 'SKU-RED', color: 'Red' }] }]);
+      const lean = { ...fakeCapture([product]), probe: {} } as PageCapture;
+      const browser = {
+        capture: async (_u: string, o: { lean?: unknown } = {}) => { asked.push(o); return o.lean ? lean : full; },
+        setContentEvaluate: async () => ({}),
+      } as unknown as IBrowser;
+      const cert: Certification = { ...CERTIFICATION, paths: { price: [{ source: 'json-ld', path: 'offers.price', transform: 'identity' }] } };
+      const state = leanRunStateFromEnv({}, { variants: true });
+      state.checksLeft = 0;
+      let metadata: unknown;
+      let data: Record<string, unknown>[] = [];
+      const db = {
+        insert: () => ({ values: (v: Record<string, unknown>) => {
+          if ('metadata' in v) metadata = v.metadata;
+          if ('data' in v) data = v.data as Record<string, unknown>[];
+          return { returning: async () => [{ id: 'x' }] };
+        } }),
+      } as never;
+      try {
+        await extractItem(db, ITEM, {
+          browser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+          certification: cert, schemaDefinition: SCHEMA_DEFINITION, recordStats: async () => {}, variantPlan: VARIANT_PLAN, lean: state,
+        });
+        expect(asked).toHaveLength(1);
+        expect(asked[0]!.lean).toBeUndefined();
+        expect(data.map((r) => r._variant_key)).toEqual(['SKU-BLK', 'SKU-RED']);
+        expect((metadata as { lean?: unknown }).lean).toEqual({ mode: 'full', reason: 'variants', fields: [], leanMs: null });
       } finally {
         _resetBackoffForTests();
       }

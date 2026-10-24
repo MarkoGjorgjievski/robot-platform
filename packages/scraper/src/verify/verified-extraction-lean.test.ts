@@ -147,6 +147,19 @@ describe('runVerifiedExtraction — lean', () => {
     expect(state.mode).toBe('full');
   });
 
+  it('a website with variants: every item takes today\'s capture (no pictures), never a lean one (final review I1)', async () => {
+    const { browser, asked } = fakeBrowser(agreed, agreed);
+    const state = newLeanRunState({ variants: true, checks: 0 });
+    for (let i = 0; i < 3; i++) {
+      const r = await runVerifiedExtraction({ url: URL_, fields: FIELDS }, { browser, acquireLock: noLock, lean: state });
+      expect(r.lean).toEqual({ mode: 'full', reason: 'variants', fields: [], leanMs: null });
+      expect(r.capture?.mode).toBe('full');
+    }
+    expect(asked).toHaveLength(3);
+    expect(asked.every((o) => o.lean === undefined && o.finalProbe === undefined && o.pictures === false)).toBe(true);
+    expect(state.counts).toEqual({ lean: 0, leanFull: { check: 0, miss: 0, unshown: 0, verdict: 0 }, full: 3 });
+  });
+
   it('RUN_CAPTURE=full: today\'s capture without pictures, nothing lean', async () => {
     const { browser, asked } = fakeBrowser(agreed, agreed);
     const r = await runVerifiedExtraction({ url: URL_, fields: FIELDS }, { browser, acquireLock: noLock, lean: newLeanRunState({ off: true }) });
