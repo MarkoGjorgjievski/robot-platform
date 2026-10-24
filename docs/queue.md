@@ -7,24 +7,28 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Run speed** — lean captures on certified runs and several websites in parallel through the queue (design: docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md). *Done when:* a measured 1,000-page-equivalent run is an order of magnitude faster with the same values.
-2. **Recurring extraction** — a schedule per website (e.g. every Monday 06:00); each run produces a downloadable file and a webhook on completion. *Done when:* a scheduled run fires, writes its file and posts its webhook; tests, smoke.
-3. **Email, with a local catcher** — SMTP sending (Mailpit in Docker for local) for "Needs attention", failed runs and account messages. *Done when:* each message is sent and seen in Mailpit; a real provider is a config change.
-4. **Tenant isolation audit, as tests** — two organisations, every router and capture-file route called across them, all refused; money fields removed from customer answers; rate limits. *Done when:* the sweep test passes.
-5. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
-6. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
-7. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
-8. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
-9. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-10. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **Recurring extraction** — a schedule per website (e.g. every Monday 06:00); each run produces a downloadable file and a webhook on completion. *Done when:* a scheduled run fires, writes its file and posts its webhook; tests, smoke.
+2. **Email, with a local catcher** — SMTP sending (Mailpit in Docker for local) for "Needs attention", failed runs and account messages. *Done when:* each message is sent and seen in Mailpit; a real provider is a config change.
+3. **Tenant isolation audit, as tests** — two organisations, every router and capture-file route called across them, all refused; money fields removed from customer answers; rate limits. *Done when:* the sweep test passes.
+4. **Metering and spend caps per organisation** — pages, runs and AI spend counted per org; AI work stops at a cap. *Done when:* tests; ops shows it.
+5. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
+6. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
+7. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
+8. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+9. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
 
 - **Two pages at a time per website during runs?** It would roughly halve a large website's run again; it is a politeness
   choice (2026-10-23, run speed).
-- **More browsers on this machine?** Defaults stay WORKER_BROWSERS=3 / WORKER_RUNS=1 for memory; the run-speed
-  benchmark measures 6/4 and 6/6 — raise them in .env if memory allows.
+- **More browsers on this machine?** Defaults stay WORKER_BROWSERS=3 / WORKER_RUNS=1. Measured (docs/testing/results/2026-10-23-run-speed/report.md): 1,000 pages
+  take ~77 min at one run, ~20 min at four, ~15 min at six on the fixture. On real pages each run needs ~1.1 GB; this
+  machine had ~3.6 GB free at idle, which fits one run. WORKER_RUNS=4 / WORKER_BROWSERS=6 needs ~6 GB free.
+- **Run speed fell short of 10×** — 8.1× at six runs (the item's "done when"). Merged anyway: same values, strictly
+  faster. The remaining levers are the two choices here (two pages per website, more runs). Keep the item closed?
+- **Politeness spacing is start to start now** (one page per host at a time, starts ≥2 s apart; it used to add ~1.7 s
+  after each product). Keep?
 - **Turn the scheduled checks on?** `WEBSITE_CHECKS=on` makes the api-server check each certified website
   every 3 days (free, proof pages + 20 listing products). Off by default.
 - **Backfill holds for other websites** whose last Verify failed only on stale values (e.g. Decathlon,
@@ -37,6 +41,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-24 — Run speed (`b0b0f994`): lean captures on certified runs with today's capture as the fallback, page starts 2 s apart per host, runs keep a browser for Verify; measured 1.6× per 1,000 pages one website at a time, 8.1× at six, same values (docs/testing/results/2026-10-23-run-speed/report.md). After merge: pnpm install, restart dev:all.
 - 2026-10-23 — Playwright aligned on 1.62.1 everywhere (`baf5f5d`).
 - 2026-10-23 — The whole stack in Docker Compose, with nightly backups and a tested restore (`feat/docker-compose`).
 - 2026-10-23 — Capture worker and job queue (`7d94500`). After merge: stop dev:all, pnpm install, restart.

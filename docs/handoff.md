@@ -35,9 +35,11 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [The whole stack in Docker Compose (2026-10-23)](#the-whole-stack-in-docker-compose-2026-10-23).** `docker compose up -d --build` runs Postgres, migrations, api, worker, app and a nightly backup as project `robot-stack` on :3200/:4200/:5442, keyless; a restore test proves a dump comes back whole. On `feat/docker-compose`, not merged.
+**Newest: [Run speed (2026-10-23)](#run-speed-2026-10-23).** Certified runs capture lean with today's capture as the fallback; page starts per host 2 s apart; several websites at once when `WORKER_RUNS` is raised. Measured 1.6× faster per 1,000 pages one website at a time, 8.1× at six, with the same values. Merged 2026-10-24.
 
-**Before it: [Capture worker and job queue (2026-10-23)](#capture-worker-and-job-queue-2026-10-23).** All page loads run in a separate worker fed by a Postgres job queue, with leases, retries and one browser kept for interactive work; the api-server never starts a browser. Merged 2026-10-23 after the full gate.
+**Before it: [The whole stack in Docker Compose (2026-10-23)](#the-whole-stack-in-docker-compose-2026-10-23).** `docker compose up -d --build` runs Postgres, migrations, api, worker, app and a nightly backup as project `robot-stack` on :3200/:4200/:5442, keyless; a restore test proves a dump comes back whole.
+
+**Earlier: [Capture worker and job queue (2026-10-23)](#capture-worker-and-job-queue-2026-10-23).** All page loads run in a separate worker fed by a Postgres job queue, with leases, retries and one browser kept for interactive work; the api-server never starts a browser. Merged 2026-10-23 after the full gate.
 
 **Before it: [Websites change (2026-10-21)](#websites-change-keep-running-re-check-tell-the-customer-2026-10-21).** A website whose pages changed keeps running on its last good paths, by-nature values refresh themselves, and the customer is told what needs them. Merged 2026-10-21 after the full gate.
 
@@ -114,6 +116,46 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Run speed (2026-10-23)
+
+Spec `docs/superpowers/specs/2026-10-23-run-speed-design.md` (with its Deviations note), plan
+`docs/superpowers/plans/2026-10-23-run-speed.md`, measured in `docs/testing/results/2026-10-23-run-speed/report.md`.
+
+**What changed.**
+- *Lean capture with a fallback.* A certified run's item is captured lean: interception, the readiness wait, the expand
+  pass, the navigated-away check, structured data, variant selection and the verdict — but no popup rounds, no
+  pictures, no markdown, and the certified XPaths read in the live tab. Today's full capture of the same page is taken
+  only on a missing field, a value not shown, a non-wall bad verdict, or the run's first two (check) items; a walled
+  page is never loaded twice. Everything written on a fallback (values and path stats) comes from the full capture.
+- *The run learns.* A disagreement on a check item, or three rescues in a row, switch the run to full. A field whose
+  misses the full capture confirmed three times stops falling back on misses; not-shown confirmations count
+  separately. A failed live probe always falls back. Websites with a variant plan always take the full capture.
+- *Politeness start to start.* One page at a time per host, page starts at least 2 s apart (it used to add ~1.7 s
+  after each page).
+- *The gate.* With three or more browsers, runs hold at most all but two, so interactive work and a Verify always get
+  one. Defaults stay `WORKER_BROWSERS=3` / `WORKER_RUNS=1` (memory; raising them is Marko's call).
+- *Kill switch.* `RUN_CAPTURE=full` turns lean off. Each capture row's `metadata.lean` says which mode and why; a run
+  ends with one `[lean]` summary line.
+
+**How it was proven.** Fixture benchmark (throwaway database, own queue): per 1,000 pages 124.2 min → 76.5 min at one
+run (1.62×), 19.5 min at four (6.37×), 15.3 min at six (8.13×); 16,800 cells, 0 mismatches; before vs after, 0
+differences. Real pages (IKEA, Gymshark, Skullcandy; read-only session), run twice: 15 pages, 0 value and 0 shown
+differences; Gymshark lean on every page (5.3 s vs 10.4 s), IKEA and Skullcandy fall back until their not-shown fields
+are confirmed (about the 3rd–5th item). Tests: browser 308, scraper 1,311, api 1,318, worker 16; tsc clean; route
+smoke 28 of 28 on the isolated pair; overlay self-test clean. Reviews: per task, plus a whole-branch review (2
+Important — variant websites, one shared confirmation count — both fixed and re-reviewed).
+
+**After pulling.** `pnpm install`, then restart `pnpm dev:all` so the worker runs the new code. To run several websites
+at once set `WORKER_RUNS` and `WORKER_BROWSERS` (= runs + 2) in `.env` — about 1 GB free memory per run on real pages.
+
+**What NOT to redo.** Keep the expand pass in lean (without it "Read more" texts differ); never write a lean read on a
+check item; never load a walled page twice; stats only from the capture written.
+
+**Open.** 8.1× at six runs, not 10×: one item in ten pays both captures, and websites start in whole waves. Two pages
+at a time per website would roughly halve a big website's run (a politeness call, Needs Marko). The links-method
+collector still renders twice; `waitUntil: 'domcontentloaded'` for lean is unmeasured; the domain lock is per worker
+process; variant websites get no speed-up yet.
 
 ## The whole stack in Docker Compose (2026-10-23)
 
