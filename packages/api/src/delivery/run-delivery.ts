@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { db, datasets, projects, runItems, runs, sources, webhookDeliveries, type Database } from '@robot/db';
 import { enqueue } from '../jobs/enqueue.js';
+import { jobQueueName } from '../jobs/queue.js';
 import type { JobContext } from '../jobs/context.js';
 import type { JobPayloads } from '../jobs/types.js';
 import { EXPORT_FORMATS, type ExportFormat } from '../export/render-run-export.js';
@@ -156,4 +157,24 @@ export async function deliverRun(
   await db.insert(webhookDeliveries).values({ runId: p.runId, deliveryId: p.deliveryId, attempt: ctx.attempt, ok: result.ok, statusCode: result.statusCode, error: result.error });
   if (!result.ok) throw new WebhookNotDelivered(`webhook not delivered: ${result.error ?? `answered ${result.statusCode}`}`);
   return { files: true, delivered: true };
+}
+
+/**
+ * After a run-delivery job is recorded done (task 6 review M1): a backfill of the run that finished while that job
+ * was going had its own enqueue handed this job back, so its merged rows may have missed the files and the post.
+ * Then the run is delivered once more — a new job, a new delivery id, the new content. "While it was going" is
+ * since its last attempt started, or since it was queued when it took more than one attempt (an earlier attempt
+ * may have reached the receiver under this id, which then drops a repeat of it). Null when nothing more is due.
+ */
+export async function afterRunDelivery(p: JobPayloads['run-delivery']): Promise<string | null> {
+  const [job] = (await db.execute(sql`
+    SELECT CASE WHEN attempts > 1 THEN created_at ELSE coalesce(started_at, created_at) END AS since FROM jobs
+     WHERE queue = ${jobQueueName()} AND key = ${runDeliveryKey(p.runId)} AND status = 'done' AND payload->>'deliveryId' = ${p.deliveryId}
+     ORDER BY finished_at DESC NULLS LAST LIMIT 1`)) as unknown as Array<{ since: Date | string }>;
+  if (!job) return null;
+  const since = job.since instanceof Date ? job.since : new Date(job.since);
+  const [later] = (await db.execute(sql`
+    SELECT id FROM runs WHERE parent_run_id = ${p.runId} AND completed_at > ${since.toISOString()}::timestamptz LIMIT 1`)) as unknown as Array<{ id: string }>;
+  if (!later) return null;
+  return enqueueRunDelivery(db, p.runId);
 }
