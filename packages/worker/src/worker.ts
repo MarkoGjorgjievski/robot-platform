@@ -1,7 +1,7 @@
 // The worker (spec 2026-10-23 §4.3): the only process with browsers. One gate limits them; the runner
-// claims this queue's jobs; with WEBSITE_CHECKS=on, the hourly sweep enqueues due website checks.
+// claims this queue's jobs; with WEBSITE_CHECKS=on, the hourly sweep enqueues due website checks; unless RECURRING_RUNS=off, the minute sweep starts each website's scheduled run.
 import {
-  createBrowserGate, setBrowserGate, startJobRunner, jobRegistry, startWebsiteChecks, enqueueDueWebsiteChecks,
+  createBrowserGate, setBrowserGate, startJobRunner, jobRegistry, startWebsiteChecks, enqueueDueWebsiteChecks, startRecurringRuns,
   type JobRunner, type WorkerBrowserGate,
 } from '@robot/api/jobs';
 import type { WorkerConfig } from './config.js';
@@ -17,7 +17,8 @@ export async function startWorker(config: WorkerConfig, deps: { freeMb?: () => n
     ...(deps.freeMb ? { freeMb: deps.freeMb } : {}), browsers: gate, ...(config.name ? { workerName: config.name } : {}),
   });
   const stopChecks = startWebsiteChecks({ env: { WEBSITE_CHECKS: config.websiteChecks ? 'on' : 'off' }, sweep: () => enqueueDueWebsiteChecks() });
-  console.log(`[worker] ${runner.workerId} on queue "${config.queue}": browsers ${config.browsers}; lanes interactive ${config.lanes.interactive}, background ${config.lanes.background}, runs ${config.lanes.runs}; min free memory ${config.minFreeMb} MB; website checks ${config.websiteChecks ? 'on (hourly)' : 'off'}`);
+  const stopRecurring = startRecurringRuns({ enabled: config.recurringRuns });
+  console.log(`[worker] ${runner.workerId} on queue "${config.queue}": browsers ${config.browsers}; lanes interactive ${config.lanes.interactive}, background ${config.lanes.background}, runs ${config.lanes.runs}; min free memory ${config.minFreeMb} MB; website checks ${config.websiteChecks ? 'on (hourly)' : 'off'}; recurring runs ${config.recurringRuns ? 'on (every minute)' : 'off'}`);
   let stopped: Promise<void> | null = null;
   return {
     runner, gate,
@@ -25,6 +26,7 @@ export async function startWorker(config: WorkerConfig, deps: { freeMb?: () => n
       // Once: a second call (SIGINT during a stop-file stop) waits for the first.
       stopped ??= (async () => {
         stopChecks();
+        stopRecurring();
         await runner.stop(config.shutdownMs);
         await gate.closeAll();
         setBrowserGate(null);

@@ -7,6 +7,7 @@ import { runVerifyJob } from './handlers/verify.js';
 import { runDriftCheck, storedCaptures } from '../verify/run-drift-check.js';
 import { runCoverageCheck } from '../verify/run-coverage-check.js';
 import { checkWebsite } from '../verify/website-checks.js';
+import { runScheduledRun } from '../recurring/scheduled-run.js';
 import { runExecuteJob, afterRunJob } from './handlers/run.js';
 import { reachabilityNow, listingCheckNow, transferMarksNow, detectVariantsNow, variantLinksNearNow } from './handlers/interactive.js';
 import { planSource } from '../crawl/plan-source.js';
@@ -52,6 +53,12 @@ export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
       policy: JOB_POLICIES['website-check'],
       subject: () => null,
       run: (p: JobPayloads['website-check'], ctx) => checkWebsite(p.sourceId, { onPhase: ctx.progress }),
+    },
+    // Its run row is written with the job by the sweep (recurring/sweep.ts); planning fills it in, then the run starts.
+    'scheduled-run': {
+      policy: JOB_POLICIES['scheduled-run'],
+      subject: (p: JobPayloads['scheduled-run']) => ({ table: 'runs', id: p.runId }),
+      run: (p: JobPayloads['scheduled-run']) => runScheduledRun(p),
     },
     // One executor per run; a retry resumes it (its earlier attempt's `running` items back to pending).
     run: {

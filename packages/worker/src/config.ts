@@ -3,7 +3,7 @@ export type WorkerConfig = {
   queue: string; name: string | null; browsers: number;
   lanes: { interactive: number; background: number; runs: number };
   minFreeMb: number; leaseMs: number; pollMs: number; shutdownMs: number; retryBaseMs: number;
-  websiteChecks: boolean; testJobs: boolean; stopFile: string | null;
+  websiteChecks: boolean; recurringRuns: boolean; testJobs: boolean; stopFile: string | null;
 };
 
 type Env = Record<string, string | undefined>;
@@ -26,6 +26,8 @@ export function readWorkerConfig(env: Env): WorkerConfig {
     shutdownMs: int(env, 'WORKER_SHUTDOWN_MS', 25_000, 0),
     retryBaseMs: int(env, 'WORKER_RETRY_MS', 30_000, 1),
     websiteChecks: (env.WEBSITE_CHECKS ?? '').trim().toLowerCase() === 'on',
+    // Spec 2026-10-24 §3.2: the schedule sweep is on unless RECURRING_RUNS=off (the isolated smoke pair sets off).
+    recurringRuns: (env.RECURRING_RUNS ?? '').trim().toLowerCase() !== 'off',
     testJobs: (env.WORKER_TEST_JOBS ?? '').trim() === '1',
     stopFile: text(env, 'WORKER_STOP_FILE'),
   };

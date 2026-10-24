@@ -41,6 +41,8 @@ export const JOB_POLICIES = {
   'drift-check': { lane: 'background', priority: 20, maxAttempts: 2, stuckMs: 9 * MIN, startWithinMs: 30 * MIN },
   'coverage-check': { lane: 'background', priority: 20, maxAttempts: 2, stuckMs: 9 * MIN, startWithinMs: 30 * MIN },
   'website-check': { lane: 'background', priority: 30, maxAttempts: 2, stuckMs: 25 * MIN, startWithinMs: null, maxConcurrent: 1 },
+  // Spec 2026-10-24 §3.2: plans a scheduled run (its run row is written with the job by the sweep), then starts it.
+  'scheduled-run': { lane: 'background', priority: 20, maxAttempts: 1, stuckMs: 15 * MIN, startWithinMs: null, runSentence: PLAN_STOPPED },
   run: { lane: 'runs', priority: 10, maxAttempts: 3, stuckMs: 15 * MIN, startWithinMs: null, retryOnStuck: true, runSentence: RUN_STOPPED },
 } as const satisfies Record<string, JobPolicy>;
 
@@ -78,5 +80,6 @@ export type JobPayloads = {
   'drift-check': { checkId: string; storedRefs?: Record<string, StoredCaptureRef> };
   'coverage-check': { checkId: string };
   'website-check': { sourceId: string };
+  'scheduled-run': { sourceId: string; runId: string };
   run: { runId: string; limit?: number; repairSweep?: { deadFields: string[] } };
 };
