@@ -7,6 +7,20 @@ Builds on `2026-10-07-run-speed-and-language-note.md` (levers 1 and 2) and
 `2026-09-11-lean-capture-for-certified-runs-design.md` (items 2–4), and on the capture worker
 (`2026-10-23-capture-worker-design.md`): every run is a `run` job in the `runs` lane of `@robot/worker`.
 
+**Deviations from this text as built** (final review, 2026-10-24) — the sections below are amended in place:
+
+- **Websites with variants run today's capture** (§3.4, §3.5): a run whose certification has a variant plan
+  (list or links method) takes the full capture on every item, recorded as `mode: 'full'`, reason `variants`.
+  A lean capture skips the dismissal settle and runs the expand pass only for certified field XPaths, and no
+  check compares the variant list or the links collector it reads, so a lean item could silently write fewer
+  variant rows. Variant websites therefore get no lean speed-up.
+- **Two confirmation counts per field** (§3.4): "both missed" trusts only the field's lean misses, "both not
+  shown" only its not-shown flags; a rescue of either kind clears both. One count for both let a field that is
+  always not shown be written empty on a lean miss.
+- **Worker defaults stay `WORKER_BROWSERS` 3, `WORKER_RUNS` 1** (§3.8, §8, §10; Marko's decision: this dev
+  machine's memory). `packages/worker/src/config.ts` is unchanged; the benchmark and the "done when" run set
+  their values on the command line. With the default 3 the gate rule leaves runs one browser.
+
 **Done when** (queue): a measured 1,000-page-equivalent run is an order of magnitude faster with the same
 values.
 
@@ -165,17 +179,20 @@ must not count against a healthy path).
 - **Rescues:** three items in a row with a rescue switch the rest of the attempt to full (the 2026-09-11
   rule; caps the penalty on a website whose value always needs dismissal). An item without a rescue resets
   the streak.
-- **Confirmed fields:** a field with 3 confirmations and no rescue since is *confirmed*: its lean misses and
-  not-shown flags are trusted for the rest of the attempt (a sparse field, such as a rating absent on some
-  products, must not cost a full capture per page forever). A rescue on that field un-confirms it and resets
-  its count.
+- **Confirmed fields:** a field with 3 confirmations of one kind and no rescue since is *confirmed* for that kind:
+  3 "both missed" trust its lean misses, 3 "both not shown" trust its not-shown flags, each for the rest of the
+  attempt and neither for the other (a sparse field, such as a rating absent on some
+  products, must not cost a full capture per page forever). A rescue of either kind on that field un-confirms it and resets
+  both counts.
 - `RUN_CAPTURE=full` (worker env) starts every run in `mode: 'full'`: today's capture without pictures. The
   operational kill switch; no deploy needed to go back.
+- A website with a variant plan starts every run in `mode: 'full'` (reason `variants`): its rows are built from
+  the capture's variant list or links, which no lean check compares.
 
 ### 3.5 What a row records
 
 `captures.metadata` = `{ capture: <timings of the capture the values came from>, lean: { mode: 'lean' |
-'full' | 'lean+full', reason: null | 'check' | 'miss' | 'unshown' | 'verdict' | 'switched' | 'off',
+'full' | 'lean+full', reason: null | 'check' | 'miss' | 'unshown' | 'verdict' | 'switched' | 'off' | 'variants',
 fields: string[], leanMs: number | null } }`. `fields` names the fields that triggered the fallback or
 disagreed. One log line per item (today's line plus the mode) and one per run at the end
 (`[crawl] run <id>: lean <n>, lean+full <m> (check a, miss b, unshown c, verdict d), full <k> (<why>)`).
@@ -206,11 +223,12 @@ on lean items.
 - **The gate keeps two browsers back**: interactive keeps one (unchanged); runs may hold at most
   `max − 2` browsers when `max ≥ 3`, so the background lane (a customer's Verify) always has one. With
   `max` 1 or 2 the rule is today's.
-- **Defaults** (this dev machine: 16 GB, ~3.5 GB free with Marko's usual load, 12 threads):
-  `WORKER_BROWSERS` 3 → **6**, `WORKER_RUNS` 1 → **4**. Memory per run is one Chromium with one page
+- **Defaults** (this dev machine: 16 GB, ~3.5 GB free with Marko's usual load, 12 threads): proposed
+  `WORKER_BROWSERS` 3 → 6, `WORKER_RUNS` 1 → 4; **as built they stay 3 and 1** (Marko's decision, see
+  Deviations). Memory per run is one Chromium with one page
   (~250–400 MB on real product pages; measured in Task 7 and the benchmark); the gate still refuses a launch
-  under `WORKER_MIN_FREE_MB` (1024) for up to 2 min. Task 8 lowers the defaults if the measured peak does not
-  fit (rule: `WORKER_RUNS × per-run MB + 2 × 400 MB ≤ free MB at idle − 1024`).
+  under `WORKER_MIN_FREE_MB` (1024) for up to 2 min. Task 8 reports whether a higher setting fits the measured
+  peak (rule: `WORKER_RUNS × per-run MB + 2 × 400 MB ≤ free MB at idle − 1024`).
 - **A server** (documented, not a default): `WORKER_RUNS` = (RAM − 2 GB) / 0.5 GB, capped by CPU at about
   one run per core; e.g. 16 GB, 8 cores → `WORKER_RUNS=8`, `WORKER_BROWSERS=10`. The compose stack keeps
   `STACK_WORKER_BROWSERS` 2 (one run) unless set.
@@ -332,8 +350,8 @@ None visible. Same rows. A run finishes sooner. No copy changes; no internals in
   per product. Say if you want the old, slower spacing back (one line).
 - **More than one page at a time per website** (2 tabs per host under the same 2 s start spacing) would roughly
   halve a big website's run again — a politeness decision, not taken here.
-- **Defaults** `WORKER_BROWSERS=6`, `WORKER_RUNS=4`: your worker can hold up to six Chromium during runs (the gate
-  waits for 1 GB free before each launch). Set them lower in `.env` if the machine feels it.
+- **Defaults** stay `WORKER_BROWSERS=3`, `WORKER_RUNS=1` (your decision). Several websites at once needs them raised
+  in `.env` (the gate waits for 1 GB free before each launch); the benchmark report gives the memory numbers.
 
 ## 9. Rollback
 
@@ -348,7 +366,7 @@ merge; no migration, no data shape change (`captures.metadata.lean` is additive 
   `verified-extraction-lean.test.ts`, `verified-extraction-ready.test.ts`)
 - `packages/api/src/crawl/extract-item.ts`, `start-execution.ts` (+ tests); `src/jobs/browser-gate.ts` (+ test);
   `src/jobs/index.ts` and `package.json` exports for the bench
-- `packages/worker/src/config.ts` (+ test), `package.json` (`@robot/scraper`, `postgres`); new
-  `src/bench/{fixture-shop,bench-db,seed,measure,run-speed,compare,real-sites}.ts` (+ `fixture-shop.test.ts`)
+- `packages/worker/package.json` (`@robot/scraper`, `postgres`); new
+  `src/bench/{fixture-shop,bench-db,seed,measure,run-speed,compare,real-sites}.ts` (+ `fixture-shop.test.ts`, `bench-db.test.ts`)
 - `CLAUDE.md` (commands, environment, key decisions), `docs/handoff.md`, `docs/queue.md`,
   `docs/testing/results/2026-10-23-run-speed/`
