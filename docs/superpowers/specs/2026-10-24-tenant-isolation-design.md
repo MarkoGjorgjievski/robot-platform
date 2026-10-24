@@ -1,8 +1,35 @@
 # Tenant isolation audit, as tests — design
 
-**Status:** written 2026-10-24 under the standing approval (`CLAUDE.md`, "Autonomous runs"; `docs/queue.md` item 1,
+**Status:** implemented on `feat/tenant-isolation` and merged to `main` on 2026-10-24 (`84413343`); written 2026-10-24 under the standing approval (`CLAUDE.md`, "Autonomous runs"; `docs/queue.md` item 1,
 "Tenant isolation audit, as tests"). Plan: `docs/superpowers/plans/2026-10-24-tenant-isolation.md`. Branch
 `feat/tenant-isolation` from `main` @ `45e0bdf3`, worktree `C:\Users\Marko\Documents\projects\robot-platform-tenant`.
+
+**Proven:** the procedure sweep classifies all 85 procedures (scoped 56, org-wide 8, self 8, membership 3, ops 5,
+public 3, stateless 2) and calls each across two throwaway organisations — every scoped call with B's ids answers
+`NOT_FOUND` exactly as for ids nobody has, B's rows are unchanged, the test queue's job count is unchanged, and B's own
+owner reaches the same rows (252 tests); the file-route sweep (`/captures/*`, `/export/runs/*`, `/export/projects/*`:
+401 / 404 / 400, every wrong signed link the same 404; 9 tests); the money sweep (30 customer queries and 9 org-wide and
+self mutations carry no amount, staff in staff mode still read them; 50 tests); the limiter's tests (17). Full runs on
+the final head: api 2,005, api-server 88, app 1,107 (+29 live-smoke skips), worker 18; tsc clean in all four. The route
+smoke on the isolated pair with the limits on: 28 of 28, no `[rate-limit]` line in the api-server's log.
+
+**Holes found and fixed:** `projects.list` read every org's websites (and certified each) and every org's runs — the
+answer was already filtered by project, so nothing leaked; now scoped to the caller's org, with a test that watches
+which websites it certifies. `runInOrg` / `captureInOrg` refused another org's run or capture with a message that
+confirmed it existed and named its website id (11 procedures); they now answer in the words of a missing one.
+
+**Deviations** (forced by the reviews; rulings in the plan's "Settled here" and the ledger):
+- The heavy group also holds `sources.checkDrift` (a manual drift check enqueues a background job; §2.4 left it out) and
+  `orgs.members.setRole` / `orgs.members.remove` (each sends the member an email). A test now fails if a procedure the
+  table marks as starting work is not heavy or network.
+- "Everything else" is 1,200 a minute per session, not 600: one Verification tab polling six captures reaches 300–500
+  a minute, two tabs near 600, and a normal customer must never hit it.
+- `sources.verificationStatus` `aiCalls` is left out for a customer like its cost (an AI-call count is internal).
+  `sources.verifyEstimate` `aiFields` / `aiAvailable` stay: they are not counts, and the Verify label reads them.
+- A refusal is logged once per key per window, not once per refused call.
+- The money sweep also flags `$<digit>` in any string, skips customer data only at anchored answer paths (not by key
+  name at any depth), and also scans the org-wide and self mutations.
+- The app's React Query defaults never retry a query or a mutation (pinned with a test), so a refused call is sent once.
 
 ## 1. Why
 
