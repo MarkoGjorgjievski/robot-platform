@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, runs } from '@robot/db';
+import { db, runs, captures } from '@robot/db';
 import { sourceInOrg, runInOrg, captureInOrg } from './scope.js';
 import { signIn } from '../test-helpers/identity.js';
 
@@ -65,6 +65,33 @@ describe('sourceInOrg / runInOrg', () => {
       }
     } finally {
       if (a) await dropIdentity(a);
+    }
+  });
+});
+
+describe("a refusal reads the same for another org's row as for a missing one (spec 2026-10-24 tenant isolation §2.1)", () => {
+  it("names only the id asked about — never the other org's website", async () => {
+    let a: Awaited<ReturnType<typeof signIn>> | undefined;
+    let b: Awaited<ReturnType<typeof signIn>> | undefined;
+    try {
+      a = await signIn(`${tag}-msg-a@example.com`);
+      b = await signIn(`${tag}-msg-b@example.com`);
+      const p = await a.caller.projects.create({ name: 'Scoped' });
+      const w = await a.caller.sources.createInProject({ projectSlug: p.slug, name: 'Site', url: 'https://scope.example.com/' });
+      const [run] = await db.insert(runs).values({ sourceId: w.sourceId, status: 'completed' }).returning({ id: runs.id });
+      const [capture] = await db.insert(captures).values({ sourceId: w.sourceId, url: 'https://scope.example.com/p' }).returning({ id: captures.id });
+      const ctxB = { db, session: b.session };
+      const refusal = (p: Promise<unknown>) => p.then(() => null, (e: { code: string; message: string }) => ({ code: e.code, message: e.message }));
+
+      expect(await refusal(sourceInOrg(ctxB, w.sourceId))).toEqual({ code: 'NOT_FOUND', message: `Website ${w.sourceId} not found` });
+      expect(await refusal(sourceInOrg(ctxB, MISSING))).toEqual({ code: 'NOT_FOUND', message: `Website ${MISSING} not found` });
+      expect(await refusal(runInOrg(ctxB, run!.id))).toEqual({ code: 'NOT_FOUND', message: `Run ${run!.id} not found` });
+      expect(await refusal(runInOrg(ctxB, MISSING))).toEqual({ code: 'NOT_FOUND', message: `Run ${MISSING} not found` });
+      expect(await refusal(captureInOrg(ctxB, capture!.id))).toEqual({ code: 'NOT_FOUND', message: `Page capture ${capture!.id} not found` });
+      expect(await refusal(captureInOrg(ctxB, MISSING))).toEqual({ code: 'NOT_FOUND', message: `Page capture ${MISSING} not found` });
+    } finally {
+      if (a) await dropIdentity(a);
+      if (b) await dropIdentity(b);
     }
   });
 });
