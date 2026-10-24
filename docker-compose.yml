@@ -1,5 +1,5 @@
 # The whole stack in Docker Compose (spec docs/superpowers/specs/2026-10-23-docker-compose-design.md).
-#   docker compose up -d --build        → app http://127.0.0.1:3200, api http://127.0.0.1:4200, Postgres 127.0.0.1:5442
+#   docker compose up -d --build        → app http://127.0.0.1:3200, api http://127.0.0.1:4200, Postgres 127.0.0.1:5442, mail http://127.0.0.1:8225
 # 127.0.0.1, not localhost: cookies are per host, not per port, so a stack on localhost would share the
 # robot_session cookie with `pnpm dev:all` (localhost:3000/4000) and each would sign the other out.
 #   docker compose down                 → stop it (add -v to drop its database, captures and nothing else)
@@ -53,6 +53,8 @@ services:
       PORT: "4000"
       APP_ORIGINS: http://127.0.0.1:${STACK_APP_PORT:-3200}
       CAPTURES_DIR: /repo/packages/api-server/public/captures
+      # Links in the membership and staff-access emails it renders (spec 2026-10-24 email §3.5).
+      PUBLIC_APP_URL: http://127.0.0.1:${STACK_APP_PORT:-3200}
     init: true
     ports:
       - "127.0.0.1:${STACK_API_PORT:-4200}:4000"
@@ -80,6 +82,10 @@ services:
       # Webhook download links point at this stack's api-server, not the default :4000 of `pnpm dev:all`
       # (spec 2026-10-24 ruling 13). Scheduled runs (RECURRING_RUNS) stay on, the default.
       PUBLIC_API_URL: http://127.0.0.1:${STACK_API_PORT:-4200}
+      # Email (spec 2026-10-24 email §3.5): to the stack's Mailpit unless STACK_SMTP_URL names a provider; links name
+      # this stack's app.
+      SMTP_URL: ${STACK_SMTP_URL:-smtp://mailpit:1025}
+      PUBLIC_APP_URL: http://127.0.0.1:${STACK_APP_PORT:-3200}
     volumes:
       - captures:/repo/packages/api-server/public/captures
     # Chromium needs more than Docker's 64 MB /dev/shm.
@@ -88,6 +94,7 @@ services:
     stop_grace_period: 30s
     depends_on:
       migrate: { condition: service_completed_successfully }
+      mailpit: { condition: service_started }
     restart: unless-stopped
 
   app:
@@ -106,6 +113,14 @@ services:
       - "127.0.0.1:${STACK_APP_PORT:-3200}:3000"
     depends_on:
       api: { condition: service_healthy }
+    restart: unless-stopped
+
+  # Catches the stack's email (spec 2026-10-24 email §3.5): SMTP on the stack's network only (mailpit:1025), the web UI
+  # at http://127.0.0.1:${STACK_MAIL_PORT:-8225}. No volume: its messages go with the container.
+  mailpit:
+    image: axllent/mailpit:v1.32.0
+    ports:
+      - "127.0.0.1:${STACK_MAIL_PORT:-8225}:8025"
     restart: unless-stopped
 
   # Nightly pg_dump into ./backups (BACKUP_AT, UTC; keeps BACKUP_KEEP dumps); also runs backup.sh,
