@@ -1,6 +1,9 @@
-import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index, uniqueIndex, check, numeric } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index, uniqueIndex, check, numeric, customType } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
+
+/** Postgres `bytea` (drizzle-orm 0.44 has no built-in one): a Buffer in and out (postgres-js). */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
 
 // ─── Organizations ───────────────────────────────────────────────────────────
 
@@ -183,6 +186,16 @@ export const sources = pgTable('sources', {
   // website's proof pages. Null = due. Moved on by every claim, every completed
   // Verify and every finished check.
   nextCheckAt: timestamp('next_check_at', { withTimezone: true }),
+  // Recurring extraction (spec 2026-10-24 §3.1): { days: number[] (ISO, 1 = Monday); time: 'HH:MM'; timeZone }
+  // or null (no schedule). `next_run_at`: when the worker's sweep next starts a run (null: never);
+  // `schedule_last`: the last sweep's outcome { at, outcome: 'started' | 'skipped', reason?, runId? }.
+  schedule: jsonb('schedule'),
+  nextRunAt: timestamp('next_run_at', { withTimezone: true }),
+  scheduleLast: jsonb('schedule_last'),
+  // Where a finished run is posted (§3.4), and the secret that signs the post and its file links
+  // (32 random bytes, hex; made on the first save, kept when the address is removed).
+  webhookUrl: text('webhook_url'),
+  webhookSecret: text('webhook_secret'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -191,6 +204,7 @@ export const sources = pgTable('sources', {
   uniqueIndex('sources_dataset_slug_idx').on(table.datasetId, table.slug),
   index('sources_input_set_id_idx').on(table.inputSetId),
   index('sources_is_sandbox_idx').on(table.isSandbox),
+  index('sources_next_run_at_idx').on(table.nextRunAt).where(sql`${table.schedule} IS NOT NULL`),
   check('sources_non_sandbox_requires_dataset', sql`${table.isSandbox} = true OR ${table.datasetId} IS NOT NULL`),
 ]);
 
@@ -737,6 +751,40 @@ export const runItemsRelations = relations(runItems, ({ one }) => ({
   extraction: one(extractions, { fields: [runItems.extractionId], references: [extractions.id] }),
   parent: one(runItems, { fields: [runItems.parentId], references: [runItems.id], relationName: 'run_item_parent' }),
 }));
+
+// ─── Run files and webhook deliveries (2026-10-24) ──────────────────────────
+// Recurring extraction (spec 2026-10-24 §3.3–§3.4): a settled run's file, one row per format, written by its
+// `run-delivery` job — the snapshot a webhook's links download (a later backfill's own delivery replaces it) —
+// and one row per webhook attempt.
+
+export const runFiles = pgTable('run_files', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  runId: uuid('run_id').notNull().references(() => runs.id, { onDelete: 'cascade' }),
+  // 'csv' | 'json' | 'xlsx'
+  format: varchar('format', { length: 8 }).notNull(),
+  // The download's name, as the live export names it (exportFilename).
+  filename: text('filename').notNull(),
+  bytes: bytea('bytes').notNull(),
+  rows: integer('rows').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('run_files_run_format_idx').on(table.runId, table.format),
+]);
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  runId: uuid('run_id').notNull().references(() => runs.id, { onDelete: 'cascade' }),
+  // The same on every attempt of one run's delivery (the `X-Robot-Delivery` header).
+  deliveryId: uuid('delivery_id').notNull(),
+  attempt: integer('attempt').notNull(),
+  ok: boolean('ok').notNull(),
+  // Null when nothing answered (a refused address, a timeout, a connection error). Staff only.
+  statusCode: integer('status_code'),
+  error: text('error'),
+  at: timestamp('at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('webhook_deliveries_run_at_idx').on(table.runId, table.at),
+]);
 
 // ─── Staff activity (spec 2026-10-07 §2.4) — append-only ────────────────────
 
