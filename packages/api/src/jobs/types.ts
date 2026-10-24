@@ -46,6 +46,9 @@ export const JOB_POLICIES = {
   // Spec 2026-10-24 §3.3: writes a settled run's file and posts its webhook; a failed post is retried (30 s, doubling).
   // Five attempts — delivery/delivery-state.ts's RUN_DELIVERY_ATTEMPTS, pinned by run-delivery.test.ts.
   'run-delivery': { lane: 'background', priority: 15, maxAttempts: 5, stuckMs: 5 * MIN, startWithinMs: null },
+  // Spec 2026-10-24 email §3.3: sends one email_messages row; a failed send is retried (30 s, doubling), five attempts —
+  // email/send-email.ts's EMAIL_ATTEMPTS, pinned by send-email.test.ts.
+  email: { lane: 'background', priority: 25, maxAttempts: 5, stuckMs: 2 * MIN, startWithinMs: null },
   run: { lane: 'runs', priority: 10, maxAttempts: 3, stuckMs: 15 * MIN, startWithinMs: null, retryOnStuck: true, runSentence: RUN_STOPPED },
 } as const satisfies Record<string, JobPolicy>;
 
@@ -85,5 +88,6 @@ export type JobPayloads = {
   'website-check': { sourceId: string };
   'scheduled-run': { sourceId: string; runId: string };
   'run-delivery': { runId: string; deliveryId: string };
+  email: { messageId: string };
   run: { runId: string; limit?: number; repairSweep?: { deadFields: string[] } };
 };
