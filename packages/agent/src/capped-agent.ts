@@ -25,6 +25,9 @@ export type CapOptions = {
   perCallUsd: number;
   /** The org the job works for: its open jobs in this process share the remainder (spec §3.1). */
   orgId?: string | null;
+  /** A slot taken with `openCapLedger` before the remainder was read: the agent adopts it (and its org). A sibling job
+   *  that records its cost and closes while the remainder is being read is then seen by the read or by the slot. */
+  ledger?: CapLedger;
 };
 
 export type CapLedger = {
@@ -49,10 +52,19 @@ class Ledger implements CapLedger {
   calls = 0;
   refused = 0;
   private readonly entry: Entry | null;
+  /** Until an agent adopts a slot, nothing is left: a slot alone never lets a call through. */
+  private opts: { remainingUsd: number | null; perCallUsd: number } = { remainingUsd: 0, perCallUsd: 0 };
+  private adopted = false;
 
-  constructor(private readonly opts: CapOptions) {
-    this.entry = opts.orgId ? { ledger: this, openedAt: ++tick, closedAt: null } : null;
-    if (this.entry) byOrg.set(opts.orgId!, [...(byOrg.get(opts.orgId!) ?? []), this.entry]);
+  constructor(readonly orgId: string | null) {
+    this.entry = orgId ? { ledger: this, openedAt: ++tick, closedAt: null } : null;
+    if (this.entry) byOrg.set(orgId!, [...(byOrg.get(orgId!) ?? []), this.entry]);
+  }
+
+  adopt(opts: { remainingUsd: number | null; perCallUsd: number }): void {
+    if (this.adopted) throw new Error('a cap ledger is adopted by one agent once');
+    this.adopted = true;
+    this.opts = { remainingUsd: opts.remainingUsd, perCallUsd: opts.perCallUsd };
   }
 
   get projectedUsd(): number {
@@ -63,7 +75,7 @@ class Ledger implements CapLedger {
   private othersUnits(): number {
     if (!this.entry) return 0;
     let sum = 0;
-    for (const e of byOrg.get(this.opts.orgId!) ?? []) {
+    for (const e of byOrg.get(this.orgId!) ?? []) {
       if (e === this.entry) continue;
       if (e.closedAt === null || e.closedAt > this.entry.openedAt) sum += e.ledger.calls * units(e.ledger.opts.perCallUsd);
     }
@@ -86,7 +98,7 @@ class Ledger implements CapLedger {
   close(): void {
     if (!this.entry || this.entry.closedAt !== null) return;
     this.entry.closedAt = ++tick;
-    prune(this.opts.orgId!);
+    prune(this.orgId!);
   }
 }
 
@@ -102,8 +114,19 @@ function prune(orgId: string): void {
 
 const ledgers = new WeakMap<object, CapLedger>();
 
+/**
+ * Take an org's slot now, before reading what is left of its limit (metering review I1): a sibling job that records
+ * its cost and closes after this moment counts against this job; one that closed before it is in the read. Close it
+ * on every exit; an agent adopts it through `cappedAgent(agent, { …, ledger })`.
+ */
+export function openCapLedger(orgId: string | null | undefined): CapLedger {
+  return new Ledger(orgId ?? null);
+}
+
 export function cappedAgent<T extends object>(agent: T, opts: CapOptions): T {
-  const ledger = new Ledger(opts);
+  if (opts.ledger && !(opts.ledger instanceof Ledger)) throw new Error('cappedAgent adopts only a ledger from openCapLedger');
+  const ledger = (opts.ledger as Ledger | undefined) ?? new Ledger(opts.orgId ?? null);
+  ledger.adopt(opts);
   const proxy = new Proxy(agent, {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);
@@ -122,6 +145,13 @@ export function cappedAgent<T extends object>(agent: T, opts: CapOptions): T {
 
 export function capLedgerOf(agent: object): CapLedger | undefined {
   return ledgers.get(agent);
+}
+
+/** Tests only: how many jobs the registry holds, open or kept closed, across every org. */
+export function capJobsOpen(): number {
+  let n = 0;
+  for (const list of byOrg.values()) n += list.length;
+  return n;
 }
 
 /** Tests only: forget every open job. */

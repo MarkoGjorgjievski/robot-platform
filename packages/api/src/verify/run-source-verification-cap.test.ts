@@ -7,16 +7,27 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
-import { isCapReached, type ProposePathsAgent } from '@robot/agent';
+import { capLedgerOf, cappedAgent, isCapReached, resetCapLedgers, type ProposePathsAgent } from '@robot/agent';
 import { db, orgs, runs, sourceVerifications } from '@robot/db';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 
-const { runVerificationMock, built, propose } = vi.hoisted(() => ({
+const { runVerificationMock, built, propose, hooks } = vi.hoisted(() => ({
   runVerificationMock: vi.fn(),
   built: vi.fn(),
   propose: vi.fn(async () => [] as unknown[]),
+  /** Runs right after the remainder is read from the database, before the read's answer is used. */
+  hooks: { afterRead: null as null | (() => void) },
 }));
+// Review I1: a sibling job may record its cost and close while this job's remainder is being read.
+vi.mock('../metering/cap-state.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../metering/cap-state.js')>();
+  return {
+    ...actual,
+    orgCapState: vi.fn(async (...a: Parameters<typeof actual.orgCapState>) => { const s = await actual.orgCapState(...a); hooks.afterRead?.(); return s; }),
+    capStateForSource: vi.fn(async (...a: Parameters<typeof actual.capStateForSource>) => { const s = await actual.capStateForSource(...a); hooks.afterRead?.(); return s; }),
+  };
+});
 vi.mock('@robot/scraper', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@robot/scraper')>()),
   runVerification: runVerificationMock,
@@ -36,6 +47,8 @@ const savedKey = process.env.ANTHROPIC_API_KEY;
 const savedCap = process.env.ORG_AI_CAP_USD;
 afterEach(async () => {
   runVerificationMock.mockReset(); built.mockClear(); propose.mockClear();
+  hooks.afterRead = null;
+  resetCapLedgers();
   if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = savedKey;
   if (savedCap === undefined) delete process.env.ORG_AI_CAP_USD; else process.env.ORG_AI_CAP_USD = savedCap;
   await db.update(orgs).set({ aiCapUsd: null }).where(eq(orgs.id, me.org.id));
@@ -103,6 +116,29 @@ describe('runSourceVerification and the monthly limit (spec 2026-10-24 metering 
       expect(propose).toHaveBeenCalledTimes(2);
       expect(results.slice(0, 2)).toEqual(['asked', 'asked']);
       expect(isCapReached(results[2])).toBe(true);
+    } finally { await f.cleanup(); }
+  });
+
+  it('RF1 (review I1): a sibling job of the org that records its cost and closes while this Verify reads the remainder still counts', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    await db.update(orgs).set({ aiCapUsd: '0.40' }).where(eq(orgs.id, me.org.id));
+    const f = await site('sibling');
+    await db.insert(runs).values({ sourceId: f.sourceId, status: 'completed', costUsd: '0.0400' }); // $0.36 left
+    try {
+      // The sibling started on the same $0.36 and made one $0.18 call; it records and closes during this Verify's read,
+      // so the read does not include its cost — the slot this Verify took before reading must.
+      const sibling = cappedAgent<ProposePathsAgent>({ proposePaths: async () => [] }, { remainingUsd: 0.36, perCallUsd: 0.18, orgId: me.org.id });
+      await sibling.proposePaths('x');
+      hooks.afterRead = () => capLedgerOf(sibling)!.close();
+      const results: unknown[] = [];
+      runVerificationMock.mockImplementationOnce(async (_req: unknown, deps: { agent: ProposePathsAgent | null }) => {
+        for (const t of ['a', 'b']) results.push(await deps.agent!.proposePaths(t).then(() => 'asked', (e: unknown) => e));
+        return outcome(f.urls);
+      });
+      await runSourceVerification(f.sourceId, f.verificationId, { startCoverage, startCheck });
+      expect(propose).toHaveBeenCalledTimes(1);
+      expect(results[0]).toBe('asked');
+      expect(isCapReached(results[1])).toBe(true);
     } finally { await f.cleanup(); }
   });
 
