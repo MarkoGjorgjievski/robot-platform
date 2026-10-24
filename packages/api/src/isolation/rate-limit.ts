@@ -19,6 +19,8 @@ export const HEAVY_PROCEDURES = [
   'crawl.backfill', 'sources.detectVariants', 'sources.transferMarks',
   // Not in the spec's list (final review I1): a manual drift check enqueues a drift-check job in the background lane.
   'sources.checkDrift',
+  // Each sends the member an email (final review M5): an admin toggling a role cannot flood one inbox.
+  'orgs.members.setRole', 'orgs.members.remove',
 ] as const;
 export const NETWORK_PROCEDURES = ['sources.reachability', 'sources.checkListingPage', 'sources.variantLinksNear', 'sources.variantList'] as const;
 
