@@ -5,6 +5,7 @@
 import { sql } from 'drizzle-orm';
 import type { Database } from '@robot/db';
 import type { DbOrTx } from './queue.js';
+import { RUN_STOPPED } from './types.js';
 
 export type JobSubject = { table: 'source_verifications' | 'drift_checks' | 'coverage_checks' | 'captures' | 'runs'; id: string };
 
@@ -27,12 +28,17 @@ export async function closeJobRows(tx: DbOrTx, jobId: string, opts: { runSentenc
       SELECT id FROM runs WHERE job_id = ${jobId} AND status IN ('planning', 'extracting', 'cancelling') ${not('runs')})`);
   // Its row count is counted here (no finalise ran): delivery reads it to decide whether a failed or cancelled
   // run has rows to send (spec 2026-10-24 §3.3).
+  // A scheduled run's job also owns it once planned, until it starts the run (which stamps the run job): a job
+  // that ends there — its worker died between the plan and the start — closes it with the run's sentence, never
+  // leaving it `planned` with nothing to start it (final review M1). A plan by hand stays planned for its customer.
   const closed = (await tx.execute(sql`UPDATE runs SET
-      error_message = CASE WHEN status = 'cancelling' THEN error_message ELSE ${opts.runSentence} END,
+      error_message = CASE WHEN status = 'cancelling' THEN error_message WHEN status = 'planned' THEN ${RUN_STOPPED} ELSE ${opts.runSentence} END,
       status = CASE WHEN status = 'cancelling' THEN 'cancelled' ELSE 'failed' END,
       result_count = (SELECT coalesce(sum(jsonb_array_length(e.data)), 0)::int FROM extractions e WHERE e.run_id = runs.id),
       completed_at = now()
-    WHERE job_id = ${jobId} AND status IN ('planning', 'extracting', 'cancelling') ${not('runs')}
+    WHERE job_id = ${jobId} ${not('runs')}
+      AND (status IN ('planning', 'extracting', 'cancelling')
+        OR (status = 'planned' AND EXISTS (SELECT 1 FROM jobs WHERE jobs.id = ${jobId} AND jobs.type = 'scheduled-run')))
     RETURNING id`)) as unknown as Array<{ id: string }>;
   return { runIds: closed.map((r) => String(r.id)) };
 }
