@@ -6,8 +6,9 @@
 // launching a browser.
 
 import { eq, sql } from 'drizzle-orm';
-import { SchemaAgent, snapshotUsage } from '@robot/agent';
-import { HARD_ITEM_CEILING, leanRunStateFromEnv, leanSummary, type OriginField, type SchemaDefinitionField, type VariantRunPlan } from '@robot/scraper';
+import { SchemaAgent, snapshotUsage, cappedAgent, openCapLedger, CapReachedError, isCapReached, type CapLedger } from '@robot/agent';
+import { CaptureProblemError, HARD_ITEM_CEILING, leanRunStateFromEnv, leanSummary, type OriginField, type SchemaDefinitionField, type VariantRunPlan } from '@robot/scraper';
+import { CAP_REACHED_MESSAGE } from '@robot/scraper/customer-copy';
 import { db, extractions, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
@@ -26,6 +27,8 @@ import { safeErrorMessage } from './plan-source.js';
 import { addRunCost, costSince } from './record-run-cost.js';
 import { enqueueRunDelivery } from '../delivery/run-delivery.js';
 import { notifyRunFailed } from '../email/run-failed.js';
+import { orgCapState, PLAN_CALL_USD } from '../metering/cap-state.js';
+import { orgIdForSource } from '../export/org-for-export.js';
 
 /**
  * The one decision `startExecution` wires into `executeRun`'s `onDone`:
@@ -184,6 +187,8 @@ export async function startExecution(
   // Snapshotted outside the try: the cost of a run that failed part-way is
   // still money the customer spent, and Usage must show it.
   const before = snapshotUsage();
+  // A legacy website's slot against its organisation's monthly limit; none for a certified one.
+  let ledger: CapLedger | undefined;
   try {
     // `withBrowserSession` owns launch-and-always-close, including the case
     // where `launch()` itself throws part-way. The hand-rolled
@@ -192,12 +197,23 @@ export async function startExecution(
     // browser.close(); }` would have let a throwing close() replace the real
     // execution error on its way out.
     await withBrowserSession(async (browser) => {
-      const agent = new SchemaAgent();
       // Loaded once per execution: a certified Source runs ONLY its certified
       // paths for the whole loop (extractItem never falls back to the cache/AI
       // chain), and after the loop finishes, drift is checked against exactly
       // these same certified keys.
       const certification = await loadCurrentCertification(db, sourceId);
+      // Spec 2026-10-24 metering §2.3: a legacy website's model calls are guarded by the organisation's monthly limit,
+      // at PLAN_CALL_USD a call. A certified website runs its certified paths only and never calls the agent, so it
+      // is left exactly as it was: no limit read, no wrapper. The slot is taken before what is left is read (metering
+      // review I1).
+      let agent: SchemaAgent = new SchemaAgent();
+      if (!certification) {
+        const orgId = await orgIdForSource(db, sourceId);
+        ledger = openCapLedger(orgId);
+        const cap = orgId ? await orgCapState(db, orgId) : { remainingUsd: null };
+        agent = cappedAgent(agent, { remainingUsd: cap.remainingUsd, perCallUsd: PLAN_CALL_USD, ledger });
+      }
+      const capLedger = ledger;
       const sourceRow = certification
         ? await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true } })
         : null;
@@ -214,10 +230,43 @@ export async function startExecution(
       // A website with variants builds its rows from the capture, which no lean check compares: today's capture throughout (final review I1).
       const lean = certification ? leanRunStateFromEnv(process.env, { variants: variantPlan != null }) : undefined;
 
+      // Catalogue discovery (a model call outside the agent) is reserved against the same slot. It is an enrichment
+      // made after a page was already read, so its refusals are counted apart: they never fail the page (spec §3.2).
+      let discoveriesRefused = 0;
+      const reserveAiCall = capLedger
+        ? () => {
+            try { capLedger.reserve(); } catch (err) { if (isCapReached(err)) discoveriesRefused++; throw err; }
+          }
+        : undefined;
+      const extractOne: ExecuteDeps['extractItem'] = (item) => extractItem(db, item, {
+        browser, agent, sourceId, runId, schema, certification, schemaDefinition, variantPlan, itemCap: runItemCap,
+        ...(lean ? { lean } : {}), ...(reserveAiCall ? { reserveAiCall } : {}),
+      });
+      /** A legacy item whose model call the limit refused fails with the sentence, even if the chain read something
+       *  without it; its row is not kept, so a failed item adds no rows to the run. */
+      const extractCapped: ExecuteDeps['extractItem'] = async (item) => {
+        const l = capLedger!;
+        const refusedBefore = l.refused - discoveriesRefused;
+        const agentRefused = () => l.refused - discoveriesRefused > refusedBefore;
+        let out: Awaited<ReturnType<ExecuteDeps['extractItem']>>;
+        try {
+          out = await extractOne(item);
+        } catch (err) {
+          // A wall stays a wall (its own breaker); anything else after a refusal is the limit's doing.
+          if (isCapReached(err) || (agentRefused() && !(err instanceof CaptureProblemError))) throw new CapReachedError(CAP_REACHED_MESSAGE);
+          throw err;
+        }
+        if (agentRefused()) {
+          if (out.extractionId) await db.delete(extractions).where(eq(extractions.id, out.extractionId));
+          throw new CapReachedError(CAP_REACHED_MESSAGE);
+        }
+        return out;
+      };
+
       try {
         await executeRun(runId, {
           claim: (id) => claimNextItem(db, id),
-          extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema, certification, schemaDefinition, variantPlan, itemCap: runItemCap, ...(lean ? { lean } : {}) }),
+          extractItem: capLedger ? extractCapped : extractOne,
           onDone: async (...args) => { await onDone(...args); hooks?.onItem?.(); },
           onFailed: async (itemId, message) => { await markItemFailed(db, itemId, message); hooks?.onItem?.(); },
           ...(hooks?.aborted ? { aborted: hooks.aborted } : {}),
@@ -225,6 +274,8 @@ export async function startExecution(
           // loop already carried out) end this loop — see is-cancelled.ts.
           isCancelled: () => isRunCancelled(db, runId),
           stopForWall: (message) => failPendingForWall(db, runId, message),
+          // The monthly-limit breaker (spec §2.3): the same write as a wall's — every pending item "Not tried: <sentence>".
+          stopForCap: (message) => failPendingForWall(db, runId, message),
           // No rowCount passed: finaliseRun derives it from the DB itself, so a
           // stale local counter from this loop can never overwrite a truer total.
           // `cancelled` and `limitReached` ARE threaded through — executeRun's
@@ -276,5 +327,7 @@ export async function startExecution(
       // this function exists to prevent.
       console.error(`[crawl] failed to record cost for run ${runId}:`, costErr);
     }
+    // After the cost is written: the org's other jobs read it from the database from now on (metering review I2).
+    ledger?.close();
   }
 }

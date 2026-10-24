@@ -7,8 +7,9 @@
 
 import { TRPCError } from '@trpc/server';
 import { and, eq, sql } from 'drizzle-orm';
-import { SchemaAgent, snapshotUsage } from '@robot/agent';
+import { SchemaAgent, snapshotUsage, cappedAgent, openCapLedger, isCapReached, type CapLedger } from '@robot/agent';
 import { planRun, type PlannedItem, type PlanInputReport } from '@robot/scraper';
+import { CAP_REACHED_MESSAGE } from '@robot/scraper/customer-copy';
 import { runs, runItems, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
@@ -16,6 +17,8 @@ import { PROBE_BUDGET } from './probe.js';
 import { effectiveSchema } from './effective-schema.js';
 import { addRunCost, costSince } from './record-run-cost.js';
 import { jobStopped } from '../jobs/context.js';
+import { orgCapState, PLAN_CALL_USD } from '../metering/cap-state.js';
+import { orgIdForSource } from '../export/org-for-export.js';
 
 /** The run was closed (stalled, stopped) before planning could write it: nothing is written (final review M2). */
 export class PlanningClosedError extends Error {
@@ -136,6 +139,7 @@ export async function planSource(
     ? [{ id: opts.runId }]
     : await db.insert(runs).values(planningRunValues(source, probe)).returning({ id: runs.id });
   const before = snapshotUsage();
+  let ledger: CapLedger | undefined;
 
   // From here on, the run row exists: every exit path (including a launch
   // failure) must land it in a terminal status, and the browser — whether
@@ -149,6 +153,15 @@ export async function planSource(
   // the walk itself also means no chromium is held open across the DB
   // writes below.
   try {
+    // Spec 2026-10-24 metering §2.3: every model method of the planning agent is guarded by the organisation's monthly
+    // AI limit, at PLAN_CALL_USD a call. A walk that needs no model call (a certified listing's cached selectors) is
+    // never refused, whatever the limit. The org's slot is taken before what is left is read (metering review I1), so
+    // a sibling job that records its cost and closes in between is seen by the read or by the slot.
+    const orgId = await orgIdForSource(db, sourceId);
+    ledger = openCapLedger(orgId);
+    const cap = orgId ? await orgCapState(db, orgId) : { remainingUsd: null };
+    const agent = cappedAgent(new SchemaAgent(), { remainingUsd: cap.remainingUsd, perCallUsd: PLAN_CALL_USD, ledger });
+
     const rows = (inputSet.rows ?? []) as Array<Record<string, unknown>>;
     // A probe only ever needs to know whether the FIRST input row works —
     // slicing here (rather than trusting `PROBE_BUDGET` alone to keep the
@@ -176,11 +189,16 @@ export async function planSource(
         // listing's product-link group (`reconcileWithProductGroup`).
         knownDetailUrls: (source.verificationSet as { urls?: string[] } | null)?.urls ?? [],
       },
-      { browser, agent: new SchemaAgent() },
+      { browser, agent },
     ));
     // Stopped (stuck, lease lost, shutdown): the walk ran on a browser closed under it. Nothing is written;
     // the run is the runner's or the next claim's (final review I1).
     if (jobStopped()) throw new Error(`planning run ${run!.id} stopped`);
+
+    // planRun keeps walking past a failed model step; a step the limit refused means the plan is short of what it
+    // needed, so it is not written: the run fails with the one customer sentence (spec §2.3), no items, and no log —
+    // the walk's own warnings would name the model step.
+    const capped = (ledger?.refused ?? 0) > 0;
 
     // onConflictDoNothing() is the dedupe backstop for a URL surfaced twice
     // (e.g. two input rows landing on the same listing entry) — it cannot
@@ -193,6 +211,12 @@ export async function planSource(
       const [open] = await tx.select({ id: runs.id }).from(runs)
         .where(and(eq(runs.id, run!.id), eq(runs.status, 'planning'))).for('update');
       if (!open) return null;
+      if (capped) {
+        await tx.update(runs)
+          .set({ status: 'failed', logs: null, errorMessage: CAP_REACHED_MESSAGE, completedAt: new Date() })
+          .where(eq(runs.id, run!.id));
+        return { itemCount: 0, listingPages: 0, allInputsFailed: true };
+      }
       let persisted: Array<{ kind: string }> = [];
       if (outcome.items.length > 0) {
         const now = new Date();
@@ -271,7 +295,12 @@ export async function planSource(
         // safeErrorMessage, not `(err as Error).message`: a rejection that
         // is not an Error (a string, a driver object) would otherwise write
         // `undefined` into the run's fatal-reason field.
-        .set({ status: 'failed', errorMessage: safeErrorMessage(err), completedAt: new Date() })
+        // A walk that ended on a refusal of the monthly limit (or after one) gets the one customer sentence (§2.3).
+        .set({
+          status: 'failed',
+          errorMessage: isCapReached(err) || (ledger?.refused ?? 0) > 0 ? CAP_REACHED_MESSAGE : safeErrorMessage(err),
+          completedAt: new Date(),
+        })
         .where(and(eq(runs.id, run!.id), eq(runs.status, 'planning')));
     }
     throw err;
@@ -283,5 +312,7 @@ export async function planSource(
     } catch (costErr) {
       console.error(`[crawl] failed to record planning cost for run ${run!.id}:`, costErr);
     }
+    // After the cost is written: the org's other jobs read it from the database from now on (metering review I2).
+    ledger?.close();
   }
 }

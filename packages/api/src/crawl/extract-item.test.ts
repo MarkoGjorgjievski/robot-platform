@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { verdictSentence, type CaptureVerdict, type IBrowser, type PageCapture } from '@robot/browser';
 import { CaptureProblemError, _resetBackoffForTests, type VerifiedField, type VerifiedExtractionResult, type VariantRunPlan, newLeanRunState, leanRunStateFromEnv } from '@robot/scraper';
+import { CapReachedError, isCapReached } from '@robot/agent';
 import { extractItem } from './extract-item.js';
 import type { ClaimedItem } from './claim-item.js';
 import type { Certification } from '../verify/current-certification.js';
@@ -11,10 +12,14 @@ import type { Certification } from '../verify/current-certification.js';
 // (rather than merely "never passing deps.extract") so a regression that
 // falls through to the DEFAULT (`deps.extract ?? runExtraction`) inside a
 // certified branch is provably caught, not just untested.
-const { runExtractionMock } = vi.hoisted(() => ({ runExtractionMock: vi.fn() }));
+const { runExtractionMock, discoverMock } = vi.hoisted(() => ({
+  runExtractionMock: vi.fn(),
+  // Catalogue discovery is a model request: never made from a test.
+  discoverMock: vi.fn(async (..._args: unknown[]) => ({ catalogue: [] })),
+}));
 vi.mock('@robot/scraper', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@robot/scraper')>();
-  return { ...actual, runExtraction: runExtractionMock };
+  return { ...actual, runExtraction: runExtractionMock, discoverCandidateCatalogue: discoverMock };
 });
 
 const ITEM: ClaimedItem = {
@@ -933,5 +938,46 @@ describe('extractItem — with a certification', () => {
     const values = vi.fn((_row: unknown) => ({ returning: async () => [{ id: 'ext-1' }] }));
     await extractItem({ insert: () => ({ values }) } as never, ITEM, { browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA, schemaDefinition: SCHEMA_DEFINITION, certification: CERTIFICATION, extractVerified, recordStats: vi.fn(async () => {}) });
     expect((values.mock.calls[1]![0] as { validationResult: unknown }).validationResult).toEqual({ shown: { price: true }, paths: { price: CERTIFICATION.paths.price![0] } });
+  });
+});
+
+describe('extractItem and the monthly limit (spec 2026-10-24 metering §2.3)', () => {
+  /** Runs one legacy item whose chain asks for catalogue discovery once; what discovery answered (or threw). */
+  async function discoverOnce(reserveAiCall?: () => void): Promise<unknown> {
+    const saved = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    let seen: unknown;
+    try {
+      await extractItem(fakeDb, ITEM, {
+        browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: SCHEMA,
+        ...(reserveAiCall ? { reserveAiCall } : {}),
+        extract: async (_request, d) => {
+          const discover = (d as { discoverCatalogue?: (e: never) => Promise<unknown> }).discoverCatalogue!;
+          seen = await Promise.resolve().then(() => discover({} as never)).catch((e: unknown) => e);
+          return { data: [{ title: 'Kallax' }], plan: null, confidence: 0.9, sources: {}, fieldCount: { found: 1, total: 1 }, fieldsByTier: { requested: [], discovered: [] }, cacheHit: false };
+        },
+      });
+    } finally {
+      if (saved === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = saved;
+    }
+    return seen;
+  }
+
+  it('catalogue discovery asks the limit first, and is never made when refused', async () => {
+    discoverMock.mockClear();
+    const reserve = vi.fn(() => { throw new CapReachedError(); });
+    const seen = await discoverOnce(reserve);
+    expect(reserve).toHaveBeenCalledTimes(1);
+    expect(isCapReached(seen)).toBe(true);
+    expect(discoverMock).not.toHaveBeenCalled();
+  });
+
+  it('with room, the reservation is taken and discovery is made; without a limit, discovery is as before', async () => {
+    discoverMock.mockClear();
+    const reserve = vi.fn();
+    expect(await discoverOnce(reserve)).toEqual({ catalogue: [] });
+    expect(reserve).toHaveBeenCalledTimes(1);
+    expect(await discoverOnce()).toEqual({ catalogue: [] });
+    expect(discoverMock).toHaveBeenCalledTimes(2);
   });
 });

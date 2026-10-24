@@ -11,10 +11,14 @@
 // browser, an API key, or a database.
 
 import { CaptureProblemError } from '@robot/scraper';
+import { isCapReached } from '@robot/agent';
 import type { ClaimedItem } from './claim-item.js';
 
 /** Walls in a row that stop a run: past this, the site has walled us, not one page. */
 export const WALL_STREAK_LIMIT = 3;
+
+/** Items in a row refused by the organisation's monthly AI limit that stop a run (spec 2026-10-24 metering §2.3). */
+export const CAP_STREAK_LIMIT = 3;
 
 /** The wall's sentence when this item failed because the site refused or challenged us; else null. */
 export function wallSentence(err: unknown): string | null {
@@ -44,6 +48,12 @@ export type ExecuteDeps = {
    * sleeping 8 minutes of backoff per remaining item.
    */
   stopForWall: (message: string) => Promise<void>;
+  /**
+   * The monthly-limit breaker (spec 2026-10-24 metering §2.3), `stopForWall`'s twin: called once when CAP_STREAK_LIMIT
+   * items in a row failed because the organisation's monthly AI limit refused their model call. Optional: a caller
+   * without it never stops for the limit.
+   */
+  stopForCap?: (message: string) => Promise<void>;
   /**
    * `cancelled` is the loop's own outcome, not re-derived by re-reading
    * `isCancelled()` — the run row can move on between the last check and
@@ -90,6 +100,9 @@ export async function executeRun(
   // Consecutive items that failed on a wall; any other outcome resets it.
   let wallStreak = 0;
   let wallStop: string | null = null;
+  // Consecutive items the monthly limit refused; any other outcome resets it.
+  let capStreak = 0;
+  let capStop: string | null = null;
   let abortedStop = false;
 
   // `finalise` runs in `finally` so it fires on every exit path — normal
@@ -142,6 +155,7 @@ export async function executeRun(
       try {
         const { row, extractionId, targetFields } = await deps.extractItem(item);
         wallStreak = 0;
+        capStreak = 0;
         try {
           await deps.onDone(item.id, extractionId, row, targetFields);
           extracted++;
@@ -178,6 +192,12 @@ export async function executeRun(
           wallStop = wall;
           break;
         }
+        // Three refusals in a row: the month's limit, not one page — the rest would only be refused the same way.
+        capStreak = isCapReached(err) ? capStreak + 1 : 0;
+        if (deps.stopForCap && capStreak >= CAP_STREAK_LIMIT) {
+          capStop = message;
+          break;
+        }
       }
     }
     if (wallStop) {
@@ -187,6 +207,13 @@ export async function executeRun(
         // The items stay pending and the run rolls up as still extracting;
         // logged, and finalise still runs below.
         console.error(`executeRun: stopping run ${runId} after ${WALL_STREAK_LIMIT} walls failed`, err);
+      }
+    }
+    if (capStop && deps.stopForCap) {
+      try {
+        await deps.stopForCap(capStop);
+      } catch (err) {
+        console.error(`executeRun: stopping run ${runId} at the monthly limit failed`, err);
       }
     }
   } finally {

@@ -1,7 +1,9 @@
 // packages/api/src/crawl/execute-run.test.ts
 import { describe, it, expect, vi } from 'vitest';
 import { CaptureProblemError } from '@robot/scraper';
-import { executeRun, wallSentence, WALL_STREAK_LIMIT, type ExecuteDeps } from './execute-run.js';
+import { CapReachedError } from '@robot/agent';
+import { CAP_REACHED_MESSAGE } from '@robot/scraper/customer-copy';
+import { executeRun, wallSentence, WALL_STREAK_LIMIT, CAP_STREAK_LIMIT, type ExecuteDeps } from './execute-run.js';
 import { rollUpStatus } from './roll-up-run.js';
 import type { ClaimedItem } from './claim-item.js';
 
@@ -15,6 +17,7 @@ function harness(overrides: Partial<ExecuteDeps> = {}, queue: ClaimedItem[] = []
   const failed: Array<{ id: string; message: string }> = [];
   let finalRowCount = -1;
   const wallStops: string[] = [];
+  const capStops: string[] = [];
   const deps: ExecuteDeps = {
     claim: async () => queue.shift() ?? null,
     extractItem: async (i) => ({ row: { title: `row ${i.id}` }, extractionId: `x-${i.id}`, targetFields: null }),
@@ -25,6 +28,10 @@ function harness(overrides: Partial<ExecuteDeps> = {}, queue: ClaimedItem[] = []
     // item becomes a failed "Not tried" one.
     stopForWall: async (message) => {
       wallStops.push(message);
+      for (const i of queue.splice(0)) failed.push({ id: i.id, message: `Not tried: ${message}` });
+    },
+    stopForCap: async (message) => {
+      capStops.push(message);
       for (const i of queue.splice(0)) failed.push({ id: i.id, message: `Not tried: ${message}` });
     },
     // The stub answers with what production answers. `finaliseRun` reads the
@@ -46,7 +53,7 @@ function harness(overrides: Partial<ExecuteDeps> = {}, queue: ClaimedItem[] = []
     },
     ...overrides,
   };
-  return { deps, done, failed, wallStops, rowCount: () => finalRowCount };
+  return { deps, done, failed, wallStops, capStops, rowCount: () => finalRowCount };
 }
 
 describe('executeRun', () => {
@@ -326,5 +333,48 @@ describe('executeRun — stopped by the worker (spec 2026-10-23 §4.4)', () => {
     expect(h.failed).toEqual([]);
     expect(finalise).not.toHaveBeenCalled();
     expect(out).toMatchObject({ status: 'aborted', failed: 0, extracted: 0 });
+  });
+});
+
+describe('executeRun — the monthly limit breaker (spec 2026-10-24 metering §2.3)', () => {
+  const capped = () => new CapReachedError(CAP_REACHED_MESSAGE);
+
+  it('three capped items in a row stop the run: each fails with the sentence, the rest are "Not tried"', async () => {
+    expect(CAP_STREAK_LIMIT).toBe(3);
+    let tried = 0;
+    const h = harness({ extractItem: async () => { tried++; throw capped(); } }, ['1', '2', '3', '4', '5'].map(item));
+    const outcome = await executeRun('run-1', h.deps);
+    expect(tried).toBe(3);
+    expect(h.capStops).toEqual([CAP_REACHED_MESSAGE]);
+    expect(h.failed.slice(0, 3).map((f) => f.message)).toEqual([CAP_REACHED_MESSAGE, CAP_REACHED_MESSAGE, CAP_REACHED_MESSAGE]);
+    expect(h.failed.slice(3)).toEqual(['4', '5'].map((id) => ({ id, message: `Not tried: ${CAP_REACHED_MESSAGE}` })));
+    expect(outcome.status).toBe('failed');
+  });
+
+  it('two capped items then a page that needed no AI do not trip it (spec §3.2)', async () => {
+    let n = 0;
+    const h = harness({
+      extractItem: async (i) => {
+        n++;
+        if (n === 1 || n === 2 || n === 4) throw capped();
+        return { row: { title: i.id }, extractionId: `x-${i.id}`, targetFields: null };
+      },
+    }, ['1', '2', '3', '4', '5'].map(item));
+    await executeRun('run-1', h.deps);
+    expect(h.capStops).toEqual([]);
+    expect(h.done).toEqual(['3', '5']);
+  });
+
+  it('capped items are not walls', async () => {
+    const h = harness({ extractItem: async () => { throw capped(); } }, ['1', '2', '3'].map(item));
+    await executeRun('run-1', h.deps);
+    expect(h.wallStops).toEqual([]);
+  });
+
+  it('without stopForCap the run never stops for the limit', async () => {
+    const h = harness({ extractItem: async () => { throw capped(); }, stopForCap: undefined }, ['1', '2', '3', '4'].map(item));
+    await executeRun('run-1', h.deps);
+    expect(h.capStops).toEqual([]);
+    expect(h.failed).toHaveLength(4);
   });
 });
