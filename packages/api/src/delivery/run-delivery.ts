@@ -100,16 +100,36 @@ export function webhookHeaders(secret: string, body: string, deliveryId: string)
   };
 }
 
+/** A failed attempt that never reached the post, recorded only when the run's website has a webhook; never throws. */
+async function recordUnsentAttempt(p: JobPayloads['run-delivery'], attempt: number, error: string): Promise<void> {
+  try {
+    const [site] = await db.select({ webhookUrl: sources.webhookUrl }).from(runs)
+      .innerJoin(sources, eq(runs.sourceId, sources.id)).where(eq(runs.id, p.runId)).limit(1);
+    if (!site?.webhookUrl) return;
+    await db.insert(webhookDeliveries).values({ runId: p.runId, deliveryId: p.deliveryId, attempt, ok: false, statusCode: null, error: error.slice(0, 1000) });
+  } catch (err) {
+    console.error(`[delivery] the failed attempt for run ${p.runId} could not be recorded:`, err);
+  }
+}
+
 export async function deliverRun(
   p: JobPayloads['run-delivery'],
   ctx: Pick<JobContext, 'attempt'>,
-  deps: { post?: typeof postWebhook; env?: Record<string, string | undefined>; now?: () => number } = {},
+  deps: { post?: typeof postWebhook; env?: Record<string, string | undefined>; now?: () => number; writeFiles?: typeof writeRunFiles } = {},
 ): Promise<{ files: boolean; delivered: boolean | null }> {
   // Checked again now, not only at enqueue: a run resumed or re-opened since is not one to send (its status would
   // be outside §3.4's list), and nothing is written or posted for it.
   const now = await db.query.runs.findFirst({ where: eq(runs.id, p.runId), columns: { status: true, resultCount: true } });
   if (!now || !deliverable(now.status, now.resultCount)) return { files: false, delivered: null };
-  const written = await writeRunFiles(db, p.runId);
+  let written: Awaited<ReturnType<typeof writeRunFiles>>;
+  try {
+    written = await (deps.writeFiles ?? writeRunFiles)(db, p.runId);
+  } catch (err) {
+    // Failed before any post (final review M5): with a webhook, the attempt is still recorded, so the run page reads
+    // "trying again" or "could not be delivered" rather than nothing. The job retries it as any failed attempt.
+    await recordUnsentAttempt(p, ctx.attempt, `files could not be written: ${err instanceof Error ? err.message : String(err)}`);
+    throw err;
+  }
   if (!written) return { files: false, delivered: null };
   const [hit] = await db
     .select({
