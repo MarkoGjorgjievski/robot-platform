@@ -9,6 +9,7 @@ import { capJobsOpen, recordUsage } from '@robot/agent';
 import { db, inputSets, orgs, runItems, runs, sources } from '@robot/db';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { withJobRunner, JOB_TEST_MS } from '../test-helpers/jobs.js';
 
 const { planRunMock, detect } = vi.hoisted(() => ({ planRunMock: vi.fn(), detect: vi.fn(async () => ({ type: 'none' })) }));
 vi.mock('@robot/scraper', async (orig) => ({ ...(await orig<typeof import('@robot/scraper')>()), planRun: planRunMock }));
@@ -60,6 +61,9 @@ describe('planSource and the monthly limit (spec 2026-10-24 metering §2.3)', ()
       planRunMock.mockImplementationOnce(askingWalk('plan-cap-at'));
       const out = await planSource(db, f.sourceId, { runId: f.runId });
       expect(out).toMatchObject({ status: 'failed', itemCount: 0, listingPages: 0 });
+      // Final review I1: the answer carries the one sentence only — no walk warning naming a model step.
+      expect(out.warnings).toEqual([]);
+      expect(out.errors).toEqual([{ inputIndex: 0, message: CAP_REACHED_MESSAGE }]);
       expect(await runRow(f.runId)).toMatchObject({ status: 'failed', errorMessage: CAP_REACHED_MESSAGE, logs: null });
       expect(await itemsOf(f.runId)).toEqual([]);
       expect(detect).not.toHaveBeenCalled();
@@ -67,6 +71,23 @@ describe('planSource and the monthly limit (spec 2026-10-24 metering §2.3)', ()
       expect(capJobsOpen()).toBe(0);
     } finally { await f.cleanup(); }
   });
+
+  it("final review I1: crawl.plan at the limit answers the one sentence, never the walk's warnings or errors", async () => {
+    await db.update(orgs).set({ aiCapUsd: '0.00' }).where(eq(orgs.id, me.org.id));
+    const f = await plannable('plan-cap-answer');
+    try {
+      // The walk keeps going past the refusal and reports it in its own words, naming the model steps.
+      planRunMock.mockImplementationOnce(async (input: unknown, deps: Parameters<ReturnType<typeof askingWalk>>[1]) => ({
+        ...(await askingWalk('plan-cap-answer')(input, deps)),
+        warnings: ["https://test-plan-cap-answer.example.com/list: XPath fallback (generateSelectors) failed: This organisation's monthly limit is reached."],
+        errors: [{ inputIndex: 0, message: "pagination failed: This organisation's monthly limit is reached." }],
+      }));
+      const answer = await withJobRunner(() => me.caller.crawl.plan({ sourceId: f.sourceId, probe: true }));
+      expect(answer).toMatchObject({ status: 'failed', itemCount: 0 });
+      expect(answer.warnings).toEqual([]);
+      expect(answer.errors).toEqual([{ inputIndex: 0, message: CAP_REACHED_MESSAGE }]);
+    } finally { await f.cleanup(); }
+  }, JOB_TEST_MS);
 
   it('a plan that needs no model call is planned at the limit (spec §3.2)', async () => {
     await db.update(orgs).set({ aiCapUsd: '0.00' }).where(eq(orgs.id, me.org.id));
@@ -83,7 +104,8 @@ describe('planSource and the monthly limit (spec 2026-10-24 metering §2.3)', ()
     const f = await plannable('plan-cap-during');
     try {
       planRunMock.mockImplementationOnce(askingWalk('plan-cap-during', 3));
-      expect(await planSource(db, f.sourceId, { runId: f.runId })).toMatchObject({ status: 'failed' });
+      const out = await planSource(db, f.sourceId, { runId: f.runId });
+      expect(out).toMatchObject({ status: 'failed', warnings: [], errors: [{ inputIndex: 0, message: CAP_REACHED_MESSAGE }] });
       expect(detect).toHaveBeenCalledTimes(2);
       expect((await runRow(f.runId)).errorMessage).toBe(CAP_REACHED_MESSAGE);
     } finally { await f.cleanup(); }
