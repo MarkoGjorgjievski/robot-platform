@@ -8,7 +8,7 @@ import { runDriftCheck, storedCaptures } from '../verify/run-drift-check.js';
 import { runCoverageCheck } from '../verify/run-coverage-check.js';
 import { checkWebsite } from '../verify/website-checks.js';
 import { runScheduledRun } from '../recurring/scheduled-run.js';
-import { deliverRun } from '../delivery/run-delivery.js';
+import { afterRunDelivery, deliverRun } from '../delivery/run-delivery.js';
 import { runExecuteJob, afterRunJob } from './handlers/run.js';
 import { reachabilityNow, listingCheckNow, transferMarksNow, detectVariantsNow, variantLinksNearNow } from './handlers/interactive.js';
 import { planSource } from '../crawl/plan-source.js';
@@ -66,6 +66,8 @@ export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
       policy: JOB_POLICIES['run-delivery'],
       subject: () => null,
       run: (p: JobPayloads['run-delivery'], ctx) => deliverRun(p, ctx),
+      // A backfill that finished while this job went (its enqueue got this job back) is delivered once more (task 6 M1).
+      afterDone: (p: JobPayloads['run-delivery']) => afterRunDelivery(p),
     },
     // One executor per run; a retry resumes it (its earlier attempt's `running` items back to pending).
     run: {

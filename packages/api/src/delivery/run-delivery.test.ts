@@ -16,7 +16,7 @@ import { loadRunExport } from '../export/load-run-export.js';
 import { renderRunExport } from '../export/render-run-export.js';
 import { bodySignature, checkFileSignature } from './signing.js';
 import { loadRunDelivery, RUN_DELIVERY_ATTEMPTS } from './delivery-state.js';
-import { deliverable, deliverRun, enqueueRunDelivery, WebhookNotDelivered } from './run-delivery.js';
+import { afterRunDelivery, deliverable, deliverRun, enqueueRunDelivery, WebhookNotDelivered } from './run-delivery.js';
 
 const me = await signedInCaller('run-delivery');
 const receiver = { status: 200, hits: [] as Array<{ headers: IncomingMessage['headers']; body: string }> };
@@ -271,5 +271,54 @@ describe('a delivery that fails before any post (final review M5)', () => {
       await expect(deliverRun({ runId: f.runId, deliveryId: DELIVERY }, { attempt: 1 }, { env: ENV, writeFiles: broken })).rejects.toThrow('disk full');
       expect(await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.runId, f.runId))).toEqual([]);
     } finally { await f.cleanup(); }
+  });
+});
+
+describe('a backfill that finishes while its parent\'s delivery job runs (task 6 review M1)', () => {
+  /** The parent's delivery job, recorded done after `attempts` attempts: enqueued `createdAgoMs` ago, its last attempt started `startedAgoMs` ago. */
+  async function doneDelivery(runId: string, a: { attempts: number; createdAgoMs: number; startedAgoMs: number }) {
+    const jobId = (await enqueueRunDelivery(db, runId))!;
+    const now = Date.now();
+    await db.update(jobs).set({ status: 'done', attempts: a.attempts, createdAt: new Date(now - a.createdAgoMs), startedAt: new Date(now - a.startedAgoMs), finishedAt: new Date(now) }).where(eq(jobs.id, jobId));
+    return (await jobsOf('run-delivery')).find((j) => j.id === jobId)!.payload as { runId: string; deliveryId: string };
+  }
+  const backfill = (f: { sourceId: string; runId: string }, completedAgoMs: number) =>
+    db.insert(runs).values({ sourceId: f.sourceId, status: 'completed', inputLabel: 'backfill', parentRunId: f.runId, resultCount: 1, completedAt: new Date(Date.now() - completedAgoMs) });
+  const dropDeliveryJobs = (runId: string) => db.delete(jobs).where(eq(jobs.key, `run-delivery:${runId}`));
+
+  it('after the job is done, a backfill that finished during its attempt gets one new delivery with a new delivery id', async () => {
+    const f = await websiteWithRun('coalesced', { webhook: true });
+    try {
+      const p = await doneDelivery(f.runId, { attempts: 1, createdAgoMs: 20_000, startedAgoMs: 10_000 });
+      await backfill(f, 5_000);
+      const again = await afterRunDelivery(p);
+      expect(again).not.toBeNull();
+      const job = (await jobsOf('run-delivery')).find((j) => j.id === again)!;
+      expect(job).toMatchObject({ status: 'queued', payload: { runId: f.runId } });
+      expect((job.payload as { deliveryId: string }).deliveryId).not.toBe(p.deliveryId);
+    } finally { await dropDeliveryJobs(f.runId); await f.cleanup(); }
+  });
+
+  it('a backfill that finished before the attempt started is already in its files: nothing more', async () => {
+    const f = await websiteWithRun('coalesced-before', { webhook: true });
+    try {
+      const p = await doneDelivery(f.runId, { attempts: 1, createdAgoMs: 20_000, startedAgoMs: 10_000 });
+      await backfill(f, 15_000);
+      expect(await afterRunDelivery(p)).toBeNull();
+    } finally { await dropDeliveryJobs(f.runId); await f.cleanup(); }
+  });
+
+  it('after a retried delivery, a backfill that finished since the job was queued gets a new id (an earlier attempt may have been received)', async () => {
+    const f = await websiteWithRun('coalesced-retry', { webhook: true });
+    try {
+      const p = await doneDelivery(f.runId, { attempts: 2, createdAgoMs: 60_000, startedAgoMs: 10_000 });
+      await backfill(f, 30_000);
+      expect(await afterRunDelivery(p)).not.toBeNull();
+    } finally { await dropDeliveryJobs(f.runId); await f.cleanup(); }
+  });
+
+  it('the run-delivery job runs it after it is done', async () => {
+    const { jobRegistry } = await import('../jobs/handlers.js');
+    expect(jobRegistry()['run-delivery']!.afterDone).toBeTypeOf('function');
   });
 });
