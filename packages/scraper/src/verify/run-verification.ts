@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { BROWSER_UNAVAILABLE, CaptureError, type IBrowser, type PageCapture, type ReadyCheck } from '@robot/browser';
-import type { ProposePathsAgent } from '@robot/agent';
+import { isCapReached, type ProposePathsAgent } from '@robot/agent';
 import { certify, checkedPages, expectedWithDefault, gatherCandidates, isVolatilePath, markPaths, readsOneSource, type CandidatePath, type CaptureLike } from './certify.js';
 import { buildVerificationReadyCheck } from './verification-ready.js';
 import { captureProblem, CaptureProblemError } from './capture-check.js';
@@ -219,6 +219,13 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       try {
         proposals = await proposeWithAi({ field, expected: checkedExpected, captures: checkedCaps, nearMisses }, agent);
       } catch (err) {
+        // Spec 2026-10-24 metering §2.3: the organisation's monthly limit refused the call before it was sent —
+        // nothing was billed, so it is not counted and the field was not asked; it is `ai_unavailable`, and the rest
+        // of the Verify carries on.
+        if (isCapReached(err)) {
+          fields[field.key] = { ...result, failReason: 'ai_unavailable', fieldHash: fh };
+          continue;
+        }
         // Spec 2026-10-20 §3.3: one field's AI failure is that field's result, never the run's. Its
         // result without the AI stands, the call is counted (it may have been billed), and every
         // other field, every capture and the cost record are kept.

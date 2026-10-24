@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi, afterAll, beforeAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, sources, sourceVerifications } from '@robot/db';
+import { db, orgs, sources, sourceVerifications } from '@robot/db';
 import { VERIFY_STALL_MS, estAiCostPerFieldUsd, fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
@@ -423,7 +423,7 @@ describe('sources.verifyEstimate', () => {
       // server's own stall window to tell a live verification from a crash leftover.
       // No prior clean run at all, so both fields are un-certified and would
       // reach AI (aiFields === fields) — priced at 0 only because aiAvailable is false.
-      expect(est).toEqual({ fields: 2, aiFields: 2, perFieldUsd: 0.18, upperBoundUsd: 0, aiAvailable: false, capturesFresh: false, stallMs: VERIFY_STALL_MS });
+      expect(est).toEqual({ fields: 2, aiFields: 2, perFieldUsd: 0.18, upperBoundUsd: 0, aiAvailable: false, capturesFresh: false, stallMs: VERIFY_STALL_MS, cap: expect.objectContaining({ capUsd: expect.any(Number) }) });
     } finally {
       if (savedKey !== undefined) process.env.ANTHROPIC_API_KEY = savedKey;
       await f.cleanup();
@@ -434,6 +434,46 @@ describe('sources.verifyEstimate', () => {
     await expect(
       caller.sources.verifyEstimate({ sourceId: '00000000-0000-0000-0000-000000000000' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('sources.verifyEstimate and the monthly AI limit (spec 2026-10-24 metering §2.3)', () => {
+  const saved = { ops: process.env.OPS_EMAILS, key: process.env.ANTHROPIC_API_KEY, cap: process.env.ORG_AI_CAP_USD };
+  beforeAll(() => { process.env.ANTHROPIC_API_KEY = 'test-key'; delete process.env.ORG_AI_CAP_USD; });
+  afterEach(async () => { await db.update(orgs).set({ aiCapUsd: null }).where(eq(orgs.id, me.org.id)); });
+  afterAll(() => {
+    for (const [k, v] of [['OPS_EMAILS', saved.ops], ['ANTHROPIC_API_KEY', saved.key], ['ORG_AI_CAP_USD', saved.cap]] as const) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  });
+
+  it('below the limit AI is available; staff read the limit, a customer reads no amount and no limit', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'est-cap-open', urls: urlsFor('est-cap-open'), fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      process.env.OPS_EMAILS = '';
+      const customer = await caller.sources.verifyEstimate({ sourceId: f.sourceId });
+      expect(customer.aiAvailable).toBe(true);
+      for (const k of ['cap', 'perFieldUsd', 'upperBoundUsd']) expect(customer).not.toHaveProperty(k);
+      process.env.OPS_EMAILS = me.user.email;
+      const staff = await caller.sources.verifyEstimate({ sourceId: f.sourceId });
+      expect(staff).toMatchObject({ aiAvailable: true, upperBoundUsd: 0.18 });
+      expect(staff.cap!.capUsd).toBe(25);
+      expect(Math.round((staff.cap!.spentUsd + staff.cap!.remainingUsd!) * 10_000) / 10_000).toBe(25);
+    } finally { await f.cleanup(); }
+  });
+
+  it('at the limit AI is not available and the bound is 0 — as with no key — for a customer and for staff', async () => {
+    await db.update(orgs).set({ aiCapUsd: '0.00' }).where(eq(orgs.id, me.org.id));
+    const f = await createProjectWithSource(caller, { tag: 'est-cap-at', urls: urlsFor('est-cap-at'), fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      process.env.OPS_EMAILS = '';
+      const customer = await caller.sources.verifyEstimate({ sourceId: f.sourceId });
+      expect(customer.aiAvailable).toBe(false);
+      expect(customer).not.toHaveProperty('cap');
+      process.env.OPS_EMAILS = me.user.email;
+      const staff = await caller.sources.verifyEstimate({ sourceId: f.sourceId });
+      expect(staff).toMatchObject({ aiAvailable: false, upperBoundUsd: 0, cap: { capUsd: 0, remainingUsd: 0 } });
+    } finally { await f.cleanup(); }
   });
 });
 

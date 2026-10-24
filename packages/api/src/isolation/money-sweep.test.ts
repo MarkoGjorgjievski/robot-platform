@@ -72,7 +72,7 @@ describe('the scan itself', () => {
 const STAFF_MONEY: Record<string, string[]> = {
   'runs.listByOrg': ['[0].costUsd'],
   'sources.verificationStatus': ['costUsd', 'aiCalls'],
-  'sources.verifyEstimate': ['perFieldUsd', 'upperBoundUsd'],
+  'sources.verifyEstimate': ['perFieldUsd', 'upperBoundUsd', 'cap.capUsd', 'cap.spentUsd', 'cap.remainingUsd'],
   'crawl.backfillPreview': ['estCostUsd'],
   'usage.byProject': ['projects[0].spendUsd', 'total.spendUsd'],
   'orgs.staffActivity': ['entries[0].run.costUsd'],
@@ -90,12 +90,14 @@ let t: TwoOrgs;
 let op: SignedIn;
 let staff: SignedIn;
 const savedOps = process.env.OPS_EMAILS;
+const savedCap = process.env.ORG_AI_CAP_USD;
 const inputFor = (path: string) => {
   const e = PROCEDURE_CLASSES[path]!;
   return 'input' in e && e.input ? e.input(t.a) : undefined;
 };
 
 beforeAll(async () => {
+  delete process.env.ORG_AI_CAP_USD; // a `none` default would make cap.capUsd null, which the scan does not count as an amount
   t = await buildTwoOrgs({ tag: 'iso-money' });
   op = await signedInCaller('iso-money-op');
   process.env.OPS_EMAILS = op.user.email; // the operator only: org A's owner is a plain customer
@@ -103,6 +105,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(async () => {
   if (savedOps === undefined) delete process.env.OPS_EMAILS; else process.env.OPS_EMAILS = savedOps;
+  if (savedCap === undefined) delete process.env.ORG_AI_CAP_USD; else process.env.ORG_AI_CAP_USD = savedCap;
   await op?.cleanup();
   await t?.cleanup();
 });
