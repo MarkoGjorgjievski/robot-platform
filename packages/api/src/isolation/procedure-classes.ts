@@ -119,7 +119,7 @@ export const PROCEDURE_CLASSES: Record<string, ProcedureEntry> = {
   'crawl.items': { class: 'scoped', input: run },
   'crawl.status': { class: 'scoped', input: run },
   'crawl.cancel': { class: 'scoped', input: run },
-  'crawl.execute': { class: 'scoped', input: (f) => ({ ...run(f), dryRun: true }) },
+  'crawl.execute': { class: 'scoped', input: (f) => ({ ...run(f), dryRun: true }), works: 'a run job' },
   'crawl.coverage': { class: 'scoped', input: run },
   'crawl.misses': { class: 'scoped', input: run },
   'crawl.backfillPreview': { class: 'scoped', input: run },

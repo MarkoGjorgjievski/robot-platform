@@ -84,6 +84,12 @@ describe('groups and keys (spec §2.4)', () => {
     expect(groupOf('projects.list')).toBe('session');
   });
 
+  it('every procedure the table says starts work is heavy or network, so a new one cannot land in the session group', () => {
+    const starters = Object.entries(PROCEDURE_CLASSES).filter(([, e]) => e.class === 'scoped' && e.works).map(([p]) => p);
+    expect(starters).toEqual(expect.arrayContaining(['sources.checkDrift', 'crawl.execute']));
+    for (const p of starters) expect(['heavy', 'network'], p).toContain(groupOf(p));
+  });
+
   it('each group keys and limits as the spec says', () => {
     const s = sessionIn('org-1');
     expect(rateKeys('auth.signIn', { session: null, clientIp: '1.2.3.4' }, { email: 'bob@example.com' })).toEqual([
