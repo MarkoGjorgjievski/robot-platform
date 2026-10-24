@@ -294,8 +294,10 @@ async function planSourceIn(
       status: allInputsFailed ? 'failed' : 'planned',
       itemCount,
       listingPages,
-      warnings: outcome.warnings,
-      errors: outcome.errors,
+      // At the limit the answer carries the one customer sentence (spec §2.3), never the walk's own warnings and errors:
+      // they name the model steps the limit refused (final review I1).
+      warnings: capped ? [] : outcome.warnings,
+      errors: capped ? [{ inputIndex: 0, message: CAP_REACHED_MESSAGE }] : outcome.errors,
       inputs: outcome.inputs,
       cacheWarm: outcome.cacheWarm,
     };
