@@ -10,3 +10,4 @@ export { JOB_POLICIES, type Lane, type JobType } from './types.js';
 export { enqueueDueWebsiteChecks, startWebsiteChecks } from '../verify/website-checks.js';
 export { startRecurringRuns, sweepDueSchedules } from '../recurring/sweep.js';
 export { forbidBrowserLaunch } from '@robot/browser';
+export { mailOn } from '../email/config.js';

@@ -30,6 +30,7 @@
     "@typesafe-ai/sdk": "^0.7.0",
     "drizzle-orm": "^0.44.0",
     "exceljs": "^4.4.0",
+    "nodemailer": "^10.2.1",
     "superjson": "^2.2.0",
     "zod": "^3.24.0"
   },

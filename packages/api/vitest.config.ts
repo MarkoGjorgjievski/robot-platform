@@ -2,12 +2,13 @@
 // Vitest's defaults, plus: every test starts with Jev in shadow OFF, whatever the repo .env says
 // (an env value already set wins over .env in @robot/db's loader, an empty one included), so no
 // test that runs a proof-page capture can send a real, paid TypeSafe request. The Jev tests turn
-// it on explicitly, with a fake client.
+// it on explicitly, with a fake client. Mail is off too (SMTP_URL empty), so no test sends a real email; a test that
+// sends passes its own env with the in-process sink's URL.
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    env: { JEV_SHADOW: '' },
+    env: { JEV_SHADOW: '', SMTP_URL: '' },
     setupFiles: ['./src/test-setup/job-queue.ts'],
   },
 });

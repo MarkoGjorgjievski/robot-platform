@@ -12,6 +12,7 @@ import { afterRunDelivery, deliverRun } from '../delivery/run-delivery.js';
 import { runExecuteJob, afterRunJob } from './handlers/run.js';
 import { reachabilityNow, listingCheckNow, transferMarksNow, detectVariantsNow, variantLinksNearNow } from './handlers/interactive.js';
 import { planSource } from '../crawl/plan-source.js';
+import { sendEmailJob } from '../email/send-email.js';
 import { db } from '@robot/db';
 
 export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
@@ -68,6 +69,12 @@ export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
       run: (p: JobPayloads['run-delivery'], ctx) => deliverRun(p, ctx),
       // A backfill that finished while this job went (its enqueue got this job back) is delivered once more (task 6 M1).
       afterDone: (p: JobPayloads['run-delivery']) => afterRunDelivery(p),
+    },
+    // No status row of its own: an email that cannot be sent never changes what it is about (spec 2026-10-24 email §4.3).
+    email: {
+      policy: JOB_POLICIES.email,
+      subject: () => null,
+      run: (p: JobPayloads['email'], ctx) => sendEmailJob(p, ctx),
     },
     // One executor per run; a retry resumes it (its earlier attempt's `running` items back to pending).
     run: {
