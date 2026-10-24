@@ -8,7 +8,7 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
 import { BROWSER_UNAVAILABLE } from '@robot/browser';
-import { SchemaAgent, snapshotUsage, diffUsage, estimateCostUsd, cappedAgent, openCapLedger, type CapLedger, type ProposePathsAgent, type UsageByModel } from '@robot/agent';
+import { SchemaAgent, withUsageScope, cappedAgent, openCapLedger, type CapLedger, type ProposePathsAgent, type UsageByModel, type UsageScope } from '@robot/agent';
 import {
   runVerification,
   CaptureProblemError,
@@ -106,11 +106,11 @@ const NO_MODEL: ProposePathsAgent = { proposePaths: async () => { throw new Erro
 
 /**
  * Review I2: a failed, stopped or closed-meanwhile attempt still spent what its model calls cost — added to its row
- * (open or closed; only `cost_usd`, which metering reads), measured the way a passing Verify measures it: the
- * process-wide usage counter since the attempt began. Never throws.
+ * (open or closed; only `cost_usd`, which metering reads), measured the way a passing Verify measures it: this
+ * attempt's own usage scope since the attempt began. Never throws.
  */
-async function recordSpend(verificationId: string, before: UsageByModel): Promise<void> {
-  const usd = estimateCostUsd(diffUsage(before, snapshotUsage())).usd;
+async function recordSpend(verificationId: string, usage: UsageScope, before: UsageByModel): Promise<void> {
+  const usd = usage.costUsd(before);
   if (!(usd > 0)) return;
   try {
     await db.update(sourceVerifications)
@@ -121,20 +121,24 @@ async function recordSpend(verificationId: string, before: UsageByModel): Promis
   }
 }
 
-export async function runSourceVerification(
-  sourceId: string,
-  verificationId: string,
-  opts: {
-    onlyKeys?: string[];
-    free?: boolean;
-    startCoverage?: typeof startCoverageCheck;
-    /** Spec 2026-10-21 §3.2: captures to verify on, used before any other (a check's own, for a refresh's re-verify). */
-    captureRefs?: Record<string, StoredCaptureRef>;
-    /** `refresh`: started by an automatic refresh — it never starts a check, so refreshes cannot loop (spec §7.6). */
-    origin?: 'customer' | 'refresh';
-    startCheck?: StartVerifyCheck;
-  } = {},
-): Promise<void> {
+type VerifyOpts = {
+  onlyKeys?: string[];
+  free?: boolean;
+  startCoverage?: typeof startCoverageCheck;
+  /** Spec 2026-10-21 §3.2: captures to verify on, used before any other (a check's own, for a refresh's re-verify). */
+  captureRefs?: Record<string, StoredCaptureRef>;
+  /** `refresh`: started by an automatic refresh — it never starts a check, so refreshes cannot loop (spec §7.6). */
+  origin?: 'customer' | 'refresh';
+  startCheck?: StartVerifyCheck;
+};
+
+/** Final review I2: a Verify's cost is what ITS model calls cost — its own usage scope, never the process-wide
+ *  counter, which also holds every other job running in the worker at the same time (another org's among them). */
+export function runSourceVerification(sourceId: string, verificationId: string, opts: VerifyOpts = {}): Promise<void> {
+  return withUsageScope((usage) => runSourceVerificationIn(usage, sourceId, verificationId, opts));
+}
+
+async function runSourceVerificationIn(usage: UsageScope, sourceId: string, verificationId: string, opts: VerifyOpts): Promise<void> {
   const startCoverage = opts.startCoverage ?? startCoverageCheck;
   const startCheck = opts.startCheck ?? startVerifyCheck;
   let ledger: CapLedger | undefined;
@@ -204,7 +208,7 @@ export async function runSourceVerification(
       for (const [url, p] of Object.entries(proofPages)) { reuse[url] = p.capture; reusedRefs.set(url, p.ref); }
     }
 
-    before = snapshotUsage();
+    before = usage.snapshot();
     // A free run (spec 2026-10-17 §10 property 9) has no agent at all, so no field in it can reach the AI.
     // Spec 2026-10-24 metering §2.3: the organisation's monthly AI limit, read before any AI. At the limit no model is
     // built — every call is refused before it is made, so a field that needs AI resolves `ai_unavailable` (the existing
@@ -272,7 +276,7 @@ export async function runSourceVerification(
     });
     // Stopped meanwhile (stuck, lease lost, shutdown): its pages were read by a browser closed under it.
     // Nothing is stored or written; the row is the runner's or the next claim's (final review I1).
-    if (jobStopped()) return;    const cost = estimateCostUsd(diffUsage(before, snapshotUsage())).usd;
+    if (jobStopped()) return;    const cost = usage.costUsd(before);
 
     const captureRefs: Record<string, StoredCaptureRef> = {};
     for (const url of set.urls) {
@@ -340,7 +344,7 @@ export async function runSourceVerification(
       console.error(`[verify] failed to record failure for ${verificationId}:`, recoveryErr);
     }
   } finally {
-    if (before && !costRecorded) await recordSpend(verificationId, before);
+    if (before && !costRecorded) await recordSpend(verificationId, usage, before);
     ledger?.close(); // the cost is recorded: the org's other jobs read it from the database now
     // Spec 2026-10-24 email §3.2: whatever this Verify wrote (holds, a pass, a failure) may have turned "Needs
     // attention" on or off — a customer's Verify and a refresh's re-verify alike. After the commit: the attention view

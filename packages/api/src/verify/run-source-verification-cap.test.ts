@@ -50,6 +50,8 @@ process.env.CAPTURES_DIR = mkdtempSync(join(tmpdir(), 'robot-verify-cap-'));
 const { runSourceVerification } = await import('./run-source-verification.js');
 
 const me = await signedInCaller('verify-cap');
+/** A second organisation, for jobs of two orgs at once (final review I2). */
+const other = await signedInCaller('verify-cap-other');
 const savedKey = process.env.ANTHROPIC_API_KEY;
 const savedCap = process.env.ORG_AI_CAP_USD;
 afterEach(async () => {
@@ -61,16 +63,16 @@ afterEach(async () => {
   if (savedCap === undefined) delete process.env.ORG_AI_CAP_USD; else process.env.ORG_AI_CAP_USD = savedCap;
   await db.update(orgs).set({ aiCapUsd: null }).where(eq(orgs.id, me.org.id));
 });
-afterAll(async () => { await me.cleanup(); });
+afterAll(async () => { await me.cleanup(); await other.cleanup(); });
 
 const capture = (url: string): PageCapture => ({
   url, html: '<html></html>', markdown: '', screenshot: Buffer.from('x'), screenshotTiles: [], verdict: { kind: 'ok', status: 200 },
   title: '', timestamp: Date.now(), structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [],
 });
 
-async function site(tag: string) {
+async function site(tag: string, who: { caller: typeof me.caller } = me) {
   const urls = [1, 2, 3].map((n) => `https://test-verify-cap-${tag}.example.com/p/${n}`);
-  const f = await createProjectWithSource(me.caller, {
+  const f = await createProjectWithSource(who.caller, {
     tag: `verify-cap-${tag}`, urls, fields: [{ name: 'Price', type: 'money', description: 'x' }],
     expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
   });
@@ -227,6 +229,28 @@ describe('runSourceVerification and the monthly limit (spec 2026-10-24 metering 
       expect(done.completedAt).not.toBeNull();
       expect(done.costUsd).toBe('0.1200');
     } finally { await f.cleanup(); }
+  });
+
+  it('final review I2: two Verifies of two organisations at once each record only their own model calls', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    const a = await site('conc-a');
+    const b = await site('conc-b', other);
+    const tick = () => new Promise((r) => setTimeout(r, 5));
+    try {
+      // A asks once, B three times, interleaved: each billed call is $0.06.
+      runVerificationMock.mockImplementation(async (req: { verificationSet: { urls: string[] } }, deps: { agent: ProposePathsAgent | null }) => {
+        const calls = req.verificationSet.urls[0]!.includes('conc-a') ? 1 : 3;
+        for (let i = 0; i < calls; i++) { await tick(); await deps.agent!.proposePaths('x'); billed(); }
+        await tick();
+        return outcome(req.verificationSet.urls);
+      });
+      await Promise.all([
+        runSourceVerification(a.sourceId, a.verificationId, { startCoverage, startCheck }),
+        runSourceVerification(b.sourceId, b.verificationId, { startCoverage, startCheck }),
+      ]);
+      expect((await rowOf(a.verificationId)).costUsd).toBe('0.0600');
+      expect((await rowOf(b.verificationId)).costUsd).toBe('0.1800');
+    } finally { await a.cleanup(); await b.cleanup(); }
   });
 
   it('keyless or free, there is no agent at all — as before', async () => {

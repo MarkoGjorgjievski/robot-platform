@@ -7,7 +7,7 @@
 
 import { TRPCError } from '@trpc/server';
 import { and, eq, sql } from 'drizzle-orm';
-import { SchemaAgent, snapshotUsage, cappedAgent, openCapLedger, isCapReached, type CapLedger } from '@robot/agent';
+import { SchemaAgent, withUsageScope, cappedAgent, openCapLedger, isCapReached, type CapLedger, type UsageScope } from '@robot/agent';
 import { planRun, type PlannedItem, type PlanInputReport } from '@robot/scraper';
 import { CAP_REACHED_MESSAGE } from '@robot/scraper/customer-copy';
 import { runs, runItems, sources } from '@robot/db';
@@ -15,7 +15,7 @@ import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
 import { PROBE_BUDGET } from './probe.js';
 import { effectiveSchema } from './effective-schema.js';
-import { addRunCost, costSince } from './record-run-cost.js';
+import { addRunCost } from './record-run-cost.js';
 import { jobStopped } from '../jobs/context.js';
 import { orgCapState, PLAN_CALL_USD } from '../metering/cap-state.js';
 import { orgIdForSource } from '../export/org-for-export.js';
@@ -115,10 +115,21 @@ export function planningRunValues(source: { id: string; urlTemplate: string | nu
  * With `opts.runId`, the planning run row already exists (written with its `plan` job by
  * `planViaWorker`, spec 2026-10-23 §4.4) and is filled in; without, one is inserted here.
  */
-export async function planSource(
+export function planSource(
   db: typeof Database,
   sourceId: string,
   opts: { probe?: boolean; runId?: string } = {},
+): Promise<PlanSourceResult> {
+  // Final review I2: the plan's cost is what ITS model calls cost — its own usage scope, never the process-wide
+  // counter, which also holds every other job running in the worker at the same time (another org's among them).
+  return withUsageScope((usage) => planSourceIn(usage, db, sourceId, opts));
+}
+
+async function planSourceIn(
+  usage: UsageScope,
+  db: typeof Database,
+  sourceId: string,
+  opts: { probe?: boolean; runId?: string },
 ): Promise<PlanSourceResult> {
   const source = await assertPlannable(db, sourceId);
   // Bound here rather than read inside the planRun closure below: a
@@ -138,7 +149,7 @@ export async function planSource(
   const [run] = opts.runId
     ? [{ id: opts.runId }]
     : await db.insert(runs).values(planningRunValues(source, probe)).returning({ id: runs.id });
-  const before = snapshotUsage();
+  const before = usage.snapshot();
   let ledger: CapLedger | undefined;
 
   // From here on, the run row exists: every exit path (including a launch
@@ -308,7 +319,7 @@ export async function planSource(
     // The planning walk's own model calls (pagination detection, the
     // catalogue judge) are this run's money too; execution adds its own later.
     try {
-      await addRunCost(db, run!.id, costSince(before));
+      await addRunCost(db, run!.id, usage.costUsd(before));
     } catch (costErr) {
       console.error(`[crawl] failed to record planning cost for run ${run!.id}:`, costErr);
     }

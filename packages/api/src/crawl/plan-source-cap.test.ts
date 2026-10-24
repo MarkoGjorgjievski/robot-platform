@@ -5,7 +5,7 @@
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { CAP_REACHED_MESSAGE } from '@robot/scraper/customer-copy';
-import { capJobsOpen } from '@robot/agent';
+import { capJobsOpen, recordUsage } from '@robot/agent';
 import { db, inputSets, orgs, runItems, runs, sources } from '@robot/db';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
@@ -21,14 +21,16 @@ vi.mock('../browser-session.js', () => ({ withBrowserSession: async (fn: (b: unk
 
 const { planSource, planningRunValues } = await import('./plan-source.js');
 const me = await signedInCaller('plan-source-cap');
+/** A second organisation, for plans of two orgs at once (final review I2). */
+const other = await signedInCaller('plan-source-cap-other');
 afterEach(async () => {
   planRunMock.mockReset(); detect.mockClear();
   await db.update(orgs).set({ aiCapUsd: null }).where(eq(orgs.id, me.org.id));
 });
-afterAll(async () => { await me.cleanup(); });
+afterAll(async () => { await me.cleanup(); await other.cleanup(); });
 
-async function plannable(tag: string) {
-  const f = await createProjectWithSource(me.caller, { tag, fields: [{ name: 'Title', type: 'text' }] });
+async function plannable(tag: string, who: { caller: typeof me.caller } = me) {
+  const f = await createProjectWithSource(who.caller, { tag, fields: [{ name: 'Title', type: 'text' }] });
   const [set] = await db.insert(inputSets).values({ projectId: f.projectId, type: 'direct', name: tag, columns: [{ name: 'url', primary: true }], rows: [{ url: `https://test-${tag}.example.com/list` }] }).returning({ id: inputSets.id });
   await db.update(sources).set({ inputSetId: set!.id }).where(eq(sources.id, f.sourceId));
   const source = (await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) }))!;
@@ -100,6 +102,27 @@ describe('planSource and the monthly limit (spec 2026-10-24 metering §2.3)', ()
       expect(await itemsOf(f.runId)).toEqual([]);
       expect(capJobsOpen()).toBe(0);
     } finally { await f.cleanup(); }
+  });
+
+  it('final review I2: two plans of two organisations at once each record only their own model calls', async () => {
+    const a = await plannable('plan-conc-a');
+    const b = await plannable('plan-conc-b', other);
+    const tick = () => new Promise((r) => setTimeout(r, 5));
+    try {
+      // A asks once, B three times, interleaved; each call bills $0.06 (10k in, 2k out on claude-sonnet-5).
+      planRunMock.mockImplementation(async (input: { inputSet: { rows: Array<{ url: string }> } }, deps: { agent: { detectPagination: (h: string) => Promise<unknown> } }) => {
+        const tag = input.inputSet.rows[0]!.url.includes('plan-conc-a') ? 'plan-conc-a' : 'plan-conc-b';
+        for (let i = 0; i < (tag === 'plan-conc-a' ? 1 : 3); i++) {
+          await tick(); await deps.agent.detectPagination('<html></html>');
+          recordUsage('claude-sonnet-5', { input_tokens: 10_000, output_tokens: 2_000 });
+        }
+        await tick();
+        return outcome(tag);
+      });
+      await Promise.all([planSource(db, a.sourceId, { runId: a.runId }), planSource(db, b.sourceId, { runId: b.runId })]);
+      expect((await runRow(a.runId)).costUsd).toBe('0.0600');
+      expect((await runRow(b.runId)).costUsd).toBe('0.1800');
+    } finally { await a.cleanup(); await b.cleanup(); }
   });
 
   it('with room, the model is asked and the plan is written', async () => {

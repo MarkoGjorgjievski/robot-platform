@@ -1,16 +1,10 @@
 // packages/api/src/crawl/record-run-cost.ts
-// What a run's model calls cost, measured the way run-source-verification.ts
-// measures a Verify: the process-wide usage counter before and after.
+// Adds a run's model cost to its row. What a phase cost is measured by its own usage scope (@robot/agent
+// withUsageScope; plan-source.ts, start-execution.ts), never the process-wide counter (final review I2).
 
 import { eq, sql } from 'drizzle-orm';
 import { runs } from '@robot/db';
 import type { db as Database } from '@robot/db';
-import { snapshotUsage, diffUsage, estimateCostUsd, type UsageByModel } from '@robot/agent';
-
-/** USD spent since `before` (a `snapshotUsage()`), at usage.ts's list rates. */
-export function costSince(before: UsageByModel): number {
-  return estimateCostUsd(diffUsage(before, snapshotUsage())).usd;
-}
 
 /**
  * Adds `usd` to the run's `cost_usd`. An increment, not an assignment: a run

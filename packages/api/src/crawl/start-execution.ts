@@ -6,7 +6,7 @@
 // launching a browser.
 
 import { eq, sql } from 'drizzle-orm';
-import { SchemaAgent, snapshotUsage, cappedAgent, openCapLedger, CapReachedError, isCapReached, type CapLedger } from '@robot/agent';
+import { SchemaAgent, withUsageScope, cappedAgent, openCapLedger, CapReachedError, isCapReached, type CapLedger, type UsageScope } from '@robot/agent';
 import { CaptureProblemError, HARD_ITEM_CEILING, leanRunStateFromEnv, leanSummary, type OriginField, type SchemaDefinitionField, type VariantRunPlan } from '@robot/scraper';
 import { CAP_REACHED_MESSAGE } from '@robot/scraper/customer-copy';
 import { db, extractions, runs, sources } from '@robot/db';
@@ -24,7 +24,7 @@ import { extractItem } from './extract-item.js';
 import { flagDrift } from './drift.js';
 import { startDriftCheck } from '../verify/run-drift-check.js';
 import { safeErrorMessage } from './plan-source.js';
-import { addRunCost, costSince } from './record-run-cost.js';
+import { addRunCost } from './record-run-cost.js';
 import { enqueueRunDelivery } from '../delivery/run-delivery.js';
 import { notifyRunFailed } from '../email/run-failed.js';
 import { orgCapState, PLAN_CALL_USD } from '../metering/cap-state.js';
@@ -176,17 +176,32 @@ export function buildFinalise(
  * the error, and recording it — is itself guarded (the operator CLI still calls
  * it un-awaited, where an unhandled rejection would kill the process).
  */
-export async function startExecution(
+export function startExecution(
   runId: string,
   sourceId: string,
   schema: OriginField[],
   limit?: number,
-  opts?: { mergeToParent?: boolean; hooks?: { onItem?: () => void; aborted?: () => boolean } },
+  opts?: ExecutionOpts,
+): Promise<void> {
+  // Final review I2: the run's cost is what ITS model calls cost — its own usage scope, never the process-wide
+  // counter, which also holds every other job running in the worker at the same time (another org's among them).
+  return withUsageScope((usage) => startExecutionIn(usage, runId, sourceId, schema, limit, opts));
+}
+
+type ExecutionOpts = { mergeToParent?: boolean; hooks?: { onItem?: () => void; aborted?: () => boolean } };
+
+async function startExecutionIn(
+  usage: UsageScope,
+  runId: string,
+  sourceId: string,
+  schema: OriginField[],
+  limit: number | undefined,
+  opts: ExecutionOpts | undefined,
 ): Promise<void> {
   const hooks = opts?.hooks;
   // Snapshotted outside the try: the cost of a run that failed part-way is
   // still money the customer spent, and Usage must show it.
-  const before = snapshotUsage();
+  const before = usage.snapshot();
   // A legacy website's slot against its organisation's monthly limit; none for a certified one.
   let ledger: CapLedger | undefined;
   try {
@@ -320,7 +335,7 @@ export async function startExecution(
     }
   } finally {
     try {
-      await addRunCost(db, runId, costSince(before));
+      await addRunCost(db, runId, usage.costUsd(before));
     } catch (costErr) {
       // A cost that could not be written is a gap in Usage, not a broken run;
       // and this must not become the unhandled rejection the comment above
