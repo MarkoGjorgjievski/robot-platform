@@ -90,6 +90,11 @@ describe('groups and keys (spec §2.4)', () => {
     for (const p of starters) expect(['heavy', 'network'], p).toContain(groupOf(p));
   });
 
+  it('member changes, which send the member an email, are heavy', () => {
+    expect(groupOf('orgs.members.setRole')).toBe('heavy');
+    expect(groupOf('orgs.members.remove')).toBe('heavy');
+  });
+
   it('each group keys and limits as the spec says', () => {
     const s = sessionIn('org-1');
     expect(rateKeys('auth.signIn', { session: null, clientIp: '1.2.3.4' }, { email: 'bob@example.com' })).toEqual([
