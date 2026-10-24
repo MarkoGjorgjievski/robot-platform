@@ -102,8 +102,8 @@ describe('groups and keys (spec §2.4)', () => {
     ]);
     expect(rateKeys('sources.verify', { session: s }, undefined)).toEqual([{ key: 'heavy:org:org-1', limit: 30 }]);
     expect(rateKeys('sources.reachability', { session: s }, undefined)).toEqual([{ key: 'network:org:org-1', limit: 60 }]);
-    expect(rateKeys('projects.list', { session: s }, undefined)).toEqual([{ key: `session:${s.token}`, limit: 600 }]);
-    expect(rateKeys('datasets.catalogue', { session: null, clientIp: '1.2.3.4' }, undefined)).toEqual([{ key: 'session:ip:1.2.3.4', limit: 600 }]);
+    expect(rateKeys('projects.list', { session: s }, undefined)).toEqual([{ key: `session:${s.token}`, limit: 1200 }]);
+    expect(rateKeys('datasets.catalogue', { session: null, clientIp: '1.2.3.4' }, undefined)).toEqual([{ key: 'session:ip:1.2.3.4', limit: 1200 }]);
     expect(rateKeys('auth.signIn', { session: null }, 'not an object')).toEqual([{ key: 'sign-in:ip:unknown', limit: 30 }]);
   });
 
