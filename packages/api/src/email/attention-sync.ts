@@ -4,24 +4,43 @@
 // null → claim it (`WHERE attention_since IS NULL`) and only the writer that wins queues the emails, in the same
 // transaction; off → back to null, so a later turn is a new event. A claim whose queueing throws rolls back: the
 // next sync tries again.
+//
+// Fix round 1: the whole sync is one transaction under the website row lock (`lockSource`), taken before attention
+// is read — every writer of what attention reads takes that lock or touches the row, so a sync reads all that
+// committed before it and the last sync decides: a reset can never land after another sync's claim (no second email
+// for one turn). And while a Verify is in flight (`resolveInFlightVerification`), a sync never claims — it may still
+// reset — the Verify's own sync at its end decides (a refresh's momentary hold is never emailed by another writer).
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { sources, type Database } from '@robot/db';
 import { needsAttention, websiteAttention } from '../verify/attention.js';
 import { loadCertificationState, runnableOf } from '../verify/current-certification.js';
+import { lockSource, resolveInFlightVerification } from '../verify/in-flight.js';
 import { queueEmails } from './queue-emails.js';
 
 export type AttentionSync = { on: boolean; turnedOn: boolean; queued: number };
 
-export async function syncAttention(dbh: Database, sourceId: string, deps: { now?: () => Date } = {}): Promise<AttentionSync> {
-  const attention = await websiteAttention(dbh, sourceId);
-  if (!needsAttention(attention)) {
-    await dbh.update(sources).set({ attentionSince: null }).where(and(eq(sources.id, sourceId), isNotNull(sources.attentionSince)));
-    return { on: false, turnedOn: false, queued: 0 };
-  }
-  const runnable = runnableOf(await loadCertificationState(dbh, sourceId));
-  const now = deps.now?.() ?? new Date();
+const OFF: AttentionSync = { on: false, turnedOn: false, queued: 0 };
+
+export async function syncAttention(
+  dbh: Database,
+  sourceId: string,
+  /** `onRead`: a test seam — called after attention is read, before anything is written. */
+  deps: { now?: () => Date; onRead?: (on: boolean) => Promise<void> } = {},
+): Promise<AttentionSync> {
   return dbh.transaction(async (tx) => {
-    const [won] = await tx.update(sources).set({ attentionSince: now })
+    if (!(await lockSource(tx, sourceId))) return OFF;
+    // The readers take the database type; a transaction answers the same queries, on the locked connection.
+    const read = tx as unknown as Database;
+    const attention = await websiteAttention(read, sourceId);
+    const on = needsAttention(attention);
+    await deps.onRead?.(on);
+    if (!on) {
+      await tx.update(sources).set({ attentionSince: null }).where(and(eq(sources.id, sourceId), isNotNull(sources.attentionSince)));
+      return OFF;
+    }
+    if (await resolveInFlightVerification(tx, sourceId)) return { on: true, turnedOn: false, queued: 0 };
+    const runnable = runnableOf(await loadCertificationState(read, sourceId));
+    const [won] = await tx.update(sources).set({ attentionSince: deps.now?.() ?? new Date() })
       .where(and(eq(sources.id, sourceId), isNull(sources.attentionSince)))
       .returning({ since: sources.attentionSince });
     if (!won?.since) return { on: true, turnedOn: false, queued: 0 };
