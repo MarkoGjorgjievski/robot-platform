@@ -298,12 +298,13 @@ export async function runSourceVerification(
         .returning({ id: sourceVerifications.id });
       // Closed meanwhile (the runner stopped this attempt as stuck): a late attempt writes nothing (spec §7.6).
       if (!won) return false;
-      costRecorded = true;
       await writeHolds(tx, sourceId, holdPlan);
       // The pages were just read: the scheduled check need not read them again for a while (spec §3.3).
       await tx.update(sources).set({ nextCheckAt: nextCheckAt() }).where(eq(sources.id, sourceId));
       return true;
     });
+    // Only once the transaction has committed is its added cost really recorded (re-review N1).
+    if (wrote) costRecorded = true;
     if (!wrote) return;
     if (run.outcome.allPassed) {
       const byConcept: Record<string, CertifiedPath[]> = {};
