@@ -52,10 +52,14 @@ export const projectsRouter = router({
         .groupBy(projects.id)
         .orderBy(projects.name);
 
+      // The caller's org only (spec 2026-10-24 tenant isolation §3): these used to read every org's websites and
+      // runs — filtered out of the answer by project, but every website in the database was certified on each call.
       const sourceRows = await ctx.db
         .select({ projectId: datasets.projectId, id: sources.id })
         .from(sources)
-        .innerJoin(datasets, eq(sources.datasetId, datasets.id));
+        .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+        .innerJoin(projects, eq(datasets.projectId, projects.id))
+        .where(eq(projects.orgId, org.id));
 
       const lastRuns = await ctx.db
         .selectDistinctOn([datasets.projectId], {
@@ -71,6 +75,8 @@ export const projectsRouter = router({
         .from(runs)
         .innerJoin(sources, eq(runs.sourceId, sources.id))
         .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+        .innerJoin(projects, eq(datasets.projectId, projects.id))
+        .where(eq(projects.orgId, org.id))
         .orderBy(datasets.projectId, desc(runs.createdAt), desc(runs.id));
 
       const verifiedByProject = new Map<string, number>();
