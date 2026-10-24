@@ -63,6 +63,13 @@ describe('staff-view (spec 2026-10-07 §2.2-2.3)', () => {
     expect(deduped.find((s) => s.email === 'gone@robot.dev')).toMatchObject({ userId: 'u2', name: 'New Sam' });
     expect(deduped.find((s) => s.email === 'ann@robot.dev')).toMatchObject({ userId: 'u3', name: 'Ann' });
   });
+
+  it('a customer entry carries the run without its cost (spec 2026-10-24 tenant isolation §2.3)', () => {
+    const now = new Date('2026-10-24T12:00:00Z');
+    const base = { id: '1', at: new Date('2026-10-24T11:00:00Z'), actor: { name: 'Sam', email: 'sam@robot.dev' }, org: { id: 'o', name: 'Acme' }, project: null, website: { id: 's', name: 'Nike' }, summary: 'Ran an extraction on Nike' };
+    expect(formatStaffEntry({ ...base, run: { id: 'r' } }, now, false).cost).toBeNull();
+    expect(formatStaffEntry({ ...base, run: { id: 'r' } }, now, true).cost).toBeNull();
+  });
 });
 
 describe('isStaffSessionEnded (final review, 2026-10-07)', () => {

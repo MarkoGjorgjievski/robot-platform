@@ -3,6 +3,7 @@ import { and, eq, gte, lt, sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { captures, datasets, projects, runs, sourceVerifications, sources } from '@robot/db';
 import { router, protectedProcedure } from '../trpc.js';
+import { moneyFields, viewerSeesMoney } from '../isolation/money.js';
 
 /** `[first instant of the month, first instant of the next)`, in UTC. */
 export function monthBounds(month: string): { start: Date; end: Date } {
@@ -69,15 +70,19 @@ export const usageRouter = router({
       // Four decimals in the column, four decimals out: summing floats from
       // two tables must not turn 0.03 + 0.02 into 0.049999….
       const round = (n: number) => Math.round(n * 10_000) / 10_000;
-      const rows = list
-        .map((p) => ({ ...p, spendUsd: round(spend.get(p.id) ?? 0), pagesCaptured: captured.get(p.id) ?? 0 }))
-        .sort((a, b) => b.spendUsd - a.spendUsd || a.name.localeCompare(b.name));
+      const sees = viewerSeesMoney(ctx);
+      const priced = list.map((p) => ({ ...p, spendUsd: round(spend.get(p.id) ?? 0), pagesCaptured: captured.get(p.id) ?? 0 }));
+      // Staff: by spend, then name. A customer gets no spend (spec 2026-10-24 tenant isolation §2.3), and no order by
+      // it either — that would rank it: by pages captured, then name.
+      priced.sort(sees
+        ? (a, b) => b.spendUsd - a.spendUsd || a.name.localeCompare(b.name)
+        : (a, b) => b.pagesCaptured - a.pagesCaptured || a.name.localeCompare(b.name));
       return {
         month: input.month,
-        projects: rows,
+        projects: priced.map(({ spendUsd, ...p }) => ({ ...p, ...moneyFields(sees, { spendUsd }) })),
         total: {
-          spendUsd: round(rows.reduce((s, r) => s + r.spendUsd, 0)),
-          pagesCaptured: rows.reduce((s, r) => s + r.pagesCaptured, 0),
+          ...moneyFields(sees, { spendUsd: round(priced.reduce((s, r) => s + r.spendUsd, 0)) }),
+          pagesCaptured: priced.reduce((s, r) => s + r.pagesCaptured, 0),
         },
       };
     }),

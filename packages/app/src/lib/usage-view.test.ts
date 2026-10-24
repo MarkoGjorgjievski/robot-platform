@@ -73,4 +73,8 @@ describe('usage without money for a customer (spec 2026-10-17 §8a)', () => {
     expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60 }, '2026-10', false)).toEqual({ label: 'Pages captured in October 2026', figure: '60 pages', sub: '' });
     expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60 }, '2026-10', true)).toEqual({ label: 'Spend in October 2026', figure: '$1.24', sub: '60 pages captured' });
   });
+  it('a customer row and total arrive with no spend at all (spec 2026-10-24 tenant isolation §2.3)', () => {
+    expect(usageView([{ id: 'p', name: 'P', slug: 'p', pagesCaptured: 3 }], false)).toEqual([{ id: 'p', name: 'P', slug: 'p', pagesCaptured: 3, spendLabel: null, pagesLabel: '3 pages' }]);
+    expect(usageHeadline({ pagesCaptured: 3 }, '2026-10', false)).toEqual({ label: 'Pages captured in October 2026', figure: '3 pages', sub: '' });
+  });
 });

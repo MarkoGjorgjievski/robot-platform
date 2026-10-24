@@ -4,8 +4,12 @@ import { TRPCError } from '@trpc/server';
 import { memberships, orgs, sessions, users, MEMBERSHIP_ROLES } from '@robot/db';
 import { router, protectedProcedure, requireRole } from '../trpc.js';
 import { slugify, uniqueSlug } from '../slug.js';
-import { listStaffActivity } from '../auth/staff-activity.js';
+import { listStaffActivity, type StaffEntry } from '../auth/staff-activity.js';
 import { queueEmailsSafely } from '../email/queue-emails.js';
+import { viewerSeesMoney } from '../isolation/money.js';
+
+/** A staff-activity entry as a customer reads it (spec 2026-10-24 tenant isolation §2.3): which run, never its cost. */
+export type CustomerStaffEntry = Omit<StaffEntry, 'run'> & { run: { id: string; costUsd?: number } | null };
 
 /** Organisations and who is in them (spec 2026-09-21 §2). Every procedure acts on the session's current org. */
 export const orgsRouter = router({
@@ -101,5 +105,9 @@ export const orgsRouter = router({
   /** Robot staff activity in this organisation (spec 2026-10-07 §2.4) — every member may read it. */
   staffActivity: protectedProcedure
     .input(z.object({ page: z.number().int().min(0).default(0) }))
-    .query(({ ctx, input }) => listStaffActivity(ctx.db, { orgId: ctx.session.org.id }, { offset: input.page * 20, limit: 20 })),
+    .query(async ({ ctx, input }): Promise<{ entries: CustomerStaffEntry[]; total: number }> => {
+      const page = await listStaffActivity(ctx.db, { orgId: ctx.session.org.id }, { offset: input.page * 20, limit: 20 });
+      if (viewerSeesMoney(ctx)) return page;
+      return { ...page, entries: page.entries.map((e) => ({ ...e, run: e.run ? { id: e.run.id } : null })) };
+    }),
 });

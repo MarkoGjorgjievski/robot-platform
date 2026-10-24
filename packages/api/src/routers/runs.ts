@@ -5,6 +5,7 @@ import { router, protectedProcedure } from '../trpc';
 import { runInOrg, sourceInOrg } from '../auth/scope.js';
 import { contractAxes, type VariantMode } from '../contract.js';
 import { loadRunDelivery } from '../delivery/delivery-state.js';
+import { moneyFields, viewerSeesMoney } from '../isolation/money.js';
 
 const VIEW_ROW_CAP = 500;
 
@@ -209,9 +210,11 @@ export const runsRouter = router({
       .where(eq(projects.orgId, ctx.session.org.id))
       .orderBy(desc(runs.createdAt))
       .limit(100);
+    // Spec 2026-10-24 tenant isolation §2.3: a run's cost is staff-only.
+    const sees = viewerSeesMoney(ctx);
     return rows.map(({ projectName, projectSlug, websiteName, websiteSlug, costUsd, ...run }) => ({
       ...run,
-      costUsd: Number(costUsd),
+      ...moneyFields(sees, { costUsd: Number(costUsd) }),
       project: { name: projectName, slug: projectSlug },
       website: { name: websiteName, slug: websiteSlug },
     }));

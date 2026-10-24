@@ -20,6 +20,7 @@ import {
   classifyFields, deriveBackfillItems, planBackfillRun, EST_AI_COST_PER_PAGE_USD, type BackfillItemPlan,
 } from '../crawl/backfill.js';
 import { startRunJob } from '../jobs/handlers/run.js';
+import { moneyFields, viewerSeesMoney } from '../isolation/money.js';
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
 // path — re-exported from its new home (`plan-source.ts`, mvp-simplification
@@ -448,7 +449,8 @@ export const crawlRouter = router({
         // the same number here, so only the page count is reported.
         pages: items.length,
         // A certified website runs certified paths only; it never reaches the AI tiers the "up to" figure prices.
-        estCostUsd: certified ? 0 : Number((items.length * EST_AI_COST_PER_PAGE_USD).toFixed(2)),
+        // Spec 2026-10-24 tenant isolation §2.3: the figure is staff-only.
+        ...moneyFields(viewerSeesMoney(ctx), { estCostUsd: certified ? 0 : Number((items.length * EST_AI_COST_PER_PAGE_USD).toFixed(2)) }),
         certified,
         fields: classifyFields(cov.fields, targetNames),
       };

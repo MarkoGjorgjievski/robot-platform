@@ -61,7 +61,8 @@ export type StaffEntryView = {
   project: { id: string; name: string } | null;
   website: { id: string; name: string } | null;
   summary: string;
-  run: { id: string; costUsd: number } | null;
+  /** The run's cost reaches staff only (spec 2026-10-24 tenant isolation §2.3). */
+  run: { id: string; costUsd?: number } | null;
 };
 
 /** A staff-activity summary in customer words (spec 2026-10-21 §4): rows written before it said "(budget n products)". */
@@ -88,7 +89,7 @@ export function formatStaffEntry(e: StaffEntryView, now: Date = new Date(), show
     whoDetail: e.actor.email,
     website: e.website?.name ?? '—',
     sentence: limitWords(e.summary),
-    cost: showMoney && e.run && e.run.costUsd > 0 ? `$${e.run.costUsd.toFixed(2)}` : null,
+    cost: showMoney && e.run && (e.run.costUsd ?? 0) > 0 ? `$${e.run.costUsd!.toFixed(2)}` : null,
   };
 }
 

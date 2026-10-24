@@ -12,6 +12,11 @@ import { signedInCaller } from '../test-helpers/identity.js';
 const me = await signedInCaller('crawl-backfill-preview');
 const caller = me.caller;
 afterAll(async () => { await me.cleanup(); });
+// `estCostUsd` is staff-only (spec 2026-10-24 tenant isolation §2.3): this file reads it as an operator. A customer's
+// preview has none (isolation/money-sweep.test.ts).
+const savedOps = process.env.OPS_EMAILS;
+process.env.OPS_EMAILS = me.user.email;
+afterAll(() => { if (savedOps === undefined) delete process.env.OPS_EMAILS; else process.env.OPS_EMAILS = savedOps; });
 const SLUG = 'test-crawl-backfill-preview';
 let orgId: string | null = null;
 
