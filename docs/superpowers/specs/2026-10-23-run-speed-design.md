@@ -1,11 +1,13 @@
 # Run speed: lean captures on certified runs, several websites at once — design
 
-**Status:** written 2026-10-23 under the standing approval (`CLAUDE.md`, "Autonomous runs"; queue item 1,
+**Status:** implemented on `feat/run-speed` and merged to `main` on 2026-10-24 (`b0b0f994`); written 2026-10-23 under the standing approval (`CLAUDE.md`, "Autonomous runs"; queue item 1,
 approved by Marko 2026-10-23). Plan: `docs/superpowers/plans/2026-10-23-run-speed.md`. Branch
 `feat/run-speed` from `main` @ `9b89b72d`, worktree `C:\Users\Marko\Documents\projects\robot-platform-speed`.
 Builds on `2026-10-07-run-speed-and-language-note.md` (levers 1 and 2) and
 `2026-09-11-lean-capture-for-certified-runs-design.md` (items 2–4), and on the capture worker
 (`2026-10-23-capture-worker-design.md`): every run is a `run` job in the `runs` lane of `@robot/worker`.
+
+**Measured** (`docs/testing/results/2026-10-23-run-speed/report.md`): per 1,000 pages 124.2 min before, 76.5 min one website at a time (1.62×), 19.5 min at 4 runs (6.37×), 15.3 min at 6 runs (8.13×) — short of the 10× aimed for, because one item in ten pays both captures and websites start in whole waves; 16,800 fixture cells and 15 real pages (twice), 0 value and 0 shown differences.
 
 **Deviations from this text as built** (final review, 2026-10-24) — the sections below are amended in place:
 
