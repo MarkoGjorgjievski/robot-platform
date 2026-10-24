@@ -169,6 +169,13 @@
       "when": 1792848187825,
       "tag": "0023_metering",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792859133379,
+      "tag": "0024_proxy",
+      "breakpoints": true
     }
   ]
 }

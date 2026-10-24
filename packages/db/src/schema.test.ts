@@ -298,3 +298,18 @@ describe('metering (spec 2026-10-24 metering §2.2)', () => {
     expect(cleared!.aiCapUsd).toBeNull();
   });
 });
+
+describe('proxy columns (spec 2026-10-24 proxy §2.1)', () => {
+  it('a website has no proxy and no country unless given, keeps both, and refuses a country longer than two letters', async () => {
+    const { orgId: seeded, source } = await seedSource({ country: null });
+    orgId = seeded;
+    expect(source.proxyUrl).toBeNull();
+    expect(source.country).toBeNull();
+    const [set] = await db.update(sources).set({ proxyUrl: 'http://u-country-{country}:p@proxy.test:7000', country: 'de' })
+      .where(eq(sources.id, source.id)).returning();
+    expect(set).toMatchObject({ proxyUrl: 'http://u-country-{country}:p@proxy.test:7000', country: 'de' });
+    await expect(db.update(sources).set({ country: 'deu' }).where(eq(sources.id, source.id))).rejects.toThrow();
+    const [cleared] = await db.update(sources).set({ proxyUrl: null, country: null }).where(eq(sources.id, source.id)).returning();
+    expect(cleared).toMatchObject({ proxyUrl: null, country: null });
+  });
+});

@@ -149,7 +149,9 @@ export const sources = pgTable('sources', {
   domainId: uuid('domain_id').references(() => domains.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   slug: varchar('slug', { length: 255 }).notNull(),
-  country: varchar('country', { length: 10 }).notNull(),
+  // Proxy support (spec 2026-10-24 proxy §2.1): the market the website is read from — an ISO 3166-1 alpha-2 code from
+  // @robot/browser's COUNTRIES (lower-case), or null (no preference: en-US / New York, as before). Staff set it.
+  country: varchar('country', { length: 2 }),
   locale: varchar('locale', { length: 10 }),
   currency: varchar('currency', { length: 10 }),
   dataCenter: varchar('data_center', { length: 10 }),
@@ -205,6 +207,10 @@ export const sources = pgTable('sources', {
   // (32 random bytes, hex; made on the first save, kept when the address is removed).
   webhookUrl: text('webhook_url'),
   webhookSecret: text('webhook_secret'),
+  // Proxy support (spec 2026-10-24 proxy §2.1): http://, https:// or socks5://, optionally user:pass@, `{country}` filled
+  // in at use. Null: DEFAULT_PROXY_URL when set, else direct. The password is plain text, like the webhook secret; it is
+  // never logged (`redactProxy`) and never reaches a customer. Staff set it (`sources.update`, operators only).
+  proxyUrl: text('proxy_url'),
   // Email (spec 2026-10-24 email §3.2): when this website turned to "Needs attention" — null while it does not need
   // it. `syncAttention` claims the off → on turn with `WHERE attention_since IS NULL`, so one writer sends.
   attentionSince: timestamp('attention_since', { withTimezone: true }),
