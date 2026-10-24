@@ -475,6 +475,19 @@ describe('sources.verifyEstimate and the monthly AI limit (spec 2026-10-24 meter
       expect(staff).toMatchObject({ aiAvailable: false, upperBoundUsd: 0, cap: { capUsd: 0, remainingUsd: 0 } });
     } finally { await f.cleanup(); }
   });
+
+  it('review minor 3: with less left than one field costs ($0.10 < $0.18 on three pages) no call could be made — AI is not available; exactly one field\'s worth is', async () => {
+    await db.update(orgs).set({ aiCapUsd: '0.10' }).where(eq(orgs.id, me.org.id));
+    const f = await createProjectWithSource(caller, { tag: 'est-cap-short', urls: urlsFor('est-cap-short'), fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      process.env.OPS_EMAILS = '';
+      expect((await caller.sources.verifyEstimate({ sourceId: f.sourceId })).aiAvailable).toBe(false);
+      process.env.OPS_EMAILS = me.user.email;
+      expect(await caller.sources.verifyEstimate({ sourceId: f.sourceId })).toMatchObject({ aiAvailable: false, upperBoundUsd: 0, perFieldUsd: 0.18, cap: { capUsd: 0.1, remainingUsd: 0.1 } });
+      await db.update(orgs).set({ aiCapUsd: '0.18' }).where(eq(orgs.id, me.org.id));
+      expect(await caller.sources.verifyEstimate({ sourceId: f.sourceId })).toMatchObject({ aiAvailable: true, upperBoundUsd: 0.18 });
+    } finally { await f.cleanup(); }
+  });
 });
 
 describe('sources.verifyEstimate re-verify pricing', () => {
