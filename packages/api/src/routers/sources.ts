@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq, and, desc, sql, isNotNull, isNull, inArray } from 'drizzle-orm';
+import { eq, and, desc, sql, isNotNull, isNull, inArray, type SQL } from 'drizzle-orm';
 import { sources, datasets, projects, inputSets, sourceVerifications, captures, jevReadings, type Database } from '@robot/db';
 import {
   VERIFY_STALL_MS, estAiCostPerFieldUsd, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash, isNotOnWebsite,
@@ -33,6 +33,9 @@ import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification, startVerificationRow } from '../verify/in-flight.js';
 import { runFailure } from '../verify/run-failure.js';
 import type { JevAnswers } from '../verify/jev-reading.js';
+import { nextRunAt, parseSchedule, type Schedule, type ScheduleLast } from '../recurring/schedule.js';
+import { checkWebhookUrl, webhookPrivateAllowed } from '../delivery/webhook-url.js';
+import { newWebhookSecret } from '../delivery/signing.js';
 
 /**
  * A reading still `running` this long after its row was written is reported
@@ -321,6 +324,9 @@ export const sourcesRouter = router({
         // Spec 2026-10-21 §3.5: a held field, a check's finding not refreshed, or a gone proof page — the "Needs attention" badge.
         needsAttention: needsAttention(attention),
         variantSetup: s.variantSetup as VariantSetup | null,
+        // Recurring extraction (spec 2026-10-24 §3.5): the Settings tab's Schedule and Webhook rows.
+        schedule: s.schedule as Schedule | null, nextRunAt: s.nextRunAt, scheduleLast: s.scheduleLast as ScheduleLast | null,
+        webhookUrl: s.webhookUrl, webhookSecret: s.webhookSecret,
         project, fields: contractFields(hit.datasetSchema), createdAt: s.createdAt,
       };
     }),
@@ -339,11 +345,41 @@ export const sourcesRouter = router({
         isActive: z.boolean().optional(),
         listingMode: z.enum(['listing_to_detail', 'detail']).optional(),
         budget: budgetShape.optional(),
+        // Spec 2026-10-24 §3.5: the shape here; the customer's sentence comes from parseSchedule / checkWebhookUrl below
+        // (a zod refusal would reach the app as JSON).
+        schedule: z.object({ days: z.array(z.number()), time: z.string(), timeZone: z.string() }).nullable().optional(),
+        webhookUrl: z.string().max(10_000).nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.id);
-      const { id, ...rest } = input;
+      const { id, schedule, webhookUrl, ...rest } = input;
+
+      // Recurring extraction (spec 2026-10-24 §3.5): validated before anything is written; each refusal is one sentence.
+      const recurring: { schedule?: Schedule | null; nextRunAt?: Date | null; webhookUrl?: string | null; webhookSecret?: SQL } = {};
+      if (schedule !== undefined) {
+        if (schedule === null) {
+          recurring.schedule = null;
+          recurring.nextRunAt = null;
+        } else {
+          const parsed = parseSchedule(schedule);
+          if (!parsed.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: parsed.message });
+          recurring.schedule = parsed.schedule;
+          recurring.nextRunAt = nextRunAt(parsed.schedule, new Date());
+        }
+      }
+      if (webhookUrl !== undefined) {
+        if (webhookUrl === null) {
+          // The secret stays: links already sent keep opening.
+          recurring.webhookUrl = null;
+        } else {
+          const checked = checkWebhookUrl(webhookUrl, { allowPrivate: webhookPrivateAllowed() });
+          if (!checked.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: checked.message });
+          recurring.webhookUrl = checked.url;
+          // Made on the first save only.
+          recurring.webhookSecret = sql`coalesce(${sources.webhookSecret}, ${newWebhookSecret()})`;
+        }
+      }
 
       // Re-review residual #1 (fix-wave-report.md): `...rest` applied
       // `listingMode` unconditionally, so a confirmed Source's mode could be
@@ -384,7 +420,7 @@ export const sourcesRouter = router({
 
       const [source] = await ctx.db
         .update(sources)
-        .set({ ...rest, ...parametersPatch, updatedAt: new Date() })
+        .set({ ...rest, ...parametersPatch, ...recurring, updatedAt: new Date() })
         .where(eq(sources.id, id))
         .returning();
 
@@ -393,6 +429,23 @@ export const sourcesRouter = router({
       }
 
       return source;
+    }),
+
+  /**
+   * A new webhook signing secret (spec 2026-10-24 §3.4): posts are signed with it from now on, and every file link
+   * signed with the old one stops opening. Not on the staff deny list — rotating is safe — and logged in staff mode.
+   */
+  rotateWebhookSecret: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.id);
+      const [row] = await ctx.db
+        .update(sources)
+        .set({ webhookSecret: newWebhookSecret(), updatedAt: new Date() })
+        .where(eq(sources.id, input.id))
+        .returning({ webhookSecret: sources.webhookSecret });
+      if (!row?.webhookSecret) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.id} not found` });
+      return { webhookSecret: row.webhookSecret };
     }),
 
   // ─── Project-scoped creation (mvp-flow phase 1, spec 5.4) ────────────────

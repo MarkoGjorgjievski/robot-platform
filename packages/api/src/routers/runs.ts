@@ -4,6 +4,7 @@ import { runs, captures, extractions, datasets, projects, sources } from '@robot
 import { router, protectedProcedure } from '../trpc';
 import { runInOrg, sourceInOrg } from '../auth/scope.js';
 import { contractAxes, type VariantMode } from '../contract.js';
+import { loadRunDelivery } from '../delivery/delivery-state.js';
 
 const VIEW_ROW_CAP = 500;
 
@@ -43,7 +44,7 @@ export const runsRouter = router({
       });
       if (!run) return null;
 
-      const [latestCapture, extractionRows, [rowTotal], backfillRuns] = await Promise.all([
+      const [latestCapture, extractionRows, [rowTotal], backfillRuns, delivery] = await Promise.all([
         ctx.db.query.captures.findFirst({
           where: eq(captures.runId, input.id),
           orderBy: [desc(captures.createdAt)],
@@ -78,6 +79,8 @@ export const runsRouter = router({
           where: eq(runs.parentRunId, input.id),
           columns: { id: true, status: true },
         }),
+        // The webhook line under the downloads (spec 2026-10-24 §3.4): staff also read the stored code and error.
+        loadRunDelivery(ctx.db, input.id, ctx.isOperator || !!ctx.session.staff),
       ]);
 
       const allRows = extractionRows.flatMap((e) => (Array.isArray(e.data) ? e.data : []));
@@ -140,6 +143,8 @@ export const runsRouter = router({
         axisColumns,
         // The reverse breadcrumb — see the Promise.all query above.
         backfillRuns,
+        // Null until a webhook attempt was made for this run.
+        delivery,
         // id + url only. `screenshotPath` used to ride along here, but no
         // live path ever writes `captures.screenshot_path` — the crawl
         // capture writer (extract-item.ts) records url/metadata only, and

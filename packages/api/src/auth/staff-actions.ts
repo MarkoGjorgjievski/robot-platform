@@ -145,7 +145,14 @@ export const STAFF_ACTIONS: Record<string, StaffAction | null> = {
     before: async (db, i) => db.query.sources.findFirst({ where: eq(sources.id, i.sourceId), columns: { name: true } }),
     describe: ({ input, before }) => renamed('website', before?.name, input.name),
   },
-  'sources.update': { describe: ({ target }) => `Changed ${site(target)}'s settings` },
+  'sources.update': {
+    describe: ({ input, target }) => {
+      if (input.schedule !== undefined) return input.schedule === null ? `Turned off the schedule of ${site(target)}` : `Set the schedule of ${site(target)}`;
+      if (input.webhookUrl !== undefined) return input.webhookUrl === null ? `Removed the webhook of ${site(target)}` : `Set the webhook of ${site(target)}`;
+      return `Changed ${site(target)}'s settings`;
+    },
+  },
+  'sources.rotateWebhookSecret': { describe: ({ target }) => `Replaced the webhook signing secret of ${site(target)}` },
   'sources.setListingPages': { describe: ({ target }) => `Changed the listing pages of ${site(target)}` },
   'sources.setProductUrls': { describe: ({ input, target }) => `Changed the product list of ${site(target)} (${input.urls.length} URLs)` },
   'sources.updateBinding': { describe: ({ target }) => `Edited the Verification answers on ${site(target)}`, coalesceMinutes: 10 },
