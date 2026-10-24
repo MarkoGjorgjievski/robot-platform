@@ -132,3 +132,25 @@ describe('RF1: two jobs of one org share what is left', () => {
     expect(capJobsOpen()).toBe(0);
   });
 });
+
+describe('final review M7: the free local model is never counted against the limit', () => {
+  it('an agent on the free provider makes its calls at nothing left, and its calls are not counted', async () => {
+    const inner = { provider: 'ollama' as const, proposePaths: vi.fn(async (_text: string) => [] as unknown[]) };
+    const capped = cappedAgent(inner, { remainingUsd: 0, perCallUsd: 0.05, orgId: 'org-free' });
+    await capped.proposePaths('a');
+    await capped.proposePaths('b');
+    expect(inner.proposePaths).toHaveBeenCalledTimes(2);
+    expect(capLedgerOf(capped)).toMatchObject({ calls: 0, refused: 0, projectedUsd: 0 });
+    // A paid sibling of the same org is not charged for the free job's calls.
+    const paid = cappedAgent(fake(), { remainingUsd: 0.05, perCallUsd: 0.05, orgId: 'org-free' });
+    await expect(paid.proposePaths('c')).resolves.toEqual([]);
+  });
+
+  it('SchemaAgent says which provider it uses: the local one is free, Anthropic is paid', async () => {
+    const { SchemaAgent } = await import('./schema-agent.js');
+    expect(new SchemaAgent({ provider: 'ollama' }).provider).toBe('ollama');
+    expect(new SchemaAgent({ provider: 'anthropic', apiKey: 'test-key' }).provider).toBe('anthropic');
+    const local = cappedAgent(new SchemaAgent({ provider: 'ollama' }), { remainingUsd: 0, perCallUsd: 0.05 });
+    expect(local.provider).toBe('ollama');
+  });
+});

@@ -6,6 +6,9 @@
 // process-wide usage counter (usage.ts): that counter is shared by every job in flight.
 //
 // One process only: several worker processes do not see each other's open jobs (spec §3.1 holds per process).
+//
+// An agent on the free local model (`provider: 'ollama'`, SchemaAgent without a key) is never refused or counted: its
+// calls cost nothing (final review M7). Any other agent is taken to be paid.
 
 export class CapReachedError extends Error {
   constructor(message = "This organisation's monthly limit is reached.") {
@@ -127,13 +130,14 @@ export function cappedAgent<T extends object>(agent: T, opts: CapOptions): T {
   if (opts.ledger && !(opts.ledger instanceof Ledger)) throw new Error('cappedAgent adopts only a ledger from openCapLedger');
   const ledger = (opts.ledger as Ledger | undefined) ?? new Ledger(opts.orgId ?? null);
   ledger.adopt(opts);
+  const free = isFreeProvider(agent);
   const proxy = new Proxy(agent, {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);
       if (typeof value !== 'function' || prop === 'constructor') return value;
       return (...args: unknown[]) => {
         // A rejected promise, never a synchronous throw: `agent.x().catch(…)` must see the refusal.
-        try { ledger.reserve(); } catch (err) { return Promise.reject(err); }
+        if (!free) { try { ledger.reserve(); } catch (err) { return Promise.reject(err); } }
         // `this` is the proxy, so a method that calls another (generateSelectors → locateResults) is two calls.
         return (value as (...a: unknown[]) => unknown).apply(receiver, args);
       };
@@ -141,6 +145,11 @@ export function cappedAgent<T extends object>(agent: T, opts: CapOptions): T {
   });
   ledgers.set(proxy, ledger);
   return proxy;
+}
+
+/** The free local model (Ollama): what it is asked costs nothing. */
+function isFreeProvider(agent: object): boolean {
+  return (agent as { provider?: unknown }).provider === 'ollama';
 }
 
 export function capLedgerOf(agent: object): CapLedger | undefined {
