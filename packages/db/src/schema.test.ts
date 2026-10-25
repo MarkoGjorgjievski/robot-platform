@@ -1,7 +1,8 @@
 // packages/db/src/schema.test.ts
 import { describe, it, expect, afterEach } from 'vitest';
+import { readdirSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
-import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions, driftChecks, coverageChecks, fieldHolds, valueRefreshes, jobs, runFiles, webhookDeliveries, emailMessages } from './index.js';
+import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions, driftChecks, coverageChecks, fieldHolds, valueRefreshes, jobs, runFiles, webhookDeliveries, emailMessages, workers, migrationCount } from './index.js';
 
 const SLUG = 'test-repair-engine-columns';
 
@@ -311,5 +312,37 @@ describe('proxy columns (spec 2026-10-24 proxy §2.1)', () => {
     await expect(db.update(sources).set({ country: 'deu' }).where(eq(sources.id, source.id))).rejects.toThrow();
     const [cleared] = await db.update(sources).set({ proxyUrl: null, country: null }).where(eq(sources.id, source.id)).returning();
     expect(cleared).toMatchObject({ proxyUrl: null, country: null });
+  });
+});
+
+describe('monitoring (spec 2026-10-25 monitoring §2.1, §2.3)', () => {
+  const queue = `schema-test-mon-${Date.now()}`;
+  afterEach(async () => {
+    await db.delete(workers).where(eq(workers.queue, queue));
+    await db.delete(jobs).where(eq(jobs.queue, queue));
+  });
+
+  it('a worker row keeps its queue, version, browsers, lanes and switches; one row per id', async () => {
+    const id = `host:1:${queue}`;
+    const [w] = await db.insert(workers).values({
+      id, queue, startedAt: new Date(), version: 'abc1234', browsers: { inUse: 1, max: 3 },
+      lanes: { interactive: 1, background: 0, runs: 0 }, websiteChecks: true, recurringRuns: false,
+    }).returning();
+    expect(w).toMatchObject({ id, queue, version: 'abc1234', browsers: { inUse: 1, max: 3 }, lanes: { interactive: 1, background: 0, runs: 0 }, websiteChecks: true, recurringRuns: false });
+    expect(w!.beatAt).toBeInstanceOf(Date);
+    await expect(db.insert(workers).values({ id, queue, startedAt: new Date() })).rejects.toThrow();
+    const [bare] = await db.insert(workers).values({ id: `${id}-bare`, queue, startedAt: new Date() }).returning();
+    expect(bare).toMatchObject({ version: null, browsers: {}, lanes: {}, websiteChecks: false, recurringRuns: false });
+  });
+
+  it('a job has no progress until it is claimed', async () => {
+    const [j] = await db.insert(jobs).values({ queue, type: 'verify' }).returning();
+    expect(j!.progressAt).toBeNull();
+  });
+
+  it('the bundled migration count is the journal’s: one entry per .sql file', () => {
+    const files = readdirSync(new URL('../drizzle', import.meta.url)).filter((f) => f.endsWith('.sql'));
+    expect(migrationCount()).toBe(files.length);
+    expect(migrationCount()).toBeGreaterThanOrEqual(26);
   });
 });

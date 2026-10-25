@@ -552,6 +552,9 @@ export const jobs = pgTable('jobs', {
   lockedBy: varchar('locked_by', { length: 200 }),
   lockedUntil: timestamp('locked_until', { withTimezone: true }),
   startedAt: timestamp('started_at', { withTimezone: true }),
+  // Monitoring (spec 2026-10-25 §2.3): the last sign of life outside the worker's memory — set by a claim (= started_at)
+  // and by ctx.progress() at most every 15 s. The watchdog and ops' Queue read it ("silent": older than half stuckMs).
+  progressAt: timestamp('progress_at', { withTimezone: true }),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
   // Done: `{ value }`; failed: `{ error: SerializedError }` (@robot/api jobs/errors.ts).
   result: jsonb('result'),
@@ -562,6 +565,27 @@ export const jobs = pgTable('jobs', {
   index('jobs_lease_idx').on(table.status, table.lockedUntil),
   uniqueIndex('jobs_active_key_idx').on(table.queue, table.key)
     .where(sql`${table.status} in ('queued', 'running') and ${table.key} is not null`),
+]);
+
+// ─── Workers (2026-10-25) ───────────────────────────────────────────────────
+// One row per running worker (spec 2026-10-25 monitoring §2.1): upserted every 30 s, deleted on a clean stop. A beat
+// older than 2 minutes is a dead worker; rows older than a day are purged by any worker. `id` is the runner's worker
+// id (`host:pid:rand`) — a job's `locked_by` is that id, '#', and a claim token.
+export const workers = pgTable('workers', {
+  id: varchar('id', { length: 200 }).primaryKey(),
+  queue: varchar('queue', { length: 64 }).notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+  beatAt: timestamp('beat_at', { withTimezone: true }).defaultNow().notNull(),
+  // The git sha if known, else the package version.
+  version: varchar('version', { length: 64 }),
+  // { inUse, max }
+  browsers: jsonb('browsers').notNull().default({}),
+  // Running jobs per lane: { interactive, background, runs }
+  lanes: jsonb('lanes').notNull().default({}),
+  websiteChecks: boolean('website_checks').notNull().default(false),
+  recurringRuns: boolean('recurring_runs').notNull().default(false),
+}, (table) => [
+  index('workers_queue_beat_idx').on(table.queue, table.beatAt),
 ]);
 
 // ─── Field holds and value refreshes (2026-10-21) ───────────────────────────
