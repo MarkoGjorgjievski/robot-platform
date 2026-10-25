@@ -124,6 +124,17 @@ function stealthChromium(locale?: string): Promise<typeof chromium> {
   return launcher;
 }
 
+/**
+ * Spec 2026-10-24 proxy §3.1 (nothing direct): a page's WebRTC/STUN would otherwise send UDP straight out and show the
+ * worker's own address past the proxy. Proxied browsers only; a browser with no proxy launches exactly as before.
+ */
+export const WEBRTC_PROXY_ONLY = '--force-webrtc-ip-handling-policy=disable_non_proxied_udp';
+
+/** Chromium's launch flags for these options: the owner switch, and with a proxy the WebRTC policy. */
+export function launchArgs(options: BrowserOptions): string[] {
+  return [...browserOwnerArgs(), ...(options.proxy ? [WEBRTC_PROXY_ONLY] : [])];
+}
+
 const nhm = new NodeHtmlMarkdown();
 
 /** Playwright reports a dead renderer as "Target crashed" / "Page crashed". */
@@ -168,7 +179,7 @@ export class PlaywrightBrowser implements IBrowser {
     const useStealth = options.stealth ?? true;
     const launcher = useStealth ? await stealthChromium(options.locale) : chromium;
 
-    this.browser = await launcher.launch({ headless: options.headless ?? true, handleSIGINT: options.handleSIGINT, args: browserOwnerArgs() });
+    this.browser = await launcher.launch({ headless: options.headless ?? true, handleSIGINT: options.handleSIGINT, args: launchArgs(options) });
 
     // A default context also leaks tells: no locale, no timezone, and a UA that
     // says HeadlessChrome. Only defaults — a website's country (spec
