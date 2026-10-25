@@ -12,6 +12,9 @@ try {
 } catch {
   // no .env: whatever is in process.env
 }
+// Spec 2026-10-25 monitoring §2.4: an unhandled rejection is reported; an uncaught exception is reported, then exits 1.
+const { installProcessHandlers } = await import('@robot/api/errors');
+installProcessHandlers('worker');
 // The api-server serves capture files from its public/captures; the worker writes them there (Docker: a shared volume).
 process.env.CAPTURES_DIR ??= join(here, '..', '..', 'api-server', 'public', 'captures');
 
@@ -45,7 +48,6 @@ process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 // Windows: Ctrl+Break, and what some process managers send in place of SIGTERM.
 process.on('SIGBREAK', () => void shutdown('SIGBREAK'));
-process.on('unhandledRejection', (err) => console.error('[worker] unhandled rejection:', err));
 if (config.stopFile) {
   const file = config.stopFile;
   setInterval(() => { if (existsSync(file)) { rmSync(file, { force: true }); void shutdown('stop file'); } }, 500);

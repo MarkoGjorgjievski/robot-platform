@@ -13,9 +13,11 @@
     "./verify/current-certification": "./src/verify/current-certification.ts",
     "./jobs": "./src/jobs/index.ts",
     "./log": "./src/monitoring/log.ts",
+    "./errors": "./src/monitoring/errors.ts",
     "./test-helpers/identity": "./src/test-helpers/identity.ts",
     "./test-helpers/customer-source": "./src/test-helpers/customer-source.ts",
     "./test-helpers/seed-coverage-check": "./src/test-helpers/seed-coverage-check.ts",
+    "./test-helpers/error-receiver": "./src/test-helpers/error-receiver.ts",
     "./isolation/two-orgs": "./src/isolation/two-orgs.ts",
     "./isolation/rate-limit": "./src/isolation/rate-limit.ts"
   },
