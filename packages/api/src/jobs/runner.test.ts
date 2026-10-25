@@ -397,3 +397,20 @@ describe('startJobRunner', () => {
     await until(async () => r.lanes().background === 0);
   }, JOB_TEST_MS);
 });
+
+describe('a claim that fails for a while (fix wave)', () => {
+  it('is logged once per outage across every lane, then once when claiming works again', async () => {
+    const lines: string[] = [];
+    let failing = true;
+    let calls = 0;
+    const claim: typeof claimJob = async (o) => { calls++; if (failing) throw new Error('connect ECONNREFUSED'); return claimJob(o); };
+    start({}, { claim, log: (l) => lines.push(l), lanes: { interactive: 1, background: 1, runs: 1 } });
+    await until(async () => calls >= 15);
+    failing = false;
+    await until(async () => lines.some((l) => l.startsWith('claiming works again')));
+    const n = calls;
+    await until(async () => calls >= n + 6);
+    expect(lines.filter((l) => l.startsWith('claim failed'))).toHaveLength(1);
+    expect(lines.filter((l) => l.startsWith('claiming works again'))).toHaveLength(1);
+  }, JOB_TEST_MS);
+});

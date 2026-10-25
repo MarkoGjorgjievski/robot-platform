@@ -7,7 +7,7 @@ import { db, jobs, runs, workers } from '@robot/db';
 import { jobQueueName } from '../jobs/queue.js';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
 import { findAttention, type AttentionItem } from './attention.js';
-import { watchJobs } from './watchdog.js';
+import { startWatchdog, watchJobs } from './watchdog.js';
 import { createLog, type LogLevel } from './log.js';
 
 const q = () => jobQueueName();
@@ -125,5 +125,26 @@ describe('watchJobs (spec 2026-10-25 monitoring §2.3)', () => {
     await watchJobs(q(), { log, seen });
     expect(lines).toHaveLength(1);
     expect(JSON.parse(lines[0]!.line).msg).toMatch(/^backlog: reachability [0-9a-f-]{36} due 11 min ago and nobody is taking it$/);
+  });
+});
+
+describe('the watchdog during a database outage (fix wave)', () => {
+  it('a read that fails warns once per outage, then says once that it reads again', async () => {
+    const lines: Array<{ line: string; level: LogLevel }> = [];
+    const log = createLog('watchdog', { env: {}, sink: (line, level) => lines.push({ line, level }) });
+    let calls = 0;
+    const find = async () => { calls++; if (calls <= 4 || calls === 7) throw new Error('connect ECONNREFUSED'); return []; };
+    const stop = startWatchdog({ queue: 'q', everyMs: 15, log, find });
+    try {
+      const t = Date.now() + 3_000;
+      while (calls < 9 && Date.now() < t) await new Promise((r) => setTimeout(r, 10));
+    } finally { stop(); }
+    expect(calls).toBeGreaterThanOrEqual(9);
+    expect(lines.map((l) => [l.level, l.line.split(' error=')[0]])).toEqual([
+      ['warn', '[watchdog] WARN the watchdog could not read the queue'],
+      ['info', '[watchdog] the watchdog reads the queue again'],
+      ['warn', '[watchdog] WARN the watchdog could not read the queue'],
+      ['info', '[watchdog] the watchdog reads the queue again'],
+    ]);
   });
 });
