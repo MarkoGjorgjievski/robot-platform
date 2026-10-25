@@ -1,13 +1,13 @@
 // The worker (spec 2026-10-23 §4.3): the only process with browsers. One gate limits them; the runner
 // claims this queue's jobs; with WEBSITE_CHECKS=on, the hourly sweep enqueues due website checks; unless RECURRING_RUNS=off, the minute sweep starts each website's scheduled run.
-// Monitoring (spec 2026-10-25): it beats into `workers` every 30 s, answers WORKER_HEALTH_PORT, and reports its terminal faults.
+// Monitoring (spec 2026-10-25): it beats into `workers` every 30 s, answers WORKER_HEALTH_PORT, reports its terminal faults, and its watchdog warns about stuck work every 60 s.
 import {
   createBrowserGate, setBrowserGate, startJobRunner, jobRegistry, startWebsiteChecks, enqueueDueWebsiteChecks, startRecurringRuns, mailOn,
   type JobRunner, type WorkerBrowserGate,
 } from '@robot/api/jobs';
 import { configureErrorReports } from '@robot/api/errors';
 import { createLog } from '@robot/api/log';
-import { DEAD_WORKER_MS, serviceVersion, startHeartbeat, type Heartbeat } from '@robot/api/monitoring';
+import { DEAD_WORKER_MS, serviceVersion, startHeartbeat, startWatchdog, type Heartbeat } from '@robot/api/monitoring';
 import type { WorkerConfig } from './config.js';
 import { startHealthServer, type HealthServer } from './health.js';
 
@@ -31,6 +31,7 @@ export async function startWorker(config: WorkerConfig, deps: WorkerDeps = {}): 
     workerId: runner.workerId, queue: config.queue, version: serviceVersion(), ...(deps.heartbeatMs ? { everyMs: deps.heartbeatMs } : {}),
     state: () => ({ browsers: { inUse: gate.open(), max: config.browsers }, lanes: runner.lanes(), websiteChecks: config.websiteChecks, recurringRuns: config.recurringRuns }),
   });
+  const stopWatch = startWatchdog({ queue: config.queue, ...(deps.watchEveryMs ? { everyMs: deps.watchEveryMs } : {}) });
   let stopping = false;
   const startedAt = Date.now();
   // Spec 2026-10-25 §2.1: working = started, not stopping, and its database answered a beat in the last 2 minutes.
@@ -55,6 +56,7 @@ export async function startWorker(config: WorkerConfig, deps: WorkerDeps = {}): 
         stopping = true;
         stopChecks();
         stopRecurring();
+        stopWatch();
         await runner.stop(config.shutdownMs);
         await gate.closeAll();
         setBrowserGate(null);
