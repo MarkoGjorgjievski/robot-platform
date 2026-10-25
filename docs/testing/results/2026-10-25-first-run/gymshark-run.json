@@ -1,0 +1,83 @@
+{
+  "run": {
+    "id": "e8ac4a0f-be89-4baf-8e34-5aedd5e36e02",
+    "status": "completed",
+    "startedAt": "2026-10-25T14:44:30.681Z",
+    "completedAt": "2026-10-25T14:47:40.698Z",
+    "createdAt": "2026-10-25T14:44:30.678Z",
+    "rowCount": 10
+  },
+  "source": {
+    "slug": "gymshark",
+    "name": "Gymshark",
+    "url": "https://www.gymshark.com/products/gymshark-whitney-leggings-leggings-black-aw26"
+  },
+  "fields": [
+    "Title",
+    "Price",
+    "_url",
+    "_page_number"
+  ],
+  "rows": [
+    {
+      "Title": "Everyday Seamless Leggings",
+      "Price": 38,
+      "_url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-blue-aw26-b7a3l-uctn",
+      "_page_number": 1
+    },
+    {
+      "Title": "Everyday Seamless Leggings",
+      "Price": 38,
+      "_url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26",
+      "_page_number": 1
+    },
+    {
+      "Title": "Everyday Seamless Flared Leggings",
+      "Price": 38,
+      "_url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25",
+      "_page_number": 1
+    },
+    {
+      "Title": "Everyday Seamless Leggings",
+      "Price": 38,
+      "_url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-purple-aw25",
+      "_page_number": 1
+    },
+    {
+      "Title": "Everyday Seamless Leggings",
+      "Price": 38,
+      "_url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-black-aw23",
+      "_page_number": 1
+    },
+    {
+      "Title": "Everyday Seamless Leggings",
+      "Price": 38,
+      "_url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-pink-aw26",
+      "_page_number": 1
+    },
+    {
+      "Title": "SoftSenseTM High-Rise Leggings",
+      "Price": 58,
+      "_url": "https://www.gymshark.com/products/gymshark-ultimate-adaptive-leggings-leggings-black-aw26",
+      "_page_number": 1
+    },
+    {
+      "Title": "CottonMoveTM Flared Leggings",
+      "Price": 60,
+      "_url": "https://www.gymshark.com/products/gymshark-cotton-blend-seamless-flared-leggings-leggings-grey-aw26",
+      "_page_number": 1
+    },
+    {
+      "Title": "Adapt Solid Leggings",
+      "Price": 60,
+      "_url": "https://www.gymshark.com/products/gymshark-adapt-x-whitney-leggings-leggings-black-aw26",
+      "_page_number": 1
+    },
+    {
+      "Title": "Whitney High-Rise Regular Leggings",
+      "Price": 54,
+      "_url": "https://www.gymshark.com/products/gymshark-whitney-leggings-leggings-black-aw26",
+      "_page_number": 1
+    }
+  ]
+}

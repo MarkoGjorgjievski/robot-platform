@@ -75,7 +75,7 @@ const T = {
 
 type StepLog = { n: number; name: string; ok: boolean; ms: number; screenshot: string | null; detail?: string };
 type Trip = { step: number; name: string; error: string; screenshot: string | null; visibleText: string; lastAnswers: string[]; problems: string[] };
-type SiteLog = { site: string; listing: string; email: string; steps: StepLog[]; trip: Trip | null; cleanup: string | null; facts: Record<string, unknown> };
+type SiteLog = { site: string; listing: string; email: string; steps: StepLog[]; trip: Trip | null; cleanup: string | null; facts: Record<string, unknown>; ranAt: string };
 
 const report: { startedAt: string; app: string; api: string; sites: SiteLog[] } = {
   startedAt: new Date().toISOString(),
@@ -164,7 +164,7 @@ const keyOf = (keys: string[], name: string) => keys.find((k) => k.toLowerCase()
 
 async function runSite(s: Site): Promise<SiteLog> {
   const email = firstRunEmail(s.site);
-  const log: SiteLog = { site: s.site, listing: s.listing, email, steps: [], trip: null, cleanup: null, facts: {} };
+  const log: SiteLog = { site: s.site, listing: s.listing, email, steps: [], trip: null, cleanup: null, facts: {}, ranAt: new Date().toISOString() };
   const answers: string[] = [];
   const problems: string[] = [];
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
@@ -549,12 +549,30 @@ async function runSite(s: Site): Promise<SiteLog> {
   return log;
 }
 
+/**
+ * `FIRST_RUN_MERGE=1` keeps the other sites already in first-run.json, so one site per vitest process
+ * (`FIRST_RUN_SITES` naming one site) still builds one report; this run's sites replace theirs.
+ */
+const kept: SiteLog[] = [];
+function loadKept() {
+  if (process.env.FIRST_RUN_MERGE !== '1') return;
+  try {
+    const prior = JSON.parse(readFileSync(path.join(OUT, 'first-run.json'), 'utf8')) as { sites?: SiteLog[] };
+    const ours = new Set(SITES.map((x) => x.site));
+    kept.push(...(prior.sites ?? []).filter((x) => !ours.has(x.site)));
+  } catch {
+    // No report yet: nothing to keep.
+  }
+}
+
 function writeReport() {
+  const order = (x: SiteLog) => { const i = DEFAULT_SITES.findIndex((d) => d.site === x.site); return i < 0 ? 99 : i; };
+  report.sites = [...kept, ...report.sites.filter((x) => !kept.includes(x))].sort((a, b) => order(a) - order(b));
   writeFileSync(path.join(OUT, 'first-run.json'), JSON.stringify(report, null, 2) + '\n');
   const lines = [`# First run — ${report.startedAt}`, '', `App ${APP}, api ${API}.`, ''];
   for (const s of report.sites) {
     const passed = s.steps.filter((x) => x.ok && x.n <= 10).length;
-    lines.push(`## ${s.site} — ${s.trip ? `tripped at step ${s.trip.step}` : 'passed'} (${passed} of 10 steps)`, '', `Listing: ${s.listing}`, '');
+    lines.push(`## ${s.site} — ${s.trip ? `tripped at step ${s.trip.step}` : 'passed'} (${passed} of 10 steps)`, '', `Listing: ${s.listing}${s.ranAt ? ` · ran ${s.ranAt}` : ''}`, '');
     for (const x of s.steps) lines.push(`${x.n}. ${x.ok ? 'ok' : 'TRIP'} — ${x.name}${x.detail ? `: ${x.detail}` : ''}${x.ms ? ` (${Math.round(x.ms / 1000)} s)` : ''}`);
     lines.push('');
   }
@@ -569,6 +587,7 @@ beforeAll(async () => {
     if (!res?.ok) throw new Error(`${label} is not responding at ${url}. Start the isolated pair first (see the top of this file).`);
   }
   mkdirSync(OUT, { recursive: true });
+  loadKept();
   browser = await chromium.launch({ headless: true });
 }, 60_000);
 
