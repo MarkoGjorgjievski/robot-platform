@@ -14,7 +14,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { and, desc, eq } from 'drizzle-orm';
 import { db, driftChecks, sources, sourceVerifications } from '@robot/db';
 import type { SchemaDefinitionField } from '@robot/scraper';
-import { withBrowserSession } from '../browser-session.js';
+import { forWebsite } from '../proxy/website-session.js';
 import { backfillHolds } from '../verify/holds.js';
 import { checkWebsite } from '../verify/website-checks.js';
 import { latestRefreshes, websiteAttention } from '../verify/attention.js';
@@ -101,7 +101,8 @@ for (const [id, website] of Object.entries(TEN)) {
   try {
     if (!(await settle(id))) throw new Error('a Verify was already in flight and did not finish');
     entry.before = await state(id);
-    const backfill = await withBrowserSession((browser) => backfillHolds(db, browser, id, { write: true }));
+    // The website's own profile (spec 2026-10-24 proxy §3.1; final review I2).
+    const backfill = await forWebsite(id)((browser) => backfillHolds(db, browser, id, { write: true }));
     entry.backfilled = backfill.upsert.map((h) => h.fieldKey);
     entry.backfillFields = backfill.fields;
     entry.afterBackfill = await state(id);

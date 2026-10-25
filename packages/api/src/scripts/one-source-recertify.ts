@@ -17,7 +17,7 @@ import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
 import { datasets, db, orgs, projects, sources, sourceVerifications } from '@robot/db';
 import { readsOneSource, runVerification, sourceKey, type CertifiedPath, type FieldVerification, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
-import { withBrowserSession } from '../browser-session.js';
+import { forWebsite } from '../proxy/website-session.js';
 import { readCaptureFile, type StoredCaptureRef } from '../verify/capture-store.js';
 
 const oldRule = (ps: CertifiedPath[]) => ps.length >= 2 && (ps.every((p) => p.source === 'api') || ps.every((p) => p.source === 'json-ld'));
@@ -38,54 +38,53 @@ const withSets = await db
 
 let checked = 0, spread = 0, single = 0, uncertified = 0, skipped = 0, firstPathChanged = 0;
 const firstPathChanges: Array<{ website: string; field: string; before: string; after: string }> = [];
-await withBrowserSession(async (browser) => {
-  for (const s of withSets) {
-    if (!Array.isArray(s.schemaDefinition)) continue;
-    const [latest] = await db
-      .select({ results: sourceVerifications.results, captures: sourceVerifications.captures })
-      .from(sourceVerifications)
-      .where(and(eq(sourceVerifications.sourceId, s.id), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)))
-      .orderBy(desc(sourceVerifications.completedAt))
-      .limit(1);
-    if (!latest) continue;
-    const results = latest.results as Record<string, FieldVerification>;
-    const fields = (s.schemaDefinition as SchemaDefinitionField[]).filter((f) => oldRule(results[f.key]?.certified ?? []));
-    if (fields.length === 0) continue;
-    const website = `${s.org ?? '?'}/${s.project ?? '?'}/${s.name}`;
-    const set = s.verificationSet as VerificationSet;
-    const refs = (latest.captures ?? {}) as Record<string, StoredCaptureRef>;
-    const captures: Record<string, PageCapture> = {};
-    for (const url of set.urls) {
-      const ref = refs[url];
-      const c = ref?.captureId ? await readCaptureFile(ref.captureId) : null;
-      if (c) captures[url] = c;
-    }
-    // Every proof page from its stored file, or the field is skipped: a missing one would be captured live.
-    if (Object.keys(captures).length !== set.urls.length) {
-      skipped += fields.length;
-      console.log(`\n${website}: skipped ${fields.length} field(s) — ${set.urls.length - Object.keys(captures).length} stored capture(s) missing`);
-      continue;
-    }
-    const run = await runVerification({ fields, verificationSet: set }, { browser, agent: null, free: true, captures });
-    for (const f of fields) {
-      checked++;
-      const before = results[f.key]!.certified;
-      const now = run.outcome.fields[f.key]?.certified ?? [];
-      if (now.length === 0) uncertified++;
-      else if (readsOneSource(now) || now.length === 1) single++;
-      else spread++;
-      const beforeFirst = before[0] ? label(before[0]) : '(none)';
-      const afterFirst = now[0] ? label(now[0]) : '(none)';
-      const changed = (before[0] ? pathIdentity(before[0]) : null) !== (now[0] ? pathIdentity(now[0]) : null);
-      if (changed) { firstPathChanged++; firstPathChanges.push({ website, field: f.name, before: beforeFirst, after: afterFirst }); }
-      console.log(`\n${website} — ${f.name}`);
-      console.log(`  stored: ${before.map(label).join(' | ')}`);
-      console.log(`  now:    ${now.map(label).join(' | ') || '(nothing certified on the stored captures)'}`);
-      console.log(`  sources now: ${new Set(now.map(sourceKey)).size}`);
-      console.log(`  first path changed: ${changed ? `YES — ${beforeFirst} -> ${afterFirst}` : 'no'}`);
-    }
+for (const s of withSets) {
+  if (!Array.isArray(s.schemaDefinition)) continue;
+  const [latest] = await db
+    .select({ results: sourceVerifications.results, captures: sourceVerifications.captures })
+    .from(sourceVerifications)
+    .where(and(eq(sourceVerifications.sourceId, s.id), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)))
+    .orderBy(desc(sourceVerifications.completedAt))
+    .limit(1);
+  if (!latest) continue;
+  const results = latest.results as Record<string, FieldVerification>;
+  const fields = (s.schemaDefinition as SchemaDefinitionField[]).filter((f) => oldRule(results[f.key]?.certified ?? []));
+  if (fields.length === 0) continue;
+  const website = `${s.org ?? '?'}/${s.project ?? '?'}/${s.name}`;
+  const set = s.verificationSet as VerificationSet;
+  const refs = (latest.captures ?? {}) as Record<string, StoredCaptureRef>;
+  const captures: Record<string, PageCapture> = {};
+  for (const url of set.urls) {
+    const ref = refs[url];
+    const c = ref?.captureId ? await readCaptureFile(ref.captureId) : null;
+    if (c) captures[url] = c;
   }
-});
+  // Every proof page from its stored file, or the field is skipped: a missing one would be captured live.
+  if (Object.keys(captures).length !== set.urls.length) {
+    skipped += fields.length;
+    console.log(`\n${website}: skipped ${fields.length} field(s) — ${set.urls.length - Object.keys(captures).length} stored capture(s) missing`);
+    continue;
+  }
+  // Each website in its own browser, with its own profile (spec 2026-10-24 proxy §3.1; final review I2).
+  const run = await forWebsite(s.id)((browser) => runVerification({ fields, verificationSet: set }, { browser, agent: null, free: true, captures }));
+  for (const f of fields) {
+    checked++;
+    const before = results[f.key]!.certified;
+    const now = run.outcome.fields[f.key]?.certified ?? [];
+    if (now.length === 0) uncertified++;
+    else if (readsOneSource(now) || now.length === 1) single++;
+    else spread++;
+    const beforeFirst = before[0] ? label(before[0]) : '(none)';
+    const afterFirst = now[0] ? label(now[0]) : '(none)';
+    const changed = (before[0] ? pathIdentity(before[0]) : null) !== (now[0] ? pathIdentity(now[0]) : null);
+    if (changed) { firstPathChanged++; firstPathChanges.push({ website, field: f.name, before: beforeFirst, after: afterFirst }); }
+    console.log(`\n${website} — ${f.name}`);
+    console.log(`  stored: ${before.map(label).join(' | ')}`);
+    console.log(`  now:    ${now.map(label).join(' | ') || '(nothing certified on the stored captures)'}`);
+    console.log(`  sources now: ${new Set(now.map(sourceKey)).size}`);
+    console.log(`  first path changed: ${changed ? `YES — ${beforeFirst} -> ${afterFirst}` : 'no'}`);
+  }
+}
 console.log(`\n${checked} one-source field(s) certified again on stored captures, ${skipped} skipped (captures missing): ${spread} now read two or more sources, ${single} still one source, ${uncertified} certified nothing, ${firstPathChanged} changed their first certified path.`);
 if (firstPathChanges.length > 0) {
   console.log(`\nFirst certified path changed (customer-visible) on:`);
