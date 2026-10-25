@@ -79,6 +79,8 @@ services:
       WORKER_BROWSERS: ${STACK_WORKER_BROWSERS:-2}
       WORKER_MIN_FREE_MB: ${STACK_WORKER_MIN_FREE_MB:-512}
       WORKER_NAME: stack-worker
+      # Liveness (spec 2026-10-25 monitoring §2.1): 127.0.0.1 inside the container only, for the healthcheck below.
+      WORKER_HEALTH_PORT: "4001"
       # Webhook download links point at this stack's api-server, not the default :4000 of `pnpm dev:all`
       # (spec 2026-10-24 ruling 13). Scheduled runs (RECURRING_RUNS) stay on, the default.
       PUBLIC_API_URL: http://127.0.0.1:${STACK_API_PORT:-4200}
@@ -92,6 +94,12 @@ services:
     shm_size: 1gb
     init: true
     stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4001/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     depends_on:
       migrate: { condition: service_completed_successfully }
       mailpit: { condition: service_started }
@@ -109,6 +117,12 @@ services:
       # The app's own server (SSR's session lookup) reaches the api-server on the stack's network.
       API_INTERNAL_URL: http://api:4000
     init: true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     ports:
       - "127.0.0.1:${STACK_APP_PORT:-3200}:3000"
     depends_on:

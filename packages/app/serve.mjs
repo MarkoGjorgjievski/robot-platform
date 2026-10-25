@@ -33,6 +33,11 @@ async function staticFile(pathname) {
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    // Liveness (spec 2026-10-25 monitoring §2.1): the process answers; nothing behind it is asked.
+    if (url.pathname === '/healthz' && (req.method === 'GET' || req.method === 'HEAD')) {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      return res.end(req.method === 'HEAD' ? undefined : '{"status":"ok"}');
+    }
     if (req.method === 'GET' || req.method === 'HEAD') {
       const hit = await staticFile(url.pathname);
       if (hit) {
