@@ -182,8 +182,13 @@ function redactor(env: Env): Redactor {
 }
 
 /** Cut to PRE_CUT, redacted, then cut to MAX_STRING with a note of how much was left out. */
+/** Drizzle puts a failed query's values on a `params:` line of the message and the stack (session tokens, secrets,
+ *  customer input): the line is masked whole (Task 3 review). */
+const QUERY_PARAMS = /(^|\n)([ \t]*params:)[^\n]*/g;
+
 function bounded(r: Redactor, s: string): string {
-  const red = r(s.length > PRE_CUT ? s.slice(0, PRE_CUT) : s);
+  const cut = (s.length > PRE_CUT ? s.slice(0, PRE_CUT) : s).replace(QUERY_PARAMS, `$1$2 ${MASK}`);
+  const red = r(cut);
   const over = s.length > PRE_CUT ? s.length - MAX_STRING : red.length - MAX_STRING;
   return over > 0 ? `${red.slice(0, MAX_STRING)}…[+${over} chars]` : red;
 }

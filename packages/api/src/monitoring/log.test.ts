@@ -339,3 +339,15 @@ describe('fix round 1, M8', () => {
     expect(line.length).toBeLessThan(21_000);
   });
 });
+
+describe('a failed query never carries its values (Task 3 review)', () => {
+  const failed = 'Failed query: select "user_id" from "sessions" where "token" = $1\nparams: tok-7f3a9b2c41d0e8,another-value';
+  it('the params line is masked in text, in an Error message and in its stack', () => {
+    expect(redactText(failed)).not.toContain('tok-7f3a9b2c41d0e8');
+    expect(redactText(failed)).toContain('Failed query: select');
+    const err = new Error(failed);
+    const v = JSON.stringify(redactValue(err));
+    expect(v).not.toContain('tok-7f3a9b2c41d0e8');
+    expect(v).not.toContain('another-value');
+  });
+});
