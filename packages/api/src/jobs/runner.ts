@@ -13,7 +13,7 @@ import { runInJob, type JobContext } from './context.js';
 import { serializeError } from './errors.js';
 import type { WorkerBrowserGate } from './browser-gate.js';
 import { claimJob, completeJob, failJobTerminal, markProgress, purgeJobs, reapJobs, releaseJob, renewLease, retryJob, type JobRow } from './queue.js';
-import { createLog, type LogFields, type LogLevel } from '../monitoring/log.js';
+import { createLog, type Log, type LogFields, type LogLevel } from '../monitoring/log.js';
 import { reportError } from '../monitoring/errors.js';
 
 export type JobDefinition = {
@@ -40,6 +40,8 @@ export type RunnerOptions = {
   browsers?: Pick<WorkerBrowserGate, 'closeJob' | 'closeAll'>;
   workerName?: string;
   log?: (line: string) => void;
+  /** The logger the runner's lines go to when no `log` is given (default `createLog('jobs')`). */
+  logger?: Log;
   /** The claim (default `claimJob`); a test wraps it to hold one claim in flight, touching no other row. */
   claim?: typeof claimJob;
   /** Spec 2026-10-25 monitoring §2.3: `ctx.progress()` writes `jobs.progress_at` at most this often (default 15 s). */
@@ -65,7 +67,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   const retryBase = opts.retryBaseMs ?? 30_000;
   // Spec 2026-10-25 monitoring §2.2: the runner's lines go through the logger at their level; a caller's own `log`
   // (tests, inline scripts) gets the same text lines.
-  const jobsLog = createLog('jobs');
+  const jobsLog = opts.logger ?? createLog('jobs');
   const say = (level: LogLevel, line: string, fields?: LogFields) => (opts.log ? opts.log(line) : jobsLog[level](line, fields));
   const report = opts.report ?? (opts.log ? null : reportError);
   const progressWriteMs = opts.progressWriteMs ?? 15_000;
