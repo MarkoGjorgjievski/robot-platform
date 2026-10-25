@@ -7,10 +7,9 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
-2. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
-3. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-4. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
+2. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+3. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
@@ -37,8 +36,7 @@ reason and goes on to the next.
   faster. The remaining levers are the two choices here (two pages per website, more runs). Keep the item closed?
 - **Politeness spacing is start to start now** (one page per host at a time, starts ≥2 s apart; it used to add ~1.7 s
   after each product). Keep?
-- **Turn the scheduled checks on?** `WEBSITE_CHECKS=on` makes the api-server check each certified website
-  every 3 days (free, proof pages + 20 listing products). Off by default.
+- Turn WEBSITE_CHECKS=on in your .env, restart dev:all, and after a week read /ops/queue and the worker's warn lines
 - **Backfill holds for other websites** whose last Verify failed only on stale values (e.g. Decathlon,
   Lookfantastic)? Only the 10 were approved.
 - **Customer-marked "changes on its own" fields** — later?
@@ -52,6 +50,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-25 — Monitoring basics (`976b5d74`): monitoring shipped; the local week of checks → Needs Marko. Worker heartbeat (workers table) and WORKER_HEALTH_PORT, /readyz, /healthz on the app, JSON and redacted logs (LOG_FORMAT, LOG_LEVEL), a stuck-job watchdog (jobs.progress_at), an error-report hook (ERROR_REPORT_URL), ops → Queue; live check docs/testing/results/2026-10-25-monitoring/live-monitoring.json. After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-25 — Proxy support in the browser (`4e9ed93d`): a proxy address and a country per website (staff only; DEFAULT_PROXY_URL for all), every page of the website through it with the country's locale and time zone, never direct on a proxy failure, a credentialed proxy behind a per-session loopback forwarder; proven against a local recording proxy (live-proxy.ts, docs/testing/results/2026-10-24-proxy/live-proxy.json). After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-24 — Metering and spend caps per organisation (`28948402`): pages, runs and AI spend per org and month from the recorded rows; a monthly AI limit per org (ORG_AI_CAP_USD, default $25; staff set it in Settings, logged) that stops Verify's AI, planning and legacy runs; ops → Organisations. After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-24 — Tenant isolation audit, as tests (`84413343`): every procedure classified and swept across two organisations (85; one hole fixed — projects.list read every org's websites), every file route swept, no money in customer answers, rate limits (RATE_LIMITS, TRUST_PROXY). After merge: restart dev:all.

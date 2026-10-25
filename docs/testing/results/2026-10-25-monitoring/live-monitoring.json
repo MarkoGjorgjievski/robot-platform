@@ -1,0 +1,108 @@
+{
+ "at": "2026-10-25T11:34:08.137Z",
+ "readyzBefore": {
+  "status": "unavailable",
+  "checks": {
+   "db": true,
+   "migrations": true,
+   "worker": false,
+   "queue": true
+  }
+ },
+ "readyzOk": {
+  "status": "ok",
+  "checks": {
+   "db": true,
+   "migrations": true,
+   "worker": true,
+   "queue": true
+  }
+ },
+ "readyzAfterStop": {
+  "status": "unavailable",
+  "checks": {
+   "db": true,
+   "migrations": true,
+   "worker": false,
+   "queue": true
+  }
+ },
+ "silent": {
+  "ageMs": 45842,
+  "msg": "silent: test-hang a89ee045-9991-48e7-94d1-0d31d1f8beaf running with no progress for 46 s"
+ },
+ "report": {
+  "service": "worker",
+  "message": "test-throw: could not reach http://***@proxy.test:7000",
+  "version": "156f82ba"
+ },
+ "reports": 2,
+ "lines": 14,
+ "scopes": [
+  "api-server",
+  "worker",
+  "jobs",
+  "errors",
+  "watchdog"
+ ],
+ "checks": [
+  {
+   "name": "/readyz is 503 (worker) before any worker beats",
+   "ok": true,
+   "detail": "{\"status\":\"unavailable\",\"checks\":{\"db\":true,\"migrations\":true,\"worker\":false,\"queue\":true}}"
+  },
+  {
+   "name": "/readyz is ok with the worker beating",
+   "ok": true,
+   "detail": "{\"status\":\"ok\",\"checks\":{\"db\":true,\"migrations\":true,\"worker\":true,\"queue\":true}}"
+  },
+  {
+   "name": "/readyz says only check names and booleans",
+   "ok": true
+  },
+  {
+   "name": "the worker’s health port answers 200",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "a hanging job shows as silent in ops.queue",
+   "ok": true,
+   "detail": "46 s without progress"
+  },
+  {
+   "name": "…and in a watchdog warn line",
+   "ok": true,
+   "detail": "silent: test-hang a89ee045-9991-48e7-94d1-0d31d1f8beaf running with no progress for 46 s"
+  },
+  {
+   "name": "a job made to throw reaches the receiver once",
+   "ok": true,
+   "detail": "1 report(s)"
+  },
+  {
+   "name": "…as the worker, with the Bearer token, redacted",
+   "ok": true,
+   "detail": "test-throw: could not reach http://***@proxy.test:7000"
+  },
+  {
+   "name": "stopping the worker turns /readyz to 503 (worker) within 2 minutes",
+   "ok": true,
+   "detail": "11 s; {\"status\":\"unavailable\",\"checks\":{\"db\":true,\"migrations\":true,\"worker\":false,\"queue\":true}}"
+  },
+  {
+   "name": "every logger line parses as JSON with t, level, scope and msg",
+   "ok": true,
+   "detail": "14 line(s)"
+  },
+  {
+   "name": "the worker, the runner, the watchdog, the error hook and the request log all wrote JSON",
+   "ok": true,
+   "detail": "api-server, worker, jobs, errors, watchdog"
+  },
+  {
+   "name": "no line carries the secret or the token",
+   "ok": true
+  }
+ ]
+}
