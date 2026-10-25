@@ -271,3 +271,12 @@ describe('fix round 1, minors', () => {
     expect(redactText('proxy-authorization: Basic dXNlcjpwYXNz more', {})).toBe('proxy-authorization: Basic ***');
   });
 });
+
+describe('fix round 1, M2', () => {
+  it('user:pass@host:port with no scheme', () => {
+    expect(redactText('proxy user-de:pa@ss@proxy.test:8080 failed', {})).toBe('proxy ***@proxy.test:8080 failed');
+    expect(redactText('server=robot:pw-1@db.test:5432/robot', {})).toBe('server=***@db.test:5432/robot');
+    expect(redactText('mail a@b.test:25 at 12:30 by x@y.test', {})).toBe('mail a@b.test:25 at 12:30 by x@y.test');
+    expect(redactText('http://u:p@h.test:1', {})).toBe('http://***@h.test:1');
+  });
+});
