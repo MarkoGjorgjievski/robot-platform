@@ -184,8 +184,11 @@ function preferHeading(
   if (!headingIsTheName(capture, heading)) return found;
   for (const source of SOURCE_ORDER) {
     for (const tail of tails) {
-      const leaf = all.find((l) => l.source === source && tailMatches(l.path, tail) && typeof l.raw === 'string' && sameHeading(l.raw, heading));
-      if (!leaf) continue;
+      // A breadcrumb's last crumb can equal the heading; its index moves with the category's depth (review I2).
+      const matches = all.filter((l) => l.source === source && tailMatches(l.path, tail) && !l.path.includes('itemListElement') && typeof l.raw === 'string' && sameHeading(l.raw, heading));
+      if (matches.length === 0) continue;
+      // The shallowest path, as the main loop picks (Ikea 2026-09-18); ties keep document order.
+      const leaf = matches.reduce((best, l) => (depthOf(l.path) < depthOf(best.path) ? l : best));
       const value = leaf.raw as string;
       const matching = boxes.map((b, i) => (valuesEqual(field.type, boxValue(b), value, ctx) ? i : -1)).filter((i) => i >= 0);
       return { value, via: { source, path: leaf.path }, boxes: matching };
