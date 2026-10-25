@@ -133,6 +133,18 @@ function OpsBreadcrumb() {
     );
   }
 
+  if (pathname === '/ops/queue') {
+    return (
+      <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+        <Link to="/ops" search={backSearch} className="truncate hover:text-text">
+          Ops
+        </Link>
+        <span aria-hidden className="text-muted-foreground">/</span>
+        <b className="truncate font-medium text-text">Queue</b>
+      </nav>
+    );
+  }
+
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
       <Link to="/ops" search={backSearch} className="truncate hover:text-text">

@@ -113,6 +113,7 @@ export const PROCEDURE_CLASSES: Record<string, ProcedureEntry> = {
   'ops.staffActivity': { class: 'ops', input: (f) => ({ orgId: f.org.id }) },
   'ops.staffActivityFilters': { class: 'ops' },
   'ops.orgs': { class: 'ops', input: (f) => ({ orgId: f.org.id }) },
+  'ops.queue': { class: 'ops' },
   // ─── runs ───
   'runs.getWithDetails': { class: 'scoped', input: (f) => ({ id: f.runId }) },
   'runs.listBySource': { class: 'scoped', input: site },
