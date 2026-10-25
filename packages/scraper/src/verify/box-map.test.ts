@@ -92,4 +92,17 @@ describe('box map text and images (spec 2026-10-17 §6)', () => {
     expect(boxes.find((b) => b.tag === 'p')!.text).toBe('Soft cotton, machine washable, made to last.');
     expect(boxes.find((b) => b.kind === 'image')!.src).toMatch(/\/img\/a\.jpg$/);
   });
+
+  it('a heading with no text of its own is a box, with its whole text (IKEA\'s h1, first run 2026-10-25)', async () => {
+    // The real IKEA markup, trimmed: the h1's text is all in two spans and the space between them.
+    const html = `<html><body><div class="pipcom-price-module__information"><h1 class="pipcom-text pipcom-typography-heading-s"><span class="pipcom-price-module__name-decorator notranslate">GLOSTAD</span> <span class="pipcom-text pipcom-typography-label-l pipcom-typography-regular pipcom-price-module__description">3-seat sofa, Knisa dark grey</span></h1></div>
+      <div class="card"><div><span>no own text</span></div></div></body></html>`;
+    const boxes = await boxMap(html);
+    const h1 = boxes.find((b) => b.tag === 'h1');
+    expect(h1).toMatchObject({ kind: 'text', text: 'GLOSTAD 3-seat sofa, Knisa dark grey' });
+    expect(boxes.filter((b) => b.tag === 'span').map((b) => b.text)).toEqual(['GLOSTAD', '3-seat sofa, Knisa dark grey', 'no own text']);
+    expect(boxes.some((b) => b.tag === 'div')).toBe(false); // other elements still need text of their own
+    const probe = await browser.setContentEvaluate<XPathProbeResult>(html, buildXPathProbeScript(h1!.xpaths));
+    for (const xp of h1!.xpaths) expect(probe[xp]).toContain('GLOSTAD 3-seat sofa, Knisa dark grey');
+  });
 });
