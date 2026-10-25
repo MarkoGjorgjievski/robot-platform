@@ -102,10 +102,13 @@ const maskBare: Decide = (m, t) => {
   const v = valueAt(BARE_VALUE, t, m.index + m[0].length);
   return v === MASK || /^(?:bearer|basic)$/i.test(v) ? null : masked(m, v);
 };
-const BEARER = /\b(Bearer)\s+[A-Za-z0-9._~+/=-]+/gi;
-const BASIC = /\b(Basic)\s+[A-Za-z0-9+/=]{6,}/g;
-/** A header in text: everything after it on the line, unless it is already a masked Bearer/Basic token. */
-const HEADER = /\b((?:proxy-)?authorization|(?:set-)?cookie|x-api-key|api-key)(\s*:\s*)(?!\s*(?:bearer|basic)\s+\*\*\*)[^\r\n]{1,4096}/gi;
+/** The whole token, punctuation included, up to the next space. */
+const BEARER = /\b(Bearer)\s+\S+/gi;
+const BASIC = /\b(Basic)\s+(?=\S{6,})\S+/g;
+/** A header in text: everything after it on the line (a Bearer/Basic scheme word is kept). */
+const HEADER = /\b((?:proxy-)?authorization|(?:set-)?cookie|x-api-key|api-key)(\s*:\s*)([^\r\n]{1,4096})/gi;
+const headerValue = (_m: string, name: string, sep: string, value: string) =>
+  `${name}${sep}${/^(?:bearer|basic)\s/i.test(value) ? `${value.split(/\s/, 1)[0]} ` : ''}${MASK}`;
 /** Their values are replaced wherever they appear (a key quoted in an error message). Shorter than 8: not a key. */
 const ENV_SECRETS = ['ANTHROPIC_API_KEY', 'TYPESAFE_API_KEY', 'ERROR_REPORT_TOKEN'];
 
@@ -131,7 +134,7 @@ function redactor(env: Env): Redactor {
       .replace(ENCODED_USERINFO, `$1${MASK}%40`)
       .replace(BEARER, `$1 ${MASK}`)
       .replace(BASIC, `$1 ${MASK}`)
-      .replace(HEADER, `$1$2${MASK}`);
+      .replace(HEADER, headerValue);
     out = scan(out, JSON_PAIR, maskJson);
     out = scan(out, QUOTED_PAIR, maskQuoted);
     out = scan(out, BARE_PAIR, maskBare);
