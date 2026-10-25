@@ -74,9 +74,12 @@ describe('startJobRunner', () => {
 
     const r = await enqueueJob(db, { type: 'resumes', payload: {}, maxAttempts: 2 });
     let attempt = 0;
-    start({ resumes: { policy: policy({ stuckMs: 100, maxAttempts: 2, retryOnStuck: true }), run: (_p, ctx) => { attempt = ctx.attempt; return ctx.attempt === 1 ? new Promise(() => {}) : Promise.resolve('resumed'); } } });
+    const lines: string[] = [];
+    start({ resumes: { policy: policy({ stuckMs: 100, maxAttempts: 2, retryOnStuck: true }), run: (_p, ctx) => { attempt = ctx.attempt; return ctx.attempt === 1 ? new Promise(() => {}) : Promise.resolve('resumed'); } } }, { log: (l: string) => lines.push(l) });
     await until(async () => (await get(r.id)).status === 'done');
     expect(attempt).toBe(2);
+    // Task 4 review: a stuck job given back for a retry did not lose its lease — no such line.
+    expect(lines.filter((l) => l.includes('lost the lease'))).toEqual([]);
   }, JOB_TEST_MS);
 
   it('a job waiting for a browser past its stuck limit is not stuck: the wait is not its work (final review I2)', async () => {
