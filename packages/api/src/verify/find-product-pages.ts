@@ -5,7 +5,7 @@
 // products. No AI involved.
 
 import { detectPaginationFromHtml, verdictSentence, type CaptureErrorKind, type CaptureVerdict } from '@robot/browser';
-import { findProductGroup, productKey, PRICE_PATTERN, type ListingLinks } from '@robot/scraper';
+import { findProductGroup, onCard, onImageCard, productKey, PRICE_PATTERN, type ListingAnchor, type ListingLinks } from '@robot/scraper';
 
 const absolute = (u: string, base: string): string | undefined => {
   try { const x = new URL(u, base); return /^https?:$/.test(x.protocol) ? x.href : undefined; } catch { return undefined; }
@@ -14,8 +14,10 @@ const absolute = (u: string, base: string): string | undefined => {
 /**
  * Names each product of `describeListingPage`'s sample from the listing alone: every link to the
  * same product (spec §3.4: by product key, so `?color=` copies count) that is not a swatch, and
- * the page data's ItemList entry. Title: the longest link text, else a link's `title`, else the
- * ItemList name, else the path. Image: the first link's resolved http(s) image, else the ItemList's.
+ * the page data's ItemList entry. Title: the card's own title (a link's `name`, ruling D4 — so a card
+ * is never named "Save $70 on …", "SHOP … >" or "Option: …"), else the longest link text of a link on a
+ * card, else of any link, else a link's `title`, else the ItemList name, else the path. Image: the first
+ * link's resolved http(s) image, else the ItemList's.
  */
 export function listingProducts(links: ListingLinks, listingUrl: string, urls: string[]) {
   return urls.map((url) => {
@@ -23,7 +25,10 @@ export function listingProducts(links: ListingLinks, listingUrl: string, urls: s
     const same = (href: string) => key !== null && productKey(absolute(href, listingUrl) ?? '') === key;
     const mine = links.anchors.filter((a) => !a.swatch && same(a.href));
     const item = links.itemList.find((i) => same(i.url));
-    const text = mine.map((a) => a.text.trim()).sort((x, y) => y.length - x.length)[0]
+    const longest = (as: ListingAnchor[]) => as.map((a) => a.text.trim()).sort((x, y) => y.length - x.length)[0];
+    const text = mine.find((a) => a.name?.trim())?.name?.trim()
+      || longest(mine.filter((a) => onCard(a.levels) || onImageCard(a.levels)))
+      || longest(mine)
       || mine.find((a) => a.title?.trim())?.title?.trim()
       || item?.name?.trim()
       || '';
