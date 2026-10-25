@@ -1,4 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import { TRPCError } from '@trpc/server';
+import { CaptureProblemError } from '@robot/scraper';
 import { eq } from 'drizzle-orm';
 import { db, jobs, sourceVerifications, driftChecks, runs } from '@robot/db';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
@@ -318,5 +320,77 @@ describe('startJobRunner', () => {
     await runQueuedJobs({ registry: testJobDefinitions(), timeoutMs: 5000 });
     expect((await jobsOf('test-sleep')).map((j) => [j.status, j.result])).toEqual([['done', { value: { attempt: 1 } }]]);
     expect((await jobsOf('test-sleep-once')).map((j) => [j.status, j.result])).toEqual([['done', { value: { attempt: 1 } }]]);
+  }, JOB_TEST_MS);
+
+  it('ctx.progress() writes progress_at at most every progressWriteMs (spec 2026-10-25 monitoring §2.3)', async () => {
+    const { id } = await enqueueJob(db, { type: 'ticking', payload: {} });
+    const at = async () => (await get(id)).progressAt!.getTime();
+    const seen: number[] = [];
+    start({ ticking: { policy: policy(), run: async (_p, ctx) => {
+      seen.push(await at());
+      ctx.progress();
+      await new Promise((r) => setTimeout(r, 50));
+      seen.push(await at());
+      await new Promise((r) => setTimeout(r, 400));
+      ctx.progress();
+      await new Promise((r) => setTimeout(r, 150));
+      seen.push(await at());
+      return 'ok';
+    } } }, { progressWriteMs: 300 });
+    await until(async () => (await get(id)).status === 'done');
+    expect(seen[1]).toBe(seen[0]);
+    expect(seen[2]).toBeGreaterThan(seen[0]!);
+  }, JOB_TEST_MS);
+
+  it('RF4: a progress write that fails never touches the job', async () => {
+    const { id } = await enqueueJob(db, { type: 'stolen-progress', payload: {} });
+    start({ 'stolen-progress': { policy: policy(), run: async (_p, ctx) => {
+      // Another claim's owner now: every progress write misses (as a failed write would), and the job still finishes.
+      await db.update(jobs).set({ lockedBy: 'other:1#00000000' }).where(eq(jobs.id, ctx.jobId));
+      for (let i = 0; i < 3; i++) { ctx.progress(); await new Promise((r) => setTimeout(r, 30)); }
+      await db.update(jobs).set({ lockedBy: ctx.claim }).where(eq(jobs.id, ctx.jobId));
+      return 'ok';
+    } } }, { progressWriteMs: 0 });
+    await until(async () => (await get(id)).status === 'done');
+  }, JOB_TEST_MS);
+
+  it('a terminal fault is reported once with the job’s ids and no payload; a retry, a capture problem and a refusal are not (spec 2026-10-25 monitoring §2.4)', async () => {
+    const reports: Array<{ err: unknown; ctx: Record<string, unknown> }> = [];
+    const report = (err: unknown, ctx: Record<string, unknown>) => { reports.push({ err, ctx }); };
+    const boom = await enqueueJob(db, { type: 'boom-twice', payload: { url: 'http://u:payload-pass@x.test' }, maxAttempts: 2 });
+    const blocked = await enqueueJob(db, { type: 'blocked', payload: {} });
+    const refused = await enqueueJob(db, { type: 'refused', payload: {} });
+    const r = start({
+      'boom-twice': { policy: policy({ maxAttempts: 2 }), run: async () => { throw new Error('db went away'); } },
+      blocked: { policy: policy(), run: async () => { throw new CaptureProblemError('This website turned us away.'); } },
+      refused: { policy: policy(), run: async () => { throw new TRPCError({ code: 'NOT_FOUND', message: 'gone' }); } },
+    }, { report, lanes: { interactive: 1, background: 3, runs: 1 } });
+    await until(async () => (await Promise.all([boom.id, blocked.id, refused.id].map(get))).every((j) => j.status === 'failed'));
+    await new Promise((res) => setTimeout(res, 100));
+    expect(reports).toHaveLength(1);
+    expect((reports[0]!.err as Error).message).toBe('db went away');
+    expect(reports[0]!.ctx).toEqual({ jobId: boom.id, type: 'boom-twice', attempt: 2, queue: q(), workerId: r.workerId });
+  }, JOB_TEST_MS);
+
+  it('a job stopped as stuck for good is reported as stalled', async () => {
+    const reports: Array<{ err: unknown; ctx: Record<string, unknown> }> = [];
+    const { id } = await enqueueJob(db, { type: 'wedged', payload: {} });
+    start({ wedged: { policy: policy({ stuckMs: 100 }), run: (_p, ctx) => new Promise((_, reject) => ctx.signal.addEventListener('abort', () => reject(new Error('stopped')))) } },
+      { report: (err, ctx) => { reports.push({ err, ctx }); } });
+    await until(async () => (await get(id)).status === 'failed');
+    await until(async () => reports.length === 1);
+    expect((reports[0]!.err as Error).message).toBe('stalled: no progress for 100 ms');
+    expect(reports[0]!.ctx).toMatchObject({ jobId: id, type: 'wedged' });
+  }, JOB_TEST_MS);
+
+  it('lanes() counts the jobs running per lane', async () => {
+    const { id } = await enqueueJob(db, { type: 'held', payload: {} });
+    let release!: () => void;
+    const r = start({ held: { policy: policy({ lane: 'background' }), run: () => new Promise<void>((res) => { release = res; }) } });
+    await until(async () => (await get(id)).status === 'running');
+    await until(async () => r.lanes().background === 1);
+    expect(r.lanes()).toEqual({ interactive: 0, background: 1, runs: 0 });
+    release();
+    await until(async () => r.lanes().background === 0);
   }, JOB_TEST_MS);
 });

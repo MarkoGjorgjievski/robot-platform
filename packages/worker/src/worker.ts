@@ -1,14 +1,23 @@
 // The worker (spec 2026-10-23 §4.3): the only process with browsers. One gate limits them; the runner
 // claims this queue's jobs; with WEBSITE_CHECKS=on, the hourly sweep enqueues due website checks; unless RECURRING_RUNS=off, the minute sweep starts each website's scheduled run.
+// Monitoring (spec 2026-10-25): it beats into `workers` every 30 s, answers WORKER_HEALTH_PORT, and reports its terminal faults.
 import {
   createBrowserGate, setBrowserGate, startJobRunner, jobRegistry, startWebsiteChecks, enqueueDueWebsiteChecks, startRecurringRuns, mailOn,
   type JobRunner, type WorkerBrowserGate,
 } from '@robot/api/jobs';
+import { configureErrorReports } from '@robot/api/errors';
+import { createLog } from '@robot/api/log';
+import { DEAD_WORKER_MS, serviceVersion, startHeartbeat, type Heartbeat } from '@robot/api/monitoring';
 import type { WorkerConfig } from './config.js';
+import { startHealthServer, type HealthServer } from './health.js';
 
-export type Worker = { runner: JobRunner; gate: WorkerBrowserGate; stop(): Promise<void> };
+export type Worker = { runner: JobRunner; gate: WorkerBrowserGate; heartbeat: Heartbeat; health: { port: number } | null; healthy(): boolean; stop(): Promise<void> };
+export type WorkerDeps = { freeMb?: () => number; heartbeatMs?: number; watchEveryMs?: number };
 
-export async function startWorker(config: WorkerConfig, deps: { freeMb?: () => number } = {}): Promise<Worker> {
+const log = createLog('worker');
+
+export async function startWorker(config: WorkerConfig, deps: WorkerDeps = {}): Promise<Worker> {
+  configureErrorReports({ service: 'worker' });
   const gate = createBrowserGate({ max: config.browsers, minFreeMb: config.minFreeMb, ...(deps.freeMb ? { freeMb: deps.freeMb } : {}) });
   setBrowserGate(gate);
   const runner = startJobRunner({
@@ -18,18 +27,40 @@ export async function startWorker(config: WorkerConfig, deps: { freeMb?: () => n
   });
   const stopChecks = startWebsiteChecks({ env: { WEBSITE_CHECKS: config.websiteChecks ? 'on' : 'off' }, sweep: () => enqueueDueWebsiteChecks() });
   const stopRecurring = startRecurringRuns({ enabled: config.recurringRuns });
-  console.log(`[worker] ${runner.workerId} on queue "${config.queue}": browsers ${config.browsers}; lanes interactive ${config.lanes.interactive}, background ${config.lanes.background}, runs ${config.lanes.runs}; min free memory ${config.minFreeMb} MB; website checks ${config.websiteChecks ? 'on (hourly)' : 'off'}; recurring runs ${config.recurringRuns ? 'on (every minute)' : 'off'}; mail ${mailOn() ? 'on' : 'off'}`);
+  const heartbeat = startHeartbeat({
+    workerId: runner.workerId, queue: config.queue, version: serviceVersion(), ...(deps.heartbeatMs ? { everyMs: deps.heartbeatMs } : {}),
+    state: () => ({ browsers: { inUse: gate.open(), max: config.browsers }, lanes: runner.lanes(), websiteChecks: config.websiteChecks, recurringRuns: config.recurringRuns }),
+  });
+  let stopping = false;
+  const startedAt = Date.now();
+  // Spec 2026-10-25 §2.1: working = started, not stopping, and its database answered a beat in the last 2 minutes.
+  const healthy = () => !stopping && Date.now() - (heartbeat.lastBeatAt() ?? startedAt) < DEAD_WORKER_MS;
+  let health: HealthServer | null = null;
+  if (config.healthPort !== null) {
+    try {
+      health = await startHealthServer({ port: config.healthPort, healthy });
+    } catch (err) {
+      // Monitoring never stops the work (spec §3.2): no health port, the worker runs on.
+      log.error('the health port could not be opened; running without it', { port: config.healthPort, error: err });
+    }
+  }
+  log.info(`${runner.workerId} on queue "${config.queue}": browsers ${config.browsers}; lanes interactive ${config.lanes.interactive}, background ${config.lanes.background}, runs ${config.lanes.runs}; min free memory ${config.minFreeMb} MB; website checks ${config.websiteChecks ? 'on (hourly)' : 'off'}; recurring runs ${config.recurringRuns ? 'on (every minute)' : 'off'}; mail ${mailOn() ? 'on' : 'off'}; health ${health ? `127.0.0.1:${health.port}` : 'off'}`,
+    { workerId: runner.workerId, queue: config.queue, version: serviceVersion() });
   let stopped: Promise<void> | null = null;
   return {
-    runner, gate,
+    runner, gate, heartbeat, health: health ? { port: health.port } : null, healthy,
     stop() {
       // Once: a second call (SIGINT during a stop-file stop) waits for the first.
       stopped ??= (async () => {
+        stopping = true;
         stopChecks();
         stopRecurring();
         await runner.stop(config.shutdownMs);
         await gate.closeAll();
         setBrowserGate(null);
+        await heartbeat.stop();
+        await health?.close();
+        log.info(`${runner.workerId} stopped`, { workerId: runner.workerId });
       })();
       return stopped;
     },

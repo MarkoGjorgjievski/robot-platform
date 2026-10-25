@@ -6,7 +6,7 @@ import { db, jobs, sourceVerifications, runs } from '@robot/db';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
 import {
   enqueueJob, claimJob, renewLease, completeJob, retryJob, failJobTerminal, releaseJob, reapJobs,
-  purgeJobs, liveJobIds, isJobLive, awaitJob, jobQueueName,
+  purgeJobs, liveJobIds, isJobLive, awaitJob, jobQueueName, markProgress,
 } from './queue.js';
 import { JobUnavailableError, serializeError } from './errors.js';
 import { JOB_TEST_MS } from '../test-helpers/jobs.js';
@@ -308,4 +308,19 @@ describe('awaitJob', () => {
     const waiting = await enqueueJob(db, { type: 't', payload: {} });
     await expect(awaitJob(waiting.id, 300)).rejects.toBeInstanceOf(JobUnavailableError);
   }, JOB_TEST_MS);
+});
+
+describe('progress_at (spec 2026-10-25 monitoring §2.3)', () => {
+  it('a claim sets it to the claim’s start; markProgress moves it for this claim only', async () => {
+    const { id } = await enqueueJob(db, { type: 'verify', payload: {} });
+    const job = (await claimJob({ queue: q(), workerId: 'w-progress', types: ['verify'], leaseMs: 60_000 }))!;
+    const claimed = await get(id);
+    expect(claimed.progressAt).not.toBeNull();
+    expect(claimed.progressAt!.getTime()).toBe(claimed.startedAt!.getTime());
+    await new Promise((r) => setTimeout(r, 20));
+    await markProgress(id, 'someone-else#x');
+    expect((await get(id)).progressAt!.getTime()).toBe(claimed.progressAt!.getTime());
+    await markProgress(id, job.lockedBy!);
+    expect((await get(id)).progressAt!.getTime()).toBeGreaterThan(claimed.progressAt!.getTime());
+  });
 });

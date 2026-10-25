@@ -109,7 +109,7 @@ export async function claimJob(opts: { queue: string; workerId: string; types: s
         LIMIT 1
         FOR UPDATE SKIP LOCKED)
     UPDATE jobs AS j SET status = 'running', attempts = j.attempts + 1, locked_by = ${`${opts.workerId}#${randomUUID().slice(0, 8)}`},
-           locked_until = now() + make_interval(secs => ${secs(opts.leaseMs)}), started_at = now()
+           locked_until = now() + make_interval(secs => ${secs(opts.leaseMs)}), started_at = now(), progress_at = now()
       FROM prev
      WHERE j.id = prev.id
     RETURNING j.*, prev.started_at IS NOT NULL AS started_before`));
@@ -121,6 +121,11 @@ export async function renewLease(id: string, owner: string, leaseMs: number): Pr
   const r = rows(await db.execute(sql`UPDATE jobs SET locked_until = now() + make_interval(secs => ${secs(leaseMs)})
     WHERE id = ${id} AND locked_by = ${owner} AND status = 'running' RETURNING id`));
   return r.length > 0;
+}
+
+/** Spec 2026-10-25 monitoring §2.3: the job's last progress, outside the worker's memory. This claim's only; best-effort. */
+export async function markProgress(id: string, owner: string): Promise<void> {
+  await db.execute(sql`UPDATE jobs SET progress_at = now() WHERE id = ${id} AND locked_by = ${owner} AND status = 'running'`);
 }
 
 export async function completeJob(id: string, owner: string, value: unknown): Promise<boolean> {

@@ -2,7 +2,7 @@
 // share) ever runs a test's job, no test claims his, and a test's in-process runner (withJobRunner,
 // runQueuedJobs) never picks up a job another test of the same file left queued (final review I4).
 // The file has a queue (module level and beforeAll work enqueue there); each test gets `<file queue>.<n>`.
-// The file's jobs, all of its queues, are deleted after the file.
+// The file's jobs, all of its queues, are deleted after the file, and its workers rows (a killed test worker leaves one).
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeEach } from 'vitest';
 
@@ -17,4 +17,5 @@ afterAll(async () => {
   const { db } = await import('@robot/db');
   const { sql } = await import('drizzle-orm');
   await db.execute(sql`DELETE FROM jobs WHERE queue = ${fileQueue} OR queue LIKE ${`${fileQueue}.%`}`);
+  await db.execute(sql`DELETE FROM workers WHERE queue = ${fileQueue} OR queue LIKE ${`${fileQueue}.%`}`);
 });
