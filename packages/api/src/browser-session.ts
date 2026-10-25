@@ -18,6 +18,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { BrowserProfile, IBrowser } from '@robot/browser';
 import { PlaywrightBrowser } from '@robot/browser';
 import { currentJob } from './jobs/context.js';
+import { redactProxy } from './proxy/proxy-url.js';
 
 /** The worker's limit on browsers (jobs/browser-gate.ts). Unset: every session launches at once, as before. */
 export type BrowserGate = { acquire(): Promise<() => void>; track(browser: IBrowser): () => void };
@@ -42,19 +43,31 @@ export type SessionOptions = {
 };
 
 /**
- * Spec 2026-10-24 proxy §3.2: no error leaves a session carrying the proxy's password (a launch error can quote it,
- * as written or URL-encoded). The message, the stack and a CaptureError's staff `detail` are all scrubbed.
+ * Spec 2026-10-24 proxy §3.2: no error leaves a session carrying the proxy's credentials (a launch error can quote
+ * them, as written or URL-encoded). Any address's userinfo becomes `***` (`redactProxy`), and the username and the
+ * password themselves are starred wherever they appear — in the message, the stack, a CaptureError's staff `detail`,
+ * and one level down in `cause` and an AggregateError's `errors`; a bare string thrown is scrubbed too. A secret of
+ * one or two characters is not starred on its own (it would star every such letter in a stack); its address still is.
  */
-function withoutSecret(err: unknown, secret: string | undefined): unknown {
-  if (!secret || !(err instanceof Error)) return err;
-  const forms = [...new Set([secret, encodeURIComponent(secret)])];
-  const scrub = (s: string) => forms.reduce((acc, f) => acc.split(f).join('***'), s);
-  const has = (s: unknown): s is string => typeof s === 'string' && forms.some((f) => s.includes(f));
-  if (has(err.message)) err.message = scrub(err.message);
-  if (has(err.stack)) err.stack = scrub(err.stack);
-  const withDetail = err as Error & { detail?: unknown };
-  if (has(withDetail.detail)) withDetail.detail = scrub(withDetail.detail);
-  return err;
+function withoutSecret(err: unknown, proxy: BrowserProfile['proxy']): unknown {
+  if (!proxy) return err;
+  const forms = [...new Set([proxy.password, proxy.username].filter((v): v is string => !!v && v.length > 2)
+    .flatMap((v) => [v, encodeURIComponent(v)]))].sort((a, b) => b.length - a.length);
+  const scrub = (text: string) => forms.reduce((acc, f) => acc.split(f).join('***'), redactProxy(text));
+  const clean = (e: unknown, depth: number): unknown => {
+    if (typeof e === 'string') return scrub(e);
+    if (!(e instanceof Error)) return e;
+    const fields = e as Error & { detail?: unknown; cause?: unknown; errors?: unknown };
+    e.message = scrub(e.message);
+    if (typeof e.stack === 'string') e.stack = scrub(e.stack);
+    if (typeof fields.detail === 'string') fields.detail = scrub(fields.detail);
+    if (depth > 0) {
+      if (fields.cause !== undefined) fields.cause = clean(fields.cause, depth - 1);
+      if (Array.isArray(fields.errors)) fields.errors = fields.errors.map((x) => clean(x, depth - 1));
+    }
+    return e;
+  };
+  return clean(err, 1);
 }
 
 /**
@@ -100,7 +113,7 @@ export async function withBrowserSession<T>(
     if (currentJob()?.signal.aborted) throw new Error('The job was stopped while its browser started.');
     return await inSession.run(true, () => fn(browser));
   } catch (err) {
-    throw withoutSecret(err, profile.proxy?.password);
+    throw withoutSecret(err, profile.proxy);
   } finally {
     try {
       await browser.close();
