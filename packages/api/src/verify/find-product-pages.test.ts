@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser, okVerdict } from '@robot/browser';
 import { LISTING_LINKS_SCRIPT, type CardLevel, type ListingAnchor, type ListingLinks } from '@robot/scraper';
-import { describeListingPage, listingProducts, proofProductOrder, productBaseName } from './find-product-pages.js';
+import { describeListingPage, listingProducts, proofProductOrder, productBaseName, sameProduct } from './find-product-pages.js';
 
 const CARD: CardLevel[] = [{ d: 1, img: true, price: true, len: 40 }];
 const carded = (href: string, text: string, extra: Partial<ListingAnchor> = {}): ListingAnchor => ({ href, text, levels: CARD, ...extra });
@@ -65,6 +65,30 @@ describe('productBaseName', () => {
     expect(productBaseName('Option: GLOSTAD, 3-seat sofa, Knisa dark grey')).toBe(productBaseName('Option: GLOSTAD, 3-seat sofa, Blekinge white'));
     expect(productBaseName('NewVALNÄS 3-seat sofaRM2,995')).toBe(productBaseName('NewVALNÄS 3-seat sofa RM 2,495'));
     expect(productBaseName('Everyday Seamless Leggings')).not.toBe(productBaseName('Everyday Seamless Flared Leggings'));
+  });
+});
+
+describe('sameProduct (first run, re-run 1)', () => {
+  it('IKEA colourways are one product, however the name is punctuated', () => {
+    expect(sameProduct('GLOSTAD 3-seat sofa, Knisa dark grey', 'GLOSTAD 3-seat sofa, Knisa medium blue')).toBe(true);
+    expect(sameProduct('GLOSTAD 3-seat sofa, Knisa dark grey', 'GLOSTAD, 3-seat sofa, Knisa medium blue')).toBe(true);
+    expect(sameProduct('GLOSTAD 3-seat sofa - Knisa dark grey', 'GLOSTAD 3-seat sofa | Knisa medium blue')).toBe(true);
+    expect(sameProduct('GLOSTAD 3-seat sofa, Knisa dark grey', 'Option: GLOSTAD, 3-seat sofa, Knisa medium blue')).toBe(true);
+    expect(sameProduct('KIVIK 3-seat sofa, Tibbleby beige/grey', 'KIVIK 3-seat sofa – Tresund anthracite')).toBe(true);
+  });
+  it('different products stay different', () => {
+    expect(sameProduct('Crusher 720', 'Crusher 540')).toBe(false);
+    expect(sameProduct('Crusher® 720 - Primer', 'Crusher® 540 - Primer')).toBe(false);
+    expect(sameProduct('GLOSTAD 3-seat sofa, Knisa dark grey', 'KIVIK 3-seat sofa, Tibbleby beige/grey')).toBe(false);
+    expect(sameProduct('GLOSTAD 3-seat sofa, Knisa dark grey', 'GLOSTAD 2-seat sofa, Knisa dark grey')).toBe(false);
+    expect(sameProduct('Everyday Seamless Leggings', 'Everyday Seamless Flared Leggings')).toBe(false);
+  });
+  it('the board never takes two IKEA colourways as proof pages', () => {
+    const items = [
+      ['g-1', 'GLOSTAD 3-seat sofa, Knisa dark grey', 'RM449'], ['g-2', 'GLOSTAD, 3-seat sofa, Knisa medium blue', 'RM449'],
+      ['k-3', 'KIVIK 3-seat sofa, Tibbleby beige/grey', 'RM1,495'], ['e-4', 'EKTORP 3-seat sofa, Hallarp grey', 'RM1,295'],
+    ].map(([url, title, price]) => ({ url: url!, title: title!, price }));
+    expect(proofProductOrder(items).slice(0, 3)).toEqual(['g-1', 'k-3', 'e-4']);
   });
 });
 
