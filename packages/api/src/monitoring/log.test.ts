@@ -375,7 +375,7 @@ describe('fix wave: more secret names, number and array values, bidi controls', 
   });
 
   it('bidi controls (U+202A–202E, U+2066–2069) are escaped in text lines', () => {
-    expect(formatLine('info', 't', 'a‮b⁦c⁩', { v: 'x‪y' }, 'text', T, {}))
+    expect(formatLine('info', 't', 'a\u202Eb\u2066c\u2069', { v: 'x\u202Ay' }, 'text', T, {}))
       .toBe('[t] a\\u202eb\\u2066c\\u2069 v="x\\u202ay"');
   });
 });
