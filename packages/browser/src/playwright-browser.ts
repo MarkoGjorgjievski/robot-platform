@@ -87,33 +87,18 @@ const NAV_LANGUAGES = 'puppeteer-extra-plugin-stealth/evasions/navigator.languag
  * stealth's defaults would otherwise put en-US back over the context's locale on every page.
  */
 const stealthLaunchers = new Map<string, Promise<typeof chromium>>();
-function stealthChromium(locale?: string): Promise<typeof chromium> {
+export function stealthChromium(locale?: string): Promise<typeof chromium> {
   const key = locale && locale !== DEFAULT_LOCALE ? locale : '';
   let launcher = stealthLaunchers.get(key);
   if (!launcher) {
-    launcher = (async () => {
+    launcher = key ? localeStealthLauncher(key) : (async () => {
       try {
-        const [{ chromium: shared, addExtra }, { default: StealthPlugin }] = await Promise.all([
+        const [{ chromium: shared }, { default: StealthPlugin }] = await Promise.all([
           import('playwright-extra'),
           import('puppeteer-extra-plugin-stealth'),
         ]);
-        if (!key) {
-          shared.use(stealthPlugin(StealthPlugin));
-          return shared as unknown as typeof chromium;
-        }
-        const extra = addExtra(chromium);
-        const stealth = stealthPlugin(StealthPlugin);
-        stealth.enabledEvasions.delete('user-agent-override');
-        stealth.enabledEvasions.delete('navigator.languages');
-        extra.use(stealth);
-        const languages = [key, key.split('-')[0]!];
-        const [{ default: UserAgentOverride }, { default: NavigatorLanguages }] = await Promise.all([
-          import(UA_OVERRIDE as string) as Promise<{ default: (o: object) => Parameters<typeof extra.use>[0] }>,
-          import(NAV_LANGUAGES as string) as Promise<{ default: (o: object) => Parameters<typeof extra.use>[0] }>,
-        ]);
-        extra.use(UserAgentOverride({ locale: languages.join(',') }));
-        extra.use(NavigatorLanguages({ languages }));
-        return extra as unknown as typeof chromium;
+        shared.use(stealthPlugin(StealthPlugin));
+        return shared as unknown as typeof chromium;
       } catch (err) {
         console.warn(`[browser] stealth unavailable, falling back to vanilla chromium: ${(err as Error).message}`);
         return chromium;
@@ -122,6 +107,49 @@ function stealthChromium(locale?: string): Promise<typeof chromium> {
     stealthLaunchers.set(key, launcher);
   }
   return launcher;
+}
+
+type EvasionFactory = (o: object) => object;
+/** The two evasions a locale re-creates; a parameter only so a test can make them fail to load. */
+type LoadEvasions = () => Promise<[EvasionFactory, EvasionFactory]>;
+const loadLocaleEvasions: LoadEvasions = async () => {
+  const [ua, nav] = await Promise.all([
+    import(UA_OVERRIDE as string) as Promise<{ default: EvasionFactory }>,
+    import(NAV_LANGUAGES as string) as Promise<{ default: EvasionFactory }>,
+  ]);
+  return [ua.default, nav.default];
+};
+let warnedLocaleStealth = false;
+
+/**
+ * Stealth for a non-US locale (not memoised; `stealthChromium` is). If the locale's evasions cannot be set up, the
+ * default stealth launcher instead — en-US in navigator.languages, the context's own locale and zone — never vanilla
+ * Chromium (Task 2 review, minor 8); said once per process.
+ */
+export async function localeStealthLauncher(locale: string, loadEvasions: LoadEvasions = loadLocaleEvasions): Promise<typeof chromium> {
+  try {
+    const [{ addExtra }, { default: StealthPlugin }, [UserAgentOverride, NavigatorLanguages]] = await Promise.all([
+      import('playwright-extra'),
+      import('puppeteer-extra-plugin-stealth'),
+      loadEvasions(),
+    ]);
+    const extra = addExtra(chromium);
+    const stealth = stealthPlugin(StealthPlugin);
+    stealth.enabledEvasions.delete('user-agent-override');
+    stealth.enabledEvasions.delete('navigator.languages');
+    extra.use(stealth);
+    const languages = [locale, locale.split('-')[0]!];
+    type Plugin = Parameters<typeof extra.use>[0];
+    extra.use(UserAgentOverride({ locale: languages.join(',') }) as Plugin);
+    extra.use(NavigatorLanguages({ languages }) as Plugin);
+    return extra as unknown as typeof chromium;
+  } catch (err) {
+    if (!warnedLocaleStealth) {
+      warnedLocaleStealth = true;
+      console.warn(`[browser] per-locale stealth unavailable, using the default stealth: ${(err as Error).message}`);
+    }
+    return stealthChromium();
+  }
 }
 
 /**
