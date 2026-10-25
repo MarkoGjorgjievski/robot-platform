@@ -293,3 +293,11 @@ describe('fix round 1, M3: secret values from the environment', () => {
     expect(redactText('k abcdef and abcde', { ERROR_REPORT_TOKEN: 'abcdef', TYPESAFE_API_KEY: 'abcde' })).toBe('k *** and abcde');
   });
 });
+
+describe('fix round 1, M4', () => {
+  it('the passwords inside DATABASE_URL and DEFAULT_PROXY_URL, wherever they appear; a password equal to its user name is not', () => {
+    const env = { DATABASE_URL: 'postgresql://robot:db-pass-77@db.test/x', DEFAULT_PROXY_URL: 'http://user-country-{country}:proxy-pw-9@gate.test:7000' };
+    expect(redactText('auth failed (db-pass-77) then proxy-pw-9', env)).toBe('auth failed (***) then ***');
+    expect(redactText('the postgres user', { DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/robot_platform' })).toBe('the postgres user');
+  });
+});

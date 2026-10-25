@@ -114,16 +114,26 @@ const headerValue = (_m: string, name: string, sep: string, value: string) =>
 /** Their values are replaced wherever they appear (a key quoted in an error message). */
 const ENV_SECRETS = ['ANTHROPIC_API_KEY', 'TYPESAFE_API_KEY', 'ERROR_REPORT_TOKEN'];
 /** The password inside each of these URLs is replaced wherever it appears, raw, decoded and encoded. */
-const ENV_URLS = ['SMTP_URL'];
+const ENV_URLS = ['SMTP_URL', 'DATABASE_URL', 'DEFAULT_PROXY_URL'];
 /** Shorter than this: not a secret worth masking everywhere (it would mangle ordinary words). */
 const MIN_SECRET = 6;
 
 type Redactor = (text: string) => string;
 
+/** A password equal to its user name is left out: masking it would mask the user name everywhere (postgres:postgres). */
 function urlPassword(url: string): string {
-  try { return new URL(url).password; } catch { /* not a URL a parser takes: read it by hand */ }
-  const m = /^[a-z][\w+.-]*:\/\/[^:@/\s]*:([^\s]*)@/i.exec(url);
-  return m?.[1] ?? '';
+  let user = '';
+  let pass = '';
+  try {
+    const u = new URL(url);
+    user = u.username;
+    pass = u.password;
+  } catch {
+    const m = /^[a-z][\w+.-]*:\/\/([^:@/\s]*):([^\s]*)@/i.exec(url); // not a URL a parser takes: read it by hand
+    user = m?.[1] ?? '';
+    pass = m?.[2] ?? '';
+  }
+  return pass && pass !== user ? pass : '';
 }
 
 function addSecret(secrets: Set<string>, value: string): void {
