@@ -69,6 +69,15 @@ export function proxySettingsFor(url: string, countryCode: string | null): Proxy
 
 /** For staff (spec §2.3): `http://user:•••@host:port` — the password never leaves the server. */
 export function maskProxyUrl(url: string): string {
+  // An address that does not check (a broken DEFAULT_PROXY_URL is never validated) may hide its password anywhere
+  // before the last '@': mask all of it, never return it as typed (Task 5 review).
+  if (!checkProxyUrl(url).ok) {
+    const t = url.trim();
+    const at = t.lastIndexOf('@');
+    if (at < 0) return t;
+    const scheme = /^[a-z0-9]+:\/\//i.exec(t)?.[0] ?? '';
+    return `${scheme}•••@${t.slice(at + 1)}`;
+  }
   const m = /^([a-z0-9]+:\/\/)([^/?#]*)(.*)$/i.exec(url.trim());
   if (!m) return url;
   const authority = m[2]!;
