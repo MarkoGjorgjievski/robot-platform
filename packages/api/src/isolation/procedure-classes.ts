@@ -4,7 +4,7 @@
 // take a fixture: `scoped` and `membership` ones are fed the OTHER org's, the rest the caller's own.
 import type { OrgFixture } from './two-orgs.js';
 
-export type ProcedureClass = 'scoped' | 'org-wide' | 'self' | 'membership' | 'ops' | 'public' | 'stateless';
+export type ProcedureClass = 'scoped' | 'org-wide' | 'self' | 'membership' | 'ops' | 'public';
 type Build = (f: OrgFixture) => unknown;
 
 export type ProcedureEntry =
@@ -20,9 +20,7 @@ export type ProcedureEntry =
   /** Operators only. */
   | { class: 'ops'; input?: Build }
   /** No session needed; the answer names nothing of another org. */
-  | { class: 'public'; input?: Build }
-  /** Touches no org's rows (an address check): covered by the rate limit (§2.4); never called with a session here. */
-  | { class: 'stateless' };
+  | { class: 'public'; input?: Build };
 
 const month = () => new Date().toISOString().slice(0, 7);
 const site = (f: OrgFixture) => ({ sourceId: f.sourceId });
@@ -81,8 +79,11 @@ export const PROCEDURE_CLASSES: Record<string, ProcedureEntry> = {
   'sources.setProductUrls': { class: 'scoped', input: (f) => ({ ...site(f), urls: [f.urls[0]] }) },
   'sources.inputRows': { class: 'scoped', input: site },
   'sources.updateBinding': { class: 'scoped', input: (f) => ({ ...site(f), urls: f.urls, descriptions: {}, expected: {} }) },
-  'sources.checkListingPage': { class: 'stateless' },
-  'sources.reachability': { class: 'stateless' },
+  // The two address checks (spec 2026-10-24 proxy §2.2, Task 4 fix round I1): with a `sourceId` they read that website's
+  // pages through its profile, so the website is checked against the caller's org first; without one, an address alone,
+  // which touches no org's rows (covered by the network rate limit, §2.4). Swept with the other org's website.
+  'sources.checkListingPage': { class: 'scoped', input: (f) => ({ ...site(f), listingUrl: `https://${f.host}/l` }), works: 'a listing-check job' },
+  'sources.reachability': { class: 'scoped', input: (f) => ({ ...site(f), url: f.urls[0] }), works: 'a reachability job' },
   'sources.captureProofPage': { class: 'scoped', input: (f) => ({ ...site(f), url: f.urls[0] }), works: 'a proof-page capture job' },
   'sources.proofPageCapture': { class: 'scoped', input: (f) => ({ captureId: f.captureId }) },
   'sources.proofPageCaptures': { class: 'scoped', input: (f) => ({ ...site(f), urls: [f.urls[0]] }) },

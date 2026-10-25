@@ -99,8 +99,9 @@ describe('the classification table (spec §2.1)', () => {
     expect(Object.keys(PROCEDURE_CLASSES).sort()).toEqual(Object.keys(procedures).sort());
   });
 
-  it('the stateless procedures are the two address checks', () => {
-    expect(pathsOf('stateless').sort()).toEqual(['sources.checkListingPage', 'sources.reachability']);
+  // Spec 2026-10-24 proxy §2.2 (Task 4 fix round I1): the address checks take a website, so they are scoped — and swept.
+  it('the two address checks are scoped by the website they are given', () => {
+    for (const p of ['sources.checkListingPage', 'sources.reachability']) expect(entry(p, 'scoped').works, p).toBeTruthy();
   });
 });
 

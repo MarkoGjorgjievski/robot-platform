@@ -76,8 +76,9 @@ export type TransferMarksPayload = {
 
 export type JobPayloads = {
   'proof-page-capture': { captureId: string };
-  reachability: { url: string };
-  'listing-check': { listingUrl: string };
+  /** `sourceId`: the website the address belongs to — its pages load through its profile (spec 2026-10-24 proxy §2.2). */
+  reachability: { url: string; sourceId?: string };
+  'listing-check': { listingUrl: string; sourceId?: string };
   'transfer-marks': TransferMarksPayload;
   'detect-variants': { sourceId: string };
   'variant-links-near': { sourceId: string; url: string; xpath: string };

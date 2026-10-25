@@ -15,6 +15,7 @@ import { useStaffDetail } from '../../lib/use-staff-detail';
  * mean for the board.
  */
 export function ListingBar({
+  sourceId,
   listingUrl,
   disabled,
   onFound,
@@ -22,6 +23,8 @@ export function ListingBar({
   extractOwnsInput,
   problem,
 }: {
+  /** The website whose listing this is: its page loads the way that website's pages do. */
+  sourceId: string;
   listingUrl: string;
   disabled: boolean;
   onFound: (listingUrl: string, products: Card[], found: { productLinks: number; pagerSeen: boolean }) => void;
@@ -54,7 +57,7 @@ export function ListingBar({
     if (trimmed === '') return;
     setFound(null);
     check.mutate(
-      { listingUrl: trimmed },
+      { listingUrl: trimmed, sourceId },
       {
         onSuccess: (data) => {
           setFound({ productLinks: data.productLinks, pagerSeen: data.pagerSeen, message: data.message });
