@@ -55,8 +55,11 @@ const MAX_DEPTH = 6;
 const MAX_ARRAY = 50;
 const MAX_KEYS = 100;
 const MAX_NODES = 5_000;
-/** A string longer than this is cut, after it was redacted (a cut can never leave half a secret behind). */
+/** A redacted string longer than this is cut, after it was redacted (a cut can never leave half a secret behind). */
 const MAX_STRING = 10_000;
+/** A string is cut to this before it is redacted, so a 10 MB page in a message costs no more than 64 KB. Whatever a
+ *  cut at 64 KB could split lies past MAX_STRING and is cut away after redaction. */
+const PRE_CUT = 64 * 1024;
 
 const SCHEME = '[a-z][a-z0-9+.-]{0,30}';
 /** scheme://userinfo@ — up to the last @ before a / ? # or space. */
@@ -178,15 +181,21 @@ function redactor(env: Env): Redactor {
   return redact;
 }
 
-/** Text with every secret the rules above know taken out. Never throws (a non-string is turned into one first). */
+/** Cut to PRE_CUT, redacted, then cut to MAX_STRING with a note of how much was left out. */
+function bounded(r: Redactor, s: string): string {
+  const red = r(s.length > PRE_CUT ? s.slice(0, PRE_CUT) : s);
+  const over = s.length > PRE_CUT ? s.length - MAX_STRING : red.length - MAX_STRING;
+  return over > 0 ? `${red.slice(0, MAX_STRING)}…[+${over} chars]` : red;
+}
+
+/**
+ * Text with every secret the rules above know taken out, at most 10 000 characters (plus a note of the rest).
+ * Never throws (a non-string is turned into one first).
+ */
 export function redactText(text: string, env: Env = process.env): string {
   let s: string;
   try { s = String(text); } catch { return '[unreadable]'; }
-  try { return redactor(env)(s); } catch { return '[unreadable]'; }
-}
-
-function cut(s: string): string {
-  return s.length > MAX_STRING ? `${s.slice(0, MAX_STRING)}…[+${s.length - MAX_STRING} chars]` : s;
+  try { return bounded(redactor(env), s); } catch { return '[unreadable]'; }
 }
 
 function setKey(out: Record<string, unknown>, k: string, v: unknown): void {
@@ -203,7 +212,7 @@ function setKey(out: Record<string, unknown>, k: string, v: unknown): void {
 export function redactValue(value: unknown, env: Env = process.env): unknown {
   let r: Redactor;
   try { r = redactor(env); } catch { return '[unreadable]'; }
-  const text = (s: string) => cut(r(s));
+  const text = (s: string) => bounded(r, s);
   const ancestors = new Set<object>();
   let nodes = 0;
   const read = (f: () => unknown): unknown => { try { return f(); } catch { return '[unreadable]'; } };
