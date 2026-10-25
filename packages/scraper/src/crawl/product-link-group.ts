@@ -47,6 +47,12 @@ export type ListingAnchor = {
   swatch?: boolean;
   /** The link itself, then up to six ancestors (see `LISTING_LINKS_SCRIPT`). Absent: the link is on no card. */
   levels?: CardLevel[];
+  /**
+   * The card's price as shown (`£38.00`, `RM1,299`): the first price in the link's own text, else in the
+   * lowest of its levels that shows one. Absent when none does. Read only to choose proof pages that
+   * differ (ruling D1, first run 2026-10-25); never part of the product link rule.
+   */
+  price?: string;
 };
 
 /** One `ItemList` entry from the page's JSON-LD. */
@@ -365,6 +371,8 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
     } catch (e) { return href.split(/[?#]/)[0] || null; }
   };
   const memo = new Map();
+  // The first price an element's text shows, kept by level() for each card level that shows one.
+  const priceText = new Map();
   const level = (el) => {
     const hit = memo.get(el);
     if (hit) return hit;
@@ -375,7 +383,12 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
     }
     let r;
     if (seen.size > MAX_LINKS) r = { d: seen.size, img: false, price: false, len: 0 };
-    else { const t = el.innerText || ''; r = { d: seen.size, img: !!el.querySelector('img, picture'), price: PRICE.test(t), len: t.length }; }
+    else {
+      const t = el.innerText || '';
+      const m = t.match(PRICE);
+      r = { d: seen.size, img: !!el.querySelector('img, picture'), price: !!m, len: t.length };
+      if (m) priceText.set(el, m[0]);
+    }
     memo.set(el, r);
     return r;
   };
@@ -419,9 +432,14 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
     const text = (a.textContent || '').replace(/\s+/g, ' ').trim();
     const inner = a.querySelector('img');
     const own = a.innerText || '';
-    const levels = [{ d: 1, img: !!a.querySelector('img, picture'), price: PRICE.test(own), len: own.length }];
+    const ownPrice = own.match(PRICE);
+    const levels = [{ d: 1, img: !!a.querySelector('img, picture'), price: !!ownPrice, len: own.length }];
+    let price = ownPrice ? ownPrice[0] : undefined;
     let el = a.parentElement;
-    for (let i = 0; el && el !== document.body && i < UP; i++, el = el.parentElement) levels.push(level(el));
+    for (let i = 0; el && el !== document.body && i < UP; i++, el = el.parentElement) {
+      levels.push(level(el));
+      if (price === undefined && priceText.has(el)) price = priceText.get(el);
+    }
     anchors.push({
       href: a.getAttribute('href') || '',
       text: text.slice(0, 200),
@@ -430,6 +448,7 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
       chrome: chrome(a) || undefined,
       swatch: swatch(a, text, levels) || undefined,
       levels,
+      price: price ? price.replace(/\s+/g, ' ').trim() : undefined,
     });
   }
   const itemList = [];

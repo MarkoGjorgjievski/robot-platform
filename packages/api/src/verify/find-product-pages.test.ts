@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser, okVerdict } from '@robot/browser';
 import { LISTING_LINKS_SCRIPT, type CardLevel, type ListingAnchor, type ListingLinks } from '@robot/scraper';
-import { describeListingPage, listingProducts } from './find-product-pages.js';
+import { describeListingPage, listingProducts, proofProductOrder, productBaseName } from './find-product-pages.js';
 
 const CARD: CardLevel[] = [{ d: 1, img: true, price: true, len: 40 }];
 const carded = (href: string, text: string, extra: Partial<ListingAnchor> = {}): ListingAnchor => ({ href, text, levels: CARD, ...extra });
@@ -42,6 +42,90 @@ describe('describeListingPage', () => {
 });
 
 const L = 'https://shop.example/c/chairs';
+
+// Ruling D1 (first run 2026-10-25): the three proof pages differ. On a listing whose first cards are
+// colourways of one product (same name, same price), Price could not be verified. A Gymshark-like grid.
+const G = 'https://shop.example/collections/leggings';
+const card = (slug: string, text: string, price?: string): ListingAnchor => carded(`/products/${slug}`, text, price ? { price } : {});
+const gym = [
+  card('everyday-seamless-leggings-blue-aw26', 'Everyday Seamless Leggings', '£38'),
+  card('everyday-seamless-leggings-brown-aw26', 'Everyday Seamless Leggings', '£38'),
+  card('everyday-seamless-flared-legging-black-aw25', 'Everyday Seamless Flared Leggings', '£38'),
+  card('everyday-seamless-leggings-purple-aw25', 'Everyday Seamless Leggings', '£38'),
+  card('minimal-sports-bra-2-0-black-aw26', 'Minimal Sports Bra 2.0', '£30'),
+  card('everyday-seamless-shorts-black-aw23', 'Everyday Seamless Shorts', '£30'),
+];
+const slugOf = (u: string) => new URL(u).pathname.split('/').pop();
+
+describe('productBaseName', () => {
+  it('drops a trailing colour or variant part, a price and the case', () => {
+    expect(productBaseName('GLOSTAD 3-seat sofa - Knisa dark grey')).toBe(productBaseName('Glostad 3-seat sofa – Blekinge white'));
+    expect(productBaseName('Everyday Seamless Leggings Black')).toBe(productBaseName('Everyday Seamless Leggings'));
+    expect(productBaseName('Oak chair (Light Beige)')).toBe('oak chair');
+    expect(productBaseName('Option: GLOSTAD, 3-seat sofa, Knisa dark grey')).toBe(productBaseName('Option: GLOSTAD, 3-seat sofa, Blekinge white'));
+    expect(productBaseName('NewVALNÄS 3-seat sofaRM2,995')).toBe(productBaseName('NewVALNÄS 3-seat sofa RM 2,495'));
+    expect(productBaseName('Everyday Seamless Leggings')).not.toBe(productBaseName('Everyday Seamless Flared Leggings'));
+  });
+});
+
+describe('proofProductOrder: three proof pages that differ (ruling D1)', () => {
+  it('on a colourway grid, the first three cards whose names differ and whose prices are not all equal come first; the rest keep listing order', () => {
+    const r = describeListingPage(links(gym), G, '<html></html>', okVerdict(200));
+    expect(r.products.slice(0, 3).map((p) => slugOf(p.url))).toEqual([
+      'everyday-seamless-leggings-blue-aw26', 'everyday-seamless-flared-legging-black-aw25', 'minimal-sports-bra-2-0-black-aw26',
+    ]);
+    expect(r.products.slice(3).map((p) => slugOf(p.url))).toEqual([
+      'everyday-seamless-leggings-brown-aw26', 'everyday-seamless-leggings-purple-aw25', 'everyday-seamless-shorts-black-aw23',
+    ]);
+    expect(r.sample).toEqual(r.products.map((p) => p.url));
+    expect(r.productLinks).toBe(6);
+  });
+
+  it('a price read from the link text counts too (a card that shows its price inside the link)', () => {
+    const anchors = [
+      carded('/p/glostad-knisa-1', 'GLOSTAD 3-seat sofa, Knisa dark grey RM449'),
+      carded('/p/glostad-blekinge-2', 'GLOSTAD 3-seat sofa, Blekinge white RM449'),
+      carded('/p/ektorp-3', 'EKTORP 3-seat sofa RM449'),
+      carded('/p/friheten-4', 'FRIHETEN Corner sofa-bed RM1,495'),
+    ];
+    const r = describeListingPage(links(anchors), L, '<html></html>', okVerdict(200));
+    expect(r.products.slice(0, 3).map((p) => slugOf(p.url))).toEqual(['glostad-knisa-1', 'ektorp-3', 'friheten-4']);
+  });
+
+  it('names that differ but prices that are all equal: the first three names that differ', () => {
+    const items = [['a-1', 'Tee'], ['a-2', 'Tee'], ['b-3', 'Hoodie'], ['c-4', 'Cap'], ['d-5', 'Sock']].map(([u, t]) => ({ url: u!, title: t!, price: '£20' }));
+    expect(proofProductOrder(items).slice(0, 3)).toEqual(['a-1', 'b-3', 'c-4']);
+  });
+
+  it('falls back to the first three when the listing has no spread (one product in every colour)', () => {
+    const anchors = Array.from({ length: 8 }, (_, i) => card(`tee-${i}`, 'Tee', '£20'));
+    const r = describeListingPage(links(anchors), G, '<html></html>', okVerdict(200));
+    expect(r.products.map((p) => slugOf(p.url))).toEqual(anchors.map((a) => a.href.split('/').pop()));
+  });
+
+  it('stays within the first 30 products: a different one further down is never a proof page', () => {
+    const anchors = [...Array.from({ length: 30 }, (_, i) => card(`tee-${i}`, 'Tee', '£20')), card('hoodie-30', 'Hoodie', '£40')];
+    const r = describeListingPage(links(anchors), G, '<html></html>', okVerdict(200));
+    expect(r.products.slice(0, 3).map((p) => slugOf(p.url))).toEqual(['tee-0', 'tee-1', 'tee-2']);
+    expect(r.products).toHaveLength(10);
+  });
+
+  it('a product further down (within 30) comes into the sample when it is picked', () => {
+    const anchors = [...Array.from({ length: 12 }, (_, i) => card(`tee-${i}`, 'Tee', '£20')), card('hoodie-12', 'Hoodie', '£40'), card('cap-13', 'Cap', '£15')];
+    const r = describeListingPage(links(anchors), G, '<html></html>', okVerdict(200));
+    expect(r.products.slice(0, 3).map((p) => slugOf(p.url))).toEqual(['tee-0', 'hoodie-12', 'cap-13']);
+    expect(r.products).toHaveLength(10);
+    expect(r.products.slice(3).map((p) => slugOf(p.url))).toEqual(['tee-1', 'tee-2', 'tee-3', 'tee-4', 'tee-5', 'tee-6', 'tee-7']);
+  });
+
+  it('cards with no prices: names alone decide', () => {
+    const anchors = [carded('/p/a-1', 'Tee Black'), carded('/p/a-2', 'Tee White'), carded('/p/b-3', 'Hoodie'), carded('/p/c-4', 'Cap')];
+    const r = describeListingPage(links(anchors), L, '<html></html>', okVerdict(200));
+    expect(r.products.slice(0, 3).map((p) => slugOf(p.url))).toEqual(['a-1', 'b-3', 'c-4']);
+  });
+});
+
+
 
 describe('listingProducts', () => {
   it('merges the several links to one product, by product: the longest text wins, the first image wins', () => {
@@ -106,5 +190,19 @@ describe('LISTING_LINKS_SCRIPT in Chromium (offline page)', () => {
     const level1 = (href: string) => anchors.find((a) => a.href === href)!.levels![1];
     expect(level1('/p/1')).toMatchObject({ d: 1, img: true, price: true });
     expect(level1('/c/sofas')).toMatchObject({ d: 1, img: true, price: false });
+  }, 60_000);
+
+  it("reads the card's price as shown: inside the link, else the lowest card level that shows one", async () => {
+    const html = `<html><body><ul>
+      <li><div><a href="/p/1"><img src="/i/1.jpg"><span>Oak chair</span></a></div><span>£38.00</span><s>£50.00</s></li>
+      <li><a href="/p/2"><img src="/i/2.jpg"><span>Pine stool</span><span>RM1,299</span></a></li>
+      <li><a href="/c/sofas"><img src="/i/3.jpg"><span>Sofas</span></a></li>
+      <li><a href="/p/4"><img src="/i/4.jpg"><span>Ash table</span></a><span>$90</span></li>
+    </ul></body></html>`;
+    const { anchors } = await browser.setContentEvaluate<ListingLinks>(html, LISTING_LINKS_SCRIPT);
+    const price = (href: string) => anchors.find((a) => a.href === href)!.price;
+    expect(price('/p/1')).toBe('£38.00');
+    expect(price('/p/2')).toBe('RM1,299');
+    expect(price('/c/sofas')).toBeUndefined();
   }, 60_000);
 });
