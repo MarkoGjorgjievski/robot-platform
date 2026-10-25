@@ -139,11 +139,10 @@ const ALLOWED: Record<string, { opens: number; why: string }> = {
   // Staff CLIs the spec leaves unchanged (§2.2).
   'api/src/judge-run.ts': { opens: 1, why: 'staff CLI: the judge' },
   'api/src/jev-images-run.ts': { opens: 3, why: 'staff CLI: jev-images-run' },
-  // Staff scripts: through forWebsite in the plan's final wave (progress.md ruling); listed until then.
-  'api/src/dogfood.ts': { opens: 2, why: 'staff script, final wave' },
-  'api/src/scripts/apply-websites-change.ts': { opens: 1, why: 'staff script, final wave' },
-  'api/src/scripts/one-source-recertify.ts': { opens: 1, why: 'staff script, final wave' },
-  'api/src/scripts/websites-change-replay.ts': { opens: 1, why: 'staff script, final wave' },
+  // The live corpus by address (scraper manifest): no website exists, so there is no website profile to open with.
+  // The website-scoped staff scripts (apply-websites-change, one-source-recertify, websites-change-replay) open
+  // theirs through forWebsite and are not listed (final review I2).
+  'api/src/dogfood.ts': { opens: 2, why: 'staff CLI: the live corpus by address, no website (like the judge)' },
   'worker/src/bench/real-sites.ts': { opens: 1, why: 'bench: arbitrary public addresses, no website' },
 };
 const sourceFiles = (pkg: string) => (readdirSync(join(PACKAGES, pkg), { recursive: true }) as string[])
@@ -165,5 +164,14 @@ describe('every file that can open a browser is on the list (spec §3.1, fix rou
 
   it('no file imports the session under another name', () => {
     for (const f of canOpen) expect(stripped(f), f).not.toMatch(/withBrowserSession\s+as\b|=\s*withBrowserSession\s*;/);
+  });
+});
+
+describe('the website-scoped staff scripts open each website with its own profile (final review I2)', () => {
+  it.each(['api/src/scripts/apply-websites-change.ts', 'api/src/scripts/one-source-recertify.ts', 'api/src/scripts/websites-change-replay.ts'])('%s', (file) => {
+    const src = stripped(file);
+    expect(src).not.toMatch(OPENS);
+    expect(src).not.toMatch(/browser-session/);
+    expect(src).toMatch(/\bforWebsite\((?:s\.id|id)\)\(/);
   });
 });
