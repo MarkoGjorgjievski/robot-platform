@@ -1,8 +1,9 @@
 // What needs attention on a queue (spec 2026-10-25 monitoring §2.3), read by the watchdog, /readyz's `queue` check
 // and ops' Queue view. Ages are on the database's clock. Read-only: nothing here changes a job.
 //   backlog     queued, due more than 10 minutes ago, and its lane is idle on this queue — nothing of the lane running,
-//               nothing of it claimed in the last 10 minutes ("a backlog nobody is taking"; plan "Settled here" 1)
-//   silent      running under a live lease, no progress for more than half its policy's stuckMs
+//               nothing of it claimed or finished in the last 10 minutes ("a backlog nobody is taking"; plan "Settled here" 1)
+//   silent      running under a live lease, no progress for more than half its policy's stuckMs, and never less than
+//               45 s (progress is written at most every 15 s: a short policy's working job must not read silent)
 //   dead-worker running under a worker whose row's beat is more than 2 minutes old (matched exactly, never by LIKE)
 import { sql } from 'drizzle-orm';
 import { db } from '@robot/db';
@@ -13,6 +14,8 @@ import { redactText } from './redact.js';
 
 export const BACKLOG_MS = 10 * 60_000;
 const DEFAULT_STUCK_MS = 15 * 60_000;
+/** The shortest silence that counts: three times the 15 s progress write throttle (runner.ts). */
+export const SILENT_MIN_MS = 45_000;
 const UUID = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 
 export type AttentionKind = 'backlog' | 'silent' | 'dead-worker';
@@ -39,12 +42,13 @@ function laneValues() {
 }
 
 export async function findBacklog(queue: string, opts: { limit?: number } = {}): Promise<AttentionItem[]> {
-  // A lane is busy on this queue while a job of it runs or one was claimed in the last 10 minutes. One bounded
+  // A lane is busy on this queue while a job of it runs, or one was claimed or finished in the last 10 minutes (a
+  // long job that just finished leaves its lane busy until the next claim). One bounded
   // query: the lane test runs in SQL, so a busy lane's waiting jobs never crowd another lane's out of the LIMIT.
   const window = sql`make_interval(secs => ${BACKLOG_MS / 1000})`;
   const waiting = rows<Raw>(await db.execute(sql`WITH lanes(type, lane) AS (VALUES ${laneValues()}),
     busy AS (SELECT DISTINCT l.lane FROM jobs b JOIN lanes l ON l.type = b.type
-      WHERE b.queue = ${queue} AND (b.status = 'running' OR b.started_at > now() - ${window}))
+      WHERE b.queue = ${queue} AND (b.status = 'running' OR b.started_at > now() - ${window} OR b.finished_at > now() - ${window}))
     SELECT j.id, j.type, j.error, NULL::text AS worker_id, (extract(epoch FROM now() - j.run_after) * 1000)::float8 AS age_ms
     FROM jobs j LEFT JOIN lanes l ON l.type = j.type
     WHERE j.queue = ${queue} AND j.status = 'queued' AND j.run_after < now() - ${window}
@@ -57,7 +61,7 @@ async function findSilent(queue: string): Promise<AttentionItem[]> {
   const live = rows<Raw>(await db.execute(sql`SELECT id, type, error, split_part(locked_by, '#', 1) AS worker_id,
       (extract(epoch FROM now() - coalesce(progress_at, started_at)) * 1000)::float8 AS age_ms
     FROM jobs WHERE queue = ${queue} AND status = 'running' AND locked_until > now() ORDER BY started_at LIMIT 200`));
-  return live.filter((j) => Number(j.age_ms) > (policyOf(j.type)?.stuckMs ?? DEFAULT_STUCK_MS) / 2).map((j) => item('silent', j));
+  return live.filter((j) => Number(j.age_ms) > Math.max((policyOf(j.type)?.stuckMs ?? DEFAULT_STUCK_MS) / 2, SILENT_MIN_MS)).map((j) => item('silent', j));
 }
 
 async function findDeadWorkerJobs(queue: string): Promise<AttentionItem[]> {

@@ -49,13 +49,13 @@ describe('what needs attention (spec 2026-10-25 monitoring §2.3)', () => {
   });
 
   it('silent: running with a live lease and no progress for over half its stuckMs; recent progress or a lapsed lease is not', async () => {
-    // reachability's stuckMs is 60 s: silent past 30 s.
-    const [quiet] = await db.insert(jobs).values(running({ progressAt: ago(40) })).returning();
+    // reachability's stuckMs is 60 s: half is 30 s, but never under 45 s — silent past 45 s.
+    const [quiet] = await db.insert(jobs).values(running({ progressAt: ago(50) })).returning();
     await db.insert(jobs).values(running({ lockedBy: 'w:1:aaaa#t2', progressAt: ago(10) }));
-    await db.insert(jobs).values(running({ lockedBy: 'w:1:aaaa#t3', progressAt: ago(40), lockedUntil: ago(5) }));
+    await db.insert(jobs).values(running({ lockedBy: 'w:1:aaaa#t3', progressAt: ago(50), lockedUntil: ago(5) }));
     const items = await findAttention(q());
     expect(items).toEqual([expect.objectContaining({ kind: 'silent', jobId: quiet!.id, workerId: 'w:1:aaaa', lane: 'interactive' })]);
-    expect(items[0]!.ageMs).toBeGreaterThanOrEqual(39_000);
+    expect(items[0]!.ageMs).toBeGreaterThanOrEqual(49_000);
   });
 
   it('dead worker: a running job under a worker row whose beat is more than 2 minutes old', async () => {
@@ -146,5 +146,20 @@ describe('the watchdog during a database outage (fix wave)', () => {
       ['warn', '[watchdog] WARN the watchdog could not read the queue'],
       ['info', '[watchdog] the watchdog reads the queue again'],
     ]);
+  });
+});
+
+describe('what needs attention, fix wave', () => {
+  it('a lane whose long job finished a moment ago is still busy: the next job waiting behind it is not a backlog', async () => {
+    await db.insert(jobs).values({ queue: q(), type: 'run', status: 'done', attempts: 1, startedAt: ago(3 * 3600), finishedAt: ago(1) });
+    await db.insert(jobs).values({ queue: q(), type: 'run', runAfter: ago(2 * 3600) });
+    expect(await findAttention(q())).toEqual([]);
+  });
+
+  it('silent: never before 45 s, so a short policy’s job writing progress every 15 s is not flagged', async () => {
+    // variant-links-near's stuckMs is 30 s: half of it (15 s) is the progress write throttle itself.
+    await db.insert(jobs).values(running({ type: 'variant-links-near', progressAt: ago(20) }));
+    const [quiet] = await db.insert(jobs).values(running({ type: 'variant-links-near', lockedBy: 'w:1:aaaa#t2', progressAt: ago(50) })).returning();
+    expect((await findAttention(q())).map((i) => [i.kind, i.jobId])).toEqual([['silent', quiet!.id]]);
   });
 });
