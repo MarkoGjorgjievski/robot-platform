@@ -301,3 +301,12 @@ describe('fix round 1, M4', () => {
     expect(redactText('the postgres user', { DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/robot_platform' })).toBe('the postgres user');
   });
 });
+
+describe('fix round 1, text format', () => {
+  const T2 = new Date('2026-10-25T12:00:00.000Z');
+  it('M5: C0/C1 controls, DEL, U+2028/2029 are escaped in the message and in values (a value carrying one is quoted)', () => {
+    expect(formatLine('info', 't', 'a\x1b[2Jb\u2028c\u0085d\x7fe\tf', undefined, 'text', T2, {})).toBe('[t] a\\u001b[2Jb\\u2028c\\u0085d\\u007fe\\tf');
+    expect(formatLine('info', 't', 'm', { v: 'x\x1by', w: 'p\u2029q', o: { a: '\u0085' } }, 'text', T2, {}))
+      .toBe('[t] m v="x\\u001by" w="p\\u2029q" o={"a":"\\u0085"}');
+  });
+});
