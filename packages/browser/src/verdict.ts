@@ -70,8 +70,10 @@ export function classifyNavigationError(err: unknown): CaptureErrorKind {
   return 'unreachable';
 }
 
-/** Chromium's net errors that are the proxy's (or the tunnel through it), not the website's (spec 2026-10-24 proxy §2.2). */
-const PROXY_ERRORS = /net::ERR_(?:PROXY_[A-Z_]+|TUNNEL_CONNECTION_FAILED|SOCKS_[A-Z_]+|NO_SUPPORTED_PROXIES|MANDATORY_PROXY_CONFIGURATION_FAILED|UNEXPECTED_PROXY_AUTH|INVALID_AUTH_CREDENTIALS)\b/;
+/** Chromium's net errors that are the proxy's (or the tunnel through it), not the website's (spec 2026-10-24 proxy §2.2).
+ *  CONNECTION_ABORTED: what a SOCKS5 proxy dropping the handshake surfaces as (Task 2 review, minor 4) — through a proxy
+ *  our only connection is to the proxy. */
+const PROXY_ERRORS = /net::ERR_(?:PROXY_[A-Z_]+|TUNNEL_CONNECTION_FAILED|SOCKS_[A-Z_]+|NO_SUPPORTED_PROXIES|MANDATORY_PROXY_CONFIGURATION_FAILED|UNEXPECTED_PROXY_AUTH|INVALID_AUTH_CREDENTIALS|CONNECTION_ABORTED)\b/;
 
 /** Whether a navigation error is the proxy failing. Asked only of a browser that has a proxy. */
 export function isProxyFailure(message: string): boolean {

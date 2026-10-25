@@ -139,6 +139,8 @@ describe('isProxyFailure (spec 2026-10-24 proxy §2.2)', () => {
       'net::ERR_TUNNEL_CONNECTION_FAILED at https://shop.example/',
       'net::ERR_PROXY_AUTH_UNSUPPORTED', 'net::ERR_SOCKS_CONNECTION_FAILED', 'net::ERR_NO_SUPPORTED_PROXIES',
       'net::ERR_UNEXPECTED_PROXY_AUTH', 'net::ERR_INVALID_AUTH_CREDENTIALS',
+      // A SOCKS5 proxy that drops the handshake (Task 2 review, minor 4).
+      'page.goto: net::ERR_CONNECTION_ABORTED at https://shop.example/', 'net::ERR_SOCKS_CONNECTION_HOST_UNREACHABLE',
     ]) expect(isProxyFailure(m)).toBe(true);
     for (const m of ['net::ERR_CONNECTION_REFUSED at http://shop.example/', 'net::ERR_NAME_NOT_RESOLVED', 'Timeout 30000ms exceeded', 'Target crashed']) {
       expect(isProxyFailure(m)).toBe(false);
