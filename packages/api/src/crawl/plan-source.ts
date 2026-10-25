@@ -12,7 +12,7 @@ import { planRun, type PlannedItem, type PlanInputReport } from '@robot/scraper'
 import { CAP_REACHED_MESSAGE } from '@robot/scraper/customer-copy';
 import { runs, runItems, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
-import { withBrowserSession } from '../browser-session.js';
+import { forWebsite } from '../proxy/website-session.js';
 import { PROBE_BUDGET } from './probe.js';
 import { effectiveSchema } from './effective-schema.js';
 import { addRunCost } from './record-run-cost.js';
@@ -181,7 +181,7 @@ async function planSourceIn(
     const planRows = probe ? rows.slice(0, 1) : rows;
     const planBudget = probe ? PROBE_BUDGET : source.budget;
 
-    const outcome = await withBrowserSession((browser) => planRun(
+    const outcome = await forWebsite(sourceId)((browser) => planRun(
       {
         source: {
           listingMode: source.listingMode,

@@ -10,6 +10,7 @@ import { db, captures } from '@robot/db';
 import { TILE_HEIGHT, CaptureError, BROWSER_UNAVAILABLE, type CaptureErrorKind, type CaptureVerdict, type PageCapture } from '@robot/browser';
 import { backoffAnswer, captureProofPage, CaptureProblemError, reportVerdict, CAPTURE_REUSE_MAX_AGE_MS, type Box } from '@robot/scraper';
 import { withBrowserSession } from '../browser-session.js';
+import { forWebsite } from '../proxy/website-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { writeCaptureFile, readCaptureFile, persistTiles, type StoredCaptureRef } from './capture-store.js';
 import { startJevReading } from './jev-reading.js';
@@ -100,7 +101,7 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     return;
   }
   try {
-    const { capture, boxes } = await session((browser) => captureProofPage(browser, row.url));
+    const { capture, boxes } = await forWebsite(row.sourceId, session)((browser) => captureProofPage(browser, row.url));
     // Stopped meanwhile (stuck, lease lost, shutdown): the row is the runner's or the next claim's now (final review I1).
     if (jobStopped()) return;
     if (hostname) reportVerdict(hostname, capture.verdict);

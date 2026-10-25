@@ -10,12 +10,12 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq } from 'drizzle-orm';
 import { db, coverageChecks, sources } from '@robot/db';
-import { CaptureError, verdictSentence } from '@robot/browser';
+import { CaptureError, verdictSentence, type IBrowser } from '@robot/browser';
 import {
   backoffAnswer, CaptureProblemError, findProductGroup, readListingPage, reportVerdict, runVerifiedExtraction, shapeOf, urlShape,
   type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField,
 } from '@robot/scraper';
-import { withBrowserSession } from '../browser-session.js';
+import { forWebsite } from '../proxy/website-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { loadCurrentCertification } from './current-certification.js';
 import { loadProofPageCaptures } from './proof-page-capture.js';
@@ -47,13 +47,13 @@ export type CoverageDeps = {
  * verdict, or no document at all, is the sentence instead. A host still backing off is answered from the
  * backoff, with no browser.
  */
-async function defaultListing(url: string): Promise<{ productUrls: string[]; verdictMessage: string | null }> {
+async function defaultListing(url: string, open: Open): Promise<{ productUrls: string[]; verdictMessage: string | null }> {
   const waiting = backoffAnswer(url);
   if (waiting) return { productUrls: [], verdictMessage: waiting.message };
   const hostname = new URL(url).hostname;
   try {
     // The worker's browser gate keeps it within WORKER_BROWSERS, like every page the check reads (spec A3).
-    return await withBrowserSession(async (browser) => {
+    return await open(async (browser) => {
       const { capture, links } = await readListingPage(browser, url, { load: true });
       reportVerdict(hostname, capture.verdict);
       if (capture.verdict.kind !== 'ok') return { productUrls: [], verdictMessage: verdictSentence(capture.verdict, url) };
@@ -79,22 +79,29 @@ export function answerFromBackoff(url: string): { unread: string; wall: true } |
 }
 
 /** One sampled page: certified paths only, within the worker's browser gate (WORKER_BROWSERS), under the domain lock `runVerifiedExtraction` takes itself. */
-async function defaultExtract(url: string, fields: VerifiedField[]): ReturnType<NonNullable<CoverageDeps['extract']>> {
+async function defaultExtract(url: string, fields: VerifiedField[], open: Open): ReturnType<NonNullable<CoverageDeps['extract']>> {
   const waiting = answerFromBackoff(url);
   if (waiting) return waiting;
-  return withBrowserSession(async (browser) => {
-    try {
-      const r = await runVerifiedExtraction({ url, fields }, { browser });
-      return { data: r.data, shape: shapeOf(r.capture!), defaulted: r.defaulted };
-    } catch (err) {
-      if (err instanceof CaptureProblemError) {
-        const kind = err.verdict?.kind;
-        return { unread: err.message, wall: kind === 'refused' || kind === 'challenge' };
+  try {
+    return await open(async (browser) => {
+      try {
+        const r = await runVerifiedExtraction({ url, fields }, { browser });
+        return { data: r.data, shape: shapeOf(r.capture!), defaulted: r.defaulted };
+      } catch (err) {
+        if (err instanceof CaptureProblemError) {
+          const kind = err.verdict?.kind;
+          return { unread: err.message, wall: kind === 'refused' || kind === 'challenge' };
+        }
+        if (err instanceof CaptureError) return { unread: err.message, wall: false };
+        throw err;
       }
-      if (err instanceof CaptureError) return { unread: err.message, wall: false };
-      throw err;
-    }
-  });
+    });
+  } catch (err) {
+    // The website's proxy address cannot be used (spec 2026-10-24 proxy §3.1): thrown as the session opens, before
+    // any browser — that page is unread with the proxy sentence, like a proxy failure met while loading it.
+    if (err instanceof CaptureError) return { unread: err.message, wall: false };
+    throw err;
+  }
 }
 
 /** The proof pages' shapes from their latest fresh captures (the ones the Verification tab's cards read); a url with none is left out. */
@@ -143,17 +150,22 @@ export async function startCoverageCheck(
   });
 }
 
+/** The website's browser session (spec 2026-10-24 proxy §2.2): `forWebsite(check.sourceId)`. */
+type Open = <T>(fn: (browser: IBrowser) => Promise<T>) => Promise<T>;
+
 const isEmpty = (v: unknown) => v === null || v === undefined || v === '';
 
 /** Never rejects: a throw anywhere leaves the row `failed` with its error. */
 export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {}): Promise<void> {
-  const listing = deps.listing ?? defaultListing;
-  const extract = deps.extract ?? defaultExtract;
   const proofShapes = deps.proofShapes ?? defaultProofShapes;
   try {
     const check = await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.id, checkId) });
     // A check closed meanwhile (stalled, superseded, or a retry of one that finished) is not run again.
     if (!check || check.status !== 'running') return;
+    // Spec 2026-10-24 proxy §2.2: the listing and the sampled pages are this website's, through its profile.
+    const open = forWebsite(check.sourceId);
+    const listing = deps.listing ?? ((u: string) => defaultListing(u, open));
+    const extract = deps.extract ?? ((u: string, f: VerifiedField[]) => defaultExtract(u, f, open));
     const source = await db.query.sources.findFirst({ where: eq(sources.id, check.sourceId), columns: { schemaDefinition: true, verificationSet: true } });
     if (!source) throw new Error(`Website ${check.sourceId} not found`);
     const set = (source.verificationSet ?? { urls: [], expected: {} }) as VerificationSet;

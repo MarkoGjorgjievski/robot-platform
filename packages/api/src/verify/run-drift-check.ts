@@ -27,6 +27,7 @@ import {
 } from '@robot/scraper';
 import type { PageCapture } from '@robot/browser';
 import { withBrowserSession } from '../browser-session.js';
+import { forWebsite } from '../proxy/website-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { runEmptyShares } from '../crawl/drift.js';
 import { certifyingResult, loadFieldCurrency } from './current-certification.js';
@@ -302,7 +303,7 @@ export async function runDriftCheck(
       }
       const pageCaptures: Record<string, PageCapture> = {};
       for (const u of set.urls) { const r = records[u]; if (r && !('notChecked' in r)) pageCaptures[u] = r.capture; }
-      await session(async (browser) => {
+      await forWebsite(check.sourceId, session)(async (browser) => {
         const classifyDeps = {
           evalXPaths: (html: string, xpaths: string[]) => browser.setContentEvaluate<XPathProbeResult>(html, buildXPathProbeScript(xpaths)),
           runDomSearch: (html: string, needles: DomNeedle[], pageUrl: string) => browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript(needles, pageUrl)),

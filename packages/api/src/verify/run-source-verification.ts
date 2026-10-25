@@ -25,7 +25,7 @@ import type { VariantSetup } from '../contract.js';
 import { variantsRequired, runVariantCheck, currentVariantHash, VARIANT_CHECK_FAILED } from './variant-check.js';
 import { db, sources, sourceVerifications, captures } from '@robot/db';
 import type { Database } from '@robot/db';
-import { withBrowserSession } from '../browser-session.js';
+import { forWebsite } from '../proxy/website-session.js';
 import { persistScreenshot } from '../persist-screenshot.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { loadStoredCapture, readCaptureFile, writeCaptureFile, type StoredCaptureRef } from './capture-store.js';
@@ -230,7 +230,7 @@ async function runSourceVerificationIn(usage: UsageScope, sourceId: string, veri
       : null;
     const onProgress = (stage: string) =>
       void writeStage(db, verificationId, stage).catch((err) => console.error(`[verify] failed to record stage for ${verificationId}:`, err));
-    const { run, variantResults, holdPlan } = await withBrowserSession(async (browser) => {
+    const { run, variantResults, holdPlan } = await forWebsite(sourceId)(async (browser) => {
       const run = await runVerification({ fields, verificationSet: set }, {
         browser,
         agent,

@@ -15,8 +15,11 @@ class RecordingBrowser implements IBrowser {
   launchCalls = 0;
   closeCalls = 0;
 
-  async launch(_options?: BrowserOptions): Promise<void> {
+  launchOptions: BrowserOptions | undefined;
+
+  async launch(options?: BrowserOptions): Promise<void> {
     this.launchCalls++;
+    this.launchOptions = options;
   }
 
   async capture(): Promise<PageCapture> {
@@ -202,6 +205,31 @@ describe('withBrowserSession in a job that is stopped while its browser launches
     const ctx = { jobId: 'j', claim: 'j#1', type: 't', lane: 'interactive' as const, attempt: 1, retry: false, signal: controller.signal, progress: () => {} };
     await expect(runInJob(ctx, () => withBrowserSession(fn, () => browser))).rejects.toThrow(/stopped/);
     expect(fn).not.toHaveBeenCalled();
+    expect(browser.closeCalls).toBe(1);
+  });
+});
+
+describe('withBrowserSession and the website profile (spec 2026-10-24 proxy §2.2)', () => {
+  const profile = { proxy: { server: 'http://proxy.test:7000', username: 'u', password: 'pw-secret' }, locale: 'de-DE', timezoneId: 'Europe/Berlin' };
+
+  it('launches with the profile; with none, exactly as before; a bare function is still the factory', async () => {
+    const a = new RecordingBrowser();
+    await withBrowserSession(async () => 'ok', { profile, factory: () => a });
+    expect(a.launchOptions).toEqual({ headless: true, ...profile });
+    const b = new RecordingBrowser();
+    await withBrowserSession(async () => 'ok', () => b);
+    expect(b.launchOptions).toEqual({ headless: true });
+    const c = new RecordingBrowser();
+    await withBrowserSession(async () => 'ok', { factory: () => c });
+    expect(c.launchOptions).toEqual({ headless: true });
+  });
+
+  it('no error leaves a session carrying the proxy password (spec §3.2)', async () => {
+    const browser = new RecordingBrowser();
+    const err = await withBrowserSession(async () => { throw new Error('newContext: proxy http://u:pw-secret@proxy.test:7000 refused (pw-secret)'); },
+      { profile, factory: () => browser }).catch((e: Error) => e);
+    expect(err.message).not.toContain('pw-secret');
+    expect(err.stack ?? '').not.toContain('pw-secret');
     expect(browser.closeCalls).toBe(1);
   });
 });
