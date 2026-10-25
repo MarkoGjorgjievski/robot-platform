@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { applyDefaults, renderDefault } from './defaults.js';
 
 describe('renderDefault', () => {
-  it('writes the default as a path would: parsed for the type, text NFKC-collapsed, nothing when it does not parse', () => {
+  it('writes the default as a path would: parsed for the type, text as shown (whitespace collapsed), nothing when it does not parse', () => {
     expect(renderDefault('text', '  Gymshark   Ltd ')).toBe('Gymshark Ltd');
+    expect(renderDefault('text', 'SoftSense™')).toBe('SoftSense™');
     expect(renderDefault('money', '22')).toBe(22);
     expect(renderDefault('number', '4,5')).toBe(4.5);
     expect(renderDefault('boolean', 'yes')).toBe(true);

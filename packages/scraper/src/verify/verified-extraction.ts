@@ -21,7 +21,7 @@
 import { pageVariantFrom, verdictSentence, type CaptureOptions, type CaptureTimings, type IBrowser, type PageCapture, type PageVariant, type ReadyCheck, type ReadySnapshot } from '@robot/browser';
 import { acquireDomainLock, reportVerdict } from '../domain-lock.js';
 import { CaptureProblemError } from './capture-check.js';
-import { normalize, renderValue } from './normalize.js';
+import { normalize, renderValue, storedText } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { applyDefaults } from './defaults.js';
 import { resolveStructured } from './search-structured.js';
@@ -69,7 +69,7 @@ function evaluatePath(
   const raw = applyTransform(rawBase, path.transform);
   const norm = raw === null || raw === undefined || raw === '' ? null : normalize(field.type, raw, ctx);
   if (norm === null) return null;
-  return field.type === 'text' ? String(raw).normalize('NFKC').replace(/\s+/g, ' ').trim() : renderValue(field.type, norm);
+  return field.type === 'text' ? storedText(raw) : renderValue(field.type, norm);
 }
 
 /** `index` is `page` with exactly one `[page]` step replaced by a numeric index (`hasVariant[1].offers.price` / `hasVariant[page].offers.price`). */

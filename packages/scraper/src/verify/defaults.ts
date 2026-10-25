@@ -1,20 +1,20 @@
 // packages/scraper/src/verify/defaults.ts
 // A website's default (spec 2026-10-13 §5): written into every cell the
 // certified paths leave empty, in the form a path would have written.
-import { normalize, renderValue } from './normalize.js';
+import { normalize, renderValue, storedText } from './normalize.js';
 import type { CustomerFieldType } from './types.js';
 
 export type DefaultedField = { key: string; type: CustomerFieldType; defaultValue?: string };
 
-/** The default as a run writes it — `evaluatePath`'s own rendering: text NFKC-collapsed and
- * trimmed, every other type (including a list) parsed by `normalize` and rendered by
+/** The default as a run writes it — `evaluatePath`'s own rendering: text as `storedText` keeps it
+ * (its own characters, whitespace collapsed and trimmed), every other type (including a list) parsed by `normalize` and rendered by
  * `renderValue` — the same production chain a path's hit goes through, so a default-filled cell
  * and a path-filled cell of the same field render identically. Null when the text does not parse
  * for the type. */
 export function renderDefault(type: CustomerFieldType, value: string): unknown {
   const norm = normalize(type, value);
   if (norm === null) return null;
-  return type === 'text' ? value.normalize('NFKC').replace(/\s+/g, ' ').trim() : renderValue(type, norm);
+  return type === 'text' ? storedText(value) : renderValue(type, norm);
 }
 
 const isEmpty = (v: unknown) => v === null || v === undefined || v === '';

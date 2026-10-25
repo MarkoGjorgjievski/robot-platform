@@ -27,6 +27,12 @@ describe('buildVariantRows', () => {
     expect(r.rows[0]).toMatchObject({ title: 'Shoe', price: 10, sku: 'A1', in_stock: true, colour: 'Black', _product_key: 'https://s.example/p/1', _variant_key: 'A1' });
   });
 
+  it('a variant\'s text keeps its trademark sign, as Verify shows it (first run, re-run 1)', () => {
+    const marked = [{ '@type': 'Product', color: 'Knisa™ grey', sku: 'A1™', offers: { price: '10.00' } }];
+    const r = buildVariantRows({ productRow: product, entries: marked, plan, pageUrl: 'https://s.example/p/1' });
+    expect(r.rows[0]).toMatchObject({ sku: 'A1™', colour: 'Knisa™ grey' });
+  });
+
   it('an entry missing a variant field is partial, the row is kept', () => {
     const r = buildVariantRows({ productRow: product, entries, plan, pageUrl: 'https://s.example/p/1' });
     expect(r.rows[1]).toMatchObject({ price: null, _variant_partial: true });

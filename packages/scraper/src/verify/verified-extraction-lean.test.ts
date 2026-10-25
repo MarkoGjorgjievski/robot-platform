@@ -55,6 +55,14 @@ describe('runVerifiedExtraction — lean', () => {
     expect(r.capture?.mode).toBe('lean');
   });
 
+  it('a run stores the text as Verify showed it: a trademark sign is never rewritten as TM (first run, re-run 1)', async () => {
+    const page: Page = { probe: { [DESC]: 'SoftSense™ High-Rise Leggings', [RATING]: '4.1' }, text: 'Lamp SoftSense™ High-Rise Leggings 4.1' };
+    const { browser } = fakeBrowser(page, page);
+    const r = await runVerifiedExtraction({ url: URL_, fields: FIELDS }, { browser, acquireLock: noLock, lean: newLeanRunState({ checks: 0 }) });
+    expect(r.data.description).toBe('SoftSense™ High-Rise Leggings');
+    expect(r.shown?.description).toBe(true);
+  });
+
   it('a website with no certified XPath skips the expand pass', async () => {
     const { browser, asked } = fakeBrowser(agreed, agreed);
     await runVerifiedExtraction({ url: URL_, fields: [NAME] }, { browser, acquireLock: noLock, lean: newLeanRunState({ checks: 0 }) });

@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { normalize, valuesEqual, validateExpected, renderValue, afterLabel, labelled } from './normalize.js';
+import { normalize, valuesEqual, validateExpected, renderValue, afterLabel, labelled, storedText } from './normalize.js';
+
+describe('storedText (first run, re-run 1)', () => {
+  it('keeps the text as the page shows it: a trademark sign stays a sign, whitespace collapses', () => {
+    expect(storedText('  SoftSense™  High-Rise Leggings ')).toBe('SoftSense™ High-Rise Leggings');
+    expect(storedText('Crusher® 720 ℠')).toBe('Crusher® 720 ℠');
+    expect(storedText('Room 12 m²')).toBe('Room 12 m²');
+    expect(storedText('Café')).toBe('Café');
+  });
+  it('comparison still folds the sign: a page that writes TM and one that shows ™ agree', () => {
+    expect(valuesEqual('text', 'SoftSense™ High-Rise Leggings', 'SoftSenseTM High-Rise Leggings')).toBe(true);
+  });
+});
 
 describe('normalize', () => {
   it('text: trims, collapses whitespace, NFKC; keeps case (comparison folds it)', () => {
