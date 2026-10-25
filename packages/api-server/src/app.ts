@@ -8,6 +8,9 @@ import { appRouter } from '@robot/api/routers';
 import { loadRunExport, loadProjectExport, orgIdForRun, orgIdForProject, orgIdForCaptureFile } from '@robot/api/export';
 import { loadSession } from '@robot/api/auth';
 import { reportError as defaultReportError } from '@robot/api/errors';
+import { createLog, type Log } from '@robot/api/log';
+import { readiness as checkReadiness, type Readiness } from '@robot/api/monitoring';
+import { jobQueueName } from '@robot/api/jobs';
 import { loadRunFile, webhookSecretForRun } from '@robot/api/delivery';
 import { db } from '@robot/db';
 import { join } from 'node:path';
@@ -16,6 +19,7 @@ import { createExportRoutes } from './routes/export.js';
 import { createCaptureGate } from './routes/captures-gate.js';
 import { sessionTokenFrom } from './session-cookie.js';
 import { clientIpOf } from './client-ip.js';
+import { requestLog } from './request-log.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -32,6 +36,10 @@ export type AppDeps = {
   webhookSecretForRun: (runId: string) => Promise<string | null>;
   /** Spec 2026-10-25 monitoring §2.4: where a 500 and a tRPC INTERNAL_SERVER_ERROR are reported (method/path or path/type only — never input). */
   reportError: (err: unknown, context: Record<string, unknown>) => unknown;
+  /** Spec 2026-10-25 monitoring §2.2: the request log's logger (default `createLog('api-server')`). */
+  log: Log;
+  /** Spec 2026-10-25 monitoring §2.1: /readyz's checks (default: this process's JOB_QUEUE). */
+  readiness: () => Promise<Readiness>;
   /** Tests only: the tRPC router mounted at /trpc (default appRouter). */
   router: AnyTRPCRouter;
 };
@@ -46,6 +54,8 @@ export function createApp(deps: Partial<AppDeps> = {}) {
   const loadSnapshot = deps.loadRunFile ?? ((runId: string, format: 'csv' | 'json' | 'xlsx') => loadRunFile(db, runId, format));
   const loadWebhookSecret = deps.webhookSecretForRun ?? ((runId: string) => webhookSecretForRun(db, runId));
   const report = deps.reportError ?? defaultReportError;
+  const log = deps.log ?? createLog('api-server');
+  const ready = deps.readiness ?? (() => checkReadiness({ queue: jobQueueName() }));
   const app = new Hono();
 
   // Spec 2026-10-25 monitoring §2.4: an exception a route did not handle is a 500 with no detail, reported once.
@@ -55,6 +65,9 @@ export function createApp(deps: Partial<AppDeps> = {}) {
     return c.json({ error: 'Internal error' }, 500);
   });
 
+  // Spec 2026-10-25 monitoring §2.2: every request — method, path without its query, status, duration, client IP.
+  app.use('*', requestLog(log));
+
   // CORS — the app shell. `APP_ORIGINS` (comma-separated) lets an isolated pair
   // (e.g. :3100 → :4100) run beside the dev servers; unset or blank means :3000.
   const origins = (process.env.APP_ORIGINS?.trim() || 'http://localhost:3000').split(',').map((o) => o.trim()).filter(Boolean);
@@ -62,6 +75,14 @@ export function createApp(deps: Partial<AppDeps> = {}) {
 
   // Health check
   app.get('/healthz', (c) => c.json({ status: 'ok' }));
+
+  // Readiness (spec 2026-10-25 monitoring §2.1, §2.6): no auth; check names and booleans only — no ids, hosts or errors.
+  app.get('/readyz', async (c) => {
+    let r: Readiness;
+    try { r = await ready(); } catch { r = { ok: false, checks: { db: false, migrations: false, worker: false, queue: false } }; }
+    c.header('cache-control', 'no-store');
+    return c.json({ status: r.ok ? 'ok' : 'unavailable', checks: r.checks }, r.ok ? 200 : 503);
+  });
 
   // tRPC adapter — mounts every procedure under /trpc/<procedure-name>. Reads the
   // session cookie in; hands procedures a way to set/clear it via Set-Cookie out.

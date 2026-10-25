@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, users, runs, captures } from '@robot/db';
+import { db, users, runs, captures, workers, jobs } from '@robot/db';
+import { jobQueueName } from '@robot/api/jobs';
+import { createLog } from '@robot/api/log';
 import { deleteOwnOrg, signedInCaller } from '@robot/api/test-helpers/identity';
 import { createProjectWithSource } from '@robot/api/test-helpers/customer-source';
 import { RateLimiter, DEFAULT_LIMITS, useRateLimiter, RATE_LIMITED_MESSAGE } from '@robot/api/isolation/rate-limit';
@@ -328,5 +330,83 @@ describe('errors (spec 2026-10-25 monitoring §2.4)', () => {
     expect(seen).toHaveLength(1);
     expect((seen[0]![0] as Error).message).toBe('db exploded');
     expect(seen[0]![1]).toEqual({ path: 'broken', type: 'query' });
+  });
+});
+
+describe('/readyz (spec 2026-10-25 monitoring §2.1, §2.6)', () => {
+  afterEach(async () => {
+    await db.delete(workers).where(eq(workers.queue, jobQueueName()));
+    await db.delete(jobs).where(eq(jobs.queue, jobQueueName()));
+  });
+  const allOk = { db: true, migrations: true, worker: true, queue: true };
+
+  it('503 naming each check when no worker beats on this queue; no-store', async () => {
+    const res = await createApp().request('/readyz');
+    expect(res.status).toBe(503);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({ status: 'unavailable', checks: { db: true, migrations: true, worker: false, queue: true } });
+  });
+
+  it('200 once a worker beats; 503 (queue) with a job nobody takes', async () => {
+    await db.insert(workers).values({ id: `readyz:${jobQueueName()}`, queue: jobQueueName(), startedAt: new Date() });
+    const ok = await createApp().request('/readyz');
+    expect([ok.status, await ok.json()]).toEqual([200, { status: 'ok', checks: allOk }]);
+    await db.insert(jobs).values({ queue: jobQueueName(), type: 'verify', runAfter: sql`now() - interval '11 minutes'` });
+    const late = await createApp().request('/readyz');
+    expect([late.status, await late.json()]).toEqual([503, { status: 'unavailable', checks: { ...allOk, queue: false } }]);
+  });
+
+  it('a readiness that throws: 503 with every check false, and the answer names no host, id or error', async () => {
+    const res = await createApp({ readiness: async () => { throw new Error('connect ECONNREFUSED 10.0.0.5:5432'); } }).request('/readyz');
+    expect(res.status).toBe(503);
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({ status: 'unavailable', checks: { db: false, migrations: false, worker: false, queue: false } });
+    expect(text).not.toMatch(/10\.0\.0\.5|ECONNREFUSED/);
+  });
+
+  it('/healthz stays liveness: 200 whatever readiness says', async () => {
+    const res = await createApp({ readiness: async () => { throw new Error('down'); } }).request('/healthz');
+    expect([res.status, await res.json()]).toEqual([200, { status: 'ok' }]);
+  });
+});
+
+describe('the request log (spec 2026-10-25 monitoring §2.2)', () => {
+  const capture = () => {
+    const lines: Array<Record<string, unknown>> = [];
+    return { lines, log: createLog('api-server', { env: { LOG_FORMAT: 'json', LOG_LEVEL: 'debug' }, sink: (line) => lines.push(JSON.parse(line)) }) };
+  };
+  const ready = async () => ({ ok: true, checks: { db: true, migrations: true, worker: true, queue: true } });
+
+  it('method, path without the query, status, duration and client IP at info; /healthz and /readyz at debug', async () => {
+    const { lines, log } = capture();
+    const app = createApp({ log, readiness: ready });
+    await app.request('/nope?token=q-secret&x=1');
+    await app.request('/healthz?probe=1');
+    await app.request('/readyz');
+    expect(lines.map((l) => [l.level, l.method, l.path, l.status])).toEqual([['info', 'GET', '/nope', 404], ['debug', 'GET', '/healthz', 200], ['debug', 'GET', '/readyz', 200]]);
+    expect(lines[0]).toMatchObject({ scope: 'api-server', ip: 'unknown', msg: expect.stringMatching(/^GET \/nope 404 \d+ ms$/) });
+    expect(typeof lines[0]!.ms).toBe('number');
+    expect(JSON.stringify(lines)).not.toContain('q-secret');
+  });
+
+  it('a tRPC call is logged by its path only — never its input or the session cookie', async () => {
+    const { lines, log } = capture();
+    await createApp({ log, readiness: ready }).request('/trpc/auth.me?input=%7B%22password%22%3A%22in-secret%22%7D', { headers: { cookie: 'robot_session=cookie-secret' } });
+    expect(lines[0]).toMatchObject({ method: 'GET', path: '/trpc/auth.me' });
+    expect(JSON.stringify(lines)).not.toMatch(/in-secret|cookie-secret/);
+  });
+
+  it('the IP is the last X-Forwarded-For entry only with TRUST_PROXY=on', async () => {
+    const saved = process.env.TRUST_PROXY;
+    try {
+      const { lines, log } = capture();
+      process.env.TRUST_PROXY = 'on';
+      await createApp({ log, readiness: ready }).request('/nope', { headers: { 'x-forwarded-for': '198.51.100.1, 203.0.113.9' } });
+      process.env.TRUST_PROXY = '';
+      await createApp({ log, readiness: ready }).request('/nope', { headers: { 'x-forwarded-for': '203.0.113.9' } });
+      expect(lines.map((l) => l.ip)).toEqual(['203.0.113.9', 'unknown']);
+    } finally {
+      if (saved === undefined) delete process.env.TRUST_PROXY; else process.env.TRUST_PROXY = saved;
+    }
   });
 });
