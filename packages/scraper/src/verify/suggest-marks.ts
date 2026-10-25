@@ -115,7 +115,53 @@ export function pageHeading(html: string, boxes: Box[]): string | null {
 const normHeading = (v: string) => v.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
 export function sameHeading(a: string, b: string): boolean { return normHeading(a) === normHeading(b); }
 
-/** In or on the page's `h1`: the element's tag, or an `h1` step in one of its XPaths. */
+/** Lower-cased, NFKC, whitespace collapsed, without ®/™/©: the product-name containment check's form. */
+const normName = (v: string) => normHeading(v.replace(/[®™©]/g, ''));
+const PRODUCT_TYPES = new Set(['Product', 'ProductGroup', 'ProductModel', 'IndividualProduct']);
+function isProduct(o: Record<string, unknown>): boolean {
+  const t = o['@type'];
+  return (Array.isArray(t) ? t : [t]).some((x) => typeof x === 'string' && PRODUCT_TYPES.has(x));
+}
+
+/**
+ * The page's names for its product (fix round 1, review I1): the JSON-LD Product's `name` (a
+ * top-level block or one in an `@graph`) when there is one — it outranks a title that also names
+ * the shop; else og:title and the document's `<title>`.
+ */
+function productNames(capture: CaptureLike): string[] {
+  const ld: string[] = [];
+  for (const b of capture.structuredData.ldJson as unknown[]) {
+    if (!b || typeof b !== 'object') continue;
+    const block = b as Record<string, unknown>;
+    const items: unknown[] = Array.isArray(block['@graph']) ? [block, ...(block['@graph'] as unknown[])] : [block];
+    for (const it of items) {
+      if (!it || typeof it !== 'object') continue;
+      const o = it as Record<string, unknown>;
+      if (isProduct(o) && typeof o.name === 'string') ld.push(o.name);
+    }
+  }
+  if (ld.length > 0) return ld;
+  const out: string[] = [];
+  const og = capture.structuredData.meta['og:title'];
+  if (typeof og === 'string' && og.trim()) out.push(og);
+  const t = /<title(?:\s[^>]*)?>([\s\S]*?)<\/title\s*>/i.exec(capture.html ?? '');
+  if (t && t[1]!.trim()) out.push(visibleTextFromHtml(t[1]!));
+  return out;
+}
+
+/**
+ * Is the heading the product's name — not a category, the shop's logo or "You may also like"
+ * (fix round 1, review I1)? Only when a name of the product contains it ("Crusher® 720 - Primer"
+ * ⊇ "Crusher® 720"), or when the page names its product nowhere.
+ */
+function headingIsTheName(capture: CaptureLike, heading: string): boolean {
+  const names = productNames(capture);
+  if (names.length === 0) return true;
+  const h = normName(heading);
+  return h !== '' && names.some((n) => normName(n).includes(h));
+}
+
+/** In or on the page's `h1`:the element's tag, or an `h1` step in one of its XPaths. */
 const inH1 = (b: Box) => b.tag === 'h1' || b.xpaths.some((x) => /\/h1(?:\[|\/|$)/.test(x));
 /** An element a customer can point at on the screenshot (the app's `pointable`). */
 const onScreenshot = (b: Box) => b.rect.w >= 4 && b.rect.h >= 4 && b.rect.x >= 0 && b.rect.y >= 0;
@@ -135,6 +181,7 @@ function preferHeading(
   const heading = pageHeading(capture.html ?? '', boxes);
   if (!heading) return found;
   if (found && sameHeading(found.value, heading)) return found;
+  if (!headingIsTheName(capture, heading)) return found;
   for (const source of SOURCE_ORDER) {
     for (const tail of tails) {
       const leaf = all.find((l) => l.source === source && tailMatches(l.path, tail) && typeof l.raw === 'string' && sameHeading(l.raw, heading));
