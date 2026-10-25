@@ -728,8 +728,9 @@ export class PlaywrightBrowser implements IBrowser {
   /**
    * Spec 2026-10-24 proxy §2.2: before a host's first page, ask the proxy from Node whether it will carry us there
    * (`checkProxy`: talks to the proxy only). Chromium never surfaces a 407 on an https CONNECT — it hangs until the
-   * navigation timeout — so a wrong password, a refused or silent proxy is caught here, before any navigation. The
-   * answer is kept for the session, a failure too: every page of that host fails at once with the proxy sentence.
+   * navigation timeout — so a wrong password, a refused or silent proxy is caught here, before any navigation. A pass
+   * and a lasting failure (a wrong password, a refusal) are kept for the session; any other failure (no answer, a
+   * reset, a 5xx from a bad exit) fails that page only and the next page checks again (Task 2 re-review).
    */
   private async checkProxyFor(url: string): Promise<void> {
     if (!this.proxy) return;
@@ -743,6 +744,7 @@ export class PlaywrightBrowser implements IBrowser {
     }
     const result = await check;
     if (result.ok) return;
+    if (!result.lasting && this.proxyChecks.get(origin) === check) this.proxyChecks.delete(origin);
     console.warn(`[browser] the proxy check failed for ${url}: ${result.detail}`);
     throw new CaptureError('proxy', url, result.detail);
   }

@@ -161,6 +161,35 @@ describe('an https page through a proxy: the tunnel (Task 2 review, issues 1–2
     } finally { await proxy.close(); }
   }, 60_000);
 
+  it('re-review: a passing blip (502 once) fails that page only; the next page of the session re-checks and goes through', async () => {
+    const answer: { connectAnswer?: number } = { connectAnswer: 502 };
+    const proxy = await startRecordingProxy(answer);
+    const b = new PlaywrightBrowser();
+    try {
+      await b.launch({ headless: true, proxy: { server: proxy.url } });
+      const first = await b.capture(httpsUrl, { waitUntil: 'load', timeout: 30_000, pictures: false }).catch((e: unknown) => e);
+      expect(first).toMatchObject({ kind: 'proxy', message: PROXY_REFUSED });
+      delete answer.connectAnswer;
+      const second = await b.capture(httpsUrl, { waitUntil: 'load', timeout: 30_000, pictures: false }).catch((e: unknown) => e);
+      // The tunnel now opens (TLS then fails on this plain-http listener): not the proxy's failure.
+      expect((second as CaptureError).kind).not.toBe('proxy');
+      expect(seen).toEqual([]);
+    } finally { await b.close(); await proxy.close(); }
+  }, 90_000);
+
+  it('a wrong password is lasting: the session does not ask the proxy again for that host', async () => {
+    const proxy = await startRecordingProxy({ auth: { username: 'u', password: 'right' } });
+    const b = new PlaywrightBrowser();
+    try {
+      await b.launch({ headless: true, proxy: { server: proxy.url, username: 'u', password: 'wrong' } });
+      for (let i = 0; i < 2; i++) {
+        const err = await b.capture(httpsUrl, { waitUntil: 'load', timeout: 30_000, pictures: false }).catch((e: unknown) => e);
+        expect(err).toMatchObject({ kind: 'proxy' });
+      }
+      expect(proxy.log.filter((e) => e.method === 'CONNECT')).toHaveLength(1);
+    } finally { await b.close(); await proxy.close(); }
+  }, 90_000);
+
   it('a proxy that is not there: the proxy sentence', async () => {
     const gone = await startRecordingProxy();
     await gone.close();

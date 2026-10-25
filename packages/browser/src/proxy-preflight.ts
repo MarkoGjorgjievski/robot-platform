@@ -9,7 +9,9 @@ import type { ProxySettings } from './types.js';
 
 export const PROXY_CHECK_TIMEOUT_MS = 10_000;
 
-export type ProxyCheck = { ok: true } | { ok: false; detail: string };
+/** `lasting`: a failure that will answer the same next time (a wrong or missing password, an unreadable address, a
+ *  refusal) — kept for the session; any other failure (no answer, a reset, a 5xx) is checked again on the next page. */
+export type ProxyCheck = { ok: true } | { ok: false; detail: string; lasting?: boolean };
 
 /** The proxy's scheme, host and port; Playwright's `server` may omit the scheme (http). */
 function proxyAddress(server: string): { scheme: 'http' | 'https' | 'socks5'; host: string; port: number } | null {
@@ -35,7 +37,7 @@ function authority(host: string, port: number): string {
  */
 export function checkProxy(proxy: ProxySettings, targetUrl: string, timeoutMs = PROXY_CHECK_TIMEOUT_MS): Promise<ProxyCheck> {
   const addr = proxyAddress(proxy.server);
-  if (!addr) return Promise.resolve({ ok: false, detail: 'The proxy address could not be read.' });
+  if (!addr) return Promise.resolve({ ok: false, detail: 'The proxy address could not be read.', lasting: true });
   let target: URL;
   try { target = new URL(targetUrl); } catch { return Promise.resolve({ ok: true }); }
   if (target.protocol !== 'http:' && target.protocol !== 'https:') return Promise.resolve({ ok: true });
@@ -100,8 +102,8 @@ export function checkProxy(proxy: ProxySettings, targetUrl: string, timeoutMs = 
       if (eol < 0) return;
       const status = Number(/^HTTP\/\d(?:\.\d)?\s+(\d{3})/.exec(text.slice(0, eol))?.[1] ?? NaN);
       if (Number.isNaN(status)) return finish({ ok: false, detail: 'The proxy sent an answer that is not HTTP.' });
-      if (status === 407) return finish({ ok: false, detail: 'The proxy answered 407 (authentication required).' });
-      if (https && status !== 200) return finish({ ok: false, detail: `The proxy answered ${status} to the tunnel request.` });
+      if (status === 407) return finish({ ok: false, detail: 'The proxy answered 407 (authentication required).', lasting: true });
+      if (https && status !== 200) return finish({ ok: false, detail: `The proxy answered ${status} to the tunnel request.`, lasting: status === 403 });
       finish({ ok: true });
     });
   });

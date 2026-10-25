@@ -38,13 +38,13 @@ describe('checkProxy', () => {
   it('https: a 407, and the detail names no credentials', async () => {
     const p = await proxy({ auth: { username: 'u', password: 'right' } });
     const r = await checkProxy({ server: p.url, username: 'secret-user', password: 'secret-pass' }, 'https://shop.invalid/p/1');
-    expect(r).toEqual({ ok: false, detail: 'The proxy answered 407 (authentication required).' });
+    expect(r).toEqual({ ok: false, detail: 'The proxy answered 407 (authentication required).', lasting: true });
     expect(JSON.stringify(r)).not.toMatch(/secret/);
   });
 
   it('https: any answer but 200 to the CONNECT is the proxy failing', async () => {
     const port = await tcp((s) => s.once('data', () => s.end('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n')));
-    expect(await checkProxy({ server: `http://127.0.0.1:${port}` }, 'https://shop.invalid/')).toEqual({ ok: false, detail: 'The proxy answered 502 to the tunnel request.' });
+    expect(await checkProxy({ server: `http://127.0.0.1:${port}` }, 'https://shop.invalid/')).toEqual({ ok: false, detail: 'The proxy answered 502 to the tunnel request.', lasting: false });
   });
 
   it('http: a 407 fails, the website’s own 404 through the proxy passes', async () => {
