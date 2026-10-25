@@ -202,9 +202,10 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
             recorded = await failJobTerminal(a.job.id, { owner: owner(a.job) }, { kind: 'unavailable', message: 'stalled' }, runSentenceFor(a.job.type));
           } finally { await closeBrowsers(); }
         }
-        if (recorded) say('warn', `stuck ${a.job.type} ${a.job.id}: no progress for ${a.def.policy.stuckMs} ms`, { jobId: a.job.id, type: a.job.type, stuckMs: a.def.policy.stuckMs });
-        if (recorded && failedForGood) fault(new Error(`stalled: no progress for ${a.def.policy.stuckMs} ms`), { jobId: a.job.id, type: a.job.type, attempt: a.job.attempts });
-        else lostBefore(a.job, 'it was stopped as stuck');
+        if (recorded) {
+          say('warn', `stuck ${a.job.type} ${a.job.id}: no progress for ${a.def.policy.stuckMs} ms`, { jobId: a.job.id, type: a.job.type, stuckMs: a.def.policy.stuckMs });
+          if (failedForGood) fault(new Error(`stalled: no progress for ${a.def.policy.stuckMs} ms`), { jobId: a.job.id, type: a.job.type, attempt: a.job.attempts });
+        } else lostBefore(a.job, 'it was stopped as stuck');
       })().catch((err) => say('error', `could not stop ${a.job.id}: ${msg(err)}`, { jobId: a.job.id, error: msg(err) })));
     }
   }, opts.stuckCheckMs ?? 5000);
