@@ -1810,7 +1810,10 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => page.getByRole('button', { name: /^Drop product \d+$/ }).count(), { timeout: 30_000 }).toBe(5);
     await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000, interval: 1000 }).toBe(5);
     await expect.poll(() => page.getByRole('button', { name: `Title on product 5: suggested, ${DRIFT_PRODUCT.title}`, exact: true }).count(), { timeout: 30_000 }).toBe(1);
-    expect(await rowStatusText('Title'), 'the Title row still refuses the heading').not.toContain('heading');
+    // Products 1–3 carry the seeded Titles; product 4 (`/p/9`, its ProductGroup name = its h1) and
+    // product 5 (the h1, its page data "Widget E (Drift)" containing it) are each their page's heading,
+    // so the row agrees though their paths differ.
+    await expect.poll(() => rowStatusText('Title'), { timeout: 10_000 }).toBe('agreed Accept');
     console.log(`heading: Title's status reads "${await rowStatusText('Title')}"`);
     await expect.poll(() => page.getByText('saved', { exact: true }).count(), { timeout: 20_000 }).toBe(1);
 

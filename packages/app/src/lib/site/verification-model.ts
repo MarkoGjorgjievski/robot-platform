@@ -9,6 +9,7 @@ import { FIELD_TYPES, type FieldType } from '../fields-view';
 import { afterLabel, labelled, normalize, valuesEqual } from '@robot/scraper/normalize';
 import type { PageVariantLike } from './verification-view';
 import { AI_UNAVAILABLE_BADGE, NOT_VERIFIED_BADGE, notCheckedText } from './verify-messages';
+import { fixLabel } from './table-selection';
 
 export { FIELD_TYPES };
 export type { FieldType };
@@ -758,12 +759,15 @@ export function acceptAllAgreed(
  * product 1" offered nothing, and a new customer was stuck): the named product's own Fix / Mark on
  * the screenshot, as its cell's button would — only once that product's screenshot is in. `cells`
  * in product order: each cell's state and whether its screenshot has landed.
+ * Every needs-you reason that names a product with its screenshot in (missing, only in the page
+ * data, several places, check it, an invalid value, not the heading) is settled the same way — by
+ * pointing at that product's value — so each offers it, not only the heading rule.
  */
 export function rowFix(status: RowStatus, cells: Array<{ state: Segment; ready: boolean }>): { product: number; label: 'Fix' | 'Mark' } | null {
   if (status.kind !== 'needs-you' || status.product === undefined) return null;
   const cell = cells[status.product - 1];
   if (!cell?.ready) return null;
-  return { product: status.product, label: cell.state === 'empty' ? 'Mark' : 'Fix' };
+  return { product: status.product, label: fixLabel(cell.state) };
 }
 
 /** The value cell's state word — distinct from the battery's own ("confirmed"): the table calls an answered cell "accepted". */
