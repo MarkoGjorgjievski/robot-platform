@@ -262,3 +262,12 @@ describe('secrets written as name: value or name = value in text (fix round 1, I
     for (const [input, want] of cases) expect(redactText(input, {})).toBe(want);
   });
 });
+
+describe('fix round 1, minors', () => {
+  it('M1: a Bearer/Basic token is masked to the next space; an Authorization line to its end', () => {
+    expect(redactText('Bearer abc!SEKRET next', {})).toBe('Bearer *** next');
+    expect(redactText('Basic dXNl:cGFz!x', {})).toBe('Basic ***');
+    expect(redactText('Authorization: Bearer abc SEKRET\nnext line', {})).toBe('Authorization: Bearer ***\nnext line');
+    expect(redactText('proxy-authorization: Basic dXNlcjpwYXNz more', {})).toBe('proxy-authorization: Basic ***');
+  });
+});
