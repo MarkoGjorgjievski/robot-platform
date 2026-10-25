@@ -39,8 +39,8 @@ function keyOf(type: CustomerFieldType, v: string): string | null {
 }
 
 /**
- * The page's rendered heading text — exactly as `packages/api/src/routers/sources.ts` `headingTextFrom`
- * does: the first rendered `<h1>` in the html (scripts/styles stripped first, so a templated `<h1>` in
+ * The page's rendered heading text — exactly as `pageHeading` in `./suggest-marks.ts`
+ * (the Verification tab's heading) does: the first rendered `<h1>` in the html (scripts/styles stripped first, so a templated `<h1>` in
  * a `<script>` never counts, and a nested `<span>` is read, unlike a box's own-text-only `.text`), else
  * the largest h1/h2/h3 box's own text.
  */
