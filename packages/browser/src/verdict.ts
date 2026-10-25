@@ -69,3 +69,11 @@ export function classifyNavigationError(err: unknown): CaptureErrorKind {
   if (m.includes('timeout') && m.includes('exceeded')) return 'timeout';
   return 'unreachable';
 }
+
+/** Chromium's net errors that are the proxy's (or the tunnel through it), not the website's (spec 2026-10-24 proxy §2.2). */
+const PROXY_ERRORS = /net::ERR_(?:PROXY_[A-Z_]+|TUNNEL_CONNECTION_FAILED|SOCKS_[A-Z_]+|NO_SUPPORTED_PROXIES|MANDATORY_PROXY_CONFIGURATION_FAILED|UNEXPECTED_PROXY_AUTH|INVALID_AUTH_CREDENTIALS)\b/;
+
+/** Whether a navigation error is the proxy failing. Asked only of a browser that has a proxy. */
+export function isProxyFailure(message: string): boolean {
+  return PROXY_ERRORS.test(message);
+}

@@ -129,7 +129,17 @@ export type ReadyCheck = {
   graceMaxMs?: number;
 };
 
-export type BrowserOptions = {
+/** Where a website's pages go out (spec 2026-10-24 proxy §2.2): Playwright's per-context proxy. */
+export type ProxySettings = { server: string; username?: string; password?: string };
+
+/**
+ * A website's browser (spec 2026-10-24 proxy §2.2): its proxy, and its country's locale and time zone. Empty: direct,
+ * with stealth's en-US / America/New_York, exactly as before.
+ */
+export type BrowserProfile = { proxy?: ProxySettings; locale?: string; timezoneId?: string };
+
+/** `proxy`, `locale`, `timezoneId` (BrowserProfile) go to the one context; an explicit locale or zone wins over stealth's. */
+export type BrowserOptions = BrowserProfile & {
   headless?: boolean;
   blockAds?: boolean;
   blockImages?: boolean;
@@ -337,8 +347,9 @@ export type CaptureVerdict =
   /** The address named a variant the page did not show (spec 2026-10-14 §7); `named` is the address's own text. */
   | { kind: 'wrong-variant'; status: number; named: string };
 
-/** Why no document arrived at all; the only reason `capture()` rejects. */
-export type CaptureErrorKind = 'crashed' | 'unreachable' | 'timeout';
+/** Why no document arrived at all; the only reason `capture()` rejects. `proxy`: the proxy failed to connect or refused
+ *  us (407) — the website was never reached, and nothing is retried direct (spec 2026-10-24 proxy §3.1). */
+export type CaptureErrorKind = 'crashed' | 'unreachable' | 'timeout' | 'proxy';
 
 /**
  * No document arrived. Its message is the verdict's one sentence

@@ -36,3 +36,11 @@ describe('the monthly limit sentence (spec 2026-10-24 metering §2.3)', () => {
     expect(captureWords(`Not tried: ${CAP_REACHED_MESSAGE}`)).toBe(`Not tried: ${CAP_REACHED_MESSAGE}`);
   });
 });
+
+describe('the proxy refusal in customer words (spec 2026-10-24 proxy §2.2)', () => {
+  it('reads as a blocked page, keeps the wrappers, and staff read it as stored', () => {
+    expect(captureWords('The proxy refused the connection.')).toBe("This website turned us away, so we can't read it yet.");
+    expect(captureWords('Not tried: The proxy refused the connection.')).toBe("Not tried: This website turned us away, so we can't read it yet.");
+    expect(captureWords('The proxy refused the connection.', true)).toBe('The proxy refused the connection.');
+  });
+});

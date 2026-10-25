@@ -2,7 +2,7 @@ import { chromium, type Browser, type BrowserContext, type Page, type JSHandle, 
 import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, CaptureVerdict, ReadyCheck, ReadySnapshot, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig, ScrollOptions } from './types.js';
 import { CaptureError } from './types.js';
-import { classifyVerdict, classifyNavigationError } from './verdict.js';
+import { classifyVerdict, classifyNavigationError, isProxyFailure } from './verdict.js';
 import { pageVariantFrom, selectedInPageData, wrongVariant, type Selection } from './page-variant.js';
 import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
@@ -68,29 +68,59 @@ export function stealthPlugin<P extends { enabledEvasions: Set<string> }>(make: 
   return plugin;
 }
 
+/** Stealth's own language disguise (navigator.languages, Accept-Language) is en-US; a website's country replaces it. */
+const DEFAULT_LOCALE = 'en-US';
+// No types ship for the evasions' own modules (CommonJS, default export = (opts) => plugin).
+const UA_OVERRIDE = 'puppeteer-extra-plugin-stealth/evasions/user-agent-override/index.js';
+const NAV_LANGUAGES = 'puppeteer-extra-plugin-stealth/evasions/navigator.languages/index.js';
+
 /**
- * playwright-extra + the stealth plugin, loaded lazily and memoised.
+ * playwright-extra + the stealth plugin, loaded lazily and memoised — one launcher per locale.
  *
  * Lazy because it is a heavy import on a module every package pulls in, and
  * because a failure to load it must not take down capture entirely — a vanilla
  * browser that gets blocked on some sites beats no browser at all.
+ *
+ * With no locale (or en-US) it is exactly the launcher it always was (spec 2026-10-24 proxy §3.3). Another locale gets
+ * its own instance (`addExtra`) whose `user-agent-override` and `navigator.languages` evasions carry that locale:
+ * stealth's defaults would otherwise put en-US back over the context's locale on every page.
  */
-let stealthLauncher: Promise<typeof chromium> | null = null;
-function stealthChromium(): Promise<typeof chromium> {
-  stealthLauncher ??= (async () => {
-    try {
-      const [{ chromium: extra }, { default: StealthPlugin }] = await Promise.all([
-        import('playwright-extra'),
-        import('puppeteer-extra-plugin-stealth'),
-      ]);
-      extra.use(stealthPlugin(StealthPlugin));
-      return extra as unknown as typeof chromium;
-    } catch (err) {
-      console.warn(`[browser] stealth unavailable, falling back to vanilla chromium: ${(err as Error).message}`);
-      return chromium;
-    }
-  })();
-  return stealthLauncher;
+const stealthLaunchers = new Map<string, Promise<typeof chromium>>();
+function stealthChromium(locale?: string): Promise<typeof chromium> {
+  const key = locale && locale !== DEFAULT_LOCALE ? locale : '';
+  let launcher = stealthLaunchers.get(key);
+  if (!launcher) {
+    launcher = (async () => {
+      try {
+        const [{ chromium: shared, addExtra }, { default: StealthPlugin }] = await Promise.all([
+          import('playwright-extra'),
+          import('puppeteer-extra-plugin-stealth'),
+        ]);
+        if (!key) {
+          shared.use(stealthPlugin(StealthPlugin));
+          return shared as unknown as typeof chromium;
+        }
+        const extra = addExtra(chromium);
+        const stealth = stealthPlugin(StealthPlugin);
+        stealth.enabledEvasions.delete('user-agent-override');
+        stealth.enabledEvasions.delete('navigator.languages');
+        extra.use(stealth);
+        const languages = [key, key.split('-')[0]!];
+        const [{ default: UserAgentOverride }, { default: NavigatorLanguages }] = await Promise.all([
+          import(UA_OVERRIDE as string) as Promise<{ default: (o: object) => Parameters<typeof extra.use>[0] }>,
+          import(NAV_LANGUAGES as string) as Promise<{ default: (o: object) => Parameters<typeof extra.use>[0] }>,
+        ]);
+        extra.use(UserAgentOverride({ locale: languages.join(',') }));
+        extra.use(NavigatorLanguages({ languages }));
+        return extra as unknown as typeof chromium;
+      } catch (err) {
+        console.warn(`[browser] stealth unavailable, falling back to vanilla chromium: ${(err as Error).message}`);
+        return chromium;
+      }
+    })();
+    stealthLaunchers.set(key, launcher);
+  }
+  return launcher;
 }
 
 const nhm = new NodeHtmlMarkdown();
@@ -116,6 +146,8 @@ const DISMISS_ESCAPE_SETTLE_MS = 500;
 export class PlaywrightBrowser implements IBrowser {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
+  /** This browser's pages go through a proxy (spec 2026-10-24 proxy §2.2): its failures are the proxy's, never retried direct. */
+  private proxied = false;
 
   async launch(options: BrowserOptions = {}): Promise<void> {
     assertBrowserLaunchAllowed();
@@ -129,24 +161,33 @@ export class PlaywrightBrowser implements IBrowser {
     // Newegg, which already worked, was unaffected — this does not trade away
     // sites that were fine.
     const useStealth = options.stealth ?? true;
-    const launcher = useStealth ? await stealthChromium() : chromium;
+    const launcher = useStealth ? await stealthChromium(options.locale) : chromium;
 
     this.browser = await launcher.launch({ headless: options.headless ?? true, handleSIGINT: options.handleSIGINT, args: browserOwnerArgs() });
 
     // A default context also leaks tells: no locale, no timezone, and a UA that
-    // says HeadlessChrome. Only defaults — per-source browser config (v1.5
-    // Phase 3) still overrides them.
+    // says HeadlessChrome. Only defaults — a website's country (spec
+    // 2026-10-24 proxy) overrides them.
     //
     // The viewport is deliberately left at 1280x800. Widening it was tempting
     // while here, but viewport changes layout on responsive sites and can move
     // XPath results, which has nothing to do with fingerprinting and was not
     // what the spike measured. Two changes, one commit, no way to attribute a
     // regression.
+    //
+    // Spec 2026-10-24 proxy §2.2: a website's country and proxy. An explicit locale or zone wins over stealth's
+    // defaults; with neither, the defaults are exactly what they were (§3.3). Playwright 1.62 hands a per-context
+    // proxy to Chromium with no launch flag, and sends loopback addresses through it too.
+    const locale = options.locale ?? (useStealth ? DEFAULT_LOCALE : undefined);
+    const timezoneId = options.timezoneId ?? (useStealth ? 'America/New_York' : undefined);
     this.context = await this.browser.newContext({
       viewport: options.viewport ?? { width: 1280, height: 800 },
       userAgent: options.userAgent ?? (useStealth ? DEFAULT_USER_AGENT : undefined),
-      ...(useStealth ? { locale: 'en-US', timezoneId: 'America/New_York' } : {}),
+      ...(locale ? { locale } : {}),
+      ...(timezoneId ? { timezoneId } : {}),
+      ...(options.proxy ? { proxy: options.proxy } : {}),
     });
+    this.proxied = !!options.proxy;
   }
 
   async capture(url: string, options: CaptureOptions = {}): Promise<PageCapture> {
@@ -189,6 +230,7 @@ export class PlaywrightBrowser implements IBrowser {
       try {
         response = await this.navigateWithFallback(page, url, options);
       } catch (err) {
+        if (err instanceof CaptureError) throw err; // the proxy's (spec 2026-10-24 proxy §2.2), already classified
         const kind = classifyNavigationError(err);
         const detail = (err as Error).message;
         console.warn(`[browser] capture of ${url} failed (${kind}): ${detail.split('\n')[0]}`);
@@ -559,6 +601,7 @@ export class PlaywrightBrowser implements IBrowser {
     await this.browser?.close();
     this.context = null;
     this.browser = null;
+    this.proxied = false;
   }
 
   async evaluate<T = unknown>(url: string, script: string, options: CaptureOptions = {}): Promise<T> {
@@ -576,6 +619,7 @@ export class PlaywrightBrowser implements IBrowser {
 
   async setContentEvaluate<T = unknown>(html: string, script: string): Promise<T> {
     if (!this.browser) throw new Error('Browser not launched. Call launch() first.');
+    // No proxy here on purpose: every request is aborted below, so nothing leaves this context at all.
     const context = await this.browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     try {
@@ -608,17 +652,17 @@ export class PlaywrightBrowser implements IBrowser {
     const preferred = options.waitUntil ?? 'networkidle';
 
     try {
-      return await page.goto(url, {
-        waitUntil: preferred,
-        timeout,
-      });
+      return this.throughProxy(url, await page.goto(url, { waitUntil: preferred, timeout }));
     } catch (err) {
+      // Spec 2026-10-24 proxy §3.1: a proxy failure is never retried, and never retried direct.
+      if (err instanceof CaptureError) throw err;
+      this.throwIfProxyFailed(err, url);
       if (preferred === 'networkidle') {
         console.warn(`networkidle timed out for ${url}, falling back to domcontentloaded`);
-        const response = await page.goto(url, {
-          waitUntil: 'domcontentloaded',
-          timeout,
-        });
+        const response = this.throughProxy(url, await page.goto(url, { waitUntil: 'domcontentloaded', timeout }).catch((e: unknown) => {
+          this.throwIfProxyFailed(e, url);
+          throw e;
+        }));
         await page.waitForTimeout(3000);
         try {
           await page.waitForLoadState('load', { timeout: 10000 });
@@ -630,6 +674,24 @@ export class PlaywrightBrowser implements IBrowser {
         throw err;
       }
     }
+  }
+
+  /** Spec 2026-10-24 proxy §2.2: through a proxy, a connection the proxy could not make is the proxy's failure. */
+  private throwIfProxyFailed(err: unknown, url: string): void {
+    if (!this.proxied) return;
+    const detail = String((err as Error)?.message ?? err);
+    if (!isProxyFailure(detail)) return;
+    console.warn(`[browser] the proxy failed for ${url}: ${detail.split('\n')[0]}`);
+    throw new CaptureError('proxy', url, detail);
+  }
+
+  /** A 407 is the proxy refusing us (wrong or missing credentials): the website was never asked. */
+  private throughProxy(url: string, response: Response | null): Response | null {
+    if (this.proxied && response?.status() === 407) {
+      console.warn(`[browser] the proxy refused ${url} (407)`);
+      throw new CaptureError('proxy', url, 'The proxy answered 407 (authentication required).');
+    }
+    return response;
   }
 
   /**

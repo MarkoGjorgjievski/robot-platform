@@ -14,6 +14,10 @@ const VENDOR: Record<WallVendor, string> = { cloudflare: 'Cloudflare', akamai: '
  */
 export const BROWSER_UNAVAILABLE = "We couldn't open a browser to read this page. Try again in a minute.";
 
+/** Spec 2026-10-24 proxy §2.2: the staff sentence for a page the proxy would not carry. A customer reads the blocked
+ *  sentence instead (`captureWords`, @robot/scraper/customer-copy). */
+export const PROXY_REFUSED = 'The proxy refused the connection.';
+
 function hostOf(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 }
@@ -38,5 +42,6 @@ export function verdictSentence(v: CaptureVerdict | { kind: CaptureErrorKind }, 
     case 'crashed': return 'The browser crashed on this page. Try again.';
     case 'unreachable': return `${host} could not be reached (no response).`;
     case 'timeout': return `${host} did not answer in time.`;
+    case 'proxy': return PROXY_REFUSED;
   }
 }

@@ -21,9 +21,11 @@ const CASES: Array<[V, string]> = [
   [{ kind: 'crashed' } as V, 'The page stopped loading before we could read it. Try again.'],
   [{ kind: 'unreachable' } as V, 'This website did not respond. Check the address, or try again later.'],
   [{ kind: 'timeout' } as V, 'This website took too long to answer. Try again.'],
+  // RF5: a proxy refusal reads as a blocked page to a customer (spec 2026-10-24 proxy §2.2).
+  [{ kind: 'proxy' } as V, "This website turned us away, so we can't read it yet."],
 ];
 
-const LEAKS = [/shop\.example|scan\.co\.uk|localhost|other\.example|not a url/i, /https?:/i, /\bHTTP\b/, /\b\d{3}\b/, /Cloudflare|Akamai|PerimeterX|DataDome|AWS WAF/i, /CAPTCHA/i, /\bbrowser\b/i, /color=red/];
+const LEAKS = [/shop\.example|scan\.co\.uk|localhost|other\.example|not a url/i, /https?:/i, /\bHTTP\b/, /\b\d{3}\b/, /Cloudflare|Akamai|PerimeterX|DataDome|AWS WAF/i, /CAPTCHA/i, /\bbrowser\b/i, /color=red/, /proxy/i];
 
 describe('captureWords (spec 2026-10-21 §3)', () => {
   for (const url of HOSTS) {

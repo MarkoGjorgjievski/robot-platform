@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { verdictSentence, BROWSER_UNAVAILABLE } from './verdict-copy.js';
+import { verdictSentence, BROWSER_UNAVAILABLE, PROXY_REFUSED } from './verdict-copy.js';
 
 const U = 'https://www.scan.co.uk/shop/ssd';
 describe('verdictSentence', () => {
@@ -28,5 +28,13 @@ describe('verdictSentence', () => {
 describe('BROWSER_UNAVAILABLE', () => {
   it('is the one sentence for a throw that never became a verdict', () => {
     expect(BROWSER_UNAVAILABLE).toBe("We couldn't open a browser to read this page. Try again in a minute.");
+  });
+});
+
+describe('the proxy sentence (spec 2026-10-24 proxy §2.2)', () => {
+  it('is one staff sentence whatever the address, naming no host', () => {
+    expect(PROXY_REFUSED).toBe('The proxy refused the connection.');
+    expect(verdictSentence({ kind: 'proxy' }, 'https://www.shop.example/p/1')).toBe(PROXY_REFUSED);
+    expect(verdictSentence({ kind: 'proxy' }, '')).toBe(PROXY_REFUSED);
   });
 });
