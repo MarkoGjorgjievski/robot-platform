@@ -9,7 +9,7 @@ import { loadRunExport, loadProjectExport, orgIdForRun, orgIdForProject, orgIdFo
 import { loadSession } from '@robot/api/auth';
 import { reportError as defaultReportError } from '@robot/api/errors';
 import { createLog, type Log } from '@robot/api/log';
-import { readiness as checkReadiness, type Readiness } from '@robot/api/monitoring';
+import { cachedReadiness, readiness as checkReadiness, type Readiness } from '@robot/api/monitoring';
 import { jobQueueName } from '@robot/api/jobs';
 import { loadRunFile, webhookSecretForRun } from '@robot/api/delivery';
 import { db } from '@robot/db';
@@ -55,7 +55,7 @@ export function createApp(deps: Partial<AppDeps> = {}) {
   const loadWebhookSecret = deps.webhookSecretForRun ?? ((runId: string) => webhookSecretForRun(db, runId));
   const report = deps.reportError ?? defaultReportError;
   const log = deps.log ?? createLog('api-server');
-  const ready = deps.readiness ?? (() => checkReadiness({ queue: jobQueueName() }));
+  const ready = deps.readiness ?? cachedReadiness(() => checkReadiness({ queue: jobQueueName() }));
   const app = new Hono();
 
   // Spec 2026-10-25 monitoring §2.4: an exception a route did not handle is a 500 with no detail, reported once.

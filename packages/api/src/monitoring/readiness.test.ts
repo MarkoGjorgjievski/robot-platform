@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { db, jobs, workers } from '@robot/db';
 import { jobQueueName } from '../jobs/queue.js';
-import { readiness } from './readiness.js';
+import { cachedReadiness, readiness, type Readiness } from './readiness.js';
 
 const q = () => jobQueueName();
 afterEach(async () => {
@@ -43,5 +43,35 @@ describe('readiness (spec 2026-10-25 monitoring §2.1)', () => {
     expect(await readiness({ queue: q(), ping: () => new Promise(() => {}), timeoutMs: 200 })).toEqual({ ok: false, checks: { db: false, migrations: false, worker: false, queue: false } });
     expect(Date.now() - t0).toBeLessThan(1500);
     expect((await readiness({ queue: q(), ping: async () => { throw new Error('ECONNREFUSED'); } })).checks).toEqual({ db: false, migrations: false, worker: false, queue: false });
+  });
+});
+
+describe('readiness, fix wave', () => {
+  it('migrations: a journal that cannot be read fails only migrations, never db', async () => {
+    await beating();
+    expect(await readiness({ queue: q(), expectedMigrations: () => { throw new Error('ENOENT _journal.json'); } }))
+      .toEqual({ ok: false, checks: { db: true, migrations: false, worker: true, queue: true } });
+  });
+
+  it('cachedReadiness: one check per 2 s per process; concurrent callers share the one in flight; a failed check is not kept', async () => {
+    let clock = 1_000;
+    let calls = 0;
+    let fail = false;
+    const answer: Readiness = { ok: true, checks: { db: true, migrations: true, worker: true, queue: true } };
+    const check = async () => { calls++; await new Promise((r) => setTimeout(r, 20)); if (fail) throw new Error('down'); return answer; };
+    const ready = cachedReadiness(check, { ttlMs: 2000, now: () => clock });
+    const [a, b, c] = await Promise.all([ready(), ready(), ready()]);
+    expect([a, b, c]).toEqual([answer, answer, answer]);
+    expect(calls).toBe(1);
+    clock += 1_999;
+    await ready();
+    expect(calls).toBe(1);
+    clock += 2;
+    fail = true;
+    await expect(ready()).rejects.toThrow('down');
+    expect(calls).toBe(2);
+    fail = false;
+    await ready();
+    expect(calls).toBe(3);
   });
 });
