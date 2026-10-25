@@ -4,7 +4,8 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { db, captures, extractions, runs } from '@robot/db';
+import { eq } from 'drizzle-orm';
+import { db, captures, extractions, runs, sources } from '@robot/db';
 import { appRouter } from '../routers/index.js';
 import { enterAsStaff, signIn, signedInCaller, type SignedIn } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
@@ -96,12 +97,28 @@ const inputFor = (path: string) => {
   return 'input' in e && e.input ? e.input(t.a) : undefined;
 };
 
+/** Spec 2026-10-24 proxy §3.2: the address, its user, its password and the country, all staff-only. */
+const SWEEP_PROXY = 'http://sweep-user-{country}:sweep-secret-pw@proxy-sweep.test:7000';
+const PROXY_TEXT = /sweep-secret-pw|sweep-user|proxy-sweep\.test/;
+const PROXY_KEY = /^(proxy|countr|networkProblem)/i;
+function proxyPaths(v: unknown, path = ''): string[] {
+  if (typeof v === 'string') return PROXY_TEXT.test(v) ? [path] : [];
+  if (Array.isArray(v)) return v.flatMap((x, i) => proxyPaths(x, `${path}[${i}]`));
+  if (v === null || typeof v !== 'object' || v instanceof Date) return [];
+  return Object.entries(v as Record<string, unknown>).flatMap(([k, x]) => {
+    const here = path ? `${path}.${k}` : k;
+    return [...(PROXY_KEY.test(k) ? [here] : []), ...proxyPaths(x, here)];
+  });
+}
+
 beforeAll(async () => {
   delete process.env.ORG_AI_CAP_USD; // a `none` default would make cap.capUsd null, which the scan does not count as an amount
   t = await buildTwoOrgs({ tag: 'iso-money' });
   op = await signedInCaller('iso-money-op');
   process.env.OPS_EMAILS = op.user.email; // the operator only: org A's owner is a plain customer
   staff = await enterAsStaff(op, t.a.org.id);
+  // Spec 2026-10-24 proxy §3.2: org A's website carries a proxy with credentials and a country for the proxy sweep.
+  await db.update(sources).set({ proxyUrl: SWEEP_PROXY, country: 'de' }).where(eq(sources.id, t.a.sourceId));
 }, 120_000);
 afterAll(async () => {
   if (savedOps === undefined) delete process.env.OPS_EMAILS; else process.env.OPS_EMAILS = savedOps;
@@ -171,5 +188,27 @@ describe('a customer receives no amount from a mutation either', () => {
     let answer: unknown;
     try { answer = await at(fresh.caller, path)(inputFor(path)); } catch (e) { answer = { message: (e as Error).message }; }
     expect(moneyPaths(answer, path)).toEqual([]);
+  });
+});
+
+describe('no proxy setting in a customer answer (spec 2026-10-24 proxy §3.2)', () => {
+  it.each(swept)('%s carries no proxy address or country to a customer of the org', async (path) => {
+    expect(proxyPaths(await at(t.a.owner.caller, path)(inputFor(path)))).toEqual([]);
+  });
+
+  it.each(swept)('%s never carries the proxy password, even to staff', async (path) => {
+    expect(JSON.stringify(await at(staff.caller, path)(inputFor(path)))).not.toMatch(/sweep-secret-pw/);
+  });
+
+  it('staff read the masked address and the country in sources.get', async () => {
+    const got = await at(staff.caller, 'sources.get')(inputFor('sources.get'));
+    expect(got).toMatchObject({ proxyUrl: 'http://sweep-user-{country}:•••@proxy-sweep.test:7000', country: 'de' });
+  });
+
+  it.each(mutations)('%s carries no proxy setting to a customer either', async (path) => {
+    const fresh = await signIn(t.a.owner.user.email);
+    let answer: unknown;
+    try { answer = await at(fresh.caller, path)(inputFor(path)); } catch (e) { answer = { message: (e as Error).message }; }
+    expect(proxyPaths(answer)).toEqual([]);
   });
 });

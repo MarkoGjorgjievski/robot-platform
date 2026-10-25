@@ -8,7 +8,7 @@ import {
   resolveVariantList, suggestEntryValues, normalizeVariantLink, normalizeVariantLinks,
   type SchemaDefinitionField, type VerificationSet, type Box, type VariantVerification,
 } from '@robot/scraper';
-import { BROWSER_UNAVAILABLE } from '@robot/browser';
+import { BROWSER_UNAVAILABLE, COUNTRIES, countryByCode } from '@robot/browser';
 import { router, protectedProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
@@ -50,6 +50,8 @@ import { createAxis, lockDatasetSchema, lockSources } from './datasets.js';
 import { syncAttentionSafely } from '../email/attention-sync.js';
 import { moneyFields, viewerSeesMoney } from '../isolation/money.js';
 import { orgCapState } from '../metering/cap-state.js';
+import { checkProxyUrl, COUNTRY_TOKEN } from '../proxy/proxy-url.js';
+import { networkOf, NEEDS_COUNTRY } from '../proxy/browser-profile.js';
 
 /** An awaited job with no answer is a browser that could not start (the copy a crash showed before). */
 async function unavailableAsError<T>(p: Promise<T>): Promise<T> {
@@ -288,6 +290,18 @@ function headingTextFrom(html: string, boxes: Box[]): string | null {
   return best ? best.text.trim() : null;
 }
 
+/** The table as staff choose from it (spec 2026-10-24 proxy §2.3). */
+const COUNTRY_CHOICES = COUNTRIES.map(({ code, name }) => ({ code, name }));
+
+/**
+ * A website row as an answer carries it (spec 2026-10-24 proxy §3.2): the proxy address and the country are staff
+ * settings, read only through `sources.get`'s staff fields — never in the row a mutation hands back to anyone.
+ */
+function withoutNetwork<T extends { proxyUrl?: unknown; country?: unknown }>(row: T): Omit<T, 'proxyUrl' | 'country'> {
+  const { proxyUrl: _proxyUrl, country: _country, ...rest } = row;
+  return rest;
+}
+
 export const sourcesRouter = router({
   /** The website loader for its page (spec 2026-09-21 §5): the row, its project and the contract, in one round trip. */
   get: protectedProcedure
@@ -316,6 +330,11 @@ export const sourcesRouter = router({
       // through `sources.update`, even 40/3 is the customer's choice and stays).
       const parameters = (s.parameters ?? {}) as Record<string, unknown>;
       const attention = await websiteAttention(ctx.db, s.id);
+      // Proxy support (spec 2026-10-24 proxy §2.3): staff only, like money — a customer receives none of these keys.
+      const n = networkOf({ proxyUrl: s.proxyUrl, country: s.country });
+      const network = moneyFields(viewerSeesMoney(ctx), {
+        proxyUrl: n.proxyUrl, proxyFromDefault: n.proxy === 'default', country: n.country, countries: COUNTRY_CHOICES, networkProblem: n.problem,
+      });
       return {
         id: s.id, slug: s.slug, name: s.name, url: s.urlTemplate, hostname, datasetId: s.datasetId,
         listingMode: s.listingMode as 'listing_to_detail' | 'detail' | null, confirmedAt: s.confirmedAt, isActive: s.isActive,
@@ -330,6 +349,7 @@ export const sourcesRouter = router({
         // Recurring extraction (spec 2026-10-24 §3.5): the Settings tab's Schedule and Webhook rows.
         schedule: s.schedule as Schedule | null, nextRunAt: s.nextRunAt, scheduleLast: s.scheduleLast as ScheduleLast | null,
         webhookUrl: s.webhookUrl, webhookSecret: s.webhookSecret,
+        ...network,
         project, fields: contractFields(hit.datasetSchema), createdAt: s.createdAt,
       };
     }),
@@ -352,11 +372,15 @@ export const sourcesRouter = router({
         // (a zod refusal would reach the app as JSON).
         schedule: z.object({ days: z.array(z.number()), time: z.string(), timeZone: z.string() }).nullable().optional(),
         webhookUrl: z.string().max(10_000).nullable().optional(),
+        // Spec 2026-10-24 proxy §2.3: staff only (an operator, or staff in staff mode). The checks and their one-sentence
+        // refusals are below, before anything is written.
+        proxyUrl: z.string().max(2000).nullable().optional(),
+        country: z.string().max(10).nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.id);
-      const { id, schedule, webhookUrl, ...rest } = input;
+      const { id, schedule, webhookUrl, proxyUrl, country, ...rest } = input;
 
       // Recurring extraction (spec 2026-10-24 §3.5): validated before anything is written; each refusal is one sentence.
       const recurring: { schedule?: Schedule | null; nextRunAt?: Date | null; webhookUrl?: string | null; webhookSecret?: SQL } = {};
@@ -382,6 +406,30 @@ export const sourcesRouter = router({
           // Made on the first save only.
           recurring.webhookSecret = sql`coalesce(${sources.webhookSecret}, ${newWebhookSecret()})`;
         }
+      }
+
+      // Proxy support (spec 2026-10-24 proxy §2.3): operators only — a staff session's user is one. A customer's call
+      // carrying either field is refused whole: nothing is written.
+      const network: { proxyUrl?: string | null; country?: string | null } = {};
+      if (proxyUrl !== undefined || country !== undefined) {
+        if (!ctx.isOperator) throw new TRPCError({ code: 'FORBIDDEN', message: 'Operators only' });
+        if (country !== undefined) {
+          const c = country === null ? null : countryByCode(country);
+          if (country !== null && !c) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Choose a country from the list.' });
+          network.country = c?.code ?? null;
+        }
+        if (proxyUrl !== undefined) {
+          if (proxyUrl === null) network.proxyUrl = null;
+          else {
+            const checked = checkProxyUrl(proxyUrl);
+            if (!checked.ok) throw new TRPCError({ code: 'BAD_REQUEST', message: checked.message });
+            network.proxyUrl = checked.url;
+          }
+        }
+        const current = await ctx.db.query.sources.findFirst({ where: eq(sources.id, id), columns: { proxyUrl: true, country: true } });
+        const url = network.proxyUrl !== undefined ? network.proxyUrl : current?.proxyUrl ?? null;
+        const code = network.country !== undefined ? network.country : current?.country ?? null;
+        if (url?.includes(COUNTRY_TOKEN) && !countryByCode(code)) throw new TRPCError({ code: 'BAD_REQUEST', message: NEEDS_COUNTRY });
       }
 
       // Re-review residual #1 (fix-wave-report.md): `...rest` applied
@@ -423,7 +471,7 @@ export const sourcesRouter = router({
 
       const [source] = await ctx.db
         .update(sources)
-        .set({ ...rest, ...parametersPatch, ...recurring, updatedAt: new Date() })
+        .set({ ...rest, ...parametersPatch, ...recurring, ...network, updatedAt: new Date() })
         .where(eq(sources.id, id))
         .returning();
 
@@ -431,7 +479,7 @@ export const sourcesRouter = router({
         throw new Error(`Source with id ${id} not found`);
       }
 
-      return source;
+      return withoutNetwork(source);
     }),
 
   /**
@@ -496,7 +544,6 @@ export const sourcesRouter = router({
           datasetId,
           name: input.name,
           slug: sourceSlug,
-          country: 'us',
           inputStrategy: 'direct',
           urlTemplate: input.url,
           schemaDefinition,
@@ -745,7 +792,7 @@ export const sourcesRouter = router({
       });
       // Spec 2026-10-24 email §3.2: a changed proof page, expected value or mark can release a hold. Never throws.
       await syncAttentionSafely(ctx.db, sourceId);
-      return updated;
+      return updated ? withoutNetwork(updated) : updated;
     }),
 
   /**

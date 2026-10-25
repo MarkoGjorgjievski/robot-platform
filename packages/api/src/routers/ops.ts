@@ -9,6 +9,7 @@ import { loadFieldCurrency, loadFieldCurrencyBatch } from '../verify/current-cer
 import { latestDriftCheck } from '../verify/run-drift-check.js';
 import { opsRefreshes } from '../verify/attention.js';
 import { recordStaffAction, recordStaffStop } from '../auth/staff-actions.js';
+import { networkOf } from '../proxy/browser-profile.js';
 import { listStaffActivity } from '../auth/staff-activity.js';
 import { queueEmailsSafely } from '../email/queue-emails.js';
 import type { JevAgreement } from '../verify/jev-agreement.js';
@@ -193,6 +194,8 @@ export const opsRouter = router({
         schemaDefinition: sources.schemaDefinition,
         verificationSet: sources.verificationSet,
         driftedFields: sources.driftedFields,
+        proxyUrl: sources.proxyUrl,
+        country: sources.country,
         orgId: orgs.id,
         orgName: orgs.name,
         orgSlug: orgs.slug,
@@ -248,6 +251,8 @@ export const opsRouter = router({
       org: { id: row.orgId, name: row.orgName, slug: row.orgSlug },
       project: { name: row.projectName, slug: row.projectSlug },
       website: { name: row.sourceName, slug: row.sourceSlug, host: safeHost(row.url) },
+      // Spec 2026-10-24 proxy §2.3: own, the default or none, and the country — never the address.
+      network: ((n) => ({ proxy: n.proxy, country: n.country ? { code: n.country, name: n.countryName! } : null }))(networkOf({ proxyUrl: row.proxyUrl, country: row.country })),
       verified: { current: fieldCurrency.currentKeys.length, total: fields.length },
       fields: fields.map((f) => {
         const result = results[f.key];

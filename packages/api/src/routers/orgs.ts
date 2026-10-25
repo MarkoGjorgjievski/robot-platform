@@ -7,7 +7,7 @@ import { slugify, uniqueSlug } from '../slug.js';
 import { listStaffActivity, type StaffEntry } from '../auth/staff-activity.js';
 import { queueEmailsSafely } from '../email/queue-emails.js';
 import { viewerSeesMoney } from '../isolation/money.js';
-import { CUSTOMER_SUMMARIES } from '../auth/staff-actions.js';
+import { customerSummary } from '../auth/staff-actions.js';
 
 /** A staff-activity entry as a customer reads it (spec 2026-10-24 tenant isolation §2.3): which run, never its cost;
  *  no procedure name, and a staff-only sentence reworded (spec 2026-10-24 metering §3.3). */
@@ -111,10 +111,10 @@ export const orgsRouter = router({
       const page = await listStaffActivity(ctx.db, { orgId: ctx.session.org.id }, { offset: input.page * 20, limit: 20 });
       if (viewerSeesMoney(ctx)) return page;
       // A staff-only sentence (the monthly AI limit's amount) reads as a plain change to a customer (spec 2026-10-24
-      // metering §3.3), and the procedure name stays ours.
+      // metering §3.3; and a website's proxy or country, spec 2026-10-24 proxy §2.3), and the procedure name stays ours.
       return {
         ...page,
-        entries: page.entries.map(({ action, ...e }) => ({ ...e, summary: CUSTOMER_SUMMARIES[action] ?? e.summary, run: e.run ? { id: e.run.id } : null })),
+        entries: page.entries.map(({ action, ...e }) => ({ ...e, summary: customerSummary(action, e.summary), run: e.run ? { id: e.run.id } : null })),
       };
     }),
 
