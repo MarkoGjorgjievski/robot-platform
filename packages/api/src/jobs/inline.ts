@@ -8,6 +8,8 @@ import { sql } from 'drizzle-orm';
 import { db } from '@robot/db';
 import { openJobCount } from './queue.js';
 import { startJobRunner, type Registry } from './runner.js';
+import { createLog } from '../monitoring/log.js';
+import { redactText } from '../monitoring/redact.js';
 
 export type InlineJobs = { queue: string; drain(timeoutMs?: number): Promise<void> };
 
@@ -16,8 +18,15 @@ export async function startInlineJobs(name: string, opts: { registry?: Registry;
   const queue = `${name}-${randomUUID()}`.slice(0, 64);
   process.env.JOB_QUEUE = queue;
   const registry = opts.registry ?? (await import('./handlers.js')).jobRegistry();
-  const log = opts.log ?? ((line: string) => console.log(`[${name} jobs] ${line}`));
-  const runner = startJobRunner({ queue, registry, lanes: { interactive: 1, background: 1, runs: 1 }, pollMs: 200, workerName: name, log });
+  // Spec 2026-10-25 monitoring §3.1: every line is redacted. With no `log`, the runner writes through the logger
+  // (scoped, at its level; a terminal fault reported like the worker's); a caller's `log` gets redacted text.
+  const logger = createLog(`${name} jobs`);
+  const callerLog = opts.log;
+  const log = callerLog ? (line: string) => callerLog(redactText(line)) : (line: string) => logger.warn(line);
+  const runner = startJobRunner({
+    queue, registry, lanes: { interactive: 1, background: 1, runs: 1 }, pollMs: 200, workerName: name,
+    ...(callerLog ? { log } : { logger }),
+  });
   return {
     queue,
     async drain(timeoutMs = 30 * 60_000) {
