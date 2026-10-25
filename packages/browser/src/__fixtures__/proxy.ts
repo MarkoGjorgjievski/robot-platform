@@ -9,7 +9,13 @@ export const FORWARDED_HEADER = 'x-test-proxy-forwarded';
 export type ProxyLogEntry = { method: string; url: string; headers: IncomingHttpHeaders; allowed: boolean };
 export type RecordingProxy = { url: string; port: number; log: ProxyLogEntry[]; close(): Promise<void> };
 
-export async function startRecordingProxy(opts: { auth?: { username: string; password: string } } = {}): Promise<RecordingProxy> {
+/** `connectAnswer`: answer every (authorised) CONNECT with this status instead of tunnelling — a proxy that refuses (403)
+ *  or cannot reach (502) the website. */
+export type RecordingProxyOptions = { auth?: { username: string; password: string }; connectAnswer?: number };
+
+const REASONS: Record<number, string> = { 403: 'Forbidden', 502: 'Bad Gateway', 503: 'Service Unavailable' };
+
+export async function startRecordingProxy(opts: RecordingProxyOptions = {}): Promise<RecordingProxy> {
   const log: ProxyLogEntry[] = [];
   const expected = opts.auth ? `Basic ${Buffer.from(`${opts.auth.username}:${opts.auth.password}`).toString('base64')}` : null;
   const allowed = (h: IncomingHttpHeaders) => expected === null || h['proxy-authorization'] === expected;
@@ -41,14 +47,23 @@ export async function startRecordingProxy(opts: { auth?: { username: string; pas
       client.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="test"\r\nContent-Length: 0\r\n\r\n');
       return;
     }
+    if (opts.connectAnswer !== undefined) {
+      client.end(`HTTP/1.1 ${opts.connectAnswer} ${REASONS[opts.connectAnswer] ?? 'Proxy Answer'}\r\nContent-Length: 0\r\n\r\n`);
+      return;
+    }
     const [host, port] = (req.url ?? '').split(':');
+    let established = false;
     const up = connect(Number(port), host!, () => {
+      established = true;
       client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
       up.write(head);
       up.pipe(client);
       client.pipe(up);
     });
-    up.on('error', () => client.destroy());
+    up.on('error', () => {
+      if (established) client.destroy();
+      else client.end('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n');
+    });
     client.on('error', () => up.destroy());
   });
   server.on('connection', (s: Socket) => { sockets.add(s); s.on('close', () => sockets.delete(s)); });

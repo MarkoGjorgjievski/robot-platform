@@ -135,4 +135,37 @@ describe('an https page through a proxy: the tunnel (Task 2 review, issues 1–2
       expect(seen).toEqual([]);
     } finally { await proxy.close(); }
   }, 60_000);
+
+  it('the right password: the proxy carried the CONNECT with the exact header, and the failure is not the proxy’s', async () => {
+    const proxy = await startRecordingProxy({ auth: { username: 'shop-user', password: 'p@ss:w/rd' } });
+    try {
+      const err = await captureWith({ proxy: { server: proxy.url, username: 'shop-user', password: 'p@ss:w/rd' } }, httpsUrl).catch((e: unknown) => e);
+      // TLS to this plain-http listener fails inside the tunnel: the website's failure, never the proxy's.
+      expect(err).toBeInstanceOf(CaptureError);
+      expect((err as CaptureError).kind).not.toBe('proxy');
+      const connects = proxy.log.filter((e) => e.method === 'CONNECT' && e.url === tunnelTo());
+      expect(connects.some((e) => e.allowed && e.headers['proxy-authorization'] === basic('shop-user', 'p@ss:w/rd'))).toBe(true);
+      expect(seen).toEqual([]);
+    } finally { await proxy.close(); }
+  }, 60_000);
+
+  it.each([[403, 'refused'], [502, 'bad gateway']] as const)('a CONNECT answered %i (%s): the proxy sentence at once', async (status, _what) => {
+    const proxy = await startRecordingProxy({ connectAnswer: status });
+    try {
+      const t0 = Date.now();
+      const err = await captureWith({ proxy: { server: proxy.url } }, httpsUrl).catch((e: unknown) => e);
+      expect(err).toMatchObject({ kind: 'proxy', message: PROXY_REFUSED });
+      expect(Date.now() - t0).toBeLessThan(15_000);
+      expect(proxy.log.some((e) => e.method === 'CONNECT')).toBe(true);
+      expect(seen).toEqual([]);
+    } finally { await proxy.close(); }
+  }, 60_000);
+
+  it('a proxy that is not there: the proxy sentence', async () => {
+    const gone = await startRecordingProxy();
+    await gone.close();
+    const err = await captureWith({ proxy: { server: gone.url } }, httpsUrl).catch((e: unknown) => e);
+    expect(err).toMatchObject({ kind: 'proxy', message: PROXY_REFUSED });
+    expect(seen).toEqual([]);
+  }, 60_000);
 });
