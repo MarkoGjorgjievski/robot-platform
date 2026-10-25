@@ -7,8 +7,51 @@ import { redactSmtp } from '../email/smtp.js';
 
 type Env = Record<string, string | undefined>;
 
-export const SECRET_KEY = /pass(word)?|secret|token|authorization|cookie|sig/i;
 export const MASK = '***';
+
+// A secret name is judged by its words, never by a substring (ruling, fix round 1): `signal`, `design`, `passed`,
+// `bypass` and `dedupeKey` stay readable; `apiKey`, `X-Auth-Token`, `DB_PASSWORD` and `client_secret` do not.
+const SECRET_WORDS = new Set(['password', 'passwd', 'pwd', 'pass', 'secret', 'token', 'authorization', 'auth', 'cookie',
+  'credential', 'credentials', 'sig', 'signature', 'apikey', 'privatekey', 'accesskey']);
+const SECRET_PAIRS = new Set(['api key', 'access key', 'private key', 'client secret', 'session token', 'session id']);
+/** A key with no separators (accesstoken, clientsecret, refreshtoken). */
+const SECRET_ENDING = /(?:token|secret|password|passwd|apikey|signature)$/;
+/** A number of things is not a credential: tokenCount, passCount, passwordLength. */
+const QUANTITY = new Set(['count', 'counts', 'total', 'length', 'len', 'size', 'limit', 'max', 'min']);
+const WORD = /[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+/g;
+
+/** True when a key (an object key, a query parameter, a header or a JSON name) names a secret. */
+export function isSecretKey(key: string): boolean {
+  let k: string;
+  try { k = String(key).slice(0, 200); } catch { return false; }
+  const words = (k.match(WORD) ?? []).map((w) => w.toLowerCase());
+  if (words.length === 0) return false;
+  if (words.length > 1 && QUANTITY.has(words[words.length - 1]!)) return false;
+  if (words.some((w) => SECRET_WORDS.has(w))) return true;
+  for (let i = 1; i < words.length; i++) if (SECRET_PAIRS.has(`${words[i - 1]} ${words[i]}`)) return true;
+  return SECRET_ENDING.test(words.join(''));
+}
+
+/**
+ * Rewrites each `re` match that `decide` judges secret. `re` (global) consumes a name and its separator and reads the
+ * value in a lookahead, so a pair judged harmless never hides a secret inside its value: scanning resumes after the
+ * separator. `decide` returns the replacement for the match and how many characters after it to drop, or null.
+ */
+function scan(text: string, re: RegExp, decide: (m: RegExpExecArray) => { out: string; skip: number } | null): string {
+  re.lastIndex = 0;
+  let out = '';
+  let last = 0;
+  for (let m = re.exec(text); m; m = re.exec(text)) {
+    const r = decide(m);
+    if (r) {
+      out += text.slice(last, m.index) + r.out;
+      last = m.index + m[0].length + r.skip;
+      re.lastIndex = last;
+    }
+    if (m[0].length === 0) re.lastIndex++;
+  }
+  return out + text.slice(last);
+}
 const MAX_DEPTH = 6;
 const MAX_ARRAY = 50;
 const MAX_KEYS = 100;
@@ -24,11 +67,14 @@ const ANY_USERINFO = new RegExp(`\\b(${SCHEME}:\\/\\/)[^\\s/?#]*@`, 'gi');
 const RAW_USERINFO = new RegExp(`\\b(${SCHEME}:\\/\\/)[^\\s/?#@:]{0,256}:(?!\\d{1,5}[/?#])[^\\s@]{0,256}@`, 'gi');
 /** The same, URL-encoded (a redirect parameter): scheme%3A%2F%2F…%40, never past an encoded / ? #. */
 const ENCODED_USERINFO = new RegExp(`\\b(${SCHEME}%3A%2F%2F)(?:(?!%2F|%3F|%23)[^\\s&/?#]){0,512}%40`, 'gi');
-const PARAM_NAME = '[\\w-]{0,40}(?:pass(?:word)?|secret|token|sig|authorization|cookie|credential|api[_-]?key|access[_-]?key|private[_-]?key)[\\w-]{0,40}';
-const SECRET_PARAM = new RegExp(`\\b(${PARAM_NAME})=([^\\s&"',;]+)`, 'gi');
-const ENCODED_PARAM = new RegExp(`\\b(${PARAM_NAME})%3D(?:(?!%26)[^\\s&"',;]){1,4096}`, 'gi');
+/** name=value (a query parameter); the name is judged by isSecretKey. */
+const PARAM = /(?<![\w.-])([\w.-]{1,80})=(?=([^\s&"',;]{1,4096}))/g;
+/** The same, URL-encoded: name%3Dvalue up to %26, the name right after an encoded ? or & (or a separator). */
+const ENCODED_PARAM = /(?:(?<=%[0-9a-f]{2})|(?<![\w.%-]))([\w.-]{1,80})%3D(?=((?:(?!%26)[^\s&"',;]){1,4096}))/gi;
 const KEY_PARAM = /([?&;]key)=([^\s&"',;]+)/gi;
-const JSON_SECRET = new RegExp(`"(${PARAM_NAME})"(\\s*:\\s*)"(?:[^"\\\\]|\\\\.){0,4096}"`, 'gi');
+/** "name": "value" in JSON text. */
+const JSON_PAIR = /"([^"\\]{1,80})"\s*:\s*"(?=((?:[^"\\]|\\.){0,4096})")/g;
+const maskValue = (m: RegExpExecArray) => (isSecretKey(m[1]!) ? { out: m[0] + MASK, skip: m[2]!.length } : null);
 const BEARER = /\b(Bearer)\s+[A-Za-z0-9._~+/=-]+/gi;
 const BASIC = /\b(Basic)\s+[A-Za-z0-9+/=]{6,}/g;
 /** A header in text: everything after it on the line, unless it is already a masked Bearer/Basic token. */
@@ -52,13 +98,14 @@ function redactor(env: Env): Redactor {
     let out = input;
     for (const s of ordered) out = out.split(s).join(MASK);
     out = redactSmtp(redactProxy(out), smtpUrl);
-    return out
+    out = out
       .replace(ANY_USERINFO, `$1${MASK}@`)
       .replace(RAW_USERINFO, `$1${MASK}@`)
-      .replace(ENCODED_USERINFO, `$1${MASK}%40`)
-      .replace(JSON_SECRET, `"$1"$2"${MASK}"`)
-      .replace(SECRET_PARAM, `$1=${MASK}`)
-      .replace(ENCODED_PARAM, `$1%3D${MASK}`)
+      .replace(ENCODED_USERINFO, `$1${MASK}%40`);
+    out = scan(out, JSON_PAIR, maskValue);
+    out = scan(out, PARAM, maskValue);
+    out = scan(out, ENCODED_PARAM, maskValue);
+    return out
       .replace(KEY_PARAM, `$1=${MASK}`)
       .replace(BEARER, `$1 ${MASK}`)
       .replace(BASIC, `$1 ${MASK}`)
@@ -133,7 +180,7 @@ export function redactValue(value: unknown, env: Env = process.env): unknown {
       const out: Record<string, unknown> = {};
       for (const k of keys.slice(0, MAX_KEYS)) {
         const name = text(k);
-        if (SECRET_KEY.test(k)) { setKey(out, name, MASK); continue; }
+        if (isSecretKey(k)) { setKey(out, name, MASK); continue; }
         setKey(out, name, walk(read(() => (v as Record<string, unknown>)[k]), depth + 1));
       }
       if (keys.length > MAX_KEYS) setKey(out, '…', `${keys.length - MAX_KEYS} more keys`);

@@ -1,7 +1,7 @@
 // Spec 2026-10-25 monitoring §2.2 and §3.1: formats, levels, and redaction of keys, URLs and errors.
 import { describe, expect, it } from 'vitest';
 import { createLog, formatLine, logLevel, type LogLevel } from './log.js';
-import { MASK, redactText, redactValue } from './redact.js';
+import { isSecretKey, MASK, redactText, redactValue } from './redact.js';
 
 const T = new Date('2026-10-25T12:00:00.000Z');
 function capture(env: Record<string, string>) {
@@ -218,5 +218,29 @@ describe('redaction, adversarial (spec 2026-10-25 monitoring §3.1)', () => {
     }
     expect(out).toEqual(['[s] d', '[s] i']);
     expect(err).toEqual(['[s] WARN w', '[s] ERROR e']);
+  });
+});
+
+describe('secret key names are whole words (fix round 1, ruling)', () => {
+  const readable = ['signal', 'stopSignal', 'design', 'passed', 'bypass', 'assignee', 'tokenCount', 'passCount', 'dedupeKey', 'fieldKey', 'keys', 'sourceId', 'author', 'maxTokens'];
+  const secret = ['password', 'apiKey', 'api_key', 'x-api-key', 'X-API-KEY', 'accessKey', 'privateKey', 'credentials', 'auth', 'Pwd', 'authToken',
+    'X-Auth-Token', 'sessionToken', 'client_secret', 'clientSecret', 'AUTHORIZATION', 'DB_PASSWORD', 'passwd', 'pwd', 'accesstoken', 'set-cookie',
+    'proxy-authorization', 'sig', 'X-Amz-Signature', 'apiToken', 'webhookSecret', 'pass', 'cookie', 'refreshtoken'];
+
+  it('isSecretKey: the two lists', () => {
+    for (const k of readable) expect([k, isSecretKey(k)]).toEqual([k, false]);
+    for (const k of secret) expect([k, isSecretKey(k)]).toEqual([k, true]);
+  });
+
+  it('object keys follow it', () => {
+    const v = redactValue(Object.fromEntries([...readable, ...secret].map((k) => [k, 'v'])), {}) as Record<string, string>;
+    for (const k of readable) expect([k, v[k]]).toEqual([k, 'v']);
+    for (const k of secret) expect([k, v[k]]).toEqual([k, MASK]);
+  });
+
+  it('query parameters and JSON names follow it, auth= included', () => {
+    expect(redactText('/x?signal=1&design=a&auth=s1&apiKey=s2&tokenCount=3&access_token=s3', {})).toBe('/x?signal=1&design=a&auth=***&apiKey=***&tokenCount=3&access_token=***');
+    expect(redactText('{"design":"a","passCount":2,"clientSecret":"s4"}', {})).toBe('{"design":"a","passCount":2,"clientSecret":"***"}');
+    expect(redactText('u=%2Fx%3Fdesign%3Da%26auth%3Ds5', {})).toBe('u=%2Fx%3Fdesign%3Da%26auth%3D***');
   });
 });
