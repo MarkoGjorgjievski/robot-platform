@@ -183,7 +183,7 @@ describe('redaction, adversarial (spec 2026-10-25 monitoring §3.1)', () => {
     expect(Date.now() - t0).toBeLessThan(2000);
     expect(out.length).toBeLessThan(20_000);
     expect(out).not.toContain('tail-pw');
-    expect(redactText(long, env)).toContain('https://***@h.test');
+    expect(redactText(long, env)).not.toContain('tail-pw');
   });
 
   it('LOG_LEVEL of an inherited property name is not a level; a message whose toString throws still writes a line', () => {
@@ -323,5 +323,19 @@ describe('fix round 1, M7', () => {
     const fields = JSON.parse('{"__proto__":{"x":1},"n":2}') as Record<string, unknown>;
     const o = JSON.parse(formatLine('info', 't', 'm', fields, 'json', new Date('2026-10-25T12:00:00.000Z'), {}));
     expect(o).toEqual({ t: '2026-10-25T12:00:00.000Z', level: 'info', scope: 't', msg: 'm', field___proto__: { x: 1 }, n: 2 });
+  });
+});
+
+describe('fix round 1, M8', () => {
+  it('a huge string is cut to 64 KB before it is redacted and to 10 000 characters after; the message too', () => {
+    const huge = 'pass-'.repeat(2_000_000) + ' https://u:tail-pw@h.test';
+    const t0 = Date.now();
+    const out = redactText(huge, {});
+    expect(Date.now() - t0).toBeLessThan(500);
+    expect(out.length).toBeLessThan(10_100);
+    expect(out.endsWith(`[+${huge.length - 10_000} chars]`)).toBe(true);
+    expect(out).not.toContain('tail-pw');
+    const line = formatLine('error', 't', huge, { v: huge }, 'json', new Date('2026-10-25T12:00:00.000Z'), {});
+    expect(line.length).toBeLessThan(21_000);
   });
 });
