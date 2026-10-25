@@ -65,8 +65,8 @@
 // `/p/9` product 4, marks Price "Not on this product" there, and waits for the
 // autosave to carry the page and the absent answer to the server. Then it
 // adds `/p/10` by URL as product 5 — not on the listing; its page data names
-// it "Widget E (Drift)" under an `<h1>` of "Widget E" — and reads the Title
-// row's heading rule; adds Brand to the contract and types a tagline on
+// it "Widget E (Drift)" under an `<h1>` of "Widget E" — and reads that the Title
+// is suggested from the heading (first run 2026-10-25), never the page-data name; adds Brand to the contract and types a tagline on
 // product 1, which its cell flags "not on this page" (spec 2026-10-12 Part B).
 // The test after it makes `/p/11?variant=f2` (not on the listing) product 1
 // over tRPC, seeds a result proving Price on `offers[0].price`, and reads the
@@ -962,7 +962,9 @@ describe.skipIf(!ENABLED)('app shell', () => {
     // that differ: both agree. Nothing names a rating: that row needs you.
     await expect.poll(() => rowStatusText('Title'), { timeout: 30_000 }).toBe('agreed Accept');
     await expect.poll(() => rowStatusText('Price'), { timeout: 30_000 }).toBe('agreed Accept');
-    expect(await rowStatusText('Rating'), 'Rating does not say what it needs').toBe('missing on product 1');
+    // First run 2026-10-25: a row that needs you offers the named cell's Mark / Fix on the screenshot.
+    expect(await rowStatusText('Rating'), 'Rating does not say what it needs').toBe('missing on product 1 Mark on screenshot');
+    expect(await page.getByRole('button', { name: 'Mark Rating on the screenshot of product 1', exact: true }).count(), 'the Rating row offers no action').toBe(1);
     for (const f of ['Title', 'Price']) {
       for (let i = 1; i <= 3; i++) expect(await cellState(f, i), `${f} on product ${i} is not a suggestion`).toBe('suggested');
     }
@@ -1798,14 +1800,17 @@ describe.skipIf(!ENABLED)('app shell', () => {
     ).toBe(1);
 
     // Spec 2026-10-12 §B1: a Title that is not the page's heading never reads
-    // agreed. `/p/10` (not on the listing) is added by URL as product 5: its
-    // page data names it "Widget E (Drift)", its heading reads "Widget E".
+    // agreed, so the suggestion prefers the heading (first run 2026-10-25).
+    // `/p/10` (not on the listing) is added by URL as product 5: its page data
+    // names it "Widget E (Drift)", its heading reads "Widget E" — the cell
+    // suggests the heading and the row never reads "not the page's heading".
     await page.getByRole('button', { name: '+ Add product', exact: true }).click();
     await page.getByRole('textbox', { name: 'New product URL' }).fill(`${SHOP}${DRIFT_PRODUCT.path}`);
     await page.getByRole('textbox', { name: 'New product URL' }).press('Enter');
     await expect.poll(() => page.getByRole('button', { name: /^Drop product \d+$/ }).count(), { timeout: 30_000 }).toBe(5);
     await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000, interval: 1000 }).toBe(5);
-    await expect.poll(() => rowStatusText('Title'), { timeout: 30_000 }).toContain("not the page's heading on product 5");
+    await expect.poll(() => page.getByRole('button', { name: `Title on product 5: suggested, ${DRIFT_PRODUCT.title}`, exact: true }).count(), { timeout: 30_000 }).toBe(1);
+    expect(await rowStatusText('Title'), 'the Title row still refuses the heading').not.toContain('heading');
     console.log(`heading: Title's status reads "${await rowStatusText('Title')}"`);
     await expect.poll(() => page.getByText('saved', { exact: true }).count(), { timeout: 20_000 }).toBe(1);
 

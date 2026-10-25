@@ -96,6 +96,30 @@ describe('sources.suggestMarks', () => {
     } finally { await f.cleanup(); }
   });
 
+  it('a Title whose page data carries the colour suggests the page heading instead (first run 2026-10-25)', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-sug-colour', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      // Skullcandy's shape: the page data names "Crusher® 720 - Primer", the h1 (its text in a span) reads "Crusher® 720".
+      const url = f.urls[0]!;
+      const html = SHOP_EXAMPLE.p1.html.replace('<h1>Widget A</h1>', '<h1 class="product__title"><span>Widget A</span></h1>');
+      const fixture = {
+        ...SHOP_EXAMPLE.p1, url, html, interceptedRequests: [],
+        structuredData: { ldJson: [{ '@type': 'Product', name: 'Widget A - Primer' }], nextData: null, initialState: null, meta: { 'og:title': 'Widget A - Primer' } },
+      };
+      const boxes = boxesFromAnnotation(await browser.setContentEvaluate<unknown>(html, buildBoxMapScript()));
+      const now = new Date().toISOString();
+      const [row] = await db.insert(captures).values({ sourceId: f.sourceId, url, html, metadata: { kind: 'proof-page', status: 'captured', url, startedAt: now, capturedAt: now, tiles: ['/captures/x.png'], boxes, pageHeight: 900, capturedHeight: 900, contentHeight: 900 } }).returning({ id: captures.id });
+      await writeCaptureFile(row!.id, fixture);
+      const r = await caller.sources.suggestMarks({ captureId: row!.id });
+      expect(r.headingText).toBe('Widget A');
+      const t = r.fields[f.keys.Title!]!;
+      expect(t).toMatchObject({ value: 'Widget A', via: { source: 'xpath' } });
+      expect(t.via.path).toMatch(/h1/);
+      expect(t.boxes).toHaveLength(1);
+      expect(boxes[t.boxes[0]!]!.text).toBe('Widget A');
+    } finally { await f.cleanup(); }
+  });
+
   it('falls back to the largest heading box only when the HTML has no h1', async () => {
     const f = await createProjectWithSource(caller, { tag: 'marks-sug-h2', fields: [{ name: 'Title', type: 'text' }] });
     try {

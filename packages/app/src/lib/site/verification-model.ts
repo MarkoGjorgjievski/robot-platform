@@ -590,7 +590,7 @@ export function rowStatus(
   pageFacts?: Record<string, { headingText: string | null; pageText: string }>,
 ): RowStatus {
   const values: string[] = [];
-  const offered: Array<{ via?: Via; origin: Suggestion['origin']; product: number; value: string }> = [];
+  const offered: Array<{ via?: Via; origin: Suggestion['origin']; product: number; value: string; heading?: true }> = [];
   for (const [i, card] of board.cards.entries()) {
     const url = card.url.trim();
     if (!url) continue;
@@ -636,7 +636,8 @@ export function rowStatus(
     if (places > 1) return { kind: 'needs-you', reason: `found in ${places} places on product ${n}`, product: n };
     const err = validateValue(field.type, s.value);
     if (err) return { kind: 'needs-you', reason: `${err} on product ${n}`, product: n };
-    offered.push({ via: s.via, origin: s.origin, product: n, value: s.value });
+    const heading = field.concept === 'product_name' && sameHeading(s.value, pageFacts?.[card.url]?.headingText ?? '') ? { heading: true as const } : {};
+    offered.push({ via: s.via, origin: s.origin, product: n, value: s.value, ...heading });
   }
   if (offered.length === 0) return { kind: 'accepted' };
   if (offered.length === 1 && offered[0]!.origin !== 'from-product') {
@@ -645,9 +646,13 @@ export function rowStatus(
   }
   // Paths disagree: the majority's path, if there is one, and the products it
   // leaves for a person (A4) — kept whatever the values, so no Accept takes them.
+  // A Title whose every suggestion is its own page's heading agrees whatever path each came by (first run
+  // 2026-10-25): the suggestion prefers the heading — its h1 element on one product, page data equal to it on
+  // another — and Verify certifies a path that reads every heading, or says which product it cannot.
   let split: { odd: number[]; via: Via } | undefined;
   const first = offered[0]!.via;
-  if (!first || offered.some(({ via: v }) => !sameVia(v, first))) {
+  const allHeadings = offered.every((o) => o.heading);
+  if (!allHeadings && (!first || offered.some(({ via: v }) => !sameVia(v, first)))) {
     const via = majorityOf(offered);
     if (!via) return { kind: 'needs-you', reason: 'comes from different places' };
     split = { odd: offered.filter((o) => !sameVia(o.via, via)).map((o) => o.product), via };
@@ -731,17 +736,34 @@ export function carryFrom(a: Answer): { value: string; mark?: Mark; via?: Struct
   return { value: a.value, ...(a.mark ? { mark: a.mark } : {}), ...(via ? { via } : {}) };
 }
 
-export function acceptAllAgreed(board: Board, fields: Field[], live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>): { board: Board; accepted: string[] } {
+/** `pageFacts`: each page's heading, so the Title rows read as their row does (spec 2026-10-12 §B1; first run 2026-10-25). */
+export function acceptAllAgreed(
+  board: Board, fields: Field[], live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>,
+  pageFacts?: Record<string, { headingText: string | null; pageText: string }>,
+): { board: Board; accepted: string[] } {
   let next = board;
   const accepted: string[] = [];
   for (const f of fields) {
-    const status = rowStatus(f, next, live, boxesByUrl);
+    const status = rowStatus(f, next, live, boxesByUrl, undefined, undefined, pageFacts);
     if (status.kind === 'agreed') next = acceptRow(next, f, live, boxesByUrl);
     else if (status.kind === 'majority') next = acceptRow(next, f, live, boxesByUrl, status.via);
     else continue;
     accepted.push(f.key);
   }
   return { board: next, accepted };
+}
+
+/**
+ * The one action a row that needs you offers (first run 2026-10-25: "not the page's heading on
+ * product 1" offered nothing, and a new customer was stuck): the named product's own Fix / Mark on
+ * the screenshot, as its cell's button would — only once that product's screenshot is in. `cells`
+ * in product order: each cell's state and whether its screenshot has landed.
+ */
+export function rowFix(status: RowStatus, cells: Array<{ state: Segment; ready: boolean }>): { product: number; label: 'Fix' | 'Mark' } | null {
+  if (status.kind !== 'needs-you' || status.product === undefined) return null;
+  const cell = cells[status.product - 1];
+  if (!cell?.ready) return null;
+  return { product: status.product, label: cell.state === 'empty' ? 'Mark' : 'Fix' };
 }
 
 /** The value cell's state word — distinct from the battery's own ("confirmed"): the table calls an answered cell "accepted". */

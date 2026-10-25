@@ -79,6 +79,8 @@ export type TableRow = {
   /** A held field's word (spec 2026-10-21 §5, `heldWord`): shown under the status whatever the row's status is —
    * a held row's cells may read failed or suggested, and the customer must still see that runs go on. Null hides it. */
   heldWord: string | null;
+  /** A needs-you row's one action (`rowFix`, first run 2026-10-25): the named product's Fix / Mark on the screenshot. Null hides it. */
+  fix: { product: number; label: 'Fix' | 'Mark' } | null;
 };
 
 /** The 2 px rail a value cell carries in its state colour (spec §4: never a background wash). */
@@ -95,7 +97,7 @@ function productsText(ns: number[]): string {
   return `products ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
 }
 
-type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null; heldWord: string | null; onReverifyField?: () => void; showMoney: boolean };
+type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; fix: TableRow['fix']; onFix: (sel: CellSelection) => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null; heldWord: string | null; onReverifyField?: () => void; showMoney: boolean };
 
 /** The status column: the row's status, and under it the address warning (spec 2026-10-14 §6)
  * when the row is accepted or agreed, or whenever the badge reads verified; then Jev's note
@@ -122,7 +124,7 @@ function StatusCell({ addressWarning, jevNote, heldWord, onReverifyField, showMo
   );
 }
 
-function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefault, defaultOnlyWord }: Omit<StatusCellProps, 'addressWarning' | 'jevNote' | 'heldWord' | 'onReverifyField' | 'showMoney'>) {
+function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefault, fix, onFix, defaultOnlyWord }: Omit<StatusCellProps, 'addressWarning' | 'jevNote' | 'heldWord' | 'onReverifyField' | 'showMoney'>) {
   switch (status.kind) {
     case 'agreed':
       return (
@@ -161,7 +163,22 @@ function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefau
         </div>
       );
     case 'needs-you':
-      return <span className="text-sm text-muted-foreground">{status.reason}</span>;
+      if (!fix) return <span className="text-sm text-muted-foreground">{status.reason}</span>;
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">{status.reason}</span>
+          <Button
+            variant="outline"
+            size="xs"
+            disabled={locked}
+            aria-label={`${fix.label} ${field.name} on the screenshot of product ${fix.product}`}
+            title={locked ? LOCKED_REASON : undefined}
+            onClick={() => onFix({ product: fix.product - 1, key: field.key })}
+          >
+            {fix.label} on screenshot
+          </Button>
+        </div>
+      );
     case 'accepted':
       return (
         <span className="inline-flex flex-wrap items-center gap-2">
@@ -534,7 +551,7 @@ export function VerificationTable({
                 {addHead ? <td className="w-[190px] border-t border-line" /> : null}
 
                 <td className="sticky right-0 z-10 w-[220px] border-t border-l border-line bg-panel px-2 py-2 align-top">
-                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} heldWord={row.heldWord} onReverifyField={row.onReverifyField} showMoney={showMoney} />
+                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} fix={row.fix} onFix={onFix} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} heldWord={row.heldWord} onReverifyField={row.onReverifyField} showMoney={showMoney} />
                 </td>
               </tr>
 

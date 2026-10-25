@@ -4,9 +4,9 @@ import { eq, and, desc, sql, isNotNull, isNull, inArray, type SQL } from 'drizzl
 import { sources, datasets, projects, inputSets, sourceVerifications, captures, jevReadings, type Database } from '@robot/db';
 import {
   VERIFY_STALL_MS, estAiCostPerFieldUsd, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash, isNotOnWebsite,
-  suggestMarks, pageTextOf, visibleTextFromHtml,
+  suggestMarks, pageHeading, pageTextOf,
   resolveVariantList, suggestEntryValues, normalizeVariantLink, normalizeVariantLinks,
-  type SchemaDefinitionField, type VerificationSet, type Box, type VariantVerification,
+  type SchemaDefinitionField, type VerificationSet, type VariantVerification,
 } from '@robot/scraper';
 import { BROWSER_UNAVAILABLE, COUNTRIES, countryByCode } from '@robot/browser';
 import { router, protectedProcedure } from '../trpc';
@@ -267,27 +267,6 @@ async function setInputPages(
   }
 
   return { rows, skipped };
-}
-
-/**
- * The proof page's main heading (spec 2026-10-12 §B1): the first `<h1>` in
- * the capture's HTML, its whole visible text; only when the HTML has no `h1`,
- * the largest of the box map's `h1`/`h2`/`h3` by area; else none. Read from
- * the HTML because a box carries only its element's own text nodes, so an
- * `<h1><span>Widget A</span></h1>` has no `h1` box at all and a split
- * `Super Shock <em>Shadow</em>` box reads "Super Shock" (final review I3).
- */
-function headingTextFrom(html: string, boxes: Box[]): string | null {
-  // Scripts and styles out first: a template `<script>` can carry an `<h1>` the page never renders.
-  const markup = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ');
-  const h1 = /<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1\s*>/i.exec(markup);
-  if (h1) return visibleTextFromHtml(h1[1]!).trim();
-  let best: Box | null = null;
-  for (const b of boxes) {
-    if (b.tag !== 'h1' && b.tag !== 'h2' && b.tag !== 'h3') continue;
-    if (!best || b.rect.w * b.rect.h > best.rect.w * best.rect.h) best = b;
-  }
-  return best ? best.text.trim() : null;
 }
 
 /** The table as staff choose from it (spec 2026-10-24 proxy §2.3). */
@@ -907,7 +886,7 @@ export const sourcesRouter = router({
       return {
         captureId: row.id,
         fields: suggestMarks(capture, meta.boxes, fields),
-        headingText: headingTextFrom(capture.html, meta.boxes),
+        headingText: pageHeading(capture.html, meta.boxes),
         // The whole text, uncapped: the run-time flag checks the full page, so
         // a cap would warn at Verify on a value the run calls shown (final review I2).
         pageText: pageTextOf(capture.html),
