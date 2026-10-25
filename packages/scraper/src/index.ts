@@ -35,7 +35,7 @@ export type { OriginField, FieldOrigin } from './crawl/partition-schema.js';
 export { mergeRow } from './crawl/merge-row.js';
 export { DETAIL_URL_FIELD } from './crawl/enumerate-detail-urls.js';
 export {
-  findProductGroup, asListingLinks, productKey, productPathShape, urlShape, fitsShape, onCard, onImageCard, reconcileWithProductGroup,
+  findProductGroup, asListingLinks, isSwatchLink, isOptionLabel, productKey, productPathShape, urlShape, fitsShape, onCard, onImageCard, reconcileWithProductGroup,
   PRICE_PATTERN, LISTING_LINKS_SCRIPT,
   type CardLevel, type ListingAnchor, type ListingItem, type ListingLinks, type ProductGroup, type ReconciledRows,
 } from './crawl/product-link-group.js';

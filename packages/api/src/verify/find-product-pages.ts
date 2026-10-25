@@ -5,7 +5,7 @@
 // products. No AI involved.
 
 import { detectPaginationFromHtml, verdictSentence, type CaptureErrorKind, type CaptureVerdict } from '@robot/browser';
-import { findProductGroup, onCard, onImageCard, productKey, PRICE_PATTERN, type ListingAnchor, type ListingLinks } from '@robot/scraper';
+import { findProductGroup, isOptionLabel, isSwatchLink, onCard, onImageCard, productKey, PRICE_PATTERN, type ListingAnchor, type ListingLinks } from '@robot/scraper';
 
 const absolute = (u: string, base: string): string | undefined => {
   try { const x = new URL(u, base); return /^https?:$/.test(x.protocol) ? x.href : undefined; } catch { return undefined; }
@@ -23,10 +23,10 @@ export function listingProducts(links: ListingLinks, listingUrl: string, urls: s
   return urls.map((url) => {
     const key = productKey(url);
     const same = (href: string) => key !== null && productKey(absolute(href, listingUrl) ?? '') === key;
-    const mine = links.anchors.filter((a) => !a.swatch && same(a.href));
+    const mine = links.anchors.filter((a) => !isSwatchLink(a) && same(a.href));
     const item = links.itemList.find((i) => same(i.url));
     const longest = (as: ListingAnchor[]) => as.map((a) => a.text.trim()).sort((x, y) => y.length - x.length)[0];
-    const text = mine.find((a) => a.name?.trim())?.name?.trim()
+    const text = mine.find((a) => a.name?.trim() && !isOptionLabel(a.name))?.name?.trim()
       || longest(mine.filter((a) => onCard(a.levels) || onImageCard(a.levels)))
       || longest(mine)
       || mine.find((a) => a.title?.trim())?.title?.trim()
@@ -93,7 +93,7 @@ const PROOF_PAGES = 3;
 function cardPrices(links: ListingLinks, listingUrl: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const a of links.anchors) {
-    if (a.swatch) continue;
+    if (isSwatchLink(a)) continue;
     const key = productKey(absolute(a.href, listingUrl) ?? '');
     if (key === null || out.has(key)) continue;
     const price = a.price ?? a.text.match(PRICE_PATTERN)?.[0];

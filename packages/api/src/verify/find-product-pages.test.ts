@@ -280,9 +280,16 @@ describe('LISTING_LINKS_SCRIPT in Chromium (offline page)', () => {
     expect(await namesOf(html, ['/p/glostad-dark-grey-1/', '/p/kivik-beige-3/', '/p/glostad-medium-blue-2/'])).toEqual([
       'GLOSTAD 3-seat sofa, Knisa dark grey',
       'KIVIK 3-seat sofa, Tibbleby beige/grey',
-      // Reached only by its option link: no title of its own, so its link text, never the dark grey card's heading.
-      'Option: GLOSTAD, 3-seat sofa, Knisa medium blue',
+      // Reached only by its option link, a swatch (re-run 1): never "Option: …", never the dark grey card's heading.
+      '/p/glostad-medium-blue-2/',
     ]);
+    // The option links are swatches, so the finder never offers the option-only colourway as a product.
+    const read = await browser.setContentEvaluate<ListingLinks>(html, LISTING_LINKS_SCRIPT);
+    expect(read.anchors.filter((a) => a.text.startsWith('Option:')).map((a) => a.swatch)).toEqual([true, true]);
+    expect(read.anchors.some((a) => a.name?.startsWith('Option:'))).toBe(false);
+    const r = describeListingPage(read, L2, '<html></html>', okVerdict(200));
+    expect(r.products.map((p) => p.title)).not.toContain('/p/glostad-medium-blue-2/');
+    expect(r.products.some((p) => p.title.startsWith('Option:'))).toBe(false);
   }, 60_000);
 
   it("a card's image alt names it when the card has no title element; a card with neither keeps its link text", async () => {

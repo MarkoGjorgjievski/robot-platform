@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
-  asListingLinks, CARD_MAX_LEVELS, findProductGroup, fitsShape, onCard, PRICE_PATTERN, productKey, productPathShape, urlShape,
+  asListingLinks, CARD_MAX_LEVELS, findProductGroup, fitsShape, isSwatchLink, onCard, PRICE_PATTERN, productKey, productPathShape, urlShape,
   type CardLevel, type ListingAnchor, type ListingLinks,
 } from './product-link-group.js';
 
@@ -43,7 +43,7 @@ describe('the 13 campaign listings (harvests, 2026-10-20)', () => {
     ['bombas', 'bombas.com/products/*', 27, 3],
     ['burrow', 'burrow.com/products/*', 25, 25],
     ['gymshark', 'gymshark.com/products/*', 64, 64],
-    ['ikea', 'ikea.com/my/en/p/*', 89, 52],
+    ['ikea', 'ikea.com/my/en/p/*', 52, 21], // re-run 1: its 58 "Option: …" links are swatches (89 with them)
     ['ikea-blog', null, 0, 0],
     ['lacoste', 'lacoste.com/gb/lacoste/men/clothing/*/*/*.html', 13, 13],
     ['noths', 'notonthehighstreet.com/*/product/*', 60, 60],
@@ -245,6 +245,17 @@ describe('findProductGroup (§3.2–§3.6)', () => {
   it('swatch links and "+2" are not products', () => {
     const g = findProductGroup(links([carded('/products/rug-a'), carded('/products/rug-a-blue', { swatch: true }), carded('/products/rug-b'), carded('/products/rug-c')]), L)!;
     expect(paths(g.urls)).toEqual(['/products/rug-a', '/products/rug-b', '/products/rug-c']);
+  });
+  it('an "Option: …" link (a variant option on another product\'s card) is a swatch, never a product (first run, re-run 1)', () => {
+    expect(isSwatchLink({ href: '/p/glostad-blue-2/', text: 'Option: GLOSTAD, 3-seat sofa, Knisa medium blue' })).toBe(true);
+    expect(isSwatchLink({ href: '/p/glostad-blue-2/', text: '  option:Knisa medium blue' })).toBe(true);
+    expect(isSwatchLink({ href: '/p/x/', text: 'Optional extras kit' })).toBe(false);
+    expect(isSwatchLink({ href: '/p/x/', text: 'x', swatch: true })).toBe(true);
+    const g = findProductGroup(links([
+      carded('/products/glostad-grey-1'), carded('/products/glostad-blue-2', { text: 'Option: GLOSTAD, 3-seat sofa, Knisa medium blue' }),
+      carded('/products/kivik-3'), carded('/products/ektorp-4'),
+    ]), L)!;
+    expect(paths(g.urls)).toEqual(['/products/glostad-grey-1', '/products/kivik-3', '/products/ektorp-4']);
   });
   it('a key=value fragment stays on the first address; a later variant of the same path folds into it (§3.4 over 2026-10-14 §8)', () => {
     const g = findProductGroup(links([
