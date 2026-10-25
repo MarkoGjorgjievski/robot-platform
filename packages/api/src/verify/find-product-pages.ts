@@ -115,17 +115,34 @@ const VARIANT_SEPARATOR = /\s[-–—|/]\s|,\s/;
 /**
  * A product's name without what tells its colourways apart (ruling D1): no prices, no case, no
  * trailing "(…)", nothing after the first variant separator (" - ", " | ", ", " …), and no trailing
- * colour words. "GLOSTAD 3-seat sofa - Knisa dark grey" and "Everyday Seamless Leggings Black" read
- * as "glostad 3-seat sofa" and "everyday seamless leggings".
+ * colour words, and no leading "Option:" label (a variant option's text). "GLOSTAD 3-seat sofa - Knisa
+ * dark grey" and "Everyday Seamless Leggings Black" read as "glostad 3-seat sofa" and "everyday
+ * seamless leggings".
  */
 export function productBaseName(name: string): string {
-  let s = name.replace(PRICES, ' ').toLowerCase().replace(/\s+/g, ' ').trim();
+  let s = name.replace(PRICES, ' ').toLowerCase().replace(/\s+/g, ' ').trim().replace(/^option\s*:\s*/, '');
   s = s.replace(/\s*\([^)]*\)$/, '').trim();
   const cut = VARIANT_SEPARATOR.exec(s);
   if (cut && cut.index >= 3) s = s.slice(0, cut.index).trim();
   const words = s.split(' ');
   while (words.length > 1 && COLOUR_WORDS.has(words[words.length - 1]!.replace(/[^\p{L}]/gu, ''))) words.pop();
   return words.join(' ').replace(/[\s,;:.\-–—|/]+$/, '');
+}
+
+const nameWords = (base: string): string[] => base.split(/[\s,;:|/]+/).map((w) => w.replace(/[^\p{L}\p{N}-]/gu, '')).filter(Boolean);
+
+/**
+ * Are two card names one product in two variants (first run, re-run 1)? Their base names
+ * (`productBaseName`) are the same, or one's words begin the other's: the part after a comma or a
+ * spaced dash/bar is the variant, wherever the shop puts its first comma — "GLOSTAD, 3-seat sofa,
+ * Knisa medium blue" and "GLOSTAD 3-seat sofa, Knisa dark grey" are one sofa. "Crusher 720" and
+ * "Crusher 540" stay two products.
+ */
+export function sameProduct(a: string, b: string): boolean {
+  const [x, y] = [nameWords(productBaseName(a)), nameWords(productBaseName(b))];
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  if (short.length === 0) return long.length === 0;
+  return short.every((w, i) => long[i] === w);
 }
 
 /** A shown price as a number (`£1,299.00` → 1299, `1.234,50 €` → 1234.5), or undefined. */
@@ -140,17 +157,16 @@ function amountOf(price: string | undefined): number | undefined {
 
 /**
  * Ruling D1 (first run 2026-10-25): the order the board takes products in, so its three proof pages
- * differ. The first three (in listing order, earliest first) whose names differ after
- * `productBaseName` and whose prices, when all three cards show one, are not all equal; else the
+ * differ. The first three (in listing order, earliest first) whose names are not
+ * `sameProduct` and whose prices, when all three cards show one, are not all equal; else the
  * first three whose names differ; else the first three. The rest follow in listing order.
  * Deterministic: the same listing gives the same proof pages.
  */
 export function proofProductOrder(items: Array<{ url: string; title: string; price?: string }>): string[] {
   const urls = items.map((i) => i.url);
   if (items.length <= PROOF_PAGES) return urls;
-  const names = items.map((i) => productBaseName(i.title));
   const amounts = items.map((i) => amountOf(i.price));
-  const differ = (...ix: number[]) => new Set(ix.map((i) => names[i])).size === ix.length;
+  const differ = (...ix: number[]) => ix.every((i, n) => ix.slice(n + 1).every((j) => !sameProduct(items[i]!.title, items[j]!.title)));
   const spread = (i: number, j: number, k: number) => {
     const [a, b, c] = [amounts[i], amounts[j], amounts[k]];
     return a === undefined || b === undefined || c === undefined || !(a === b && b === c);
