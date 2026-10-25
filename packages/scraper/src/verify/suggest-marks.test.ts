@@ -184,4 +184,20 @@ describe('suggestMarks — the heading must be the product\'s name (fix round 1)
     expect(suggestMarks(cap(''), [h1Box('Widget A', '//h1')], [title]).title).toMatchObject({ value: 'Widget A', via: { source: 'xpath' } });
   });
 
+  it('a breadcrumb before the Product whose last crumb is the heading is never the path (review I2)', () => {
+    const html = '<html><body><h1>Crusher® 720</h1></body></html>';
+    const ld = [
+      { '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', name: 'Home' }, { '@type': 'ListItem', name: 'Headphones' }, { '@type': 'ListItem', name: 'Crusher® 720' }] },
+      { '@type': 'Product', name: 'Crusher® 720 - Primer' },
+    ];
+    const r = suggestMarks(page(html, ld), [h1Box('Crusher® 720', '//h1')], [title]);
+    expect(r.title).toEqual({ value: 'Crusher® 720', via: { source: 'xpath', path: '//h1' }, boxes: [0] });
+  });
+
+  it('of two structured values equal to the heading, the shallowest path wins', () => {
+    const html = '<html><body><h1>Crusher® 720</h1></body></html>';
+    const ld = [{ '@type': 'Product', name: 'Crusher® 720 - Primer', isVariantOf: { model: { name: 'Crusher® 720' } } }, { '@type': 'ProductModel', name: 'Crusher® 720' }];
+    const r = suggestMarks(page(html, ld), [h1Box('Crusher® 720', '//h1')], [title]);
+    expect(r.title).toMatchObject({ value: 'Crusher® 720', via: { source: 'json-ld', path: 'name' } });
+  });
 });
