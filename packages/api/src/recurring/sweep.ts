@@ -14,6 +14,9 @@ import { requireCertification } from '../crawl/require-certification.js';
 import { enqueue } from '../jobs/enqueue.js';
 import type { DbOrTx } from '../jobs/queue.js';
 import { nextRunAt, parseSchedule, SCHEDULED_LABEL, type ScheduleLast, type SkipReason } from './schedule.js';
+import { createLog } from '../monitoring/log.js';
+
+const log = createLog('recurring');
 
 /** At most this many websites per sweep. */
 export const RECURRING_SWEEP_LIMIT = 6;
@@ -100,7 +103,7 @@ export async function sweepOne(opts: SweepOpts = {}): Promise<SweepOutcome | nul
           return { at: at.toISOString(), outcome: 'started', runId: await startRun(sp, id, at) };
         });
       } catch (err) {
-        console.error(`[recurring] website ${id}: its scheduled run could not start; next time ${next.toISOString()}:`, err);
+        log.error(`website ${id}: its scheduled run could not start; next time ${next.toISOString()}`, { sourceId: id, error: err });
         await tx.update(sources).set({ nextRunAt: next }).where(eq(sources.id, id));
         return { sourceId: id, at: at.toISOString(), outcome: 'skipped' };
       }
@@ -124,7 +127,7 @@ export async function sweepDueSchedules(opts: { limit?: number; only?: string[];
     } catch (err) {
       if (!(err instanceof SweepWebsiteError)) throw err;
       // Not even moved on: passed by for the rest of this sweep, tried again next minute.
-      console.error('[recurring] sweep:', err.message, err.cause);
+      log.error(`sweep: ${err.message}`, { sourceId: err.sourceId, error: err.cause });
       passed.push(err.sourceId);
       continue;
     }
@@ -143,7 +146,11 @@ export function startRecurringRuns(opts: { enabled: boolean; intervalMs?: number
   const tick = async () => {
     if (running) return;
     running = true;
-    try { await sweep(); } catch (err) { console.error('[recurring] sweep failed:', err); } finally { running = false; }
+    try {
+      const outcomes = await sweep();
+      const started = Array.isArray(outcomes) ? outcomes.filter((o) => (o as { outcome?: string } | null)?.outcome === 'started').length : 0;
+      if (started > 0) log.info(`started ${started} scheduled run(s)`, { count: started });
+    } catch (err) { log.error('sweep failed', { error: err }); } finally { running = false; }
   };
   let interval: ReturnType<typeof setInterval> | null = null;
   const first = setTimeout(() => {

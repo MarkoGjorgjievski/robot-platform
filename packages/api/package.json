@@ -14,6 +14,7 @@
     "./jobs": "./src/jobs/index.ts",
     "./log": "./src/monitoring/log.ts",
     "./errors": "./src/monitoring/errors.ts",
+    "./monitoring": "./src/monitoring/index.ts",
     "./test-helpers/identity": "./src/test-helpers/identity.ts",
     "./test-helpers/customer-source": "./src/test-helpers/customer-source.ts",
     "./test-helpers/seed-coverage-check": "./src/test-helpers/seed-coverage-check.ts",

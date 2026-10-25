@@ -15,6 +15,8 @@ try {
 // Spec 2026-10-25 monitoring §2.4: an unhandled rejection is reported; an uncaught exception is reported, then exits 1.
 const { installProcessHandlers } = await import('@robot/api/errors');
 installProcessHandlers('worker');
+const { createLog } = await import('@robot/api/log');
+const log = createLog('worker');
 // The api-server serves capture files from its public/captures; the worker writes them there (Docker: a shared volume).
 process.env.CAPTURES_DIR ??= join(here, '..', '..', 'api-server', 'public', 'captures');
 
@@ -35,11 +37,11 @@ let stopping = false;
 async function shutdown(why: string): Promise<void> {
   if (stopping) return;
   stopping = true;
-  console.log(`[worker] stopping (${why})`);
+  log.info(`stopping (${why})`, { reason: why });
   try {
     await worker.stop();
   } catch (err) {
-    console.error('[worker] stop failed:', err);
+    log.error('stop failed', { error: err });
     process.exit(1);
   }
   process.exit(0);

@@ -22,6 +22,9 @@ import { websiteCheckDays } from './check-schedule.js';
 import { enqueue } from '../jobs/enqueue.js';
 import type { DbOrTx } from '../jobs/queue.js';
 import { jobStopped } from '../jobs/context.js';
+import { createLog } from '../monitoring/log.js';
+
+const log = createLog('website-checks');
 
 const HOUR_MS = 60 * 60 * 1000;
 /** At most this many websites per sweep. */
@@ -127,7 +130,7 @@ export async function runDueWebsiteChecks(opts: { limit?: number; only?: string[
       if ((await check(id)) === 'checked') out.checked.push(id);
       else out.skipped.push(id);
     } catch (err) {
-      console.error(`[website-checks] ${id ?? 'claim'} failed:`, err);
+      log.error(`${id ?? 'claim'} failed`, { sourceId: id, error: err });
       if (!id) break;
       out.skipped.push(id);
     }
@@ -146,7 +149,10 @@ export function startWebsiteChecks(opts: { intervalMs?: number; firstDelayMs?: n
   const tick = async () => {
     if (running) return;
     running = true;
-    try { await sweep(); } catch (err) { console.error('[website-checks] sweep failed:', err); } finally { running = false; }
+    try {
+      const queued = await sweep();
+      if (Array.isArray(queued) && queued.length > 0) log.info(`queued ${queued.length} website check(s)`, { count: queued.length });
+    } catch (err) { log.error('sweep failed', { error: err }); } finally { running = false; }
   };
   let interval: ReturnType<typeof setInterval> | null = null;
   const first = setTimeout(() => {

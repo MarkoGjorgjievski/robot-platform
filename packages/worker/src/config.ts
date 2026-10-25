@@ -4,6 +4,8 @@ export type WorkerConfig = {
   lanes: { interactive: number; background: number; runs: number };
   minFreeMb: number; leaseMs: number; pollMs: number; shutdownMs: number; retryBaseMs: number;
   websiteChecks: boolean; recurringRuns: boolean; testJobs: boolean; stopFile: string | null;
+  /** WORKER_HEALTH_PORT (spec 2026-10-25 monitoring §2.1); 0 = any free port (tests); null = no health server. */
+  healthPort: number | null;
 };
 
 type Env = Record<string, string | undefined>;
@@ -13,6 +15,12 @@ const int = (env: Env, name: string, fallback: number, min: number): number => {
   return raw !== '' && Number.isInteger(n) && n >= min ? n : fallback;
 };
 const text = (env: Env, name: string): string | null => { const v = (env[name] ?? '').trim(); return v === '' ? null : v; };
+/** WORKER_HEALTH_PORT (spec 2026-10-25 monitoring §2.1): 1–65535, or 0 for any free port (tests); else no server. */
+const port = (env: Env, name: string): number | null => {
+  const raw = (env[name] ?? '').trim();
+  const n = Number(raw);
+  return raw !== '' && Number.isInteger(n) && n >= 0 && n <= 65535 ? n : null;
+};
 
 export function readWorkerConfig(env: Env): WorkerConfig {
   return {
@@ -30,5 +38,6 @@ export function readWorkerConfig(env: Env): WorkerConfig {
     recurringRuns: (env.RECURRING_RUNS ?? '').trim().toLowerCase() !== 'off',
     testJobs: (env.WORKER_TEST_JOBS ?? '').trim() === '1',
     stopFile: text(env, 'WORKER_STOP_FILE'),
+    healthPort: port(env, 'WORKER_HEALTH_PORT'),
   };
 }

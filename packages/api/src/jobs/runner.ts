@@ -12,7 +12,9 @@ import { closeJobRows, deliverClosedRuns } from './rows.js';
 import { runInJob, type JobContext } from './context.js';
 import { serializeError } from './errors.js';
 import type { WorkerBrowserGate } from './browser-gate.js';
-import { claimJob, completeJob, failJobTerminal, purgeJobs, reapJobs, releaseJob, renewLease, retryJob, type JobRow } from './queue.js';
+import { claimJob, completeJob, failJobTerminal, markProgress, purgeJobs, reapJobs, releaseJob, renewLease, retryJob, type JobRow } from './queue.js';
+import { createLog, type LogFields, type LogLevel } from '../monitoring/log.js';
+import { reportError } from '../monitoring/errors.js';
 
 export type JobDefinition = {
   policy: JobPolicy;
@@ -40,11 +42,15 @@ export type RunnerOptions = {
   log?: (line: string) => void;
   /** The claim (default `claimJob`); a test wraps it to hold one claim in flight, touching no other row. */
   claim?: typeof claimJob;
+  /** Spec 2026-10-25 monitoring §2.3: `ctx.progress()` writes `jobs.progress_at` at most this often (default 15 s). */
+  progressWriteMs?: number;
+  /** Spec 2026-10-25 monitoring §2.4: where a terminal fault is reported. Default `reportError` — none when `log` is given and this is not (tests, inline scripts). */
+  report?: (err: unknown, context: Record<string, unknown>) => unknown;
 };
 
-export type JobRunner = { workerId: string; active(): number; stop(graceMs?: number): Promise<void> };
+export type JobRunner = { workerId: string; active(): number; lanes(): Record<Lane, number>; stop(graceMs?: number): Promise<void> };
 
-type Active = { job: JobRow; def: JobDefinition; controller: AbortController; lastProgress: number; over: boolean; settled: Promise<void> };
+type Active = { job: JobRow; def: JobDefinition; controller: AbortController; lastProgress: number; progressWrittenAt: number; over: boolean; settled: Promise<void> };
 
 /** At shutdown, how long an aborted handler may take to unwind before its job is given back. */
 const UNWIND_MS = 2000;
@@ -57,7 +63,21 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   const leaseMs = opts.leaseMs ?? 60_000;
   const pollMs = opts.pollMs ?? 500;
   const retryBase = opts.retryBaseMs ?? 30_000;
-  const log = opts.log ?? ((line: string) => console.log(`[worker] ${line}`));
+  // Spec 2026-10-25 monitoring §2.2: the runner's lines go through the logger at their level; a caller's own `log`
+  // (tests, inline scripts) gets the same text lines.
+  const jobsLog = createLog('jobs');
+  const say = (level: LogLevel, line: string, fields?: LogFields) => (opts.log ? opts.log(line) : jobsLog[level](line, fields));
+  const report = opts.report ?? (opts.log ? null : reportError);
+  const progressWriteMs = opts.progressWriteMs ?? 15_000;
+  /** Spec 2026-10-25 §2.4, §3.2: a terminal fault is reported; an answer (a capture problem, a refusal) is not. Never throws. */
+  const fault = (err: unknown, context: Record<string, unknown>) => {
+    if (!report) return;
+    try {
+      const s = serializeError(err);
+      if (s.kind === 'capture-problem' || (s.kind === 'trpc' && s.code !== 'INTERNAL_SERVER_ERROR')) return;
+      void Promise.resolve(report(err, { ...context, queue: opts.queue, workerId })).catch(() => {});
+    } catch { /* reporting never changes an outcome */ }
+  };
   const freeMb = opts.freeMb ?? (() => os.freemem() / 1_048_576);
   const backoff = (attempt: number) => retryBase * 2 ** Math.max(attempt - 1, 0);
   /** The jobs held here, by claim (a job reaped from this worker and claimed by it again is a second hold). */
@@ -71,7 +91,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   const owner = (job: JobRow) => job.lockedBy!;
 
   /** An outcome write that found the job no longer this hold's (reaped, and maybe claimed again): nothing written. */
-  const lostBefore = (job: JobRow, what: string) => log(`lost the lease on ${job.type} ${job.id} before ${what}`);
+  const lostBefore = (job: JobRow, what: string) => say('warn', `lost the lease on ${job.type} ${job.id} before ${what}`, { jobId: job.id, type: job.type });
 
   const count = (pred: (a: Active) => boolean) => [...active.values()].filter(pred).length;
 
@@ -81,13 +101,19 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   const start = (job: JobRow) => {
     const def = opts.registry[job.type]!;
     const controller = new AbortController();
-    const a: Active = { job, def, controller, lastProgress: Date.now(), over: false, settled: Promise.resolve() };
+    const a: Active = { job, def, controller, lastProgress: Date.now(), progressWrittenAt: Date.now(), over: false, settled: Promise.resolve() };
     active.set(owner(job), a);
     const ctx: JobContext = {
       jobId: job.id, claim: owner(job), type: job.type, lane: def.policy.lane, attempt: job.attempts, retry: job.startedBefore ?? job.attempts > 1, signal: controller.signal,
-      progress: () => { a.lastProgress = Date.now(); },
+      progress: () => {
+        a.lastProgress = Date.now();
+        if (a.lastProgress - a.progressWrittenAt < progressWriteMs) return;
+        a.progressWrittenAt = a.lastProgress;
+        // Best-effort (spec 2026-10-25 §3.2): a write that fails, or finds the job another claim's, never touches the job.
+        void markProgress(job.id, owner(job)).catch(() => {});
+      },
     };
-    log(`claimed ${job.type} ${job.id} (attempt ${job.attempts} of ${job.maxAttempts})`);
+    say('info', `claimed ${job.type} ${job.id} (attempt ${job.attempts} of ${job.maxAttempts})`, { jobId: job.id, type: job.type, attempt: job.attempts, maxAttempts: job.maxAttempts });
     a.settled = (async () => {
       let value: unknown;
       try {
@@ -103,23 +129,24 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
         finish(a);
         track((async () => {
           if (job.attempts < job.maxAttempts) {
-            if (await retryJob(job.id, owner(job), msg(err), backoff(job.attempts))) log(`retry ${job.type} ${job.id} after: ${msg(err)}`);
+            if (await retryJob(job.id, owner(job), msg(err), backoff(job.attempts))) say('warn', `retry ${job.type} ${job.id} after: ${msg(err)}`, { jobId: job.id, type: job.type, attempt: job.attempts, error: msg(err) });
             else lostBefore(job, `its failure was recorded: ${msg(err)}`);
           } else if (await failJobTerminal(job.id, { owner: owner(job) }, serializeError(err), runSentenceFor(job.type))) {
-            log(`failed ${job.type} ${job.id}: ${msg(err)}`);
+            say('error', `failed ${job.type} ${job.id}: ${msg(err)}`, { jobId: job.id, type: job.type, attempt: job.attempts, error: msg(err) });
+            fault(err, { jobId: job.id, type: job.type, attempt: job.attempts });
           } else lostBefore(job, `its failure was recorded: ${msg(err)}`);
-        })().catch((recordErr) => log(`could not record the failure of ${job.id}: ${msg(recordErr)}`)));
+        })().catch((recordErr) => say('error', `could not record the failure of ${job.id}: ${msg(recordErr)}`, { jobId: job.id, error: msg(recordErr) })));
         return;
       }
       if (a.over) return;
       finish(a);
       track((async () => {
         if (await completeJob(job.id, owner(job), value ?? null)) {
-          log(`done ${job.type} ${job.id}`);
+          say('info', `done ${job.type} ${job.id}`, { jobId: job.id, type: job.type });
           await def.afterDone?.(job.payload, value)
-            .catch((err) => log(`after ${job.type} ${job.id} failed: ${msg(err)}`));
+            .catch((err) => say('warn', `after ${job.type} ${job.id} failed: ${msg(err)}`, { jobId: job.id, type: job.type, error: msg(err) }));
         } else lostBefore(job, 'its answer was recorded');
-      })().catch((recordErr) => log(`could not record the answer of ${job.id}: ${msg(recordErr)}`)));
+      })().catch((recordErr) => say('error', `could not record the answer of ${job.id}: ${msg(recordErr)}`, { jobId: job.id, error: msg(recordErr) })));
     })();
   };
 
@@ -134,7 +161,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       try {
         job = await (opts.claim ?? claimJob)({ queue: opts.queue, workerId, types, leaseMs });
       } catch (err) {
-        log(`claim failed: ${msg(err)}`);
+        say('error', `claim failed: ${msg(err)}`, { error: msg(err) });
       }
       if (!job) { await sleep(pollMs); continue; }
       if (stopping) { await releaseJob(job.id, owner(job), { unstarted: !job.startedBefore }).catch(() => {}); break; }
@@ -150,7 +177,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
         finish(a);
         a.controller.abort('lease lost');
         await opts.browsers?.closeJob(owner(a.job));
-        log(`lost the lease on ${a.job.type} ${a.job.id}; stopped it here`);
+        say('warn', `lost the lease on ${a.job.type} ${a.job.id}; stopped it here`, { jobId: a.job.id, type: a.job.type });
       }).catch(() => { /* a database blip is not a lost lease */ });
     }
   }, Math.max(250, Math.floor(leaseMs / 4)));
@@ -163,19 +190,22 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       track((async () => {
         const closeBrowsers = () => opts.browsers?.closeJob(owner(a.job)).catch(() => {});
         let recorded: boolean;
+        let failedForGood = false;
         if (a.def.policy.retryOnStuck && a.job.attempts < a.job.maxAttempts) {
           // Back to the queue only once its browsers are gone: no browser here still works a job another claim has.
           await closeBrowsers();
           recorded = await retryJob(a.job.id, owner(a.job), 'stuck', backoff(a.job.attempts));
         } else {
           // Failed for good: its rows are closed first (M1), so nothing the closing browser shakes loose can land on them.
+          failedForGood = true;
           try {
             recorded = await failJobTerminal(a.job.id, { owner: owner(a.job) }, { kind: 'unavailable', message: 'stalled' }, runSentenceFor(a.job.type));
           } finally { await closeBrowsers(); }
         }
-        if (recorded) log(`stuck ${a.job.type} ${a.job.id}: no progress for ${a.def.policy.stuckMs} ms`);
+        if (recorded) say('warn', `stuck ${a.job.type} ${a.job.id}: no progress for ${a.def.policy.stuckMs} ms`, { jobId: a.job.id, type: a.job.type, stuckMs: a.def.policy.stuckMs });
+        if (recorded && failedForGood) fault(new Error(`stalled: no progress for ${a.def.policy.stuckMs} ms`), { jobId: a.job.id, type: a.job.type, attempt: a.job.attempts });
         else lostBefore(a.job, 'it was stopped as stuck');
-      })().catch((err) => log(`could not stop ${a.job.id}: ${msg(err)}`)));
+      })().catch((err) => say('error', `could not stop ${a.job.id}: ${msg(err)}`, { jobId: a.job.id, error: msg(err) })));
     }
   }, opts.stuckCheckMs ?? 5000);
 
@@ -183,12 +213,15 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   const reap = async () => {
     try {
       const r = await reapJobs(opts.queue, { retryBaseMs: retryBase });
-      for (const id of r.retried) log(`reaped ${id}: its worker stopped answering; retrying`);
-      for (const id of r.failed) log(`reaped ${id}: its worker stopped answering; no attempts left`);
-      for (const id of r.expired) log(`expired ${id}: not started in time`);
+      for (const id of r.retried) say('warn', `reaped ${id}: its worker stopped answering; retrying`, { jobId: id });
+      for (const id of r.failed) {
+        say('warn', `reaped ${id}: its worker stopped answering; no attempts left`, { jobId: id });
+        fault(new Error('stalled: its worker stopped answering'), { jobId: id });
+      }
+      for (const id of r.expired) say('warn', `expired ${id}: not started in time`, { jobId: id });
       if (reaps++ % 240 === 0) await purgeJobs(opts.queue);
     } catch (err) {
-      log(`reap failed: ${msg(err)}`);
+      say('error', `reap failed: ${msg(err)}`, { error: msg(err) });
     }
   };
   track(reap());
@@ -199,6 +232,11 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
   return {
     workerId,
     active: () => active.size,
+    lanes: () => ({
+      interactive: count((a) => a.def.policy.lane === 'interactive'),
+      background: count((a) => a.def.policy.lane === 'background'),
+      runs: count((a) => a.def.policy.lane === 'runs'),
+    }),
     async stop(graceMs = 25_000) {
       stopping = true;
       const deadline = Date.now() + graceMs;
@@ -213,7 +251,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       clearTimeout(unwind);
       for (const a of left) {
         await releaseJob(a.job.id, owner(a.job)).catch(() => {});
-        log(`gave back ${a.job.type} ${a.job.id} (shutdown)`);
+        say('info', `gave back ${a.job.type} ${a.job.id} (shutdown)`, { jobId: a.job.id, type: a.job.type });
       }
       clearInterval(heartbeat); clearInterval(stuckCheck); clearInterval(reaper);
       await Promise.all(loops);
