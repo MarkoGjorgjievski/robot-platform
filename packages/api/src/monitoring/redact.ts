@@ -33,16 +33,15 @@ export function isSecretKey(key: string): boolean {
 }
 
 /**
- * Rewrites each `re` match that `decide` judges secret. `re` (global) consumes a name and its separator and reads the
- * value in a lookahead, so a pair judged harmless never hides a secret inside its value: scanning resumes after the
- * separator. `decide` returns the replacement for the match and how many characters after it to drop, or null.
+ * Rewrites each `re` match that `decide` judges secret. `re` (global) consumes only a name and its separator, so a
+ * pair judged harmless never hides a secret inside its value: scanning resumes after the separator. `decide` returns the replacement for the match and how many characters after it to drop, or null.
  */
-function scan(text: string, re: RegExp, decide: (m: RegExpExecArray) => { out: string; skip: number } | null): string {
+function scan(text: string, re: RegExp, decide: (m: RegExpExecArray, text: string) => { out: string; skip: number } | null): string {
   re.lastIndex = 0;
   let out = '';
   let last = 0;
   for (let m = re.exec(text); m; m = re.exec(text)) {
-    const r = decide(m);
+    const r = decide(m, text);
     if (r) {
       out += text.slice(last, m.index) + r.out;
       last = m.index + m[0].length + r.skip;
@@ -67,14 +66,42 @@ const ANY_USERINFO = new RegExp(`\\b(${SCHEME}:\\/\\/)[^\\s/?#]*@`, 'gi');
 const RAW_USERINFO = new RegExp(`\\b(${SCHEME}:\\/\\/)[^\\s/?#@:]{0,256}:(?!\\d{1,5}[/?#])[^\\s@]{0,256}@`, 'gi');
 /** The same, URL-encoded (a redirect parameter): scheme%3A%2F%2F…%40, never past an encoded / ? #. */
 const ENCODED_USERINFO = new RegExp(`\\b(${SCHEME}%3A%2F%2F)(?:(?!%2F|%3F|%23)[^\\s&/?#]){0,512}%40`, 'gi');
+// The pair rules consume only a name and its separator; the value is read (sticky, bounded) only when the name is
+// secret, so text full of harmless pairs costs one pass.
 /** name=value (a query parameter); the name is judged by isSecretKey. */
-const PARAM = /(?<![\w.-])([\w.-]{1,80})=(?=([^\s&"',;]{1,4096}))/g;
+const PARAM = /(?<![\w.-])([\w.-]{1,80})=/g;
+const PARAM_VALUE = /[^\s&"',;]{1,4096}/y;
 /** The same, URL-encoded: name%3Dvalue up to %26, the name right after an encoded ? or & (or a separator). */
-const ENCODED_PARAM = /(?:(?<=%[0-9a-f]{2})|(?<![\w.%-]))([\w.-]{1,80})%3D(?=((?:(?!%26)[^\s&"',;]){1,4096}))/gi;
+const ENCODED_PARAM = /(?:(?<=%[0-9a-f]{2})|(?<![\w.%-]))([\w.-]{1,80})%3D/gi;
+const ENCODED_VALUE = /(?:(?!%26)[^\s&"',;]){1,4096}/iy;
 const KEY_PARAM = /([?&;]key)=([^\s&"',;]+)/gi;
 /** "name": "value" in JSON text. */
-const JSON_PAIR = /"([^"\\]{1,80})"\s*:\s*"(?=((?:[^"\\]|\\.){0,4096})")/g;
-const maskValue = (m: RegExpExecArray) => (isSecretKey(m[1]!) ? { out: m[0] + MASK, skip: m[2]!.length } : null);
+const JSON_PAIR = /"([^"\\]{1,80})"\s*:\s*"/g;
+const DQ_VALUE = /(?:[^"\\\r\n]|\\.){0,4096}(?=")/y;
+const SQ_VALUE = /(?:[^'\\\r\n]|\\.){0,4096}(?=')/y;
+/** name: 'value', 'name':'value', name = "value" (Node's util.inspect, single-quoted JSON, config text). */
+const QUOTED_PAIR = /(?<![\w.-])(['"]?)([\w.-]{1,80})\1\s*[:=]\s*(['"])/g;
+/** name: value, name = value, X-Auth-Token: value — a bare value, up to a space or a separator. */
+const BARE_PAIR = /(?<![\w.-])([\w.-]{1,80})\s*[:=]\s*/g;
+const BARE_VALUE = /[^\s'",;&}\])<>]{1,4096}/y;
+
+function valueAt(re: RegExp, text: string, at: number): string {
+  re.lastIndex = at;
+  return re.exec(text)?.[0] ?? '';
+}
+type Decide = (m: RegExpExecArray, text: string) => { out: string; skip: number } | null;
+const masked = (m: RegExpExecArray, value: string) => (value ? { out: m[0] + MASK, skip: value.length } : null);
+const maskParam: Decide = (m, t) => (isSecretKey(m[1]!) ? masked(m, valueAt(PARAM_VALUE, t, m.index + m[0].length)) : null);
+const maskEncoded: Decide = (m, t) => (isSecretKey(m[1]!) ? masked(m, valueAt(ENCODED_VALUE, t, m.index + m[0].length)) : null);
+const maskJson: Decide = (m, t) => (isSecretKey(m[1]!) ? masked(m, valueAt(DQ_VALUE, t, m.index + m[0].length)) : null);
+const maskQuoted: Decide = (m, t) =>
+  isSecretKey(m[2]!) ? masked(m, valueAt(m[3] === "'" ? SQ_VALUE : DQ_VALUE, t, m.index + m[0].length)) : null;
+/** A value already masked, or the scheme word of a masked Bearer/Basic token, is left as it is. */
+const maskBare: Decide = (m, t) => {
+  if (!isSecretKey(m[1]!)) return null;
+  const v = valueAt(BARE_VALUE, t, m.index + m[0].length);
+  return v === MASK || /^(?:bearer|basic)$/i.test(v) ? null : masked(m, v);
+};
 const BEARER = /\b(Bearer)\s+[A-Za-z0-9._~+/=-]+/gi;
 const BASIC = /\b(Basic)\s+[A-Za-z0-9+/=]{6,}/g;
 /** A header in text: everything after it on the line, unless it is already a masked Bearer/Basic token. */
@@ -101,15 +128,16 @@ function redactor(env: Env): Redactor {
     out = out
       .replace(ANY_USERINFO, `$1${MASK}@`)
       .replace(RAW_USERINFO, `$1${MASK}@`)
-      .replace(ENCODED_USERINFO, `$1${MASK}%40`);
-    out = scan(out, JSON_PAIR, maskValue);
-    out = scan(out, PARAM, maskValue);
-    out = scan(out, ENCODED_PARAM, maskValue);
-    return out
-      .replace(KEY_PARAM, `$1=${MASK}`)
+      .replace(ENCODED_USERINFO, `$1${MASK}%40`)
       .replace(BEARER, `$1 ${MASK}`)
       .replace(BASIC, `$1 ${MASK}`)
       .replace(HEADER, `$1$2${MASK}`);
+    out = scan(out, JSON_PAIR, maskJson);
+    out = scan(out, QUOTED_PAIR, maskQuoted);
+    out = scan(out, BARE_PAIR, maskBare);
+    out = scan(out, PARAM, maskParam);
+    out = scan(out, ENCODED_PARAM, maskEncoded);
+    return out.replace(KEY_PARAM, `$1=${MASK}`);
   };
 }
 
