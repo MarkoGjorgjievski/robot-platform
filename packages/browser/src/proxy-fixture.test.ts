@@ -35,7 +35,7 @@ describe('startRecordingProxy', () => {
 
   it('carries nothing off this machine: a CONNECT or a GET to another host is answered 403, never dialled', async () => {
     const p = await proxy();
-    expect(await checkProxy({ server: p.url }, 'https://example.com/')).toEqual({ ok: false, detail: 'The proxy answered 403 to the tunnel request.' });
+    expect(await checkProxy({ server: p.url }, 'https://example.com/')).toEqual({ ok: false, detail: 'The proxy answered 403 to the tunnel request.', lasting: true });
     expect(await getThrough(p, 'http://example.com/')).toBe(403);
     expect(p.log.map((e) => e.method)).toEqual(['CONNECT', 'GET']);
   });
