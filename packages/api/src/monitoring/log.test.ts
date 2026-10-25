@@ -310,3 +310,10 @@ describe('fix round 1, text format', () => {
       .toBe('[t] m v="x\\u001by" w="p\\u2029q" o={"a":"\\u0085"}');
   });
 });
+
+describe('fix round 1, keys in a line', () => {
+  const T3 = new Date('2026-10-25T12:00:00.000Z');
+  it('M6: a text key that is not a plain name is quoted, so it cannot forge a field', () => {
+    expect(formatLine('info', 't', 'm', { 'a b=c': 1, ok: 2, 'x.y-z_1': 3 }, 'text', T3, {})).toBe('[t] m "a b=c"=1 ok=2 x.y-z_1=3');
+  });
+});

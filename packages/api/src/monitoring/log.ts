@@ -42,6 +42,11 @@ function oneLine(s: string): string {
   return s.replace(CONTROLS, (c) => SHORT[c] ?? `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
+/** A key that is not a plain name (a remote header, a Map key) is quoted, so `a b=c` cannot forge a `b=c` field. */
+function textKey(k: string): string {
+  return /^[\w.-]+$/.test(k) ? k : oneLine(JSON.stringify(k));
+}
+
 function textValue(v: unknown): string {
   if (typeof v === 'string') return /^[^\s"=]+$/.test(v) && !HAS_CONTROL.test(v) ? v : oneLine(JSON.stringify(v));
   if (v === null || typeof v === 'number' || typeof v === 'boolean') return String(v);
@@ -61,7 +66,7 @@ export function formatLine(level: LogLevel, scope: string, message: string, fiel
     return safeJson(out);
   }
   const head = level === 'warn' || level === 'error' ? `[${scope}] ${level.toUpperCase()} ${oneLine(msg)}` : `[${scope}] ${oneLine(msg)}`;
-  return entries.length ? `${head} ${entries.map(([k, v]) => `${oneLine(k)}=${textValue(v)}`).join(' ')}` : head;
+  return entries.length ? `${head} ${entries.map(([k, v]) => `${textKey(k)}=${textValue(v)}`).join(' ')}` : head;
 }
 
 export function createLog(scope: string, opts: { sink?: LogSink; env?: Env } = {}): Log {
