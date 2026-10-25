@@ -1,0 +1,360 @@
+{
+ "note": "Trimmed from a real capture of https://www.skullcandy.com/products/aviator-900-anc-headphones (2026-10-25, first run): the document title, every h1 as served, the JSON-LD blocks' types and names, og:title, and the box map's headings and h1 elements.",
+ "url": "https://www.skullcandy.com/products/aviator-900-anc-headphones",
+ "html": "<html><head><title>Aviator® 900 ANC Headphones with Adaptive Active Noise Canceling | THX Spatial Audio | True Wireless | Bluetooth 5.3 | Built-in Microphone | 60 Hours of Battery</title></head><body><h1 class=\"h2\">Aviator<span class=\"marks\">®</span> 900 ANC</h1>\n<h1 class=\"h2\">Aviator<span class=\"marks\">®</span> 900 ANC</h1></body></html>",
+ "structuredData": {
+  "ldJson": [
+   {
+    "@context": "http://schema.org/",
+    "@type": "Product",
+    "name": "Aviator® 900 ANC - True Black",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    },
+    "isVariantOf": {
+     "@type": "ProductGroup",
+     "name": "Aviator® 900 ANC"
+    }
+   },
+   {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "Aviator® 900 ANC - True Black",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    }
+   },
+   {
+    "@context": "https://schema.org",
+    "@graph": [
+     {
+      "@type": "VideoObject",
+      "name": "I Have to Get These"
+     },
+     {
+      "@type": "VideoObject",
+      "name": "Style Meets Sound"
+     },
+     {
+      "@type": "VideoObject",
+      "name": "Unboxing"
+     },
+     {
+      "@type": "VideoObject",
+      "name": "Iconic Style"
+     }
+    ]
+   },
+   {
+    "@context": "http://schema.org",
+    "@type": "Organization",
+    "name": "Skullcandy"
+   },
+   {
+    "@context": "http://schema.org/",
+    "@type": "ProductGroup",
+    "name": "Aviator® 900 ANC",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    }
+   },
+   {
+    "@context": "http://schema.org/",
+    "@type": "Product",
+    "name": "Aviator® 900 ANC - True Black",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    },
+    "isVariantOf": {
+     "@type": "ProductGroup",
+     "name": "Aviator® 900 ANC"
+    }
+   },
+   {
+    "@context": "https://schema.org",
+    "@type": "FAQPage"
+   }
+  ],
+  "nextData": null,
+  "initialState": null,
+  "meta": {
+   "og:title": "Aviator® 900 ANC Headphones with Adaptive Active Noise Canceling | THX Spatial Audio | True Wireless | Bluetooth 5.3 | Built-in Microphone | 60 Hours of Battery"
+  }
+ },
+ "interceptedRequests": [],
+ "pageVariant": {
+  "ids": [],
+  "pairs": [
+   {
+    "name": "color: true black – only [num] left in stock",
+    "value": "True Black"
+   }
+  ],
+  "labels": [
+   "True Black"
+  ],
+  "named": false,
+  "selected": true
+ },
+ "boxes": [
+  {
+   "xpaths": [
+    "//body/div[@class=\"website-breadcrumbs\"]/nav[@class=\"breadcrumbs page-width\"]/ol[@class=\"breadcrumbs__list\"]/li[@class=\"breadcrumbs__item\"]/a[@class=\"breadcrumbs__link\"]"
+   ],
+   "text": "Aviator® 900 ANC",
+   "tag": "a",
+   "kind": "link",
+   "rect": {
+    "x": 80,
+    "y": 103,
+    "w": 92,
+    "h": 29
+   },
+   "href": "https://www.skullcandy.com/products/aviator-900-anc-headphones"
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]"
+   ],
+   "text": "Aviator® 900 ANC",
+   "tag": "h1",
+   "kind": "text",
+   "rect": {
+    "x": 775,
+    "y": 161,
+    "w": 463,
+    "h": 71
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]/span[@class=\"marks\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]/span[@class=\"marks\"]"
+   ],
+   "text": "®",
+   "tag": "span",
+   "kind": "text",
+   "rect": {
+    "x": 968,
+    "y": 153,
+    "w": 17,
+    "h": 60
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__description rte quick-add-hidden\"]/h2[1]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__description rte quick-add-hidden\"]/h2[1]"
+   ],
+   "text": "AUDIO ELEVATED",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 240,
+    "y": 1317,
+    "w": 800,
+    "h": 30
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]"
+   ],
+   "text": "Additional Features",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 140,
+    "y": 1689,
+    "w": 168,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]"
+   ],
+   "text": "Technical Specifications",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 140,
+    "y": 2196,
+    "w": 203,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]"
+   ],
+   "text": "Product Support",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 140,
+    "y": 2571,
+    "w": 147,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/div[@class=\"color-background-1 gradient\"]/pairs-well-with[contains(concat(\" \",normalize-space(@class),\" \"),\" pairs-well-with \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pairs-well-with__title \")]/h2[@class=\"pairs-well-with__heading title center inline-richtext h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/div[@class=\"color-background-1 gradient\"]/pairs-well-with[contains(concat(\" \",normalize-space(@class),\" \"),\" pairs-well-with \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pairs-well-with__title \")]/h2[@class=\"pairs-well-with__heading title center inline-richtext h3\"]"
+   ],
+   "text": "PAIRS WELL WITH",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 0,
+    "y": 2699,
+    "w": 1280,
+    "h": 38
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "SMARTER NOISE CANCELING",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 642,
+    "y": 3613,
+    "w": 540,
+    "h": 78
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "SURROUND SOUND THAT MOVES WITH YOU",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 132,
+    "y": 5207,
+    "w": 540,
+    "h": 117
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "FLY AROUND THE WORLD ON A SINGLE CHARGE.",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 132,
+    "y": 7007,
+    "w": 540,
+    "h": 117
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" shopify-section \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text__grid \")]/div[@class=\"grid__item content\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text__content \")]/h2[@class=\"image-with-text__heading\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" shopify-section \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text__grid \")]/div[@class=\"grid__item content\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text__content \")]/h2[@class=\"image-with-text__heading\"]"
+   ],
+   "text": "COMFORT THAT WON'T QUIT",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 120,
+    "y": 9610,
+    "w": 450,
+    "h": 76
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" enhanced-testimonial \")]/div[@class=\"page-width-testimonial\"]/div[@class=\"enhanced-testimonial-wrapper\"]/div[@class=\"enhanced-testimonial-right\"]/div[@class=\"enhanced-testimonial-slider\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" enhanced-testimonial-inner \")]/div[@class=\"enhanced-testimonial-info\"]/div[@class=\"enhanced-testimonial-content\"]/div[@class=\"enhanced-testimonial-title\"]/h2[@class=\"h4 heading\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" enhanced-testimonial \")]/div[@class=\"page-width-testimonial\"]/div[@class=\"enhanced-testimonial-wrapper\"]/div[@class=\"enhanced-testimonial-right\"]/div[@class=\"enhanced-testimonial-slider\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" enhanced-testimonial-inner \")]/div[@class=\"enhanced-testimonial-info\"]/div[@class=\"enhanced-testimonial-content\"]/div[@class=\"enhanced-testimonial-title\"]/h2[@class=\"h4 heading\"]"
+   ],
+   "text": "These things have changed the way I hear music and see the world.\"",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 505,
+    "y": 10208,
+    "w": 585,
+    "h": 111
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-image-base=\"https://cdn.shopify.com/s/files/1/0579/2360/0489/files/PDP-APP_aviator_\"]/div[@class=\"get-on-mobile-scroll-container\"]/div[@class=\"get-on-mobile-scroll-sticky\"]/div[@class=\"main-container\"]/div[@class=\"get-on-mobile-content\"]/h2[@class=\"h3\"]",
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" tap-tune-transform \")]/div[@class=\"get-on-mobile-scroll-container\"]/div[@class=\"get-on-mobile-scroll-sticky\"]/div[@class=\"main-container\"]/div[@class=\"get-on-mobile-content\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "TAP, TUNE, TRANSFORM",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 260,
+    "y": 11273,
+    "w": 760,
+    "h": 38
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section feature-collapsible-faq\"]/div[@class=\"color-background-1 gradient\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content__wrapper \")]/div[@class=\"page-width\"]/div[@class=\"collapsible-content__header\"]/h2[@class=\"collapsible-content__heading h1\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section feature-collapsible-faq\"]/div[@class=\"color-background-1 gradient\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content__wrapper \")]/div[@class=\"page-width\"]/div[@class=\"collapsible-content__header\"]/h2[@class=\"collapsible-content__heading h1\"]"
+   ],
+   "text": "FAQs",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 70,
+    "y": 11503,
+    "w": 1140,
+    "h": 23
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"yotpo-app\"]/div[@class=\"yotpo-main-widget-layout yotpo-align-text\"]/div[@class=\"yotpo-base-layout\"]/div[@class=\"yotpo-main-layout yotpo-main-reviews-widget yotpo-main-widget-layout-reviews\"]/div[2]/div[@class=\"yotpo-paragraph-summary-container\"]/div[@class=\"yotpo-paragraph-summary\"]/div[@class=\"yotpo-paragraph-summary-header\"]/h3[@class=\"yotpo-paragraph-summary-title-container\"]",
+    "//*[@id=\"yotpo-reviews-main-widget\"]/section[@class=\"yotpo-widget-clear\"]/div[1]/div[@class=\"yotpo-main-widget-layout yotpo-align-text\"]/div[@class=\"yotpo-base-layout\"]/div[@class=\"yotpo-main-layout yotpo-main-reviews-widget yotpo-main-widget-layout-reviews\"]/div[2]/div[@class=\"yotpo-paragraph-summary-container\"]/div[@class=\"yotpo-paragraph-summary\"]/div[@class=\"yotpo-paragraph-summary-header\"]/h3[@class=\"yotpo-paragraph-summary-title-container\"]"
+   ],
+   "text": "Customers say",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 50,
+    "y": 13137,
+    "w": 1180,
+    "h": 46
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/div[@class=\"isolate\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text__wrapper \")]/div[@class=\"rich-text__blocks center\"]/h3[@class=\"rich-text__heading rte h4\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/div[@class=\"isolate\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text__wrapper \")]/div[@class=\"rich-text__blocks center\"]/h3[@class=\"rich-text__heading rte h4\"]"
+   ],
+   "text": "STILL NOT SURE WHICH PRODUCTS ARE RIGHT FOR YOU?",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 250,
+    "y": 15125,
+    "w": 780,
+    "h": 74
+   }
+  }
+ ]
+}

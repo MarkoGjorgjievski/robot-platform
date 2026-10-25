@@ -1,0 +1,379 @@
+{
+ "note": "Trimmed from a real capture of https://www.skullcandy.com/products/crusher-540-active (2026-10-25, first run): the document title, every h1 as served, the JSON-LD blocks' types and names, og:title, and the box map's headings and h1 elements.",
+ "url": "https://www.skullcandy.com/products/crusher-540-active",
+ "html": "<html><head><title>Crusher 540 Active - Wireless Workout Headphones | Bluetooth 5.0 | Sensory Bass | Water &amp; Sweat Resistant | 40 Hours Battery | Rapid Charge</title></head><body><h1 class=\"h2\">Crusher<span class=\"marks\">®</span> 540 Active</h1>\n<h1 class=\"h2\">Crusher<span class=\"marks\">®</span> 540 Active</h1>\n<h1>THIS IS YOUR BRAIN ON BAKER </h1></body></html>",
+ "structuredData": {
+  "ldJson": [
+   {
+    "@context": "http://schema.org/",
+    "@type": "Product",
+    "name": "Crusher® 540 Active - Skullcandy X Baker Skateboards",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    },
+    "isVariantOf": {
+     "@type": "ProductGroup",
+     "name": "Crusher® 540 Active"
+    }
+   },
+   {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "Crusher® 540 Active - Skullcandy X Baker Skateboards",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    }
+   },
+   {
+    "@context": "https://schema.org",
+    "@graph": [
+     {
+      "@type": "VideoObject",
+      "name": "Thumping"
+     },
+     {
+      "@type": "VideoObject",
+      "name": "Work Out Ready"
+     },
+     {
+      "@type": "VideoObject",
+      "name": "Surfer Approved"
+     },
+     {
+      "@type": "VideoObject",
+      "name": "Unboxing"
+     },
+     {
+      "@type": "VideoObject",
+      "name": "Best Bass"
+     }
+    ]
+   },
+   {
+    "@context": "http://schema.org",
+    "@type": "Organization",
+    "name": "Skullcandy"
+   },
+   {
+    "@context": "http://schema.org/",
+    "@type": "ProductGroup",
+    "name": "Crusher® 540 Active",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    }
+   },
+   {
+    "@context": "http://schema.org/",
+    "@type": "Product",
+    "name": "Crusher® 540 Active - Skullcandy X Baker Skateboards",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    },
+    "isVariantOf": {
+     "@type": "ProductGroup",
+     "name": "Crusher® 540 Active"
+    }
+   },
+   {
+    "@context": "https://schema.org",
+    "@type": "FAQPage"
+   }
+  ],
+  "nextData": null,
+  "initialState": null,
+  "meta": {
+   "og:title": "Crusher 540 Active - Wireless Workout Headphones | Bluetooth 5.0 | Sensory Bass | Water & Sweat Resistant | 40 Hours Battery | Rapid Charge"
+  }
+ },
+ "interceptedRequests": [],
+ "pageVariant": {
+  "ids": [],
+  "pairs": [
+   {
+    "name": "color: skullcandy x baker skateboards – only [num] left in stock",
+    "value": "Skullcandy X Baker Skateboards"
+   }
+  ],
+  "labels": [
+   "Skullcandy X Baker Skateboards"
+  ],
+  "named": false,
+  "selected": true
+ },
+ "boxes": [
+  {
+   "xpaths": [
+    "//body/div[@class=\"website-breadcrumbs\"]/nav[@class=\"breadcrumbs page-width\"]/ol[@class=\"breadcrumbs__list\"]/li[@class=\"breadcrumbs__item\"]/a[@class=\"breadcrumbs__link\"]"
+   ],
+   "text": "Crusher® 540 Active",
+   "tag": "a",
+   "kind": "link",
+   "rect": {
+    "x": 336,
+    "y": 104,
+    "w": 115,
+    "h": 29
+   },
+   "href": "https://www.skullcandy.com/products/crusher-540-active"
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]"
+   ],
+   "text": "Crusher® 540 Active",
+   "tag": "h1",
+   "kind": "text",
+   "rect": {
+    "x": 775,
+    "y": 162,
+    "w": 463,
+    "h": 131
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]/span[@class=\"marks\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]/span[@class=\"marks\"]"
+   ],
+   "text": "®",
+   "tag": "span",
+   "kind": "text",
+   "rect": {
+    "x": 991,
+    "y": 154,
+    "w": 17,
+    "h": 60
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__description rte quick-add-hidden\"]/h2[1]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__description rte quick-add-hidden\"]/h2[1]"
+   ],
+   "text": "CRUSH THE ACTION WITH MIND-BENDING BASS",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 240,
+    "y": 1577,
+    "w": 800,
+    "h": 60
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]"
+   ],
+   "text": "Additional Features",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 140,
+    "y": 2023,
+    "w": 168,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]"
+   ],
+   "text": "Technical Specifications",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 140,
+    "y": 2310,
+    "w": 203,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]"
+   ],
+   "text": "Product Support",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 140,
+    "y": 2685,
+    "w": 147,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" contextual-section \")]/div[@class=\"page-width\"]/div[@class=\"contextual-wrapper contextual-color-1\"]/div[@class=\"contextual-content\"]/div[@class=\"metafield-rich_text_field\"]/h1[1]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" contextual-section \")]/div[@class=\"page-width\"]/div[@class=\"contextual-wrapper contextual-color-1\"]/div[@class=\"contextual-content\"]/div[@class=\"metafield-rich_text_field\"]/h1[1]"
+   ],
+   "text": "THIS IS YOUR BRAIN ON BAKER",
+   "tag": "h1",
+   "kind": "text",
+   "rect": {
+    "x": 50,
+    "y": 2902,
+    "w": 619,
+    "h": 197
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/div[@class=\"color-background-1 gradient\"]/pairs-well-with[contains(concat(\" \",normalize-space(@class),\" \"),\" pairs-well-with \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pairs-well-with__title \")]/h2[@class=\"pairs-well-with__heading title center inline-richtext h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/div[@class=\"color-background-1 gradient\"]/pairs-well-with[contains(concat(\" \",normalize-space(@class),\" \"),\" pairs-well-with \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pairs-well-with__title \")]/h2[@class=\"pairs-well-with__heading title center inline-richtext h3\"]"
+   ],
+   "text": "PAIRS WELL WITH",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 0,
+    "y": 3309,
+    "w": 1280,
+    "h": 38
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "MIND-BENDING BASS, TUNED FOR MOVEMENT",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 132,
+    "y": 4217,
+    "w": 540,
+    "h": 117
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-image\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-image\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "READY FOR SWEAT. BUILT TO LAST",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 676,
+    "y": 6177,
+    "w": 540,
+    "h": 78
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-image\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-image\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "GRIP THAT DOESN'T QUIT",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 132,
+    "y": 8257,
+    "w": 540,
+    "h": 78
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" shopify-section \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text__grid \")]/div[@class=\"grid__item content\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text__content \")]/h2[@class=\"image-with-text__heading\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" shopify-section \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text__grid \")]/div[@class=\"grid__item content\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" image-with-text__content \")]/h2[@class=\"image-with-text__heading\"]"
+   ],
+   "text": "FLAT-FOLDING, READY TO ROLL",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 120,
+    "y": 10981,
+    "w": 450,
+    "h": 76
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" enhanced-testimonial \")]/div[@class=\"page-width-testimonial\"]/div[@class=\"enhanced-testimonial-wrapper\"]/div[@class=\"enhanced-testimonial-right\"]/div[@class=\"enhanced-testimonial-slider\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" enhanced-testimonial-inner \")]/div[@class=\"enhanced-testimonial-info\"]/div[@class=\"enhanced-testimonial-content\"]/div[@class=\"enhanced-testimonial-title\"]/h2[@class=\"h4 heading\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" enhanced-testimonial \")]/div[@class=\"page-width-testimonial\"]/div[@class=\"enhanced-testimonial-wrapper\"]/div[@class=\"enhanced-testimonial-right\"]/div[@class=\"enhanced-testimonial-slider\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" enhanced-testimonial-inner \")]/div[@class=\"enhanced-testimonial-info\"]/div[@class=\"enhanced-testimonial-content\"]/div[@class=\"enhanced-testimonial-title\"]/h2[@class=\"h4 heading\"]"
+   ],
+   "text": "...the Crushers are all about the pump, both in your ears and in your veins. Bass is full-bodied, but they were still a fun listen even when I wasn't working out.",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 505,
+    "y": 11578,
+    "w": 585,
+    "h": 185
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-image-base=\"https://cdn.shopify.com/s/files/1/0862/1745/7938/files/PDP-APP_crusherActive\"]/div[@class=\"get-on-mobile-scroll-container\"]/div[@class=\"get-on-mobile-scroll-sticky\"]/div[@class=\"main-container\"]/div[@class=\"get-on-mobile-content\"]/h2[@class=\"h3\"]",
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" tap-tune-transform \")]/div[@class=\"get-on-mobile-scroll-container\"]/div[@class=\"get-on-mobile-scroll-sticky\"]/div[@class=\"main-container\"]/div[@class=\"get-on-mobile-content\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "CRUSH IT YOUR WAY",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 260,
+    "y": 12717,
+    "w": 760,
+    "h": 38
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section feature-collapsible-faq\"]/div[@class=\"color-background-1 gradient\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content__wrapper \")]/div[@class=\"page-width\"]/div[@class=\"collapsible-content__header\"]/h2[@class=\"collapsible-content__heading h1\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section feature-collapsible-faq\"]/div[@class=\"color-background-1 gradient\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content__wrapper \")]/div[@class=\"page-width\"]/div[@class=\"collapsible-content__header\"]/h2[@class=\"collapsible-content__heading h1\"]"
+   ],
+   "text": "FAQs",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 70,
+    "y": 12947,
+    "w": 1140,
+    "h": 23
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"yotpo-app\"]/div[@class=\"yotpo-main-widget-layout yotpo-align-text\"]/div[@class=\"yotpo-base-layout\"]/div[@class=\"yotpo-main-layout yotpo-main-reviews-widget yotpo-main-widget-layout-reviews\"]/div[2]/div[@class=\"yotpo-paragraph-summary-container\"]/div[@class=\"yotpo-paragraph-summary\"]/div[@class=\"yotpo-paragraph-summary-header\"]/h3[@class=\"yotpo-paragraph-summary-title-container\"]",
+    "//*[@id=\"yotpo-reviews-main-widget\"]/section[@class=\"yotpo-widget-clear\"]/div[1]/div[@class=\"yotpo-main-widget-layout yotpo-align-text\"]/div[@class=\"yotpo-base-layout\"]/div[@class=\"yotpo-main-layout yotpo-main-reviews-widget yotpo-main-widget-layout-reviews\"]/div[2]/div[@class=\"yotpo-paragraph-summary-container\"]/div[@class=\"yotpo-paragraph-summary\"]/div[@class=\"yotpo-paragraph-summary-header\"]/h3[@class=\"yotpo-paragraph-summary-title-container\"]"
+   ],
+   "text": "Customers say",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 50,
+    "y": 14260,
+    "w": 1180,
+    "h": 46
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/div[@class=\"isolate\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text__wrapper \")]/div[@class=\"rich-text__blocks center\"]/h3[@class=\"rich-text__heading rte h4\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/div[@class=\"isolate\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text__wrapper \")]/div[@class=\"rich-text__blocks center\"]/h3[@class=\"rich-text__heading rte h4\"]"
+   ],
+   "text": "STILL NOT SURE WHICH PRODUCTS ARE RIGHT FOR YOU?",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 250,
+    "y": 16160,
+    "w": 780,
+    "h": 74
+   }
+  }
+ ]
+}

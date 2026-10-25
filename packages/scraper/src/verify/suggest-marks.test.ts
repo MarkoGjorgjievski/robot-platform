@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { suggestMarks, pageHeading } from './suggest-marks.js';
+import { suggestMarks, pageHeading, sameHeading } from './suggest-marks.js';
 import { loadVerifyFixture } from '../__fixtures__/verify/load.js';
 import type { Box } from './box-map.js';
 import type { SchemaDefinitionField } from './types.js';
@@ -99,11 +99,20 @@ describe('suggestMarks — a Title prefers the page\'s heading (first run 2026-1
     expect(r.title).toEqual({ value: 'GLOSTAD 3-seat sofa', via: { source: 'xpath', path: '//h1[@class="pip-header"]' }, boxes: [0] });
   });
 
-  it('a structured value equal to the heading is preferred over the element: its path certifies like any page data', () => {
+  it('a JSON-LD value equal to the heading is preferred over the element: its path certifies like any page data', () => {
     const html = '<html><body><h1>Crusher® 720</h1></body></html>';
     const bx: Box[] = [box('Crusher® 720', 0, { tag: 'h1', xpaths: ['//h1'], rect: { x: 0, y: 0, w: 300, h: 40 } })];
-    const r = suggestMarks(page(html, [{ '@type': 'Product', name: 'Crusher® 720 - Primer' }], {}, [{ product: { title: 'Crusher® 720' } }]), bx, [title]);
-    expect(r.title).toEqual({ value: 'Crusher® 720', via: { source: 'api', path: 'product.title' }, boxes: [0] });
+    const r = suggestMarks(page(html, [{ '@type': 'Product', name: 'Crusher® 720 - Primer', isVariantOf: { name: 'Crusher® 720' } }]), bx, [title]);
+    expect(r.title).toEqual({ value: 'Crusher® 720', via: { source: 'json-ld', path: 'isVariantOf.name' }, boxes: [0] });
+  });
+
+  it('an API value equal to the heading only when no element shows it (fix task 6: on Skullcandy it was a reviews widget)', () => {
+    const html = '<html><body><h1>Crusher® 720</h1></body></html>';
+    const ld = [{ '@type': 'Product', name: 'Crusher® 720 - Primer' }];
+    const api = [{ product: { title: 'Crusher® 720' } }];
+    const bx: Box[] = [box('Crusher® 720', 0, { tag: 'h1', xpaths: ['//h1'], rect: { x: 0, y: 0, w: 300, h: 40 } })];
+    expect(suggestMarks(page(html, ld, {}, api), bx, [title]).title).toEqual({ value: 'Crusher® 720', via: { source: 'xpath', path: '//h1' }, boxes: [0] });
+    expect(suggestMarks(page(html, ld, {}, api), [], [title]).title).toEqual({ value: 'Crusher® 720', via: { source: 'api', path: 'product.title' }, boxes: [] });
   });
 
   it('the page data name that IS the heading stays as it was (case and spacing aside)', () => {
@@ -194,10 +203,80 @@ describe('suggestMarks — the heading must be the product\'s name (fix round 1)
     expect(r.title).toEqual({ value: 'Crusher® 720', via: { source: 'xpath', path: '//h1' }, boxes: [0] });
   });
 
-  it('of two structured values equal to the heading, the shallowest path wins', () => {
+  it('of two structured values equal to the heading, the shallowest path that reads it wins', () => {
     const html = '<html><body><h1>Crusher® 720</h1></body></html>';
+    // The ProductModel's `name` is shallower, but `name` reads the first block, "Crusher® 720 - Primer" (fix task 6).
     const ld = [{ '@type': 'Product', name: 'Crusher® 720 - Primer', isVariantOf: { model: { name: 'Crusher® 720' } } }, { '@type': 'ProductModel', name: 'Crusher® 720' }];
-    const r = suggestMarks(page(html, ld), [h1Box('Crusher® 720', '//h1')], [title]);
-    expect(r.title).toMatchObject({ value: 'Crusher® 720', via: { source: 'json-ld', path: 'name' } });
+    expect(suggestMarks(page(html, ld), [h1Box('Crusher® 720', '//h1')], [title]).title).toMatchObject({ value: 'Crusher® 720', via: { source: 'json-ld', path: 'isVariantOf.model.name' } });
+    const first = [{ '@type': 'ProductModel', name: 'Crusher® 720' }, { '@type': 'Product', name: 'Crusher® 720 - Primer', isVariantOf: { model: { name: 'Crusher® 720' } } }];
+    expect(suggestMarks(page(html, first), [h1Box('Crusher® 720', '//h1')], [title]).title).toMatchObject({ value: 'Crusher® 720', via: { source: 'json-ld', path: 'name' } });
+  });
+});
+
+// Fix task 6 (first run, re-run 1): the real pages, trimmed from captures of the proof pages the run chose. On
+// Skullcandy the h1 is `Crusher<span class="marks">®</span> 720` — the heading read "Crusher ® 720", which no
+// value equals; on IKEA the h1 is two spans with no text of its own (no element showed the whole heading) and
+// the JSON-LD name writes " - " where the heading writes ", " (the name guard refused it).
+describe('suggestMarks — the Title on the real first-run pages', () => {
+  const title = f('title', 'text', 'product_name');
+  const real = (name: string) => {
+    const capture = loadVerifyFixture('first-run', name);
+    return { capture, boxes: (capture as unknown as { boxes: Box[] }).boxes };
+  };
+  // Skullcandy: the first Product block's `isVariantOf.name` is the heading, read the same way on all three. IKEA: no
+  // page data writes the heading, so its h1 — a box now that the box map keeps a heading with no text of its own.
+  const cases: Array<[string, string, 'json-ld' | 'xpath']> = [
+    ['skullcandy-crusher-720', 'Crusher® 720', 'json-ld'],
+    ['skullcandy-crusher-540-active', 'Crusher® 540 Active', 'json-ld'],
+    ['skullcandy-aviator-900-anc', 'Aviator® 900 ANC', 'json-ld'],
+    ['ikea-glostad-dark-grey', 'GLOSTAD 3-seat sofa, Knisa dark grey', 'xpath'],
+    ['ikea-glostad-medium-blue', 'GLOSTAD 3-seat sofa, Knisa medium blue', 'xpath'],
+    ['ikea-kivik-tibbleby', 'KIVIK 3-seat sofa, Tibbleby beige/grey', 'xpath'],
+  ];
+  for (const [name, heading, source] of cases) {
+    it(`${name}: the heading reads "${heading}" and the Title suggestion is it, by ${source}`, () => {
+      const { capture, boxes: bx } = real(name);
+      expect(pageHeading(capture.html, bx)).toBe(heading);
+      const s = suggestMarks(capture, bx, [title]).title!;
+      expect(s.value).toBe(heading);
+      expect(sameHeading(s.value, pageHeading(capture.html, bx)!)).toBe(true); // the row's heading rule agrees
+      expect(s.via.source).toBe(source);
+      if (source === 'json-ld') {
+        expect(s.via.path).toBe('isVariantOf.name');
+        expect(s.boxes.map((i) => bx[i]!.tag)).toContain('h1');
+      } else {
+        expect(s.boxes).toHaveLength(1);
+        expect(bx[s.boxes[0]!]).toMatchObject({ tag: 'h1', text: heading });
+        expect(s.via.path).toBe(bx[s.boxes[0]!]!.xpaths[0]);
+      }
+    });
+  }
+
+  it('Skullcandy without `isVariantOf`: the ProductGroup block named "Crusher® 720" is not the path — `name` reads the first block — so the h1 is', () => {
+    const { capture, boxes: bx } = real('skullcandy-crusher-720');
+    const ldJson = capture.structuredData.ldJson.map((b) => { const { isVariantOf: _drop, ...rest } = b as Record<string, unknown>; return rest; });
+    expect(ldJson.some((b) => b['@type'] === 'ProductGroup' && b.name === 'Crusher® 720')).toBe(true);
+    const s = suggestMarks({ ...capture, structuredData: { ...capture.structuredData, ldJson } }, bx, [title]).title!;
+    expect(s).toMatchObject({ value: 'Crusher® 720', via: { source: 'xpath' } });
+    expect(bx[s.boxes[0]!]).toMatchObject({ tag: 'h1' });
+  });
+
+  it('a reviews widget API body names the product as the heading too, but the page data or the element comes first', () => {
+    const { capture, boxes: bx } = real('skullcandy-crusher-720');
+    expect(capture.interceptedRequests).toHaveLength(1);
+    expect(suggestMarks(capture, bx, [title]).title!.via.source).not.toBe('api');
+  });
+});
+
+describe('pageHeading — the text as the page shows it', () => {
+  it('an inline element inside the heading adds no space: Crusher<span>®</span> 720 reads "Crusher® 720"', () => {
+    expect(pageHeading('<h1 class="h2">Crusher<span class="marks">®</span> 720</h1>', [])).toBe('Crusher® 720');
+    expect(pageHeading('<h1>Super Shock <em>Shadow</em></h1>', [])).toBe('Super Shock Shadow');
+    expect(pageHeading('<h1>Foo<sup>™</sup>Bar</h1>', [])).toBe('Foo™Bar');
+  });
+  it('a line break or a block inside the heading is a space; entities are decoded', () => {
+    expect(pageHeading('<h1>Widget<br>A</h1>', [])).toBe('Widget A');
+    expect(pageHeading('<h1><div>Widget</div><div>A</div></h1>', [])).toBe('Widget A');
+    expect(pageHeading('<h1>Salt &amp; Pepper&nbsp;Mill &#174; &#x2122;</h1>', [])).toBe('Salt & Pepper Mill ® ™');
   });
 });

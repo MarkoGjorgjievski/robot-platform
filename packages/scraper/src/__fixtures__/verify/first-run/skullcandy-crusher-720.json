@@ -1,0 +1,353 @@
+{
+ "note": "Trimmed from a real capture of https://www.skullcandy.com/products/crusher-720-headphones (2026-10-25, first run): the document title, every h1 as served, the JSON-LD blocks' types and names, og:title, and the box map's headings and h1 elements.",
+ "url": "https://www.skullcandy.com/products/crusher-720-headphones",
+ "html": "<html><head><title>Crusher 720 - Bass Headphones with THX® Spatial Audio | 65-Hour Battery</title></head><body><h1 class=\"h2\">Crusher<span class=\"marks\">®</span> 720</h1>\n<h1 class=\"h2\">Crusher<span class=\"marks\">®</span> 720</h1></body></html>",
+ "structuredData": {
+  "ldJson": [
+   {
+    "@context": "http://schema.org/",
+    "@type": "Product",
+    "name": "Crusher® 720 - Primer",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    },
+    "isVariantOf": {
+     "@type": "ProductGroup",
+     "name": "Crusher® 720"
+    }
+   },
+   {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "Crusher® 720 - Primer",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    }
+   },
+   {
+    "@context": "https://schema.org",
+    "@graph": [
+     {
+      "@type": "VideoObject",
+      "name": "You NEED These"
+     },
+     {
+      "@type": "VideoObject",
+      "name": "\"Sound 10 out of 10\""
+     },
+     {
+      "@type": "VideoObject",
+      "name": "Hard Hitting Bass"
+     }
+    ]
+   },
+   {
+    "@context": "http://schema.org",
+    "@type": "Organization",
+    "name": "Skullcandy"
+   },
+   {
+    "@context": "http://schema.org/",
+    "@type": "ProductGroup",
+    "name": "Crusher® 720",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    }
+   },
+   {
+    "@context": "http://schema.org/",
+    "@type": "Product",
+    "name": "Crusher® 720 - Primer",
+    "brand": {
+     "@type": "Brand",
+     "name": "Skullcandy US"
+    },
+    "isVariantOf": {
+     "@type": "ProductGroup",
+     "name": "Crusher® 720"
+    }
+   },
+   {
+    "@context": "https://schema.org",
+    "@type": "FAQPage"
+   }
+  ],
+  "nextData": null,
+  "initialState": null,
+  "meta": {
+   "og:title": "Crusher 720 - Bass Headphones with THX® Spatial Audio | 65-Hour Battery"
+  }
+ },
+ "interceptedRequests": [
+  {
+   "url": "https://api-cdn.yotpo.com/v3/rich_snippets/store_id/DMWE2vqdaiL2vSEKQf2zWCbC2i8wc1uLafmvoCNG/product_id/8311500865593",
+   "method": "POST",
+   "isJson": true,
+   "contentType": "application/json",
+   "parsedJson": {
+    "data": {
+     "@context": "https://schema.org",
+     "@type": "Product",
+     "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": 4.5,
+      "reviewCount": 130
+     },
+     "name": "Crusher® 720",
+     "image": "https://www.skullcandy.com/cdn/shop/files/26B_Crusher_720_True_Black_S6CEW-T740_Web_Buy_Boxes_1_large.png%3Fv=1782329625",
+     "offers": {
+      "@type": "Offer",
+      "availability": "https://schema.org/InStock",
+      "price": 139.99,
+      "priceCurrency": "USD"
+     }
+    },
+    "scriptType": "application/ld+json"
+   }
+  }
+ ],
+ "pageVariant": {
+  "ids": [],
+  "pairs": [
+   {
+    "name": "color: primer – only [num] left in stock",
+    "value": "Primer"
+   }
+  ],
+  "labels": [
+   "Primer"
+  ],
+  "named": false,
+  "selected": true
+ },
+ "boxes": [
+  {
+   "xpaths": [
+    "//body/div[@class=\"website-breadcrumbs\"]/nav[@class=\"breadcrumbs page-width\"]/ol[@class=\"breadcrumbs__list\"]/li[@class=\"breadcrumbs__item\"]/a[@class=\"breadcrumbs__link\"]"
+   ],
+   "text": "Crusher® 720",
+   "tag": "a",
+   "kind": "link",
+   "rect": {
+    "x": 336,
+    "y": 104,
+    "w": 76,
+    "h": 29
+   },
+   "href": "https://www.skullcandy.com/products/crusher-720-headphones"
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]"
+   ],
+   "text": "Crusher® 720",
+   "tag": "h1",
+   "kind": "text",
+   "rect": {
+    "x": 775,
+    "y": 162,
+    "w": 463,
+    "h": 71
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]/span[@class=\"marks\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[@class=\"product__title\"]/h1[@class=\"h2\"]/span[@class=\"marks\"]"
+   ],
+   "text": "®",
+   "tag": "span",
+   "kind": "text",
+   "rect": {
+    "x": 991,
+    "y": 154,
+    "w": 17,
+    "h": 60
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]"
+   ],
+   "text": "Additional Features",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 140,
+    "y": 1908,
+    "w": 168,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]"
+   ],
+   "text": "Technical Specifications",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 140,
+    "y": 2371,
+    "w": 203,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[@class=\"product_details_below\"]/div[@class=\"product__accordion accordion quick-add-hidden\"]/details[@class=\"accordion__details\"]/summary[1]/div[@class=\"summary__title\"]/h2[@class=\"h4 accordion__title\"]"
+   ],
+   "text": "Product Support",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 140,
+    "y": 2724,
+    "w": 147,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "BASS LIKE NO OTHER",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 132,
+    "y": 3890,
+    "w": 510,
+    "h": 39
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-video\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "THX® SPATIAL AUDIO",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 132,
+    "y": 5690,
+    "w": 504,
+    "h": 39
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-image\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/div[@class=\"shopify-section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" media-with-text-banner \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner \")]/div[@class=\"image-video-banner-container banner_type-image\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" video-banner-content \")]/div[@class=\"video-banner-heading\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "POWERFUL SOUND WITH COMFORT",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 132,
+    "y": 7444,
+    "w": 540,
+    "h": 78
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-image-extension=\".png\"]/div[@class=\"get-on-mobile-scroll-container\"]/div[@class=\"get-on-mobile-scroll-sticky\"]/div[@class=\"main-container\"]/div[@class=\"get-on-mobile-content\"]/h2[@class=\"h3\"]",
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" tap-tune-transform \")]/div[@class=\"get-on-mobile-scroll-container\"]/div[@class=\"get-on-mobile-scroll-sticky\"]/div[@class=\"main-container\"]/div[@class=\"get-on-mobile-content\"]/h2[@class=\"h3\"]"
+   ],
+   "text": "SOUND YOUR WAY",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 260,
+    "y": 8730,
+    "w": 760,
+    "h": 38
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pdp-compare \")]/h2[@class=\"pdp-compare__heading\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pdp-compare \")]/h2[@class=\"pdp-compare__heading\"]"
+   ],
+   "text": "COMPARE PRODUCTS",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 0,
+    "y": 8952,
+    "w": 1280,
+    "h": 37
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pdp-compare \")]/div[@class=\"pdp-compare__scroll-wrap\"]/div[@class=\"pdp-compare__table\"]/div[1]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pdp-compare__row \")]/div[@class=\"pdp-compare__product-col\"]/div[1]/p[@class=\"pdp-compare__product-name\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pdp-compare \")]/div[@class=\"pdp-compare__scroll-wrap\"]/div[@class=\"pdp-compare__table\"]/div[1]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pdp-compare__row \")]/div[@class=\"pdp-compare__product-col\"]/div[1]/p[@class=\"pdp-compare__product-name\"]"
+   ],
+   "text": "CRUSHER® 720",
+   "tag": "p",
+   "kind": "text",
+   "rect": {
+    "x": 482,
+    "y": 9189,
+    "w": 119,
+    "h": 17
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section feature-collapsible-faq\"]/div[@class=\"color-background-1 gradient\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content__wrapper \")]/div[@class=\"page-width\"]/div[@class=\"collapsible-content__header\"]/h2[@class=\"collapsible-content__heading h1\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section feature-collapsible-faq\"]/div[@class=\"color-background-1 gradient\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" collapsible-content__wrapper \")]/div[@class=\"page-width\"]/div[@class=\"collapsible-content__header\"]/h2[@class=\"collapsible-content__heading h1\"]"
+   ],
+   "text": "FAQs",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 70,
+    "y": 10147,
+    "w": 1140,
+    "h": 23
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"yotpo-app\"]/div[@class=\"yotpo-main-widget-layout yotpo-align-text\"]/div[@class=\"yotpo-base-layout\"]/div[@class=\"yotpo-main-layout yotpo-main-reviews-widget yotpo-main-widget-layout-reviews\"]/div[2]/div[@class=\"yotpo-paragraph-summary-container\"]/div[@class=\"yotpo-paragraph-summary\"]/div[@class=\"yotpo-paragraph-summary-header\"]/h3[@class=\"yotpo-paragraph-summary-title-container\"]",
+    "//*[@id=\"yotpo-reviews-main-widget\"]/section[@class=\"yotpo-widget-clear\"]/div[1]/div[@class=\"yotpo-main-widget-layout yotpo-align-text\"]/div[@class=\"yotpo-base-layout\"]/div[@class=\"yotpo-main-layout yotpo-main-reviews-widget yotpo-main-widget-layout-reviews\"]/div[2]/div[@class=\"yotpo-paragraph-summary-container\"]/div[@class=\"yotpo-paragraph-summary\"]/div[@class=\"yotpo-paragraph-summary-header\"]/h3[@class=\"yotpo-paragraph-summary-title-container\"]"
+   ],
+   "text": "Customers say",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 50,
+    "y": 11407,
+    "w": 1180,
+    "h": 46
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/div[@class=\"isolate\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text__wrapper \")]/div[@class=\"rich-text__blocks center\"]/h3[@class=\"rich-text__heading rte h4\"]",
+    "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/div[@class=\"isolate\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" rich-text__wrapper \")]/div[@class=\"rich-text__blocks center\"]/h3[@class=\"rich-text__heading rte h4\"]"
+   ],
+   "text": "STILL NOT SURE WHICH PRODUCTS ARE RIGHT FOR YOU?",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 250,
+    "y": 13425,
+    "w": 780,
+    "h": 74
+   }
+  }
+ ]
+}
