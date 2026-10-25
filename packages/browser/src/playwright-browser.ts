@@ -702,8 +702,12 @@ export class PlaywrightBrowser implements IBrowser {
 
   async setContentEvaluate<T = unknown>(html: string, script: string): Promise<T> {
     if (!this.browser) throw new Error('Browser not launched. Call launch() first.');
-    // No proxy here on purpose: every request is aborted below, so nothing leaves this context at all.
+    // No proxy here on purpose: every request and every WebSocket is stopped below, so nothing leaves this context.
     const context = await this.browser.newContext({ viewport: { width: 1280, height: 800 } });
+    // page.route never sees a WebSocket, and the stored page's inline scripts still run: an inline `new WebSocket(…)`
+    // would connect straight out from the worker (final review M1). Routed with no server, it never connects. Set on
+    // the context before the page exists, so the page's first document already has it.
+    await context.routeWebSocket(/.*/, (ws) => { ws.close().catch(() => {}); }).catch(async (err: unknown) => { await context.close(); throw err; });
     const page = await context.newPage();
     try {
       // Offline by construction, not by claim: `setContent({ waitUntil: 'load' })`

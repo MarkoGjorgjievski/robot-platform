@@ -66,4 +66,27 @@ describe('setContentEvaluate', () => {
       }
     }, 15_000);
   });
+
+  // Final review M1: page.route does not see WebSockets, and a stored page's inline scripts still run — so an inline
+  // `new WebSocket(…)` would connect straight out from the worker's own address. Nothing leaves, WebSockets included.
+  it('an inline script’s WebSocket never connects out', async () => {
+    const upgrades: string[] = [];
+    const server = createServer((_req, res) => res.end());
+    server.on('upgrade', (req, socket) => { upgrades.push(req.url ?? ''); socket.destroy(); });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
+    const browser = new PlaywrightBrowser();
+    // Stealth off: with it on this page happened not to connect in Chromium 1.62, and the guard must not rest on that.
+    await browser.launch({ headless: true, stealth: false });
+    try {
+      const html = `<html><body><div id="x">hello</div><script>window.__ws = new Promise((r) => { const ws = new WebSocket("ws://127.0.0.1:${port}/out"); ws.onopen = () => r("open"); ws.onclose = () => r("closed"); ws.onerror = () => r("error"); });</script></body></html>`;
+      const state = await browser.setContentEvaluate<string>(html, 'Promise.race([window.__ws, new Promise((r) => setTimeout(() => r("pending"), 3000))])');
+      expect(state).not.toBe('open');
+      expect(upgrades).toEqual([]);
+    } finally {
+      await browser.close();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }, 30_000);
 });
