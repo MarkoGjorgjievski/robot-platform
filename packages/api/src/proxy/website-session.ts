@@ -1,0 +1,19 @@
+// packages/api/src/proxy/website-session.ts
+// A website's browser session (spec 2026-10-24 proxy §2.2): every page load for a website opens its browser through
+// this, with the website's proxy, locale and time zone read as the session opens. Reachability and the listing check —
+// which run before a website exists — call `withBrowserSession` directly and stay direct (§3.4).
+import type { IBrowser } from '@robot/browser';
+import { db } from '@robot/db';
+import { withBrowserSession } from '../browser-session.js';
+import { browserProfileForSource } from './browser-profile.js';
+
+export type WebsiteSession = <T>(fn: (browser: IBrowser) => Promise<T>) => Promise<T>;
+
+/** `session`: the one to open (tests inject a fake one; the drift check and proof-page capture pass theirs through). */
+export function forWebsite(sourceId: string, session: typeof withBrowserSession = withBrowserSession): WebsiteSession {
+  return async <T,>(fn: (browser: IBrowser) => Promise<T>): Promise<T> => {
+    // An address that cannot be used throws the proxy CaptureError here, before any browser opens (spec §3.1).
+    const profile = await browserProfileForSource(db, sourceId);
+    return session(fn, { profile });
+  };
+}

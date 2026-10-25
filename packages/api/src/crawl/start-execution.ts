@@ -11,7 +11,7 @@ import { CaptureProblemError, HARD_ITEM_CEILING, leanRunStateFromEnv, leanSummar
 import { CAP_REACHED_MESSAGE } from '@robot/scraper/customer-copy';
 import { db, extractions, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
-import { withBrowserSession } from '../browser-session.js';
+import { forWebsite } from '../proxy/website-session.js';
 import { loadCurrentCertification, type Certification } from '../verify/current-certification.js';
 import { loadVariantRunPlan } from './variant-run-plan.js';
 import { claimNextItem } from './claim-item.js';
@@ -211,7 +211,7 @@ async function startExecutionIn(
     // this procedure remembered to write it — and its `finally { await
     // browser.close(); }` would have let a throwing close() replace the real
     // execution error on its way out.
-    await withBrowserSession(async (browser) => {
+    await forWebsite(sourceId)(async (browser) => {
       // Loaded once per execution: a certified Source runs ONLY its certified
       // paths for the whole loop (extractItem never falls back to the cache/AI
       // chain), and after the loop finishes, drift is checked against exactly

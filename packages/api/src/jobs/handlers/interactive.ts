@@ -16,6 +16,7 @@ import {
 } from '@robot/scraper';
 import { CaptureError, BROWSER_UNAVAILABLE } from '@robot/browser';
 import { withBrowserSession } from '../../browser-session.js';
+import { forWebsite } from '../../proxy/website-session.js';
 import { describeListingPage, unreadListingPage, type ListingPageCheck } from '../../verify/find-product-pages.js';
 import { reachabilityResult, type Reachability } from '../../verify/reachability.js';
 import { loadProofPageCaptures } from '../../verify/proof-page-capture.js';
@@ -45,6 +46,7 @@ export async function listingCheckNow(listingUrl: string): Promise<ListingPageCh
   const waiting = backoffAnswer(listingUrl);
   if (waiting) return { ...unreadListingPage(waiting.verdict, listingUrl), message: waiting.message };
   try {
+    // Direct by design (spec 2026-10-24 proxy §2.2, §3.4): this runs before a website exists, or for an address alone.
     const { links, html, verdict } = await withBrowserSession(async (browser) => {
       // 20 s, not the browser's default 60 s: Brooklinen never goes idle
       // and the finder sat at a blank "Find products" for 90 s waiting
@@ -92,6 +94,7 @@ export async function reachabilityNow(url: string): Promise<Reachability> {
   if (waiting) return reachabilityResult(url, waiting.verdict, null, 0, waiting.waitMs);
   const t0 = Date.now();
   try {
+    // Direct by design (spec 2026-10-24 proxy §2.2, §3.4): this runs before a website exists, or for an address alone.
     return await withBrowserSession(async (browser) => {
       const capture = await browser.capture(url, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1, timeout: 30_000 });
       reportVerdict(hostname, capture.verdict);
@@ -148,7 +151,7 @@ export async function transferMarksNow(input: TransferMarksPayload) {
     for (const u of input.toUrls) if (out[u]) out[u]!.fields[f.key] = null;
   }
   if (carried.length === 0 || Object.keys(to).length === 0) return out;
-  await withBrowserSession(async (browser) => {
+  await forWebsite(input.sourceId)(async (browser) => {
     const deps = {
       evalXPaths: (html: string, xps: string[]) => browser.setContentEvaluate<XPathProbeResult>(html, buildXPathProbeScript(xps)),
       runDomSearch: (html: string, needles: DomNeedle[], pageUrl: string) => browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript(needles, pageUrl)),
@@ -197,7 +200,7 @@ export async function detectVariantsNow(sourceId: string) {
   // against, so skip `withBrowserSession` entirely rather than launching
   // Chromium to do nothing.
   const pages: Page[] = urls.some((url) => captureRecords[url])
-    ? await withBrowserSession(async (browser) => {
+    ? await forWebsite(sourceId)(async (browser) => {
         const out: Page[] = [];
         for (const url of urls) {
           const rec = captureRecords[url];
@@ -238,5 +241,5 @@ export async function variantLinksNearNow(input: { sourceId: string; url: string
   const rec = captureRecords[input.url];
   if (!rec) return null;
 
-  return withBrowserSession((browser) => browser.setContentEvaluate<VariantLinks | null>(rec.capture.html, buildLinksNearScript(input.xpath, input.url)));
+  return forWebsite(input.sourceId)((browser) => browser.setContentEvaluate<VariantLinks | null>(rec.capture.html, buildLinksNearScript(input.xpath, input.url)));
 }
