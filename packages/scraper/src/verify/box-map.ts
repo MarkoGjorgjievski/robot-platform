@@ -33,8 +33,11 @@ function browserBoxes(xpathsOf: (el: Element) => string[], limit: number, textLi
     const tag = el.tagName.toLowerCase();
     if (tag === 'script' || tag === 'style' || tag === 'noscript' || tag === 'template') continue;
     const kind = tag === 'img' ? 'image' : tag === 'a' ? 'link' : 'text';
-    // Spec 2026-10-17 §6: an element's whole text, as the XPath probe reads it; still only elements with text of their own.
-    const text = kind === 'text' && !hasOwnText(el) ? '' : wholeText(el);
+    // Spec 2026-10-17 §6: an element's whole text, as the XPath probe reads it; still only elements with text of their
+    // own — and a heading (first run 2026-10-25): IKEA's h1 is two spans, "GLOSTAD" and "3-seat sofa, Knisa dark grey",
+    // with no text of its own, so without it no element on the screenshot shows the whole heading for a Title.
+    const heading = tag === 'h1' || tag === 'h2' || tag === 'h3';
+    const text = kind === 'text' && !heading && !hasOwnText(el) ? '' : wholeText(el);
     if (kind === 'text' && text === '') continue;
     const cs = window.getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none') continue;
