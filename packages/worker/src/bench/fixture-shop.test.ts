@@ -50,3 +50,19 @@ describe('gone pages (the email live check)', () => {
     expect((await fetch(url)).status).toBe(200);
   });
 });
+
+describe('the shop for the proxy live check (spec 2026-10-24 proxy §4)', () => {
+  it('reports every request with its headers, and can write what the page believes onto <html>', async () => {
+    const seen: Array<{ site: number; path: string; marker: unknown }> = [];
+    const s = await startFixtureShop({ sites: 1, latency: INSTANT, envProbe: true, onRequest: (r) => seen.push({ site: r.site, path: r.path, marker: r.headers['x-test-proxy-forwarded'] }) });
+    try {
+      const html = await (await fetch(s.sites[0]!.productUrl(1), { headers: { 'x-test-proxy-forwarded': '1' } })).text();
+      expect(seen).toEqual([{ site: 0, path: '/p/1', marker: '1' }]);
+      expect(html).toContain("document.documentElement.setAttribute('data-env'");
+      const plain = await startFixtureShop({ sites: 1, latency: INSTANT });
+      try { expect(await (await fetch(plain.sites[0]!.productUrl(1))).text()).not.toContain('data-env'); } finally { await plain.close(); }
+    } finally {
+      await s.close();
+    }
+  });
+});
