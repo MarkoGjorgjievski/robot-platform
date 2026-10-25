@@ -54,6 +54,11 @@ describe('masking and redaction (spec §2.1 "Storage", §2.3, §3.2)', () => {
     expect(maskProxyUrl('http://user-country-{country}:pass@gate.provider.com:7000')).toBe('http://user-country-{country}:•••@gate.provider.com:7000');
     expect(maskProxyUrl('http://u@gate.provider.com:7000')).toBe('http://u@gate.provider.com:7000');
     expect(maskProxyUrl('http://gate.provider.com:7000')).toBe('http://gate.provider.com:7000');
+    // Task 5 review: an address that does not check (a broken DEFAULT_PROXY_URL) is masked too — fail closed.
+    for (const bad of ['user:secretpw@gate.test:7000', 'http://u:p/sec@gate.test:7000', 'http://u:p#sec@gate.test:7000', 'http://u:p?sec@gate.test:7000']) {
+      expect(maskProxyUrl(bad)).not.toContain('sec');
+      expect(maskProxyUrl(bad)).toContain('gate.test:7000');
+    }
   });
 
   it('redacts the userinfo of every proxy address in a text', () => {
