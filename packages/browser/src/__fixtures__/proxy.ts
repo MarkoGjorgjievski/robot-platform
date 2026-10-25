@@ -1,7 +1,7 @@
 // A tiny recording HTTP proxy for tests and the live check (spec 2026-10-24 proxy §4): absolute-URI requests are
 // forwarded with FORWARDED_HEADER set, so the website can tell a proxied request from a direct one; CONNECT is
 // tunnelled; every request is logged; Basic auth is optional (a wrong or missing Proxy-Authorization answers 407).
-// Loopback only, never a real provider.
+// Loopback only, never a real provider: it carries nothing to a host off this machine (403).
 import { createServer, request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { connect, type AddressInfo, type Socket } from 'node:net';
 
@@ -14,6 +14,11 @@ export type RecordingProxy = { url: string; port: number; log: ProxyLogEntry[]; 
 export type RecordingProxyOptions = { auth?: { username: string; password: string }; connectAnswer?: number };
 
 const REASONS: Record<number, string> = { 403: 'Forbidden', 502: 'Bad Gateway', 503: 'Service Unavailable' };
+
+/** A host name without IPv6 brackets. */
+const bare = (host: string) => host.replace(/^\[|\]$/g, '');
+/** This machine only: the proxy never carries a test to the internet (Task 2 review, minor 7). */
+const isLoopback = (host: string) => /^(?:127(?:\.\d{1,3}){3}|::1|localhost)$/i.test(bare(host));
 
 export async function startRecordingProxy(opts: RecordingProxyOptions = {}): Promise<RecordingProxy> {
   const log: ProxyLogEntry[] = [];
@@ -30,10 +35,11 @@ export async function startRecordingProxy(opts: RecordingProxyOptions = {}): Pro
     }
     let target: URL;
     try { target = new URL(req.url ?? ''); } catch { res.writeHead(400).end(); return; }
+    if (!isLoopback(target.hostname)) { res.writeHead(403).end(); return; }
     const headers: IncomingHttpHeaders = { ...req.headers, [FORWARDED_HEADER]: '1' };
     delete headers['proxy-authorization'];
     delete headers['proxy-connection'];
-    const out = httpRequest({ host: target.hostname, port: target.port || 80, path: `${target.pathname}${target.search}`, method: req.method, headers }, (up) => {
+    const out = httpRequest({ host: bare(target.hostname), port: target.port || 80, path: `${target.pathname}${target.search}`, method: req.method, headers }, (up) => {
       res.writeHead(up.statusCode ?? 502, up.headers);
       up.pipe(res);
     });
@@ -51,9 +57,15 @@ export async function startRecordingProxy(opts: RecordingProxyOptions = {}): Pro
       client.end(`HTTP/1.1 ${opts.connectAnswer} ${REASONS[opts.connectAnswer] ?? 'Proxy Answer'}\r\nContent-Length: 0\r\n\r\n`);
       return;
     }
-    const [host, port] = (req.url ?? '').split(':');
+    // `host:port`, or `[v6]:port`: read as an authority, so an IPv6 literal keeps its colons.
+    let authority: URL | null = null;
+    try { authority = new URL(`http://${req.url ?? ''}`); } catch { /* answered below */ }
+    if (!authority?.port || !isLoopback(authority.hostname)) {
+      client.end('HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n');
+      return;
+    }
     let established = false;
-    const up = connect(Number(port), host!, () => {
+    const up = connect(Number(authority.port), bare(authority.hostname), () => {
       established = true;
       client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
       up.write(head);
