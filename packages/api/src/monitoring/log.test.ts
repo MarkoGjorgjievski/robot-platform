@@ -317,3 +317,11 @@ describe('fix round 1, keys in a line', () => {
     expect(formatLine('info', 't', 'm', { 'a b=c': 1, ok: 2, 'x.y-z_1': 3 }, 'text', T3, {})).toBe('[t] m "a b=c"=1 ok=2 x.y-z_1=3');
   });
 });
+
+describe('fix round 1, M7', () => {
+  it('a field named __proto__ is kept in a JSON line, prefixed like a reserved name', () => {
+    const fields = JSON.parse('{"__proto__":{"x":1},"n":2}') as Record<string, unknown>;
+    const o = JSON.parse(formatLine('info', 't', 'm', fields, 'json', new Date('2026-10-25T12:00:00.000Z'), {}));
+    expect(o).toEqual({ t: '2026-10-25T12:00:00.000Z', level: 'info', scope: 't', msg: 'm', field___proto__: { x: 1 }, n: 2 });
+  });
+});
