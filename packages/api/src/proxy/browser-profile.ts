@@ -52,8 +52,9 @@ export function networkOf(site: Site, defaultUrl: string | undefined = process.e
   };
 }
 
-/** The profile a website's browser session opens with (spec §2.2). An unknown website: `{}` (direct, as before). */
+/** The profile a website's browser session opens with (spec §2.2). An unknown website (deleted mid-job) is one with no
+ *  address or country of its own: the default proxy when there is one, never direct because the row is gone. */
 export async function browserProfileForSource(db: Database, sourceId: string): Promise<BrowserProfile> {
   const row = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { proxyUrl: true, country: true } });
-  return row ? buildProfile(row) : {};
+  return buildProfile(row ?? { proxyUrl: null, country: null });
 }
