@@ -15,6 +15,14 @@ export type Worker = { runner: JobRunner; gate: WorkerBrowserGate; heartbeat: He
 export type WorkerDeps = { freeMb?: () => number; heartbeatMs?: number; watchEveryMs?: number };
 
 const log = createLog('worker');
+/** The longest a stop waits for the heartbeat's last write and its row's removal (the row then ages out as dead). */
+const HEARTBEAT_STOP_MS = 3000;
+
+function bounded(p: Promise<void>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([p, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`no answer in ${ms} ms`)), ms); })])
+    .finally(() => clearTimeout(timer));
+}
 
 export async function startWorker(config: WorkerConfig, deps: WorkerDeps = {}): Promise<Worker> {
   configureErrorReports({ service: 'worker' });
@@ -57,11 +65,16 @@ export async function startWorker(config: WorkerConfig, deps: WorkerDeps = {}): 
         stopChecks();
         stopRecurring();
         stopWatch();
-        await runner.stop(config.shutdownMs);
-        await gate.closeAll();
-        setBrowserGate(null);
-        await heartbeat.stop();
-        await health?.close();
+        try {
+          await runner.stop(config.shutdownMs);
+          await gate.closeAll();
+          setBrowserGate(null);
+        } finally {
+          // Even when the runner or the gate throws: the row goes (or is left to age out) and the port closes, so a
+          // library caller's process is not held open. A hung database holds the stop at most HEARTBEAT_STOP_MS.
+          try { await bounded(heartbeat.stop(), HEARTBEAT_STOP_MS); } catch (err) { log.warn('the heartbeat did not stop cleanly', { error: err }); }
+          try { await health?.close(); } catch (err) { log.warn('the health port did not close cleanly', { error: err }); }
+        }
         log.info(`${runner.workerId} stopped`, { workerId: runner.workerId });
       })();
       return stopped;

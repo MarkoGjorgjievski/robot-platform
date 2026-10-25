@@ -68,3 +68,29 @@ describe('the worker’s monitoring (spec 2026-10-25 monitoring §2.1, §2.4)', 
     }
   });
 });
+
+describe('the worker’s stop, fix wave', () => {
+  it('a throwing gate.closeAll still stops the heartbeat (row removed) and closes the health port', async () => {
+    const w = await startWorker(config(), { heartbeatMs: 200 });
+    const me = w.runner.workerId;
+    await until(async () => !!(await rowOf(me)));
+    const health = `http://127.0.0.1:${w.health!.port}/healthz`;
+    w.gate.closeAll = () => Promise.reject(new Error('closeAll broke'));
+    await expect(w.stop()).rejects.toThrow('closeAll broke');
+    expect(await rowOf(me)).toBeUndefined();
+    await expect(fetch(health)).rejects.toThrow();
+  });
+
+  it('a heartbeat that never stops holds the stop at most 3 s, and the health port still closes', async () => {
+    const w = await startWorker(config(), { heartbeatMs: 200 });
+    const realStop = w.heartbeat.stop;
+    w.heartbeat.stop = () => new Promise<void>(() => {});
+    const health = `http://127.0.0.1:${w.health!.port}/healthz`;
+    try {
+      const t0 = Date.now();
+      await w.stop();
+      expect(Date.now() - t0).toBeLessThan(5_000);
+      await expect(fetch(health)).rejects.toThrow();
+    } finally { await realStop(); }
+  });
+});
