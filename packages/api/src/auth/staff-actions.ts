@@ -2,6 +2,7 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { datasets, projects, runs, sources, staffActions, type Database } from '@robot/db';
 import { resolveBudget } from '@robot/scraper';
+import { countryByCode } from '@robot/browser';
 import type { SessionInfo } from '../trpc.js';
 import { contractAxes, contractFields } from '../contract.js';
 
@@ -77,6 +78,28 @@ export function capAmountText(usd: number): string {
 export const CUSTOMER_SUMMARIES: Record<string, string> = {
   'orgs.setAiCap': 'Changed a setting of this organisation',
 };
+
+/** Spec 2026-10-24 proxy §2.3: what a customer reads for a proxy or country change — never the word, the address or the country. */
+export const NETWORK_CUSTOMER_SUMMARY = 'Changed a setting of this website';
+const NETWORK_SENTENCE = /^Set the website's (?:proxy|country)\b/;
+
+/** The staff log as a customer reads it: a staff-only sentence reworded, every other one as stored. */
+export function customerSummary(action: string, summary: string): string {
+  const fixed = CUSTOMER_SUMMARIES[action];
+  if (fixed) return fixed;
+  if (action === 'sources.update' && NETWORK_SENTENCE.test(summary)) return NETWORK_CUSTOMER_SUMMARY;
+  return summary;
+}
+
+/** "Set the website's proxy" / "…to the default"; "Set the website's country to Germany" / "…to no preference". */
+function networkWords(input: { proxyUrl?: string | null; country?: string | null }): string | null {
+  const parts: string[] = [];
+  if (input.proxyUrl !== undefined) parts.push(input.proxyUrl === null ? "Set the website's proxy to the default" : "Set the website's proxy");
+  if (input.country !== undefined) {
+    parts.push(`Set the website's country to ${input.country === null ? 'no preference' : countryByCode(input.country)?.name ?? input.country}`);
+  }
+  return parts.length ? parts.join('. ') : null;
+}
 
 export const STAFF_ACTIONS: Record<string, StaffAction | null> = {
   // ─ Never logged ─
@@ -168,6 +191,8 @@ export const STAFF_ACTIONS: Record<string, StaffAction | null> = {
   },
   'sources.update': {
     describe: ({ input, target }) => {
+      const network = networkWords(input);
+      if (network) return network;
       if (input.schedule !== undefined) return input.schedule === null ? `Turned off the schedule of ${site(target)}` : `Set the schedule of ${site(target)}`;
       if (input.webhookUrl !== undefined) return input.webhookUrl === null ? `Removed the webhook of ${site(target)}` : `Set the webhook of ${site(target)}`;
       return `Changed ${site(target)}'s settings`;
