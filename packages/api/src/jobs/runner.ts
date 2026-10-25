@@ -150,6 +150,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
     })();
   };
 
+  let claimDown = false;
   const laneLoop = async (lane: Lane) => {
     while (!stopping) {
       const busy = count((a) => a.def.policy.lane === lane);
@@ -160,8 +161,10 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       let job: JobRow | null = null;
       try {
         job = await (opts.claim ?? claimJob)({ queue: opts.queue, workerId, types, leaseMs });
+        if (claimDown) { claimDown = false; say('info', 'claiming works again'); }
       } catch (err) {
-        say('error', `claim failed: ${msg(err)}`, { error: msg(err) });
+        // Once per outage across every lane, not once a poll per lane.
+        if (!claimDown) { claimDown = true; say('error', `claim failed: ${msg(err)}`, { error: msg(err) }); }
       }
       if (!job) { await sleep(pollMs); continue; }
       if (stopping) { await releaseJob(job.id, owner(job), { unstarted: !job.startedBefore }).catch(() => {}); break; }

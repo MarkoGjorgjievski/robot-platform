@@ -35,14 +35,21 @@ export async function watchJobs(queue: string, opts: {
   return warned;
 }
 
-export function startWatchdog(opts: { queue: string; everyMs?: number; log?: Log }): () => void {
+export function startWatchdog(opts: { queue: string; everyMs?: number; log?: Log; find?: (queue: string) => Promise<AttentionItem[]> }): () => void {
   const log = opts.log ?? createLog('watchdog');
   const seen = new Map<string, number>();
   let running = false;
+  // A database outage is one warn line, then one line when the queue reads again — not one a minute.
+  let down = false;
   const tick = async () => {
     if (running) return;
     running = true;
-    try { await watchJobs(opts.queue, { log, seen }); } catch (err) { log.warn('the watchdog could not read the queue', { error: err }); } finally { running = false; }
+    try {
+      await watchJobs(opts.queue, { log, seen, ...(opts.find ? { find: opts.find } : {}) });
+      if (down) { down = false; log.info('the watchdog reads the queue again'); }
+    } catch (err) {
+      if (!down) { down = true; log.warn('the watchdog could not read the queue', { error: err }); }
+    } finally { running = false; }
   };
   const timer = setInterval(() => void tick(), opts.everyMs ?? WATCH_EVERY_MS);
   timer.unref?.();
