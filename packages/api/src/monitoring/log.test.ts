@@ -244,3 +244,21 @@ describe('secret key names are whole words (fix round 1, ruling)', () => {
     expect(redactText('u=%2Fx%3Fdesign%3Da%26auth%3Ds5', {})).toBe('u=%2Fx%3Fdesign%3Da%26auth%3D***');
   });
 });
+
+describe('secrets written as name: value or name = value in text (fix round 1, I2)', () => {
+  it('bare, quoted, inspect and header forms', () => {
+    const cases: Array<[string, string]> = [
+      ['password: hunter2', 'password: ***'],
+      ['token: abc, next: 1', 'token: ***, next: 1'],
+      ['password = s3cret then', 'password = *** then'],
+      ["{ password: 'x1', apiKey: 'y1', design: 'kept' }", "{ password: '***', apiKey: '***', design: 'kept' }"],
+      ["{'password':'x2','n':1}", "{'password':'***','n':1}"],
+      ['X-Auth-Token: tok-3', 'X-Auth-Token: ***'],
+      ['x-api-key: k-4', 'x-api-key: ***'],
+      ['signal: SIGTERM design: a', 'signal: SIGTERM design: a'],
+      ['note: "see password: p5 here"', 'note: "see password: *** here"'],
+      ['url: http://h.test/?token=t6', 'url: http://h.test/?token=***'],
+    ];
+    for (const [input, want] of cases) expect(redactText(input, {})).toBe(want);
+  });
+});
