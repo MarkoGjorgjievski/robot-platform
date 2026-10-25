@@ -33,12 +33,13 @@ function safeJson(v: unknown): string {
 }
 
 // eslint-disable-next-line no-control-regex
-const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
+const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g;
 // eslint-disable-next-line no-control-regex
-const HAS_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
+const HAS_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
 const SHORT: Record<string, string> = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
 
-/** One text line stays one line, and a terminal never runs page text: C0/C1 controls, DEL, U+2028/2029 escaped. */
+/** One text line stays one line, and a terminal never runs page text: C0/C1 controls, DEL, U+2028/2029 and the bidi
+ *  controls (U+202A\u2013202E, U+2066\u20132069, which reorder what a terminal shows) escaped. */
 function oneLine(s: string): string {
   return s.replace(CONTROLS, (c) => SHORT[c] ?? `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
