@@ -9,6 +9,7 @@ import { computeTileClips } from './screenshot-tiles.js';
 import { assertBrowserLaunchAllowed, browserOwnerArgs } from './launch-guard.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
 import { checkProxy, type ProxyCheck } from './proxy-preflight.js';
+import { startProxyForwarder, type ProxyForwarder } from './proxy-forwarder.js';
 import { rankInterceptedRequests } from './rank-requests.js';
 import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
 import {
@@ -192,6 +193,8 @@ export class PlaywrightBrowser implements IBrowser {
   private proxy: ProxySettings | null = null;
   /** Per target origin, this session's one proxy check (spec 2026-10-24 proxy §2.2; Task 2 review, issue 1). */
   private proxyChecks = new Map<string, Promise<ProxyCheck>>();
+  /** A credentialed proxy's session forwarder (final review I1): Chromium holds only its throwaway credential. */
+  private forwarder: ProxyForwarder | null = null;
 
   async launch(options: BrowserOptions = {}): Promise<void> {
     assertBrowserLaunchAllowed();
@@ -206,6 +209,7 @@ export class PlaywrightBrowser implements IBrowser {
     // sites that were fine.
     const useStealth = options.stealth ?? true;
     const launcher = useStealth ? await stealthChromium(options.locale) : chromium;
+    await this.closeForwarder();
 
     this.browser = await launcher.launch({ headless: options.headless ?? true, handleSIGINT: options.handleSIGINT, args: launchArgs(options) });
 
@@ -224,13 +228,33 @@ export class PlaywrightBrowser implements IBrowser {
     // proxy to Chromium with no launch flag, and sends loopback addresses through it too.
     const locale = options.locale ?? (useStealth ? DEFAULT_LOCALE : undefined);
     const timezoneId = options.timezoneId ?? (useStealth ? 'America/New_York' : undefined);
-    this.context = await this.browser.newContext({
-      viewport: options.viewport ?? { width: 1280, height: 800 },
-      userAgent: options.userAgent ?? (useStealth ? DEFAULT_USER_AGENT : undefined),
-      ...(locale ? { locale } : {}),
-      ...(timezoneId ? { timezoneId } : {}),
-      ...(options.proxy ? { proxy: options.proxy } : {}),
-    });
+    // Final review I1: Playwright answers every HTTP auth challenge — a website's 401 too — with the context proxy's
+    // credentials, so a credentialed proxy never reaches Chromium. Chromium talks to this session's loopback forwarder
+    // with a throwaway credential instead, and the forwarder adds the real one upstream. A proxy without credentials
+    // has nothing to collect and stays direct to the upstream, as before.
+    let contextProxy = options.proxy;
+    if (options.proxy && (options.proxy.username !== undefined || options.proxy.password !== undefined)) {
+      try {
+        this.forwarder = await startProxyForwarder(options.proxy);
+      } catch (err) {
+        await this.browser.close().catch(() => {});
+        this.browser = null;
+        throw err;
+      }
+      contextProxy = { server: this.forwarder.server, username: this.forwarder.username, password: this.forwarder.password };
+    }
+    try {
+      this.context = await this.browser.newContext({
+        viewport: options.viewport ?? { width: 1280, height: 800 },
+        userAgent: options.userAgent ?? (useStealth ? DEFAULT_USER_AGENT : undefined),
+        ...(locale ? { locale } : {}),
+        ...(timezoneId ? { timezoneId } : {}),
+        ...(contextProxy ? { proxy: contextProxy } : {}),
+      });
+    } catch (err) {
+      await this.closeForwarder();
+      throw err;
+    }
     this.proxied = !!options.proxy;
     this.proxy = options.proxy ?? null;
     this.proxyChecks.clear();
@@ -643,13 +667,24 @@ export class PlaywrightBrowser implements IBrowser {
   }
 
   async close(): Promise<void> {
-    await this.context?.close();
-    await this.browser?.close();
-    this.context = null;
-    this.browser = null;
-    this.proxied = false;
-    this.proxy = null;
-    this.proxyChecks.clear();
+    try {
+      await this.context?.close();
+      await this.browser?.close();
+    } finally {
+      this.context = null;
+      this.browser = null;
+      this.proxied = false;
+      this.proxy = null;
+      this.proxyChecks.clear();
+      await this.closeForwarder();
+    }
+  }
+
+  /** The session forwarder closes with the browser (final review I1), every open tunnel with it. */
+  private async closeForwarder(): Promise<void> {
+    const f = this.forwarder;
+    this.forwarder = null;
+    await f?.close();
   }
 
   async evaluate<T = unknown>(url: string, script: string, options: CaptureOptions = {}): Promise<T> {

@@ -7,6 +7,7 @@ import { PlaywrightBrowser } from './playwright-browser.js';
 import { CaptureError, type BrowserOptions } from './types.js';
 import { PROXY_REFUSED } from './verdict-copy.js';
 import { FORWARDED_HEADER, startRecordingProxy } from './__fixtures__/proxy.js';
+import { activeProxyForwarders } from './proxy-forwarder.js';
 
 const PAGE = `<!doctype html><html><head><title>Lamp</title></head><body><main><h1>Lamp</h1>${'<p>Hand finished, tested for daily use, delivered in recyclable packaging.</p>'.repeat(30)}</main></body></html>`;
 /** What the page itself believes: its language, languages and time zone. */
@@ -197,4 +198,71 @@ describe('an https page through a proxy: the tunnel (Task 2 review, issues 1–2
     expect(err).toMatchObject({ kind: 'proxy', message: PROXY_REFUSED });
     expect(seen).toEqual([]);
   }, 60_000);
+});
+
+describe('a credentialed proxy goes through the session forwarder (final review I1)', () => {
+  const UP = { username: 'shop-user', password: 'p@ss:w/rd' };
+
+  it('end to end: the upstream carries the page with its own header only, and the website saw only the upstream', async () => {
+    const proxy = await startRecordingProxy({ auth: UP });
+    try {
+      const c = await captureWith({ proxy: { server: proxy.url, ...UP } });
+      expect(c.verdict.kind).toBe('ok');
+      expect(proxy.log.filter((e) => e.allowed).map((e) => `${e.method} ${e.url}`)).toContain(`GET ${pageUrl}`);
+      // Only ever the upstream's own credential, never the session's: every request the upstream saw carried exactly it.
+      expect(proxy.log.every((e) => e.headers['proxy-authorization'] === basic(UP.username, UP.password))).toBe(true);
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.every((h) => h[FORWARDED_HEADER] === '1')).toBe(true);
+    } finally { await proxy.close(); }
+  }, 60_000);
+
+  it('a website answering 401 receives only the throwaway credential, never the upstream’s', async () => {
+    const proxy = await startRecordingProxy({ auth: UP });
+    const asked: Array<string | undefined> = [];
+    const walled = http.createServer((req, res) => {
+      asked.push(req.headers.authorization);
+      // The page itself loads; its picture and its API call are behind a login. Playwright answers one challenge per
+      // request, so the page's own request spends it on the proxy's 407 — the subresources, sent with the proxy's
+      // credential already, are where the 401 used to collect it (final review I1).
+      if (req.url !== '/p/1' && !req.headers.authorization) { res.writeHead(401, { 'www-authenticate': 'Basic realm="shop"', 'content-type': 'text/plain' }); res.end('who are you'); return; }
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(PAGE.replace('</main>', '<img src="/locked.png" alt=""><script>fetch("/api/locked")</script></main>'));
+    });
+    await new Promise<void>((r) => walled.listen(0, '127.0.0.1', () => r()));
+    try {
+      const url = `http://127.0.0.1:${(walled.address() as AddressInfo).port}/p/1`;
+      await captureWith({ proxy: { server: proxy.url, ...UP } }, url).catch(() => null);
+      const sent = asked.filter((a): a is string => !!a);
+      // Chromium answered the challenge (with something) — and that something is never the upstream's credential.
+      expect(sent.length).toBeGreaterThan(0);
+      for (const a of sent) {
+        const decoded = Buffer.from(a.replace(/^Basic\s+/i, ''), 'base64').toString();
+        expect(a).not.toBe(basic(UP.username, UP.password));
+        expect(decoded).not.toContain(UP.password);
+        expect(decoded).not.toContain(UP.username);
+      }
+    } finally { walled.closeAllConnections(); walled.close(); await proxy.close(); }
+  }, 60_000);
+
+  it('one forwarder while the session is open, none left after close; a proxy without a password starts none', async () => {
+    const proxy = await startRecordingProxy({ auth: UP });
+    const open = await startRecordingProxy();
+    const before = activeProxyForwarders();
+    try {
+      const b = new PlaywrightBrowser();
+      try {
+        await b.launch({ headless: true, proxy: { server: proxy.url, ...UP } });
+        expect(activeProxyForwarders()).toBe(before + 1);
+      } finally { await b.close(); }
+      expect(activeProxyForwarders()).toBe(before);
+      const direct = new PlaywrightBrowser();
+      try {
+        await direct.launch({ headless: true, proxy: { server: open.url } });
+        expect(activeProxyForwarders()).toBe(before);
+        const c = await direct.capture(pageUrl, { waitUntil: 'load', timeout: 30_000, pictures: false });
+        expect(c.verdict.kind).toBe('ok');
+        expect(open.log.map((e) => `${e.method} ${e.url}`)).toContain(`GET ${pageUrl}`);
+      } finally { await direct.close(); }
+    } finally { await proxy.close(); await open.close(); }
+  }, 90_000);
 });
