@@ -47,6 +47,7 @@ import {
   pointable,
   reverifyScope,
   rowStatus,
+  rowFix,
   rowValue,
   segment,
   setCards,
@@ -1374,6 +1375,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       defaultOnlyWord: defaultOnlyWord(results, f.key, unchangedKeys) ?? notOnWebsiteWord(results, f.key, unchangedKeys),
       // Spec 2026-10-21 §5: a held field says runs use what was verified, and when — whatever its row's status.
       heldWord: heldWord(status?.held?.[f.key]?.verifiedAt),
+      // First run 2026-10-25: a row that needs you on one product offers that cell's Fix / Mark on the screenshot.
+      fix: rowFix(statuses[fi]!, board.cards.map((c) => ({ state: segment(board, live, f.key, c.url, { failed: c.url !== '' && failedCell(f.key, c.url) }), ready: !!boxesByUrl[c.url] }))),
       addressWarning: addressWarning(f.key, results, board.cards, pageVariants),
       onReverifyField: () => void reverifyField(f.key),
       // Spec 2026-10-16 §6: a variant note only under a field whose certified or suggested path reads a variant list.
@@ -1550,7 +1553,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           count: agreedCount,
           disabled: locked || agreedCount === 0,
           locked,
-          onClick: () => setBoard((b) => acceptAllAgreed(b, fields, live, boxesByUrl).board),
+          onClick: () => setBoard((b) => acceptAllAgreed(b, fields, live, boxesByUrl, pageFacts).board),
         }}
         verify={{
           label: button.label,

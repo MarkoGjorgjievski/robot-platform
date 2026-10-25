@@ -7,7 +7,7 @@ import {
   failsText, displayValue, pickAnswer, cellAcceptable, carryFrom, type Suggestion,
   markAbsent, isAbsent, titleFromCapture,
   setDefault, defaultOf, isDefaultCell, rowValue, defaultOnlyWord, DEFAULT_ONLY_WORD, cellText, type Suggestions,
-  typedAnswer, type Answer, notOnWebsiteWord, REVERIFY_FIELD, REVERIFY_FIELD_FREE,
+  typedAnswer, type Answer, notOnWebsiteWord, REVERIFY_FIELD, REVERIFY_FIELD_FREE, rowFix, type Segment,
 } from './verification-model';
 import { AI_UNAVAILABLE_BADGE, NOT_VERIFIED_BADGE } from './verify-messages';
 
@@ -444,6 +444,34 @@ describe("rowStatus: a Title must be the page's main heading (spec 2026-10-12 §
     // The same values from page data still meet the rule.
     const fromData = liveFor(b, 'title', [sug('Logo Co', [0], TL), sug('Logo Co', [0], TL), sug('Logo Co', [0], TL)]);
     expect(rowStatus(titleField, b, fromData, maps(), undefined, undefined, pageFacts)).toEqual({ kind: 'needs-you', reason: "not the page's heading on product 1", product: 1 });
+  });
+  // First run 2026-10-25: the Title suggestion prefers the heading, so one product's may come by its
+  // h1 element and another's by page data equal to its heading. Every value being its page's heading
+  // is the agreement — the paths may differ (Verify certifies a path that reads them all).
+  it("every suggestion is its page's heading: agreed, though they come by different paths", () => {
+    const b = board();
+    const H = (i: number) => ({ source: 'xpath', path: `//h1[${i}]/span` });
+    const pageFacts = facts({ [U[0]!]: 'Widget A', [U[1]!]: 'Widget B', [U[2]!]: 'Widget C' });
+    const allElements = liveFor(b, 'title', [sug('Widget A', [0], H(1)), sug('Widget B', [0], H(2)), sug('Widget C', [0], H(3))]);
+    expect(rowStatus(titleField, b, allElements, maps(), undefined, undefined, pageFacts)).toEqual({ kind: 'agreed' });
+    const mixed = liveFor(b, 'title', [sug('Widget A', [0], H(1)), sug('Widget B', [0], TL), sug('Widget C', [0], TL)]);
+    expect(rowStatus(titleField, b, mixed, maps(), undefined, undefined, pageFacts)).toEqual({ kind: 'agreed' });
+    const { board: after, accepted } = acceptAllAgreed(b, [titleField], mixed, maps(), pageFacts);
+    expect(accepted).toEqual(['title']);
+    expect(U.map((u) => after.answers.title?.[u]?.value)).toEqual(['Widget A', 'Widget B', 'Widget C']);
+  });
+  it('Accept all agreed reads the heading rule too: a Title that is not the heading is left for a person', () => {
+    const b = board();
+    const live = liveFor(b, 'title', [sug('Widget A', [0], TL), sug('Widget B', [0], TL), sug('Widget C', [0], TL)]);
+    const pageFacts = facts({ [U[0]!]: 'Widget A', [U[1]!]: 'Widget B', [U[2]!]: 'Widget C - the heading' });
+    expect(acceptAllAgreed(b, [titleField], live, maps(), pageFacts).accepted).toEqual([]);
+    expect(acceptAllAgreed(b, [titleField], live, maps()).accepted).toEqual(['title']);
+  });
+  it('with a heading missing on one product, the paths must still agree as before', () => {
+    const b = board();
+    const pageFacts = facts({ [U[0]!]: 'Widget A', [U[1]!]: null, [U[2]!]: 'Widget C' });
+    const mixed = liveFor(b, 'title', [sug('Widget A', [0], { source: 'xpath', path: '//h1' }), sug('Widget B', [0], TL), sug('Widget C', [0], TL)]);
+    expect(rowStatus(titleField, b, mixed, maps(), undefined, undefined, pageFacts)).toEqual({ kind: 'majority', odd: [1], via: TL });
   });
   it('a field whose concept is not product_name is never checked against a heading', () => {
     const b = board();
@@ -964,4 +992,19 @@ describe('a field not on this website after Verify (spec 2026-10-17 §2)', () =>
 it('the address warning button copy (spec 2026-10-17 §8)', () => {
   expect(REVERIFY_FIELD).toBe('Re-verify this field');
   expect(REVERIFY_FIELD_FREE).toBe('Re-verify this field · free');
+});
+
+// First run 2026-10-25: a row that needs a person on one product said why and offered nothing
+// ("not the page's heading on product 1"). It offers the cell's own Fix / Mark on the screenshot.
+describe('rowFix: what a row that needs you offers', () => {
+  const ready = (states: Segment[]) => states.map((state) => ({ state, ready: true }));
+  it('a product named on a needs-you row whose screenshot is in: Fix on a suggested cell, Mark on an empty one', () => {
+    expect(rowFix({ kind: 'needs-you', reason: "not the page's heading on product 1", product: 1 }, ready(['suggested', 'suggested', 'suggested']))).toEqual({ product: 1, label: 'Fix' });
+    expect(rowFix({ kind: 'needs-you', reason: 'missing on product 2', product: 2 }, ready(['answered', 'empty', 'suggested']))).toEqual({ product: 2, label: 'Mark' });
+  });
+  it('nothing while that screenshot is not in, with no product named, or on any other status', () => {
+    expect(rowFix({ kind: 'needs-you', reason: 'screenshot not ready on product 1', product: 1 }, [{ state: 'empty', ready: false }])).toBeNull();
+    expect(rowFix({ kind: 'needs-you', reason: 'comes from different places' }, ready(['suggested']))).toBeNull();
+    expect(rowFix({ kind: 'agreed' }, ready(['suggested']))).toBeNull();
+  });
 });
