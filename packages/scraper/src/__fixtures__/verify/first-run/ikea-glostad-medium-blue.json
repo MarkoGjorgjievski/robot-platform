@@ -1,0 +1,389 @@
+{
+ "note": "Trimmed from a real capture of https://www.ikea.com/my/en/p/glostad-3-seat-sofa-knisa-medium-blue-30595933/ (2026-10-25, first run): the document title, every h1 as served, the JSON-LD blocks' types and names, og:title, and the box map's headings and h1 elements.",
+ "url": "https://www.ikea.com/my/en/p/glostad-3-seat-sofa-knisa-medium-blue-30595933/",
+ "html": "<html><head><title>GLOSTAD 3-seat sofa, Knisa medium blue  - IKEA Malaysia</title></head><body><h1 class=\"pipcom-text pipcom-typography-heading-s\"><span class=\"pipcom-price-module__name-decorator notranslate\">GLOSTAD</span> <span class=\"pipcom-text pipcom-typography-label-l pipcom-typography-regular pipcom-price-module__description\">3-seat sofa, Knisa medium blue</span></h1></body></html>",
+ "structuredData": {
+  "ldJson": [
+   {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+     {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Products"
+     },
+     {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Sofas & armchairs"
+     },
+     {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Sofas"
+     },
+     {
+      "@type": "ListItem",
+      "position": 4,
+      "name": "Three-seater sofas"
+     }
+    ]
+   },
+   {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "brand": {
+     "@type": "Brand",
+     "name": "IKEA"
+    },
+    "name": "GLOSTAD 3-seat sofa - Knisa medium blue"
+   }
+  ],
+  "nextData": null,
+  "initialState": null,
+  "meta": {
+   "og:title": "GLOSTAD 3-seat sofa, Knisa medium blue  - IKEA Malaysia"
+  }
+ },
+ "interceptedRequests": [],
+ "pageVariant": {
+  "ids": [],
+  "pairs": [],
+  "labels": [],
+  "named": false,
+  "selected": false
+ },
+ "boxes": [
+  {
+   "xpaths": [
+    "//div[@data-product-name=\"GLOSTAD\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[@class=\"pipf-price-package\"]/div[@class=\"pipf-price-package__price-module-wrapper\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipcom-price-module \")]/div[@class=\"pipcom-price-module__information\"]/h1[@class=\"pipcom-text pipcom-typography-heading-s\"]",
+    "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-page js-product-pip\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[@class=\"pipf-price-package\"]/div[@class=\"pipf-price-package__price-module-wrapper\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipcom-price-module \")]/div[@class=\"pipcom-price-module__information\"]/h1[@class=\"pipcom-text pipcom-typography-heading-s\"]"
+   ],
+   "text": "GLOSTAD 3-seat sofa, Knisa medium blue",
+   "tag": "h1",
+   "kind": "text",
+   "rect": {
+    "x": 793,
+    "y": 205,
+    "w": 233,
+    "h": 40
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-product-name=\"GLOSTAD\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[@class=\"pipf-price-package\"]/div[@class=\"pipf-price-package__price-module-wrapper\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipcom-price-module \")]/div[@class=\"pipcom-price-module__information\"]/h1[@class=\"pipcom-text pipcom-typography-heading-s\"]/span[@class=\"pipcom-price-module__name-decorator notranslate\"]",
+    "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-page js-product-pip\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[@class=\"pipf-price-package\"]/div[@class=\"pipf-price-package__price-module-wrapper\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipcom-price-module \")]/div[@class=\"pipcom-price-module__information\"]/h1[@class=\"pipcom-text pipcom-typography-heading-s\"]/span[@class=\"pipcom-price-module__name-decorator notranslate\"]"
+   ],
+   "text": "GLOSTAD",
+   "tag": "span",
+   "kind": "text",
+   "rect": {
+    "x": 793,
+    "y": 204,
+    "w": 72,
+    "h": 22
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-product-name=\"GLOSTAD\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[@class=\"pipf-price-package\"]/div[@class=\"pipf-price-package__price-module-wrapper\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipcom-price-module \")]/div[@class=\"pipcom-price-module__information\"]/h1[@class=\"pipcom-text pipcom-typography-heading-s\"]/span[@class=\"pipcom-text pipcom-typography-label-l pipcom-typography-regular pipcom-price-module__description\"]",
+    "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-page js-product-pip\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[@class=\"pipf-price-package\"]/div[@class=\"pipf-price-package__price-module-wrapper\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipcom-price-module \")]/div[@class=\"pipcom-price-module__information\"]/h1[@class=\"pipcom-text pipcom-typography-heading-s\"]/span[@class=\"pipcom-text pipcom-typography-label-l pipcom-typography-regular pipcom-price-module__description\"]"
+   ],
+   "text": "3-seat sofa, Knisa medium blue",
+   "tag": "span",
+   "kind": "text",
+   "rect": {
+    "x": 793,
+    "y": 225,
+    "w": 233,
+    "h": 20
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-product-name=\"GLOSTAD\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-product-style-picker \")]/div[@class=\"pipf-product-style-picker__picker\"]/div[@class=\"pipf-product-style-picker__header\"]/div[@class=\"pipf-product-style-picker__title-container\"]/h2[@class=\"pipf-product-style-picker__title\"]",
+    "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-page js-product-pip\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-product-style-picker \")]/div[@class=\"pipf-product-style-picker__picker\"]/div[@class=\"pipf-product-style-picker__header\"]/div[@class=\"pipf-product-style-picker__title-container\"]/h2[@class=\"pipf-product-style-picker__title\"]"
+   ],
+   "text": "Choose cover:",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 793,
+    "y": 364,
+    "w": 93,
+    "h": 22
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"plann-mini-fragment-P0-0\"]/a[@class=\"plann-mini-fragment-link\"]/span[@class=\"plann-mini-fragment-link__info-wrapper\"]/h2[contains(concat(\" \",normalize-space(@class),\" \"),\" plann-text \")]",
+    "//div[@data-fika-namespace=\"planners/v1/fragments\"]/div[1]/a[@class=\"plann-mini-fragment-link\"]/span[@class=\"plann-mini-fragment-link__info-wrapper\"]/h2[contains(concat(\" \",normalize-space(@class),\" \"),\" plann-text \")]"
+   ],
+   "text": "Customise and view options",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 793,
+    "y": 509,
+    "w": 214,
+    "h": 21
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-fika-namespace=\"lower-funnel-fragments\"]/div[@class=\"_container_325o6_1 js-how-to-get-it\"]/h2[@class=\"lower-funnel-fragments-text lower-funnel-fragments-typography-heading-xs\"]",
+    "//div[@data-product-name=\"GLOSTAD\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[5]/div[1]/div[@class=\"_container_325o6_1 js-how-to-get-it\"]/h2[@class=\"lower-funnel-fragments-text lower-funnel-fragments-typography-heading-xs\"]"
+   ],
+   "text": "How to get it",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 793,
+    "y": 571,
+    "w": 439,
+    "h": 18
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-highlight-reviews\"]/div[@class=\"pipf-highlight-reviews__left-container\"]/div[@class=\"pipf-highlight-reviews__header-section\"]/h2[@class=\"pipf-highlight-reviews__heading\"]",
+    "//div[@data-fika-namespace=\"pip/fragments\"]/main[@class=\"main no-outline\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-highlight-reviews\"]/div[@class=\"pipf-highlight-reviews__left-container\"]/div[@class=\"pipf-highlight-reviews__header-section\"]/h2[@class=\"pipf-highlight-reviews__heading\"]"
+   ],
+   "text": "Customer reviews",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 81,
+    "y": 2796,
+    "w": 718,
+    "h": 35
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-fika-namespace=\"pip/fragments\"]/div[@class=\"pipf-accessories-grid\"]/div[@class=\"pipf-accessories-grid__header-wrapper\"]/h2[@class=\"pipf-accessories-grid__header\"]",
+    "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"js-accessories-grid\"]/div[1]/div[1]/div[1]/div[@class=\"pipf-accessories-grid\"]/div[@class=\"pipf-accessories-grid__header-wrapper\"]/h2[@class=\"pipf-accessories-grid__header\"]"
+   ],
+   "text": "Accessories for GLOSTAD",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 48,
+    "y": 3234,
+    "w": 258,
+    "h": 33
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-testid=\"hri-fragments-header\"]/div[@class=\"hri-teaser__grid\"]/div[@class=\"hri-teaser__info-container\"]/div[@class=\"hri-teaser__info\"]/h2[@class=\"hri-teaser__title\"]",
+    "//div[@data-fika-namespace=\"hri\"]/div[1]/div[@class=\"hri-teaser hri-fragments-header\"]/div[@class=\"hri-teaser__grid\"]/div[@class=\"hri-teaser__info-container\"]/div[@class=\"hri-teaser__info\"]/h2[@class=\"hri-teaser__title\"]"
+   ],
+   "text": "Looks by you",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 48,
+    "y": 3750,
+    "w": 493,
+    "h": 35
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-recommendation-panel\"]/h2[@class=\"pipf-recommendation-panel__header\"]",
+    "//div[@data-fika-namespace=\"pip/fragments\"]/main[@class=\"main no-outline\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-recommendation-panel\"]/h2[@class=\"pipf-recommendation-panel__header\"]"
+   ],
+   "text": "Related products",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 48,
+    "y": 4431,
+    "w": 1184,
+    "h": 35
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-category-shortcuts\"]/h2[@class=\"pipf-category-shortcuts__heading\"]",
+    "//div[@data-fika-namespace=\"pip/fragments\"]/main[@class=\"main no-outline\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-category-shortcuts\"]/h2[@class=\"pipf-category-shortcuts__heading\"]"
+   ],
+   "text": "Explore more options",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 48,
+    "y": 4946,
+    "w": 1184,
+    "h": 24
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-recommendation-panel\"]/h2[@class=\"pipf-recommendation-panel__header\"]",
+    "//div[@data-fika-namespace=\"pip/fragments\"]/main[@class=\"main no-outline\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-recommendation-panel\"]/h2[@class=\"pipf-recommendation-panel__header\"]"
+   ],
+   "text": "Recommended for you",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 48,
+    "y": 5234,
+    "w": 1184,
+    "h": 35
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"plann-large-fragment-P0-0\"]/div[@class=\"plann-card plann-large-fragment-with-deeplink\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" plann-content-card \")]/div[@class=\"plann-content-card__container\"]/a[@class=\"plann-content-card__headers\"]/h2[@class=\"plann-typography-heading-xl plann-content-card__title\"]",
+    "//div[@data-fika-namespace=\"planners/v1/fragments\"]/div[1]/div[@class=\"plann-card plann-large-fragment-with-deeplink\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" plann-content-card \")]/div[@class=\"plann-content-card__container\"]/a[@class=\"plann-content-card__headers\"]/h2[@class=\"plann-typography-heading-xl plann-content-card__title\"]"
+   ],
+   "text": "Your perfect sofa is waiting",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 818,
+    "y": 5820,
+    "w": 366,
+    "h": 100
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-testid=\"hri-fragments-header\"]/div[@class=\"hri-teaser__grid\"]/div[@class=\"hri-teaser__info-container\"]/div[@class=\"hri-teaser__info\"]/h2[@class=\"hri-teaser__title\"]",
+    "//div[@data-fika-namespace=\"hri\"]/div[1]/div[@class=\"hri-teaser hri-fragments-header\"]/div[@class=\"hri-teaser__grid\"]/div[@class=\"hri-teaser__info-container\"]/div[@class=\"hri-teaser__info\"]/h2[@class=\"hri-teaser__title\"]"
+   ],
+   "text": "Get the look",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 48,
+    "y": 6255,
+    "w": 493,
+    "h": 35
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-recommendation-panel\"]/h2[@class=\"pipf-recommendation-panel__header\"]",
+    "//div[@data-fika-namespace=\"pip/fragments\"]/main[@class=\"main no-outline\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-recommendation-panel\"]/h2[@class=\"pipf-recommendation-panel__header\"]"
+   ],
+   "text": "More from the",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 48,
+    "y": 6937,
+    "w": 1184,
+    "h": 35
+   }
+  },
+  {
+   "xpaths": [
+    "//div[@data-fika-namespace=\"nav\"]/footer[@class=\"hnf-footer\"]/div[@class=\"hnf-content-container hnf-footer__container\"]/h2[1]",
+    "//body/div[3]/footer[@class=\"hnf-footer\"]/div[@class=\"hnf-content-container hnf-footer__container\"]/h2[1]"
+   ],
+   "text": "Footer",
+   "tag": "h2",
+   "kind": "text",
+   "rect": {
+    "x": 47,
+    "y": 8049,
+    "w": 1,
+    "h": 1
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"hnf-footer-featured-link\"]",
+    "//div[@data-fika-namespace=\"nav\"]/footer[@class=\"hnf-footer\"]/div[@class=\"hnf-content-container hnf-footer__container\"]/div[@class=\"hnf-flex-row hnf-footer__links\"]/div[@class=\"hnf-footer__featuredLinks\"]/div[@class=\"hnf-footer__featuredLink\"]/h3[1]"
+   ],
+   "text": "IKEA Family",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 48,
+    "y": 8050,
+    "w": 260,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"hnf-footer-featured-link2\"]",
+    "//div[@data-fika-namespace=\"nav\"]/footer[@class=\"hnf-footer\"]/div[@class=\"hnf-content-container hnf-footer__container\"]/div[@class=\"hnf-flex-row hnf-footer__links\"]/div[@class=\"hnf-footer__featuredLinks\"]/div[@class=\"hnf-footer__featuredLink\"]/h3[1]"
+   ],
+   "text": "IKEA for Business",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 48,
+    "y": 8284,
+    "w": 260,
+    "h": 25
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"hnf-accordion_0\"]/h3[1]",
+    "//div[@data-fika-namespace=\"nav\"]/footer[@class=\"hnf-footer\"]/div[@class=\"hnf-content-container hnf-footer__container\"]/div[@class=\"hnf-flex-row hnf-footer__links\"]/div[@class=\"hnf-footer__linkGroups\"]/ul[@class=\"hnf-accordion\"]/li[@class=\"hnf-accordion__item\"]/h3[1]"
+   ],
+   "text": "Shop at IKEA",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 403,
+    "y": 8050,
+    "w": 207,
+    "h": 38
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"hnf-accordion_1\"]/h3[1]",
+    "//div[@data-fika-namespace=\"nav\"]/footer[@class=\"hnf-footer\"]/div[@class=\"hnf-content-container hnf-footer__container\"]/div[@class=\"hnf-flex-row hnf-footer__links\"]/div[@class=\"hnf-footer__linkGroups\"]/ul[@class=\"hnf-accordion\"]/li[@class=\"hnf-accordion__item\"]/h3[1]"
+   ],
+   "text": "Customer service",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 630,
+    "y": 8050,
+    "w": 187,
+    "h": 38
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"hnf-accordion_2\"]/h3[1]",
+    "//div[@data-fika-namespace=\"nav\"]/footer[@class=\"hnf-footer\"]/div[@class=\"hnf-content-container hnf-footer__container\"]/div[@class=\"hnf-flex-row hnf-footer__links\"]/div[@class=\"hnf-footer__linkGroups\"]/ul[@class=\"hnf-accordion\"]/li[@class=\"hnf-accordion__item\"]/h3[1]"
+   ],
+   "text": "This is IKEA",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 838,
+    "y": 8050,
+    "w": 187,
+    "h": 38
+   }
+  },
+  {
+   "xpaths": [
+    "//*[@id=\"hnf-accordion_3\"]/h3[1]",
+    "//div[@data-fika-namespace=\"nav\"]/footer[@class=\"hnf-footer\"]/div[@class=\"hnf-content-container hnf-footer__container\"]/div[@class=\"hnf-flex-row hnf-footer__links\"]/div[@class=\"hnf-footer__linkGroups\"]/ul[@class=\"hnf-accordion\"]/li[@class=\"hnf-accordion__item\"]/h3[1]"
+   ],
+   "text": "News & media",
+   "tag": "h3",
+   "kind": "text",
+   "rect": {
+    "x": 1045,
+    "y": 8050,
+    "w": 187,
+    "h": 38
+   }
+  }
+ ]
+}
