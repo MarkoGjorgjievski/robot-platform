@@ -1,0 +1,107 @@
+{
+ "at": "2026-10-25T07:03:52.793Z",
+ "sourceId": "0a8d090b-8401-4457-aa72-bb6190715a18",
+ "runId": "a1c5b4b9-42eb-4764-be5f-c7d32a396379",
+ "env": {
+  "lang": "de-DE",
+  "langs": [
+   "de-DE",
+   "de"
+  ],
+  "tz": "Europe/Berlin"
+ },
+ "proxy": {
+  "requests": 39,
+  "authenticated": 38,
+  "refused": 1,
+  "user": "live-user-country-de"
+ },
+ "shop": {
+  "requests": 38,
+  "direct": 0,
+  "carriedCredential": 0,
+  "acceptLanguage": "de-DE,de;q=0.9"
+ },
+ "run": {
+  "status": "completed",
+  "rows": 3
+ },
+ "wrongPassword": {
+  "status": "failed",
+  "error": "The proxy refused the connection."
+ },
+ "checks": [
+  {
+   "name": "ops reads proxy (own) · Germany",
+   "ok": true,
+   "detail": "{\"proxy\":\"own\",\"country\":{\"code\":\"de\",\"name\":\"Germany\"}}"
+  },
+  {
+   "name": "the proof page was captured",
+   "ok": true
+  },
+  {
+   "name": "the page reads de-DE and Europe/Berlin",
+   "ok": true,
+   "detail": "{\"lang\":\"de-DE\",\"langs\":[\"de-DE\",\"de\"],\"tz\":\"Europe/Berlin\"}"
+  },
+  {
+   "name": "the proof page has a screenshot",
+   "ok": true
+  },
+  {
+   "name": "the run completed with three rows",
+   "ok": true,
+   "detail": "completed, 3 rows"
+  },
+  {
+   "name": "every product page went through the proxy",
+   "ok": true,
+   "detail": "all four"
+  },
+  {
+   "name": "the proxy got the website’s user with {country} filled in, and its password",
+   "ok": true,
+   "detail": "38 authenticated request(s) as live-user-country-de"
+  },
+  {
+   "name": "nothing reached the shop directly",
+   "ok": true,
+   "detail": "0 direct of 38"
+  },
+  {
+   "name": "the shop never received the proxy’s credential",
+   "ok": true,
+   "detail": "0 of 38 carried it"
+  },
+  {
+   "name": "the shop was asked in German first",
+   "ok": true,
+   "detail": "6 page loads, first de-DE,de;q=0.9"
+  },
+  {
+   "name": "a wrong password fails with the proxy sentence",
+   "ok": true,
+   "detail": "The proxy refused the connection."
+  },
+  {
+   "name": "…and the shop saw nothing new",
+   "ok": true,
+   "detail": "0 new request(s)"
+  },
+  {
+   "name": "no stored error carries the password",
+   "ok": true
+  },
+  {
+   "name": "the worker closed its browsers",
+   "ok": true,
+   "detail": "0 open"
+  },
+  {
+   "name": "no Chromium of this check is left",
+   "ok": true,
+   "detail": "none"
+  }
+ ]
+}

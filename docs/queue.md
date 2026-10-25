@@ -7,15 +7,16 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Proxy support in the browser** — proxy + country per website, tested against a local proxy. *Done when:* a capture goes through the configured proxy; tests.
-2. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
-3. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
-4. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-5. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **Monitoring basics** — health endpoints, structured logs, a stuck-job watchdog, an error-tracking hook; scheduled website checks on locally. *Done when:* tests; a week of local checks reviewed.
+2. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
+3. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+4. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
 
+- **Customer-visible country?** Staff choose a website's country (and proxy) today; customers see nothing of it. Should customers pick the country themselves (e.g. "Read prices as shown in: Germany")?
+- **Proxy credentials and a website's own password prompt.** Playwright answers every HTTP auth challenge with the context's proxy user and password, so a website that asks for a password (HTTP 401) would have received them. Mitigated on the branch: a proxy with a user or password now goes through a per-session loopback forwarder, so Chromium (and any website) only ever holds a random throwaway credential that works nowhere else. An IP-allow-listed proxy with no password needs no forwarder at all. OK to configure a credentialed provider on this basis?
 - **The $25 default AI limit per organisation** (ORG_AI_CAP_USD): every org without its own limit stops AI work at $25 a month. Right default? Who should hear when an org reaches it (nobody is notified yet; ops shows "Limit reached")?
 - The default monthly AI limit is $25 per organisation (ORG_AI_CAP_USD); staff Verify work inside a customer org counts against that org's limit. Keep $25?
 - At the limit the existing Verify copy says 'Verify again', which cannot succeed until next month — reword?
@@ -51,6 +52,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-25 — Proxy support in the browser (`4e9ed93d`): a proxy address and a country per website (staff only; DEFAULT_PROXY_URL for all), every page of the website through it with the country's locale and time zone, never direct on a proxy failure, a credentialed proxy behind a per-session loopback forwarder; proven against a local recording proxy (live-proxy.ts, docs/testing/results/2026-10-24-proxy/live-proxy.json). After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-24 — Metering and spend caps per organisation (`28948402`): pages, runs and AI spend per org and month from the recorded rows; a monthly AI limit per org (ORG_AI_CAP_USD, default $25; staff set it in Settings, logged) that stops Verify's AI, planning and legacy runs; ops → Organisations. After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-24 — Tenant isolation audit, as tests (`84413343`): every procedure classified and swept across two organisations (85; one hole fixed — projects.list read every org's websites), every file route swept, no money in customer answers, rate limits (RATE_LIMITS, TRUST_PROXY). After merge: restart dev:all.
 - 2026-10-24 — Email, with a local catcher (`35fcfc3e`): "needs attention", failed-run and account emails over SMTP, once per event, with an Account panel to choose; Mailpit locally (one-liner and Compose), a provider by SMTP_URL; live check docs/testing/results/2026-10-24-email/live-email.json. After merge: pnpm install, pnpm db:migrate, restart dev:all.

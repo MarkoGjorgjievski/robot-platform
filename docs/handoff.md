@@ -35,9 +35,11 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Metering and monthly AI limits (2026-10-24)](#metering-and-monthly-ai-limits-2026-10-24).** Pages, runs and AI spend are counted per organisation and month; AI work stops at each organisation's monthly limit ($25 by default); staff see and set it in ops and Settings. Merged 2026-10-24.
+**Newest: [Proxy support (2026-10-24)](#proxy-support-2026-10-24).** Staff can give a website a proxy and a country; its pages then load through the proxy with that country's language and time zone. Merged 2026-10-25.
 
-**Before it: [Tenant isolation (2026-10-24)](#tenant-isolation-2026-10-24).** Every api procedure and file route is proven, as tests, to refuse another organisation; customers receive no money amounts; sign-in, the heavy work and the address checks are rate limited. Merged 2026-10-24.
+**Before it: [Metering and monthly AI limits (2026-10-24)](#metering-and-monthly-ai-limits-2026-10-24).** Pages, runs and AI spend are counted per organisation and month; AI work stops at each organisation's monthly limit ($25 by default); staff see and set it in ops and Settings. Merged 2026-10-24.
+
+**Before that: [Tenant isolation (2026-10-24)](#tenant-isolation-2026-10-24).** Every api procedure and file route is proven, as tests, to refuse another organisation; customers receive no money amounts; sign-in, the heavy work and the address checks are rate limited. Merged 2026-10-24.
 
 **Before that: [Email (2026-10-24)](#email-2026-10-24).** Owners and admins get an email when a website needs attention or a run fails; account messages go out when staff enter, a role changes or someone is removed. Merged 2026-10-24.
 
@@ -124,6 +126,98 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Proxy support (2026-10-24)
+
+Spec `docs/superpowers/specs/2026-10-24-proxy-design.md`, plan `docs/superpowers/plans/2026-10-24-proxy.md`.
+
+**What changed.**
+- *The columns.* `sources.proxy_url text` (nullable) and `sources.country varchar(2)`, now nullable (migration 0024:
+  three ALTERs, no row written). The existing websites keep `'us'`, and a new website is still written with `'us'`;
+  `'us'` and null both read en-US / New York, exactly as before. Note: the shared dev database
+  (`robot-platform-db`) is already at 0024, because the branch's tests migrated it; the change is additive.
+- *The browser.* `COUNTRIES` (`packages/browser/src/countries.ts`): 20 markets, each a locale and a time zone.
+  `BrowserOptions` gains `proxy`, `locale`, `timezoneId`; `launch()` passes them to `newContext` and nowhere else
+  (`setContentEvaluate` stays offline, WebSockets stopped too). A non-US locale gets its own memoised stealth launcher
+  so stealth's en-US does not override it. A proxy with a user or password goes through a per-session loopback
+  forwarder (`proxy-forwarder.ts`): Chromium holds only a random throwaway credential, and the forwarder adds the real
+  one upstream. Node checks the proxy before a host's first page (`proxy-preflight.ts`). A proxy that fails to
+  connect or answers 407 is `CaptureError('proxy')` ("The proxy refused the connection." for staff, the blocked
+  sentence for a customer, the host never backed off), from every navigation, never retried direct. A proxied browser
+  sends no WebRTC UDP outside the proxy.
+- *The address and the profile.* `checkProxyUrl` (`packages/api/src/proxy/proxy-url.ts`): `http`, `https` or
+  `socks5` (socks5 with credentials refused, Chromium cannot), an explicit host and port, at most 1,000 characters,
+  only `{country}`, no whitespace; credentials decoded, masked (`http://user:•••@host:port`), redacted in logs
+  (`redactProxy`). `browserProfileForSource` builds the profile from the website's address or `DEFAULT_PROXY_URL` and
+  its country. It never answers "direct" for an address it cannot use, and never guesses `{country}`.
+- *Every website-scoped call site.* `forWebsite(sourceId)` (`packages/api/src/proxy/website-session.ts`): proof-page
+  capture, Verify, runs, planning, transfer marks, variant detection and links-near, drift, coverage, website checks,
+  and the three website-scoped staff scripts. Reachability and the listing check take an optional `sourceId` and
+  load through it when given one (the Verification and Extract tabs); only Add website's address check goes direct.
+  `call-sites.test.ts` scans every api and worker file that can open a browser against an allow-list.
+- *Staff.* `sources.update` takes `proxyUrl` / `country` from operators only (staff mode included); a customer's call
+  carrying either is refused whole. The staff log reads "Set the website's proxy" / "Set the website's country to
+  Germany"; the customer's reads "Changed a setting of this website". `sources.get` gives staff the masked address,
+  `proxyFromDefault`, `country`, the country list and any `networkProblem` through `moneyFields`; mutation answers go
+  through `withoutNetwork`. Ops' website detail shows "Network: proxy (own | default | none) · country". The Settings
+  tab draws a "Network (staff)" panel in staff mode: the saved address masked, an empty field with Show, Save and "Use
+  the default", the country with "No preference", and why a disabled control is disabled.
+
+**How it was proven.** Full runs on the final code head (`4e9ed93d`): db 35, browser 371, scraper 1,319, api 2,198,
+api-server 88, worker 19, app 1,125; tsc clean in all seven. The feature's own tests: the capture through a proxy 17,
+the forwarder 9, the preflight 6, the address rules 8, the profile 8, the call-site scan 31, the address checks 5,
+`sources.update` / `get` 10, the Network view 4, plus the money sweep's proxy block and the copy sweep's `proxy`. The
+live check `packages/worker/src/live-proxy.ts` (free, local: a throwaway database, the fixture shop, the recording
+proxy with Basic auth, an in-process worker) passed 15 of 15: a proof-page capture and a three-page run went through
+the proxy only (38 requests, all with the website's user and password, none direct, none carrying the credential to
+the shop), the page read de-DE / Europe/Berlin, and a wrong password failed with the proxy sentence with nothing sent
+to the shop (`docs/testing/results/2026-10-24-proxy/`; the proof page's screenshot shows "Fixture 0-1 Lamp", €16.99,
+no cookie layer). The overlay self-test passed (nothing over the page's centre). On one isolated keyless pair: the
+route smoke 28 of 28 (on its second run; the first, against a cold app, timed out six steps that then passed), the
+staff smoke 1 of 1, no `[rate-limit]` line, the smoke's password in no log line. The screenshots show the Network
+panel ("This website's own: http://smoke-user:•••@proxy.invalid:7000", an empty field, Country "Germany"), ops'
+"proxy (own) · Germany" with the staff log, the customer's "Changed a setting of this website" with no proxy word, and
+no Network panel for a customer. Reviews per task with fix rounds, a whole-branch review (0 Critical, 4 Important:
+the 401 credential leak, the staff scripts, a new website's country, this gate) and a fix wave, re-reviewed clean.
+
+**After pulling.** Run `pnpm db:migrate` (migration 0024: `sources.country` nullable and `varchar(2)`, `proxy_url`
+added; no rows written), then restart `pnpm dev:all`. Nothing changes for a website until staff set a proxy or a
+country, or `DEFAULT_PROXY_URL` is set.
+
+**What NOT to redo.**
+- Never open a browser for a website with `withBrowserSession` directly: use `forWebsite(sourceId)`. The call-site
+  scan fails otherwise.
+- Never fall back to direct on a proxy failure.
+- Never hand Chromium a proxy password: a credentialed proxy goes through the forwarder.
+- Never send `proxyUrl`, `country` or the password to a customer: staff-only keys go out through `moneyFields`, a
+  mutation answer through `withoutNetwork`.
+- Never log a proxy address unredacted.
+- Never put a real provider in a test.
+
+**Open.**
+- Spec §5 leaves out: pools and rotation, per-request switching, provider health, a proxy for the address check before
+  a website exists, per-proxy politeness, encryption at rest, a customer-visible country (Needs Marko).
+- `dogfood.ts` (and the judge, `jev-images-run`) load pages direct: they read corpus pages by address, with no website.
+- `setContentEvaluate`'s offline context has no proxy, so a Web Worker's or an iframe's WebSocket (a blob: worker in
+  stored HTML), and possibly a WebRTC STUN request, could leave from the worker's own address. Fix later by giving that
+  context a dead proxy (`http://127.0.0.1:9`).
+- The forwarder refuses a CONNECT to port 80 (the URL parser drops the default port), so a plain `ws://` fails behind
+  a credentialed proxy; nothing leaks.
+- A plain-http request through the forwarder opens a new upstream connection each time (no keep-alive); https goes
+  through pooled tunnels.
+- Through the forwarder, an http target whose upstream dies after the preflight reads as the website's 502, not the
+  proxy sentence.
+- The preflight checks only the first URL's origin: after a redirect to another https host, a 407 on that tunnel waits
+  for the navigation timeout. For an http target the preflight sends one `HEAD` to the website, outside the domain
+  lock.
+- `ERR_TUNNEL_CONNECTION_FAILED` / `ERR_CONNECTION_ABORTED` through a proxy read as the proxy failing, so a website
+  that is down reads "proxy refused" to staff and "turned us away" to a customer.
+- A dead proxy has no breaker: a failure that is not lasting is re-checked on every page, so every page of a run
+  fails one by one.
+- The host backoff is shared between proxied and direct websites on the same host (the domain lock is per host).
+- A staff call that changes network fields and a schedule or webhook together logs only the network sentence.
+- The staff panel's help line says the listing page check goes direct; it now goes through the proxy when a website
+  exists. Reword with the next app change.
 
 ## Metering and monthly AI limits (2026-10-24)
 
