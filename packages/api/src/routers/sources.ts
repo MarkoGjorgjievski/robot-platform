@@ -544,6 +544,9 @@ export const sourcesRouter = router({
           datasetId,
           name: input.name,
           slug: sourceSlug,
+          // As every website before it (final review I3): the same en-US / New York browser, and a default address
+          // that fills in {country} reads "us". Staff change it on the Network panel; "No preference" clears it.
+          country: 'us',
           inputStrategy: 'direct',
           urlTemplate: input.url,
           schemaDefinition,

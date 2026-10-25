@@ -39,9 +39,15 @@ afterAll(async () => {
   await op?.cleanup();
 });
 
-describe('a new website (spec §2.1)', () => {
-  it('has no country of its own: no preference', async () => {
-    expect((await rowOf()).country).toBeNull();
+describe('a new website (spec §2.1; final review I3)', () => {
+  // Written at create as every website before it was: the same en-US / New York browser, and a default address that
+  // fills in {country} reads "us" rather than failing every page of a website staff never opened.
+  it('reads country "us", as every website before it', async () => {
+    const fresh = await createProjectWithSource(customer.caller, { tag: 'net-new', urls, fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, fresh.sourceId), columns: { country: true, proxyUrl: true } });
+      expect(row).toEqual({ country: 'us', proxyUrl: null });
+    } finally { await fresh.cleanup(); }
   });
 });
 

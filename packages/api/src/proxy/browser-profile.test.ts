@@ -78,8 +78,9 @@ describe('browserProfileForSource (spec §2.2)', () => {
     const site = await createProjectWithSource(me.caller, { tag: 'proxy-profile', fields: [{ name: 'Title', type: 'text' }] });
     try {
       delete process.env.DEFAULT_PROXY_URL;
-      // A new website has no country (spec §2.1): no locale or zone of its own, so stealth's en-US / New York as today; no proxy.
-      expect(await browserProfileForSource(db, site.sourceId)).toEqual({});
+      // A new website reads "us" as every website before it (final review I3): en-US / New York, the same as stealth's
+      // defaults (§3.3); no proxy.
+      expect(await browserProfileForSource(db, site.sourceId)).toEqual({ locale: 'en-US', timezoneId: 'America/New_York' });
       await db.update(sources).set({ proxyUrl: OWN, country: 'de' }).where(eq(sources.id, site.sourceId));
       expect(await browserProfileForSource(db, site.sourceId)).toMatchObject({ proxy: { username: 'u-country-de' }, locale: 'de-DE' });
       await db.update(sources).set({ proxyUrl: null, country: null }).where(eq(sources.id, site.sourceId));
