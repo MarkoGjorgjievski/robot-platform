@@ -31,15 +31,21 @@ function safeJson(v: unknown): string {
   try { return JSON.stringify(v) ?? 'null'; } catch { return '"[unserialisable]"'; }
 }
 
-function textValue(v: unknown): string {
-  if (typeof v === 'string') return /^[^\s"=]+$/.test(v) ? v : JSON.stringify(v);
-  if (v === null || typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return safeJson(v);
+// eslint-disable-next-line no-control-regex
+const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
+// eslint-disable-next-line no-control-regex
+const HAS_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
+const SHORT: Record<string, string> = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+
+/** One text line stays one line, and a terminal never runs page text: C0/C1 controls, DEL, U+2028/2029 escaped. */
+function oneLine(s: string): string {
+  return s.replace(CONTROLS, (c) => SHORT[c] ?? `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
-/** One text line stays one line: a message cannot forge the next one. */
-function oneLine(s: string): string {
-  return s.replace(/\r/g, '\\r').replace(/\n/g, '\\n');
+function textValue(v: unknown): string {
+  if (typeof v === 'string') return /^[^\s"=]+$/.test(v) && !HAS_CONTROL.test(v) ? v : oneLine(JSON.stringify(v));
+  if (v === null || typeof v === 'number' || typeof v === 'boolean') return String(v);
+  return oneLine(safeJson(v));
 }
 
 export function formatLine(level: LogLevel, scope: string, message: string, fields: LogFields | undefined, format: 'json' | 'text', now: Date = new Date(), env: Env = process.env): string {
