@@ -3,8 +3,8 @@
 // and every website-scoped file is read to prove it has no other way to open a browser. Reachability and the listing
 // check alone stay direct (§3.4).
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import { db, runs, sources, sourceVerifications } from '@robot/db';
@@ -118,5 +118,52 @@ describe('no website-scoped file opens a browser any other way (spec §2.2)', ()
     expect(body('listingCheckNow')).toMatch(/\baddressSession\(sourceId\)\(/);
     expect(body('reachabilityNow')).toMatch(/\baddressSession\(sourceId\)\(/);
     for (const name of ['transferMarksNow', 'detectVariantsNow', 'variantLinksNearNow']) expect(body(name)).toMatch(/\bforWebsite\(/);
+  });
+});
+
+// Spec 2026-10-24 proxy §3 property 1, enforced the other way round (Task 4 fix round I2): every non-test file in the
+// api and the worker that can open a browser — it imports browser-session, names PlaywrightBrowser, or imports
+// Playwright itself — is on this list, with the number of browsers it opens directly. A new file that opens one
+// fails here until it says why (most will open theirs through `forWebsite` and need no entry beyond an import).
+const PACKAGES = fileURLToPath(new URL('../../../', import.meta.url));
+const OPENS = /\bwithBrowserSession\(|\bnew PlaywrightBrowser\(|\bchromium\.launch\(/g;
+const CAN_OPEN = /browser-session(\.js)?['"]|\bPlaywrightBrowser\b|from ['"](playwright|playwright-core|playwright-extra|@playwright\/test)['"]/;
+const ALLOWED: Record<string, { opens: number; why: string }> = {
+  'api/src/browser-session.ts': { opens: 1, why: 'the one session: launches PlaywrightBrowser with the profile it is given' },
+  'api/src/proxy/website-session.ts': { opens: 0, why: "forWebsite: opens the session with the website's profile" },
+  'api/src/jobs/handlers/interactive.ts': { opens: 1, why: 'an address check with no website (Add website), §3.4' },
+  'api/src/jobs/browser-gate.ts': { opens: 0, why: 'the BrowserGate type only' },
+  'api/src/jobs/index.ts': { opens: 0, why: 're-exports setBrowserGate' },
+  'api/src/verify/proof-page-capture.ts': { opens: 0, why: "the default Session, handed to forWebsite" },
+  'api/src/verify/run-drift-check.ts': { opens: 0, why: "the default Session, handed to forWebsite" },
+  // Staff CLIs the spec leaves unchanged (§2.2).
+  'api/src/judge-run.ts': { opens: 1, why: 'staff CLI: the judge' },
+  'api/src/jev-images-run.ts': { opens: 3, why: 'staff CLI: jev-images-run' },
+  // Staff scripts: through forWebsite in the plan's final wave (progress.md ruling); listed until then.
+  'api/src/dogfood.ts': { opens: 2, why: 'staff script, final wave' },
+  'api/src/scripts/apply-websites-change.ts': { opens: 1, why: 'staff script, final wave' },
+  'api/src/scripts/one-source-recertify.ts': { opens: 1, why: 'staff script, final wave' },
+  'api/src/scripts/websites-change-replay.ts': { opens: 1, why: 'staff script, final wave' },
+  'worker/src/bench/real-sites.ts': { opens: 1, why: 'bench: arbitrary public addresses, no website' },
+};
+const sourceFiles = (pkg: string) => (readdirSync(join(PACKAGES, pkg), { recursive: true }) as string[])
+  .map((f) => `${pkg}/${f.split(sep).join('/')}`)
+  .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && !f.endsWith('.d.ts'));
+const stripped = (rel: string) => readFileSync(join(PACKAGES, rel), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+describe('every file that can open a browser is on the list (spec §3.1, fix round I2)', () => {
+  const files = [...sourceFiles('api/src'), ...sourceFiles('worker/src')];
+  const canOpen = files.filter((f) => CAN_OPEN.test(stripped(f)));
+
+  it('the files that can open a browser are exactly the listed ones', () => {
+    expect(canOpen.sort()).toEqual(Object.keys(ALLOWED).sort());
+  });
+
+  it.each(Object.entries(ALLOWED))('%s opens as many browsers as listed', (file, { opens }) => {
+    expect(stripped(file).match(OPENS)?.length ?? 0, `${file}: ${ALLOWED[file]!.why}`).toBe(opens);
+  });
+
+  it('no file imports the session under another name', () => {
+    for (const f of canOpen) expect(stripped(f), f).not.toMatch(/withBrowserSession\s+as\b|=\s*withBrowserSession\s*;/);
   });
 });
