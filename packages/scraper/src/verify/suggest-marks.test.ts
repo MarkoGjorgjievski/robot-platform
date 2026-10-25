@@ -129,3 +129,59 @@ describe('suggestMarks — a Title prefers the page\'s heading (first run 2026-1
     expect(pageHeading('<p>none</p>', [box('none', 0)])).toBeNull();
   });
 });
+
+// Fix round 1 (review I1, I2): the heading is preferred only when it is the product's name — the
+// page's structured product name contains it (or the page has no name at all) — and a breadcrumb
+// that happens to equal the heading is never the path.
+describe('suggestMarks — the heading must be the product\'s name (fix round 1)', () => {
+  const title = f('title', 'text', 'product_name');
+  const page = (html: string, ldJson: Array<Record<string, unknown>>, meta: Record<string, string> = {}) => ({
+    url: 'https://shop.example/products/x', html,
+    structuredData: { ldJson, nextData: null, initialState: null, meta }, interceptedRequests: [],
+  }) as unknown as Parameters<typeof suggestMarks>[0];
+  const h1Box = (text: string, xp = '//header/h1') => box(text, 0, { tag: 'h1', xpaths: [xp], rect: { x: 0, y: 0, w: 300, h: 40 } });
+
+  it('a category h1 first ("Headphones") with a Product named "Crusher 720 - Primer" → not preferred', () => {
+    const html = '<html><body><header><h1>Headphones</h1></header><h2>Crusher 720 - Primer</h2></body></html>';
+    const r = suggestMarks(page(html, [{ '@type': 'Product', name: 'Crusher 720 - Primer' }]), [h1Box('Headphones')], [title]);
+    expect(r.title).toMatchObject({ value: 'Crusher 720 - Primer', via: { source: 'json-ld', path: 'name' } });
+  });
+
+  it('a logo h1 with an Organization block (and a title naming the shop) → not preferred', () => {
+    const html = '<html><head><title>Crusher 720 | Skullcandy</title></head><body><h1>Skullcandy</h1></body></html>';
+    // The Product block first: with the Organization first, the main loop's tie on `name` already offers "Skullcandy" (before this change too).
+    const ld = [{ '@type': 'Product', name: 'Crusher 720 - Primer' }, { '@type': 'Organization', name: 'Skullcandy' }];
+    const r = suggestMarks(page(html, ld, { 'og:title': 'Crusher 720 | Skullcandy' }), [h1Box('Skullcandy', '//h1')], [title]);
+    expect(r.title).toMatchObject({ value: 'Crusher 720 - Primer', via: { source: 'json-ld', path: 'name' } });
+  });
+
+  it('a "You may also like" h1 → not preferred', () => {
+    const html = '<html><body><h1>You may also like</h1></body></html>';
+    const r = suggestMarks(page(html, [{ '@type': 'Product', name: 'GLOSTAD 3-seat sofa - Knisa dark grey' }]), [h1Box('You may also like', '//h1')], [title]);
+    expect(r.title).toMatchObject({ value: 'GLOSTAD 3-seat sofa - Knisa dark grey' });
+  });
+
+  it('the Skullcandy shape is preferred: the name contains the heading, ® and spacing aside', () => {
+    const html = '<html><body><h1 class="product__title"><span>Crusher® 720</span></h1></body></html>';
+    const bx = [box('Crusher® 720', 0, { xpaths: ['//h1[@class="product__title"]/span'], rect: { x: 0, y: 0, w: 300, h: 40 } })];
+    const r = suggestMarks(page(html, [{ '@type': 'Product', name: 'Crusher 720  - Primer' }]), bx, [title]);
+    expect(r.title).toEqual({ value: 'Crusher® 720', via: { source: 'xpath', path: '//h1[@class="product__title"]/span' }, boxes: [0] });
+  });
+
+  it('the IKEA shape is preferred, its Product inside an @graph', () => {
+    const html = '<html><body><h1 class="pip-header">GLOSTAD 3-seat sofa</h1></body></html>';
+    const ld = [{ '@graph': [{ '@type': 'WebPage', name: 'Sofas' }, { '@type': ['Product'], name: 'GLOSTAD 3-seat sofa - Knisa dark grey' }] }];
+    const r = suggestMarks(page(html, ld), [h1Box('GLOSTAD 3-seat sofa', '//h1[@class="pip-header"]')], [title]);
+    expect(r.title).toMatchObject({ value: 'GLOSTAD 3-seat sofa', via: { source: 'xpath', path: '//h1[@class="pip-header"]' } });
+  });
+
+  it('with no Product name, og:title or the document title decides; with no name at all the heading is preferred', () => {
+    const html = (t: string) => `<html><head>${t}</head><body><h1>Widget A</h1></body></html>`;
+    const api = { url: 'https://shop.example/api', method: 'GET', status: 200, isJson: true, contentType: 'application/json', parsedJson: { product: { title: 'Widget A - Red' } } };
+    const cap = (t: string, meta: Record<string, string> = {}) => ({ ...page(html(t), [], meta), interceptedRequests: [api] }) as unknown as Parameters<typeof suggestMarks>[0];
+    expect(suggestMarks(cap('<title>Widget A | Shop</title>'), [h1Box('Widget A', '//h1')], [title]).title).toMatchObject({ value: 'Widget A', via: { source: 'xpath' } });
+    expect(suggestMarks(cap('<title>Home | Shop</title>'), [h1Box('Widget A', '//h1')], [title]).title).toMatchObject({ value: 'Widget A - Red', via: { source: 'api' } });
+    expect(suggestMarks(cap(''), [h1Box('Widget A', '//h1')], [title]).title).toMatchObject({ value: 'Widget A', via: { source: 'xpath' } });
+  });
+
+});
