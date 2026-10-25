@@ -187,6 +187,20 @@ function cardAt(levels: CardLevel[] | undefined, requirePrice: boolean): boolean
     .some((l) => l.d <= CARD_MAX_LINKS && l.len < CARD_MAX_TEXT && l.img && (l.price || !requirePrice));
 }
 
+/**
+ * A variant option's label ("Option: GLOSTAD, 3-seat sofa, Knisa medium blue", first run re-run 1):
+ * the text a colour/size option on another product's card carries. Never a product's name.
+ */
+const OPTION_LABEL = /^\s*option\s*:/i;
+export function isOptionLabel(text: string | undefined): boolean {
+  return !!text && OPTION_LABEL.test(text);
+}
+
+/** Spec §3.4: a swatch or "+2" link (the page script's `swatch`), or one whose text is a variant option's label. Never a product link. */
+export function isSwatchLink(a: ListingAnchor): boolean {
+  return !!a.swatch || isOptionLabel(a.text);
+}
+
 /** Spec §3.2: the link is on a product card (an image and a price). */
 export function onCard(levels: CardLevel[] | undefined): boolean {
   return cardAt(levels, true);
@@ -204,7 +218,7 @@ export function asListingLinks(value: unknown): ListingLinks {
     ? v.anchors.filter((a): a is ListingAnchor => !!a && typeof a === 'object' && typeof (a as ListingAnchor).href === 'string')
       .map((a) => {
         const { name, ...rest } = a;
-        return { ...rest, text: typeof a.text === 'string' ? a.text : '', ...(typeof name === 'string' && name.trim() ? { name } : {}) };
+        return { ...rest, text: typeof a.text === 'string' ? a.text : '', ...(typeof name === 'string' && name.trim() && !isOptionLabel(name) ? { name } : {}) };
       })
     : [];
   const itemList = Array.isArray(v.itemList)
@@ -245,7 +259,7 @@ function cardGroup(
   const resolve = resolver(listingUrl);
   const byShape = new Map<string, ShapeGroup>();
   anchors.forEach((a, order) => {
-    if (a.swatch) return;
+    if (isSwatchLink(a)) return;
     const r = resolve(a.href);
     if (!r) return;
     let g = byShape.get(r.shape);
@@ -347,9 +361,9 @@ export function findProductGroup(links: ListingLinks, listingUrl: string): Produ
  * prices read as the page shows them. Per link: its href as written, its text,
  * a title, an image (inside the link, else in the nearest ancestor up to three
  * levels that holds no more than three links), `chrome` for page navigation,
- * `swatch` (§3.4: inside a radio, an `aria-checked` or `data-swatch` element, or
+ * `swatch` (§3.4: inside a radio or a label holding a radio input, an `aria-checked` or `data-swatch` element, or
  * an element whose class names a swatch and whose own text shows no price — a
- * card's wrapper named `has-swatches` shows its price; or own text "+N"), and
+ * card's wrapper named `has-swatches` shows its price; or own text "+N" or a variant option's "Option: …"), and
  * `levels`: the link itself, then up to six ancestors, each with its distinct
  * link paths (`d`, counted to 4) and — when `d` ≤ 3 — an image, a price and its
  * text length. And the JSON-LD ItemList items, with their name and image.
@@ -360,6 +374,7 @@ export function findProductGroup(links: ListingLinks, listingUrl: string): Produ
  */
 export const LISTING_LINKS_SCRIPT = String.raw`(() => {
   const PRICE = new RegExp(${JSON.stringify(PRICE_PATTERN.source)}, ${JSON.stringify(PRICE_PATTERN.flags)});
+  const OPTION = new RegExp(${JSON.stringify(OPTION_LABEL.source)}, ${JSON.stringify(OPTION_LABEL.flags)});
   const UP = ${CARD_MAX_LEVELS - 1};
   const MAX_LINKS = ${CARD_MAX_LINKS};
   const ID_NAME = new RegExp(${JSON.stringify(ID_PARAM_NAME.source)}, ${JSON.stringify(ID_PARAM_NAME.flags)});
@@ -428,8 +443,10 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
   // levels[i] is the element i levels up from the link. The walk stops at the first level that shows
   // a price (a card): every element above it holds that price too, so none is a swatch-without-price.
   const swatch = (a, text, levels) => {
-    if (/^\+\s?\d+$/.test(text)) return true;
+    if (/^\+\s?\d+$/.test(text) || OPTION.test(text)) return true;
     if (a.closest('[role=radio], [role=radiogroup], [aria-checked], [data-swatch]')) return true;
+    const label = a.closest('label');
+    if (label && label.querySelector('input[type=radio]')) return true;
     let i = 0;
     for (let el = a; el && el !== document.body; el = el.parentElement, i++) {
       if (levels[i] && levels[i].price) return false;
@@ -443,7 +460,7 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
   const TITLE_CLASS = /(?:^|[_-])(?:title|name)$/i;
   const clean = (t) => {
     const s = (t || '').replace(/\s+/g, ' ').trim();
-    return s && s.length <= 200 && /\p{L}/u.test(s.replace(PRICE, '')) ? s : '';
+    return s && s.length <= 200 && /\p{L}/u.test(s.replace(PRICE, '')) && !OPTION.test(s) ? s : '';
   };
   const titled = (el) => Array.from(el.classList || []).some((c) => TITLE_CLASS.test(c));
   const cardName = (a, levels) => {
