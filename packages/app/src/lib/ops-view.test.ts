@@ -37,6 +37,7 @@ import {
   totalsText,
   verifiedState,
   verifiedText,
+  networkLine,
   type OpsFieldPath,
   type OpsWebsiteRow,
 } from './ops-view';
@@ -578,5 +579,13 @@ describe('holds and automatic updates in ops (spec 2026-10-21 §6)', () => {
     const results = { fields: { price: { refresh: { applied: false, reason: 'not-shown' } }, rating: { refresh: { applied: true } }, title: {} } };
     expect(refreshRefusals(results)).toEqual({ price: 'Not updated automatically: the page does not show the new value' });
     expect(refreshRefusals(null)).toEqual({});
+  });
+});
+
+describe('networkLine (spec 2026-10-24 proxy §2.3 "Ops")', () => {
+  it('reads proxy (own | default | none) · country', () => {
+    expect(networkLine({ proxy: 'own', country: { code: 'de', name: 'Germany' } })).toBe('proxy (own) · Germany');
+    expect(networkLine({ proxy: 'default', country: null })).toBe('proxy (default) · no country');
+    expect(networkLine({ proxy: 'none', country: { code: 'gb', name: 'United Kingdom' } })).toBe('proxy (none) · United Kingdom');
   });
 });

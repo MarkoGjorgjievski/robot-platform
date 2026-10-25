@@ -5,6 +5,8 @@ import { Button } from '../../../../../../components/ui/button';
 import { Skeleton } from '../../../../../../components/ui/skeleton';
 import { SettingsRows } from '../../../../../../components/settings/settings-rows';
 import { DeleteWebsiteDialog } from '../../../../../../components/settings/delete-website-dialog';
+import { NetworkPanel } from '../../../../../../components/settings/network-panel';
+import type { NetworkSettings } from '../../../../../../lib/site/network-view';
 import { staffBlockedNote } from '../../../../../../lib/staff-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
@@ -42,6 +44,17 @@ function SettingsTab() {
   }
   if (!source) return null; // the layout has already said what went wrong
 
+  // Spec 2026-10-24 proxy §2.3: the server sends the network keys to staff only; their presence draws the panel.
+  const network: NetworkSettings | null = source.countries
+    ? {
+        proxyUrl: source.proxyUrl ?? null,
+        proxyFromDefault: source.proxyFromDefault ?? false,
+        country: source.country ?? null,
+        countries: source.countries,
+        problem: source.networkProblem ?? null,
+      }
+    : null;
+
   return (
     <div className="space-y-3">
       <SettingsRows
@@ -62,6 +75,8 @@ function SettingsTab() {
           webhookSecret: source.webhookSecret,
         }}
       />
+
+      {network ? <NetworkPanel siteId={source.id} network={network} /> : null}
 
       {/* A panel, not a red box: tone is the 2 px rail and nothing else
           (spec §4) — the same grammar the Extract tab's locked strip uses. */}

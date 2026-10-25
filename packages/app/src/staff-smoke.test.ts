@@ -37,8 +37,8 @@
 // cascades its project, website and staff log. It never clicks Verify,
 // Extract, Sample or Check, and the website it creates points at a dead local
 // address, so nothing is ever fetched. Screenshots (dark theme only) go to
-// `docs/testing/screens/staff-*.png`, among them `staff-settings-ai-limit.png`
-// and `staff-ops-orgs.png`.
+// `docs/testing/screens/staff-*.png`, among them `staff-settings-ai-limit.png`,
+// `staff-ops-orgs.png`, `staff-settings-network.png` and `staff-ops-network.png`.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
@@ -65,6 +65,8 @@ const RENAMED = 'Smoke shop EU';
 /** A dead local address: creating a website never fetches it, and nothing here asks it to. */
 const WEBSITE_URL = 'http://127.0.0.1:9/';
 const BLOCKED = 'Not available while working as staff';
+/** Never dialled (`.invalid`): nothing in this smoke loads the website's pages. */
+const SMOKE_PROXY = 'http://smoke-user:smoke-pass@proxy.invalid:7000';
 
 const SCREENS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../docs/testing/screens');
 
@@ -223,6 +225,27 @@ describe.skipIf(!ENABLED)('staff access', () => {
     expect(await dangerRow.count(), `"${BLOCKED}" is not beside Delete website`).toBe(1);
     await shoot(page, 'staff-settings-blocked.png');
 
+    // 5a. The website's proxy and country (spec 2026-10-24 proxy §2.3), staff only. proxy.invalid is never dialled:
+    //     nothing loads this website's pages in this smoke.
+    const network = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Network (staff)' }) });
+    await network.waitFor({ timeout: 20_000 });
+    await waitForHydration(page, '#proxy-url');
+    expect(await network.getByTestId('proxy-state').innerText()).toBe('No proxy: pages load directly.');
+    await page.locator('#proxy-url').fill(SMOKE_PROXY);
+    const proxySaved = page.waitForResponse((r) => r.url().includes('sources.update'), { timeout: 15_000 });
+    await network.getByRole('button', { name: 'Save', exact: true }).click();
+    expect((await proxySaved).ok(), 'sources.update (proxy) failed in staff mode').toBe(true);
+    await expect.poll(() => network.getByTestId('proxy-state').innerText(), { timeout: 10_000 })
+      .toBe("This website's own: http://smoke-user:•••@proxy.invalid:7000");
+    expect(await network.innerText()).not.toContain('smoke-pass');
+    const countrySaved = page.waitForResponse((r) => r.url().includes('sources.update'), { timeout: 15_000 });
+    await network.getByRole('combobox', { name: 'Country' }).click();
+    await page.getByRole('option', { name: 'Germany' }).click();
+    expect((await countrySaved).ok(), 'sources.update (country) failed in staff mode').toBe(true);
+    await expect.poll(() => network.getByRole('combobox', { name: 'Country' }).innerText(), { timeout: 10_000 }).toContain('Germany');
+    await network.scrollIntoViewIfNeeded();
+    await shoot(page, 'staff-settings-network.png');
+
     // 5b. The monthly AI limit (spec 2026-10-24 metering §2.4), on the customer's org Settings, as staff.
     await page.goto(`${APP}/settings`, { waitUntil: 'networkidle', timeout: 30_000 });
     const limitPanel = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Monthly AI limit' }) });
@@ -253,6 +276,11 @@ describe.skipIf(!ENABLED)('staff access', () => {
     expect(await rows.first().innerText()).toContain(CUSTOMER_ORG);
     await shoot(page, 'staff-back-to-ops.png');
 
+    // 6a. The ops website page names the network (spec 2026-10-24 proxy §2.3 "Ops").
+    await page.goto(`${APP}/ops/websites/${sourceId}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await expect.poll(() => page.locator('dl').first().innerText(), { timeout: 15_000 }).toContain('proxy (own) · Germany');
+    await shoot(page, 'staff-ops-network.png');
+
     // 6b. Ops → Organisations, narrowed to this run's customer before the screenshot (no real name in docs/).
     await page.goto(`${APP}/ops/orgs?q=${encodeURIComponent(CUSTOMER_ORG)}`, { waitUntil: 'networkidle', timeout: 30_000 });
     await page.getByRole('heading', { name: 'Organisations' }).waitFor({ timeout: 20_000 });
@@ -281,7 +309,16 @@ describe.skipIf(!ENABLED)('staff access', () => {
       // Spec 2026-10-24 metering §3.3: the customer reads that a setting changed, never the amount, and no panel.
       expect(text).toContain('Changed a setting of this organisation');
       expect(text).not.toMatch(/\$\s?\d|\bAI\b/);
+      // Spec 2026-10-24 proxy §2.3: the customer reads that a website setting changed — never the proxy or the country.
+      expect(text).toContain('Changed a setting of this website');
+      expect(text).not.toMatch(/proxy|Germany|smoke-user/i);
       expect(await cp.getByRole('heading', { name: 'Monthly AI limit' }).count(), 'the customer sees the AI limit panel').toBe(0);
+      await cp.goto(`${APP}/projects/${projectSlug}/sites/${siteSlug}/settings`, { waitUntil: 'networkidle', timeout: 30_000 });
+      await cp.getByRole('textbox', { name: 'Name', exact: true }).waitFor({ timeout: 20_000 });
+      expect(await cp.getByRole('heading', { name: 'Network (staff)' }).count(), 'the customer sees the Network panel').toBe(0);
+      expect(await cp.locator('main').innerText()).not.toMatch(/proxy|smoke-user/i);
+      await cp.goto(`${APP}/settings`, { waitUntil: 'networkidle', timeout: 30_000 });
+      await panel.waitFor({ timeout: 20_000 });
       await panel.scrollIntoViewIfNeeded();
       await shoot(cp, 'staff-customer-settings.png');
     } finally {
