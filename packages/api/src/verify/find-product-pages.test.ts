@@ -137,6 +137,16 @@ describe('listingProducts', () => {
     ];
     expect(listingProducts(links(anchors), L, ['https://shop.example/p/1?color=red'])).toEqual([{ url: 'https://shop.example/p/1?color=red', title: 'Oak chair, natural', image: 'https://shop.example/img/1.jpg' }]);
   });
+  it("ruling D4: a link's card title wins over every link text; a card's link text over an off-card link's", () => {
+    const anchors: ListingAnchor[] = [
+      { href: '/p/1', text: 'Save $70 on Oak chair | Free shipping on orders over $175' },
+      carded('/p/1', 'SHOP Oak chair >'),
+      carded('/p/1', '', { name: 'Oak chair' }),
+      { href: '/p/2', text: 'Save $10 on Pine stool today only' },
+      carded('/p/2', 'Pine stool'),
+    ];
+    expect(listingProducts(links(anchors), L, ['https://shop.example/p/1', 'https://shop.example/p/2']).map((p) => p.title)).toEqual(['Oak chair', 'Pine stool']);
+  });
   it('falls back to the title attribute, then the ItemList name and image, then the path', () => {
     expect(listingProducts(links([{ href: '/p/2', text: '', title: 'Pine stool' }]), L, ['https://shop.example/p/2'])).toEqual([{ url: 'https://shop.example/p/2', title: 'Pine stool' }]);
     expect(listingProducts(links([], [{ url: '/p/4', name: 'Ash table', image: '/img/4.jpg' }]), L, ['https://shop.example/p/4'])).toEqual([{ url: 'https://shop.example/p/4', title: 'Ash table', image: 'https://shop.example/img/4.jpg' }]);
@@ -204,5 +214,58 @@ describe('LISTING_LINKS_SCRIPT in Chromium (offline page)', () => {
     expect(price('/p/1')).toBe('£38.00');
     expect(price('/p/2')).toBe('RM1,299');
     expect(price('/c/sofas')).toBeUndefined();
+  }, 60_000);
+
+  // Ruling D4 (first run 2026-10-25): a card is named by its own title, not the whole link text.
+  const L2 = 'https://shop.example/c/headphones';
+  const namesOf = async (html: string, urls: string[]) => {
+    const links = await browser.setContentEvaluate<ListingLinks>(html, LISTING_LINKS_SCRIPT);
+    return listingProducts(links, L2, urls.map((u) => `https://shop.example${u}`)).map((p) => p.title);
+  };
+
+  it('Skullcandy: an announcement link and a "SHOP … >" overlay never name the card; its title element does', async () => {
+    const html = `<html><body>
+      <div role="region" aria-label="Announcement"><a href="/products/crusher-720"><p>Save $70 on Crusher 720 | Free shipping on orders over $175</p></a></div>
+      <main><ul>
+        <li class="grid-product"><a href="/products/crusher-720"><img src="/i/720.jpg" alt="Crusher 720 headphones"></a>
+          <div class="grid-product__meta"><a href="/products/crusher-720"><div class="grid-product__title">Crusher® 720</div><div class="grid-product__price">$249.99</div></a></div></li>
+        <li class="life-style"><div class="life-style-content">
+          <span class="h2 life__style-title">Crusher® 540 Active</span><p class="card-overline">Sensory Bass Headphones</p>
+          <a href="/products/crusher-540-active"><div class="info-overlay"><span class="card-information__text h2">SHOP Crusher® 540 Active ></span></div><img src="/i/540.jpg"></a>
+          <span>$179.99</span></div></li>
+      </ul></main>
+    </body></html>`;
+    expect(await namesOf(html, ['/products/crusher-720', '/products/crusher-540-active'])).toEqual(['Crusher® 720', 'Crusher® 540 Active']);
+  }, 60_000);
+
+  it("IKEA: the card's heading names it, not a variant option's \"Option: …\" text; a heading never names another product", async () => {
+    const card = (id: string, name: string, desc: string, options: Array<[string, string]>) => `
+      <div class="plp-mastercard">
+        <a href="/p/${id}/" class="plp-product__image-link"><img alt="The ${name} sofa is a modern comfort design with low armrests." src="/i/${id}.jpg"></a>
+        <h3><span class="plp-price-module__name-decorator"><a href="/p/${id}/" aria-label="${name}, ${desc}"><span class="plp-price-module__product-name">${name}</span></a></span>
+          <span class="plp-price-module__description"><span aria-hidden="true">${desc}</span></span></h3>
+        <em><span class="plp-price__currency">RM</span><span>449</span></em>
+        <fieldset><legend>More options<span class="sr-only">${name}</span></legend>
+          ${options.map(([oid, label]) => `<label><input type="radio"><a href="/p/${oid}/"><span class="sr-only">Option: ${label}</span><img alt="A ${name} sofa with three cushions." src="/i/${oid}.jpg"></a></label>`).join('')}
+        </fieldset>
+      </div>`;
+    const html = `<html><body><main>
+      ${card('glostad-dark-grey-1', 'GLOSTAD', '3-seat sofa, Knisa dark grey', [['glostad-dark-grey-1', 'GLOSTAD, 3-seat sofa, Knisa dark grey'], ['glostad-medium-blue-2', 'GLOSTAD, 3-seat sofa, Knisa medium blue']])}
+      ${card('kivik-beige-3', 'KIVIK', '3-seat sofa, Tibbleby beige/grey', [])}
+    </main></body></html>`;
+    expect(await namesOf(html, ['/p/glostad-dark-grey-1/', '/p/kivik-beige-3/', '/p/glostad-medium-blue-2/'])).toEqual([
+      'GLOSTAD 3-seat sofa, Knisa dark grey',
+      'KIVIK 3-seat sofa, Tibbleby beige/grey',
+      // Reached only by its option link: no title of its own, so its link text, never the dark grey card's heading.
+      'Option: GLOSTAD, 3-seat sofa, Knisa medium blue',
+    ]);
+  }, 60_000);
+
+  it("a card's image alt names it when the card has no title element; a card with neither keeps its link text", async () => {
+    const html = `<html><body><ul>
+      <li><a href="/p/oak-1"><img src="/i/1.jpg" alt="Oak chair"><span>NEW</span> <span>Oak chair, natural</span> <span>Save 20%</span></a><span>$129.99</span></li>
+      <li><a href="/p/pine-2"><img src="/i/2.jpg"><span>Pine stool</span></a><span>$59.00</span></li>
+    </ul></body></html>`;
+    expect(await namesOf(html, ['/p/oak-1', '/p/pine-2'])).toEqual(['Oak chair', 'Pine stool']);
   }, 60_000);
 });

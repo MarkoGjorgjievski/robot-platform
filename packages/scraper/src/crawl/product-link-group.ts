@@ -40,6 +40,13 @@ export type ListingAnchor = {
   href: string;
   text: string;
   title?: string;
+  /**
+   * The card's own title (ruling D4, first run 2026-10-25): a heading, else an element whose class names a
+   * title or a name (`product-title`, `grid-product__title`, `…__product-name`), else a name-like image alt
+   * (short, not a sentence) — found in the link or the ancestors that hold this product's links only, so a
+   * card never takes another product's title. Absent when there is none; the link text names it then.
+   */
+  name?: string;
   image?: string;
   /** In page navigation: nav, aside, a navigation/banner/contentinfo/complementary role, or the page's own header/footer. */
   chrome?: boolean;
@@ -195,7 +202,10 @@ export function asListingLinks(value: unknown): ListingLinks {
   const v = (value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {}) as { anchors?: unknown; itemList?: unknown };
   const anchors = Array.isArray(v.anchors)
     ? v.anchors.filter((a): a is ListingAnchor => !!a && typeof a === 'object' && typeof (a as ListingAnchor).href === 'string')
-      .map((a) => ({ ...a, text: typeof a.text === 'string' ? a.text : '' }))
+      .map((a) => {
+        const { name, ...rest } = a;
+        return { ...rest, text: typeof a.text === 'string' ? a.text : '', ...(typeof name === 'string' && name.trim() ? { name } : {}) };
+      })
     : [];
   const itemList = Array.isArray(v.itemList)
     ? v.itemList.filter((i): i is ListingItem => !!i && typeof i === 'object' && typeof (i as ListingItem).url === 'string')
@@ -427,6 +437,37 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
     }
     return false;
   };
+  // The card's own title (ruling D4): searched in the link and its ancestors while they hold this product's
+  // links only (levels[i].d <= 1), lowest first: a heading, then a title/name class, then a name-like image alt.
+  const HEADING = 'h1, h2, h3, h4, h5, h6, [role=heading]';
+  const TITLE_CLASS = /(?:^|[_-])(?:title|name)$/i;
+  const clean = (t) => {
+    const s = (t || '').replace(/\s+/g, ' ').trim();
+    return s && s.length <= 200 && /\p{L}/u.test(s.replace(PRICE, '')) ? s : '';
+  };
+  const titled = (el) => Array.from(el.classList || []).some((c) => TITLE_CLASS.test(c));
+  const cardName = (a, levels) => {
+    const scope = [];
+    let el = a;
+    for (let i = 0; el && el !== document.body && i < levels.length && levels[i].d <= 1; i++, el = el.parentElement) scope.push(el);
+    for (const s of scope) {
+      const h = s.matches(HEADING) ? s : s.querySelector(HEADING);
+      const t = h ? clean(h.innerText) : '';
+      if (t) return t;
+    }
+    for (const s of scope) {
+      const tEl = titled(s) ? s : Array.from(s.querySelectorAll('[class]')).find(titled);
+      const t = tEl ? clean(tEl.innerText) : '';
+      if (t) return t;
+    }
+    for (const s of scope) {
+      for (const img of s.querySelectorAll('img[alt]')) {
+        const t = clean(img.getAttribute('alt'));
+        if (t && t.length <= 100 && !/[.!?]$/.test(t)) return t;
+      }
+    }
+    return undefined;
+  };
   const anchors = [];
   for (const a of document.querySelectorAll('a[href]')) {
     const text = (a.textContent || '').replace(/\s+/g, ' ').trim();
@@ -444,6 +485,7 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
       href: a.getAttribute('href') || '',
       text: text.slice(0, 200),
       title: a.getAttribute('title') || a.getAttribute('aria-label') || (inner && inner.getAttribute('alt')) || undefined,
+      name: cardName(a, levels),
       image: imgUrl(inner || near(a)) || undefined,
       chrome: chrome(a) || undefined,
       swatch: swatch(a, text, levels) || undefined,
