@@ -66,6 +66,8 @@ const ANY_USERINFO = new RegExp(`\\b(${SCHEME}:\\/\\/)[^\\s/?#]*@`, 'gi');
 const RAW_USERINFO = new RegExp(`\\b(${SCHEME}:\\/\\/)[^\\s/?#@:]{0,256}:(?!\\d{1,5}[/?#])[^\\s@]{0,256}@`, 'gi');
 /** The same, URL-encoded (a redirect parameter): scheme%3A%2F%2F…%40, never past an encoded / ? #. */
 const ENCODED_USERINFO = new RegExp(`\\b(${SCHEME}%3A%2F%2F)(?:(?!%2F|%3F|%23)[^\\s&/?#]){0,512}%40`, 'gi');
+/** user:pass@host:port with no scheme (how proxy vendors and server strings write it): only before a host:port. */
+const BARE_USERINFO = /(?<=^|[\s"'=(,;<[{])[^\s:@/"'=]{1,64}:[^\s/]{1,256}@(?=[\w.-]{1,253}:\d{1,5}\b)/g;
 // The pair rules consume only a name and its separator; the value is read (sticky, bounded) only when the name is
 // secret, so text full of harmless pairs costs one pass.
 /** name=value (a query parameter); the name is judged by isSecretKey. */
@@ -132,6 +134,7 @@ function redactor(env: Env): Redactor {
       .replace(ANY_USERINFO, `$1${MASK}@`)
       .replace(RAW_USERINFO, `$1${MASK}@`)
       .replace(ENCODED_USERINFO, `$1${MASK}%40`)
+      .replace(BARE_USERINFO, `${MASK}@`)
       .replace(BEARER, `$1 ${MASK}`)
       .replace(BASIC, `$1 ${MASK}`)
       .replace(HEADER, headerValue);
