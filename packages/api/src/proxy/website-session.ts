@@ -1,7 +1,8 @@
 // packages/api/src/proxy/website-session.ts
 // A website's browser session (spec 2026-10-24 proxy §2.2): every page load for a website opens its browser through
-// this, with the website's proxy, locale and time zone read as the session opens. Reachability and the listing check —
-// which run before a website exists — call `withBrowserSession` directly and stay direct (§3.4).
+// this, with the website's proxy, locale and time zone read as the session opens. Reachability and the listing check
+// come here too when they are given a website (the Verification and Extract tabs); only an address with no website
+// yet (Add website) calls `withBrowserSession` directly and goes direct (§3.4).
 import type { IBrowser } from '@robot/browser';
 import { db } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
