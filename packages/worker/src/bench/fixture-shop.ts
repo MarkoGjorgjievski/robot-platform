@@ -2,7 +2,7 @@
 // 127.0.0.(11+s) — its own hostname, so the domain lock paces it as its own host. Products /p/<id> carry JSON-LD,
 // meta, an API the page fetches, XPath-only fields, a "Read more" description, a details panel, popups and
 // latency shaped like the real product pages measured on 2026-10-23. Free; loopback only.
-import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
+import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { CertifiedPath, CustomerFieldType } from '@robot/scraper';
 import { normalize, renderValue } from '@robot/scraper';
@@ -79,12 +79,24 @@ export function renderedTruth(t: ProductTruth): Record<string, unknown> {
   return out;
 }
 
-function productHtml(site: FixtureSite, id: number, t: ProductTruth): string {
+/** Spec 2026-10-24 proxy §4: what the page itself believes (language, languages, time zone), on <html data-env>. */
+const ENV_SCRIPT = `<script>document.documentElement.setAttribute('data-env', JSON.stringify({ lang: navigator.language, langs: navigator.languages, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }));</script>`;
+
+export type ShopOptions = {
+  sites: number;
+  latency?: FixtureLatency;
+  /** Every request, before it is answered (the proxy live check counts which ones came through the proxy). */
+  onRequest?: (r: { site: number; method: string; path: string; headers: IncomingHttpHeaders }) => void;
+  /** Product pages write ENV_SCRIPT's answer onto <html>. Off: the benchmark's pages are unchanged. */
+  envProbe?: boolean;
+};
+
+function productHtml(site: FixtureSite, id: number, t: ProductTruth, envProbe = false): string {
   const shown = t.readMore ? `${t.description.slice(0, 24)}…` : t.description;
   const notes = Array.from({ length: 12 }, (_, k) => `<p>Note ${k + 1} on ${esc(t.title)}: hand finished, tested for daily use, delivered in recyclable packaging with care instructions.</p>`).join('');
   const ld = { '@context': 'https://schema.org', '@type': 'Product', name: t.title, sku: t.sku, offers: { '@type': 'Offer', price: t.price, priceCurrency: 'EUR' } };
   const showCookie = t.cookie || site.consentGated;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(t.title)}</title>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">${envProbe ? ENV_SCRIPT : ''}<title>${esc(t.title)}</title>
 <meta property="og:title" content="${esc(t.title)}">
 <link rel="stylesheet" href="/static/site.css">
 <script type="application/ld+json">${JSON.stringify(ld)}</script>
@@ -131,7 +143,7 @@ ${t.rating === null ? '' : `<div class="rating"><span class="score">${t.rating}<
 
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="#ccc"/></svg>';
 
-function handler(site: FixtureSite, lat: FixtureLatency, gone: Set<string>) {
+function handler(site: FixtureSite, lat: FixtureLatency, gone: Set<string>, envProbe: boolean) {
   return async (req: IncomingMessage, res: ServerResponse) => {
     const path = new URL(req.url ?? '/', site.origin).pathname;
     if (gone.has(path)) { res.writeHead(404, { 'content-type': 'text/plain' }); return res.end('not found'); }
@@ -141,7 +153,7 @@ function handler(site: FixtureSite, lat: FixtureLatency, gone: Set<string>) {
       const slow = unit(site.index, id, 'slow') < lat.slowShare;
       await sleep(between(lat.htmlMs, unit(site.index, id, 'html')) + (slow ? lat.slowExtraMs : 0));
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      return res.end(productHtml(site, id, product(site.index, id)));
+      return res.end(productHtml(site, id, product(site.index, id), envProbe));
     }
     if ((m = path.match(/^\/api\/product\/(\d+)$/))) {
       const id = Number(m[1]);
@@ -165,7 +177,7 @@ function handler(site: FixtureSite, lat: FixtureLatency, gone: Set<string>) {
   };
 }
 
-export async function startFixtureShop(opts: { sites: number; latency?: FixtureLatency }): Promise<FixtureShop> {
+export async function startFixtureShop(opts: ShopOptions): Promise<FixtureShop> {
   const lat = opts.latency ?? REALISTIC;
   const servers: Server[] = [];
   const sites: FixtureSite[] = [];
@@ -173,7 +185,10 @@ export async function startFixtureShop(opts: { sites: number; latency?: FixtureL
   for (let i = 0; i < opts.sites; i++) {
     const host = `127.0.0.${11 + i}`;
     const site: FixtureSite = { index: i, host, origin: '', consentGated: opts.sites >= 4 && i === opts.sites - 1, productUrl: (id) => `${site.origin}/p/${id}` };
-    const server = createServer((req, res) => { void handler(site, lat, gone)(req, res); });
+    const server = createServer((req, res) => {
+      opts.onRequest?.({ site: i, method: req.method ?? 'GET', path: new URL(req.url ?? '/', site.origin).pathname, headers: req.headers });
+      void handler(site, lat, gone, opts.envProbe ?? false)(req, res);
+    });
     await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, host, () => resolve()); });
     site.origin = `http://${host}:${(server.address() as AddressInfo).port}`;
     servers.push(server);
