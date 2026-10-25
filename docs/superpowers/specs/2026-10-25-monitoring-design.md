@@ -1,8 +1,32 @@
 # Monitoring basics — design
 
-**Status:** written 2026-10-25 under the standing approval (`CLAUDE.md`, "Autonomous runs"; `docs/queue.md` item 1,
-"Monitoring basics"). Plan: `docs/superpowers/plans/2026-10-25-monitoring.md`. Branch `feat/monitoring` from `main` @
-`d7c53eef`, worktree `C:\Users\Marko\Documents\projects\robot-platform-monitoring`.
+**Status:** implemented on `feat/monitoring` and merged to `main` on 2026-10-25 (`976b5d74`); written 2026-10-25 under the
+standing approval (`CLAUDE.md`, "Autonomous runs"; `docs/queue.md` item 1, "Monitoring basics"). Plan:
+`docs/superpowers/plans/2026-10-25-monitoring.md`. Branch `feat/monitoring` from `main` @ `d7c53eef`, worktree
+`C:\Users\Marko\Documents\projects\robot-platform-monitoring`. The week of local checks (§1 "Done when") is with Marko
+(`docs/queue.md`, Needs Marko).
+
+**Proven:** full runs on the final code head (`976b5d74`): db 38, api 2,275, api-server 97, worker 27, app 1,128; tsc
+clean in all five. The monitoring tests in `packages/api/src/monitoring/` (66: the logger and redaction 33, the error
+hook 8, the heartbeat 4, the attention queries and the watchdog 11, readiness 7, the queue view 3), the api-server's
+`/readyz`, request-log and `onError` tests (`app.test.ts`, 24), `ops.queue` and the procedure sweep, the worker's
+heartbeat / health-port / report test (`monitoring.test.ts`, 5); the route smoke 28 of 28 and the staff smoke 1 of 1
+on one isolated keyless pair (`staff-ops-queue.png`: the pair's worker "(this server)", beat 17 s ago, six job types,
+"Nothing needs attention."); `docker compose config -q`; `serve.mjs`'s `/healthz` by a build and a curl (200
+`{"status":"ok"}`, GET and HEAD); the live check `packages/worker/src/live-monitoring.ts` 12 of 12
+(`docs/testing/results/2026-10-25-monitoring/live-monitoring.json`: `/readyz` 503, then ok, then 503 eleven seconds
+after the worker stopped; a hung job silent at 46 s in ops and in a watchdog line; one redacted report
+`test-throw: could not reach http://***@proxy.test:7000`; 14 JSON lines from five scopes, no secret in any).
+
+**Deviations:** the reviews forced these beyond §2: the secret-key pattern matches whole words and camel/snake
+segments (so `signal`, `design`, `tokenCount` stay readable) and covers more names (`session`, `cookies`, `apiKey`,
+`passphrase`, `dsn`, `connectionString` …), number and array values and `name: value` text forms; a failed query's
+`params:` line is masked; "silent" fires at max(half the policy's `stuckMs`, 45 s), since `progress_at` is written at
+most every 15 s; a lane that finished a job within the window is busy, not a backlog; `/readyz` reuses one answer for
+2 s and an unreadable migration journal fails only `migrations`; a database outage is one `claim failed` line and one
+watchdog warn, then one line when it is back; a worker stop always stops the heartbeat (at most 3 s) and closes the
+health port; an operator script's inline runner writes through the logger and reports its terminal faults; the
+Compose worker and app healthchecks time out at 5 s, not 3 s. Plus the plan's "Settled here" 1–16.
 
 ## 1. Why
 

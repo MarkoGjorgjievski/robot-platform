@@ -35,9 +35,11 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Proxy support (2026-10-24)](#proxy-support-2026-10-24).** Staff can give a website a proxy and a country; its pages then load through the proxy with that country's language and time zone. Merged 2026-10-25.
+**Newest: [Monitoring basics (2026-10-25)](#monitoring-basics-2026-10-25).** Workers beat into the database and answer a health port; the api-server answers /readyz; logs can be JSON and are redacted; a watchdog warns about stuck work; errors can be POSTed to a receiver; staff see it all in ops → Queue. Merged 2026-10-25.
 
-**Before it: [Metering and monthly AI limits (2026-10-24)](#metering-and-monthly-ai-limits-2026-10-24).** Pages, runs and AI spend are counted per organisation and month; AI work stops at each organisation's monthly limit ($25 by default); staff see and set it in ops and Settings. Merged 2026-10-24.
+**Before it: [Proxy support (2026-10-24)](#proxy-support-2026-10-24).** Staff can give a website a proxy and a country; its pages then load through the proxy with that country's language and time zone. Merged 2026-10-25.
+
+**Before that: [Metering and monthly AI limits (2026-10-24)](#metering-and-monthly-ai-limits-2026-10-24).** Pages, runs and AI spend are counted per organisation and month; AI work stops at each organisation's monthly limit ($25 by default); staff see and set it in ops and Settings. Merged 2026-10-24.
 
 **Before that: [Tenant isolation (2026-10-24)](#tenant-isolation-2026-10-24).** Every api procedure and file route is proven, as tests, to refuse another organisation; customers receive no money amounts; sign-in, the heavy work and the address checks are rate limited. Merged 2026-10-24.
 
@@ -126,6 +128,94 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Monitoring basics (2026-10-25)
+
+Spec `docs/superpowers/specs/2026-10-25-monitoring-design.md`, plan `docs/superpowers/plans/2026-10-25-monitoring.md`.
+
+**What changed.**
+- *The heartbeat.* Migration 0025 adds a `workers` table (id, queue, started_at, beat_at, version, browsers, lanes,
+  website_checks, recurring_runs) and `jobs.progress_at`. Each worker upserts its row at start and every 30 s with the
+  database's clock (keeping `started_at`), purges rows older than a day, and deletes only its own row on a clean stop
+  (the heartbeat's stop is limited to 3 s). A failing beat warns once per streak and says "beating again". A beat older
+  than 2 minutes is a dead worker.
+- *Readiness, liveness, Compose.* The api-server answers `GET /readyz` (no auth): `{ status, checks: { db, migrations,
+  worker, queue } }`, booleans only, 200 or 503, `cache-control: no-store`, one answer reused for 2 s. A database
+  that does not answer in 2 s fails every check; an unreadable migration journal fails only `migrations`; `queue`
+  fails only for a job due over 10 minutes whose lane is idle (nothing running, nothing claimed or finished in the
+  window). `/healthz` stays liveness. The worker answers `GET /healthz` on 127.0.0.1:`WORKER_HEALTH_PORT` (200 while
+  working and beating, 503 from the first moment of a stop; a port it cannot open is logged and it runs on). The app's
+  `serve.mjs` answers `/healthz`. Compose sets the worker's port to 4001 and gives the worker and the app
+  healthchecks (5 s timeout); the api's stays on `/healthz` (`/readyz` needs a worker, and the app waits on a healthy
+  api).
+- *The logger and redaction.* `@robot/api/log`: `createLog(scope)` with `debug/info/warn/error(message, fields?)`,
+  `LOG_FORMAT` (text `[scope] msg key=value`, `WARN`/`ERROR` after the scope, warn and error to stderr; or json, one
+  object per line) and `LOG_LEVEL`. Every message and field is redacted: `redactProxy`, `redactSmtp`, any URL
+  userinfo, `user:pass@host:port`, secret keys by whole word (password, token, secret, cookie, session, sig, apiKey,
+  dsn, connectionString …) in objects, query parameters, JSON and `name: value` text, Bearer/Basic tokens, the known
+  key values, a failed query's `params:` line; controls and bidi characters escaped; unserialisable values become
+  placeholders and logging never throws. Moved to it: the api-server's request log (method, path without the query,
+  status, ms, client IP; `/healthz` and `/readyz` at debug), the job runner's lines, the worker's start and stop, the
+  watchdog, the error hook, the website-check and schedule sweeps, and an operator script's inline runner. The rest of
+  the codebase keeps `console.*`.
+- *Progress and the watchdog.* `jobs.progress_at` is written at claim and by `ctx.progress()` at most every 15 s,
+  best-effort. Every 60 s each worker's watchdog (`packages/api/src/monitoring/`) reads its queue and warns once per job
+  and kind per hour: **backlog** (queued over 10 minutes, lane idle), **silent** (running under a live lease with no
+  progress for max(half its policy's `stuckMs`, 45 s)), **dead worker** (running under a worker whose beat is over 2
+  minutes old; ids matched with `split_part`, never `LIKE`). It only logs; a failed read warns once per outage.
+- *The error hook.* `@robot/api/errors`' `reportError(err, context)` logs at error and, with `ERROR_REPORT_URL`, POSTs
+  `{ t, service, level, message, stack, context, version, host }` redacted, with `ERROR_REPORT_TOKEN` as a Bearer
+  header; 5 s timeout, never rejecting, at most 30 a minute with `dropped` counted in the next. The api-server reports
+  Hono 500s (`{ method, path }`), tRPC `INTERNAL_SERVER_ERROR` (`{ path, type }`, never the input) and both process
+  handlers; the worker a job's terminal fault (`{ jobId, type, attempt, queue, workerId }`, never the payload; a capture
+  problem or a refusal is an answer, not reported) and both process handlers. An uncaught exception still exits after a
+  flush of at most 2 s.
+- *Ops → Queue.* `/ops/queue` (operators only, `ops.queue`, every 15 s): **Workers** (every row of every queue, this
+  server's first and marked "(this server)", beat age red past 2 minutes, browsers, lanes, switches), **Jobs** by type
+  (queued, running, done and failed in 24 h, oldest waiting, longest running), **Needs attention** (backlog, silent, dead
+  worker, each with its website linked or its run named, and the last error, redacted) and **Recent failures** (the last
+  20). Customers see nothing new.
+
+**How it was proven.** Full runs on the final code head (`976b5d74`): db 38, api 2,275, api-server 97, worker 27, app
+1,128; tsc clean in all five. The monitoring tests (66 in `packages/api/src/monitoring/`), the api-server's `/readyz`,
+request-log and `onError` tests, `ops.queue` with the procedure sweep, the worker's heartbeat / health-port / report
+test. The live check `packages/worker/src/live-monitoring.ts` (free, local: a throwaway database, an in-process worker
+with its health port and the test jobs, a local receiver, the api-server app in-process) passed 12 of 12
+(`docs/testing/results/2026-10-25-monitoring/live-monitoring.json`): `/readyz` 503 before a worker, ok with it, 503
+eleven seconds after it stopped; a hung job silent at 46 s in `ops.queue` and in a watchdog warn; one report for the
+thrown job, as the worker, with the Bearer token, reading `test-throw: could not reach http://***@proxy.test:7000`; 14
+JSON lines from five scopes; the secret and the token in no line. `serve.mjs` built and curled: 200
+`{"status":"ok"}` on GET and HEAD. `docker compose config -q` clean. On one isolated keyless pair (its worker on
+health port 4101): the route smoke 28 of 28 and the staff smoke 1 of 1; no `[rate-limit]` line, 588 request-log lines
+with no query string or cookie, 33 `[jobs] claimed` lines; `staff-ops-queue.png` shows the pair's worker "(this
+server)" beating 17 s ago, six job types and "Nothing needs attention."; after the stop file `/readyz` answered 503.
+Reviews per task with fix rounds, a whole-branch review (0 Critical, 0 Important) and a fix wave of its minors.
+
+**After pulling.** Run `pnpm db:migrate` (migration 0025 adds `workers` and `jobs.progress_at`; additive, and
+already applied to the dev database by the branch's tests), then restart `pnpm dev:all`. Optional in `.env`:
+`LOG_FORMAT=json`, `ERROR_REPORT_URL` (+ `ERROR_REPORT_TOKEN`), `WORKER_HEALTH_PORT`.
+
+**What NOT to redo.**
+- Never log a URL, a header, a payload or an input without `createLog`: it redacts, `console.*` does not.
+- Never let monitoring fail a job: every heartbeat, `progress_at`, report and watchdog path swallows its own errors.
+- Never answer `/readyz` with ids, hosts or error text.
+- Never report a capture problem or a refusal as an error.
+- Never match a worker id with `LIKE`: `split_part(locked_by, '#', 1)`.
+- A new job type gets its lane and `stuckMs` in `JOB_POLICIES`, which the watchdog and ops read.
+- Never point `ERROR_REPORT_URL` at this api-server: an endpoint that answers 500 reports again (bounded at 30 a minute).
+
+**Open.**
+- Spec §5 leaves out: metrics, alerting, moving every `console.*` to the logger, log shipping, tracing, a status page.
+- The week of local checks (`WEBSITE_CHECKS=on`, then `/ops/queue` and the worker's warn lines) — Needs Marko.
+- The watchdog runs in each worker, so two workers on one queue both warn; `/readyz` sees only its own `JOB_QUEUE`.
+- `asError` `JSON.stringify`s a non-Error rejection reason whole before cutting it, so a huge rejected object costs its
+  full serialisation; a report's context has no size cap of its own.
+- An operator script run without its own `log` now prints its info lines through the logger, so `LOG_LEVEL=warn` hides
+  them.
+- Redaction keeps `user:pass@host` written with no scheme and no port, and a password equal to its username in free
+  text (still masked in URLs).
+- The route smoke leaves its `smoke-…@example.com` users in the database, as before this branch (88 now); the staff
+  smoke's are removed.
 
 ## Proxy support (2026-10-24)
 
