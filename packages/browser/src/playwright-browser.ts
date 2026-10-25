@@ -1,6 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page, type JSHandle, type Response } from 'playwright';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
-import type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, CaptureVerdict, ReadyCheck, ReadySnapshot, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig, ScrollOptions } from './types.js';
+import type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, CaptureVerdict, ReadyCheck, ReadySnapshot, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig, ProxySettings, ScrollOptions } from './types.js';
 import { CaptureError } from './types.js';
 import { classifyVerdict, classifyNavigationError, isProxyFailure } from './verdict.js';
 import { pageVariantFrom, selectedInPageData, wrongVariant, type Selection } from './page-variant.js';
@@ -8,6 +8,7 @@ import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
 import { assertBrowserLaunchAllowed, browserOwnerArgs } from './launch-guard.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
+import { checkProxy, type ProxyCheck } from './proxy-preflight.js';
 import { rankInterceptedRequests } from './rank-requests.js';
 import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
 import {
@@ -148,6 +149,10 @@ export class PlaywrightBrowser implements IBrowser {
   private context: BrowserContext | null = null;
   /** This browser's pages go through a proxy (spec 2026-10-24 proxy §2.2): its failures are the proxy's, never retried direct. */
   private proxied = false;
+  /** The proxy itself, for the Node-side check before a host's first page. */
+  private proxy: ProxySettings | null = null;
+  /** Per target origin, this session's one proxy check (spec 2026-10-24 proxy §2.2; Task 2 review, issue 1). */
+  private proxyChecks = new Map<string, Promise<ProxyCheck>>();
 
   async launch(options: BrowserOptions = {}): Promise<void> {
     assertBrowserLaunchAllowed();
@@ -188,6 +193,8 @@ export class PlaywrightBrowser implements IBrowser {
       ...(options.proxy ? { proxy: options.proxy } : {}),
     });
     this.proxied = !!options.proxy;
+    this.proxy = options.proxy ?? null;
+    this.proxyChecks.clear();
   }
 
   async capture(url: string, options: CaptureOptions = {}): Promise<PageCapture> {
@@ -602,6 +609,8 @@ export class PlaywrightBrowser implements IBrowser {
     this.context = null;
     this.browser = null;
     this.proxied = false;
+    this.proxy = null;
+    this.proxyChecks.clear();
   }
 
   async evaluate<T = unknown>(url: string, script: string, options: CaptureOptions = {}): Promise<T> {
@@ -650,6 +659,7 @@ export class PlaywrightBrowser implements IBrowser {
   private async navigateWithFallback(page: Page, url: string, options: CaptureOptions = {}): Promise<Response | null> {
     const timeout = options.timeout ?? 60000;
     const preferred = options.waitUntil ?? 'networkidle';
+    await this.checkProxyFor(url);
 
     try {
       return this.throughProxy(url, await page.goto(url, { waitUntil: preferred, timeout }));
@@ -674,6 +684,28 @@ export class PlaywrightBrowser implements IBrowser {
         throw err;
       }
     }
+  }
+
+  /**
+   * Spec 2026-10-24 proxy §2.2: before a host's first page, ask the proxy from Node whether it will carry us there
+   * (`checkProxy`: talks to the proxy only). Chromium never surfaces a 407 on an https CONNECT — it hangs until the
+   * navigation timeout — so a wrong password, a refused or silent proxy is caught here, before any navigation. The
+   * answer is kept for the session, a failure too: every page of that host fails at once with the proxy sentence.
+   */
+  private async checkProxyFor(url: string): Promise<void> {
+    if (!this.proxy) return;
+    let origin: string;
+    try { origin = new URL(url).origin; } catch { return; }
+    if (!/^https?:/.test(origin)) return;
+    let check = this.proxyChecks.get(origin);
+    if (!check) {
+      check = checkProxy(this.proxy, url);
+      this.proxyChecks.set(origin, check);
+    }
+    const result = await check;
+    if (result.ok) return;
+    console.warn(`[browser] the proxy check failed for ${url}: ${result.detail}`);
+    throw new CaptureError('proxy', url, result.detail);
   }
 
   /** Spec 2026-10-24 proxy §2.2: through a proxy, a connection the proxy could not make is the proxy's failure. */

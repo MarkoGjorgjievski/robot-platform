@@ -16,22 +16,26 @@ const basic = (user: string, pass: string) => `Basic ${Buffer.from(`${user}:${pa
 
 let site: http.Server;
 let pageUrl = '';
+/** The same page asked for over https: Chromium tunnels it through the proxy with CONNECT (TLS then fails on this
+ *  plain-http listener, which is fine — the assertions are on the proxy, the kind and the website). */
+let httpsUrl = '';
 /** Every request the website received, in order. */
 const seen: IncomingHttpHeaders[] = [];
 beforeAll(async () => {
   site = http.createServer((req, res) => { seen.push(req.headers); res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(PAGE); });
   await new Promise<void>((r) => site.listen(0, '127.0.0.1', () => r()));
   pageUrl = `http://127.0.0.1:${(site.address() as AddressInfo).port}/p/1`;
+  httpsUrl = pageUrl.replace(/^http:/, 'https:');
 });
 afterAll(() => { site.closeAllConnections(); site.close(); });
 beforeEach(() => { seen.length = 0; });
 
 /** One browser per profile, as a worker session has: launched, one capture, closed. */
-async function captureWith(opts: BrowserOptions) {
+async function captureWith(opts: BrowserOptions, url = pageUrl) {
   const b = new PlaywrightBrowser();
   try {
     await b.launch({ headless: true, ...opts });
-    return await b.capture(pageUrl, { waitUntil: 'load', pictures: false, finalProbe: ENV });
+    return await b.capture(url, { waitUntil: 'load', timeout: 30_000, pictures: false, finalProbe: ENV });
   } finally {
     await b.close();
   }
@@ -100,6 +104,35 @@ describe('capture through a proxy (spec 2026-10-24 proxy §2.2)', () => {
       expect(seen.length).toBeGreaterThan(0);
       expect(seen.some((h) => h[FORWARDED_HEADER] !== undefined)).toBe(false);
       expect(c.probe as Env).toMatchObject({ lang: 'en-US', tz: 'America/New_York' });
+    } finally { await proxy.close(); }
+  }, 60_000);
+});
+
+describe('an https page through a proxy: the tunnel (Task 2 review, issues 1–2)', () => {
+  const tunnelTo = () => `127.0.0.1:${new URL(httpsUrl).port}`;
+
+  it('a wrong password: the proxy sentence at once, not a timeout, and the website never asked', async () => {
+    const proxy = await startRecordingProxy({ auth: { username: 'shop-user', password: 'right' } });
+    try {
+      const t0 = Date.now();
+      const err = await captureWith({ proxy: { server: proxy.url, username: 'shop-user', password: 'wrong' } }, httpsUrl).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(CaptureError);
+      expect(err).toMatchObject({ kind: 'proxy', message: PROXY_REFUSED });
+      expect(Date.now() - t0).toBeLessThan(15_000);
+      expect(proxy.log.some((e) => e.method === 'CONNECT' && e.url === tunnelTo() && !e.allowed)).toBe(true);
+      expect(proxy.log.some((e) => e.allowed)).toBe(false);
+      expect(seen).toEqual([]);
+    } finally { await proxy.close(); }
+  }, 60_000);
+
+  it('no password at all: the proxy sentence at once', async () => {
+    const proxy = await startRecordingProxy({ auth: { username: 'shop-user', password: 'right' } });
+    try {
+      const t0 = Date.now();
+      const err = await captureWith({ proxy: { server: proxy.url } }, httpsUrl).catch((e: unknown) => e);
+      expect(err).toMatchObject({ kind: 'proxy', message: PROXY_REFUSED });
+      expect(Date.now() - t0).toBeLessThan(15_000);
+      expect(seen).toEqual([]);
     } finally { await proxy.close(); }
   }, 60_000);
 });
