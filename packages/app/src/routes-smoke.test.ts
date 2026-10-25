@@ -766,7 +766,11 @@ describe.skipIf(!ENABLED)('app shell', () => {
 
     await page.goto(`${APP}/ops`, { waitUntil: 'networkidle', timeout: 30_000 });
     await page.waitForURL(`${APP}/projects`, { timeout: 30_000 });
-  }, 30_000); // the first sign-in on a cold app can pass 5 s (seen twice, 4.1-4.3 s alone)
+
+    // Spec 2026-10-25 monitoring §2.6: the Queue page is staff-only too.
+    await page.goto(`${APP}/ops/queue`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.waitForURL(`${APP}/projects`, { timeout: 30_000 });
+  }, 60_000); // the first sign-in on a cold app can pass 5 s (seen twice, 4.1-4.3 s alone)
 
   it('a project created through the dialog appears in the table', async () => {
     problems.length = 0;

@@ -291,6 +291,18 @@ describe.skipIf(!ENABLED)('staff access', () => {
     expect(orgRow).toContain('$40');
     expect(orgRow).toContain('1 website');
     await shoot(page, 'staff-ops-orgs.png');
+
+    // 6c. Ops → Queue (spec 2026-10-25 monitoring §2.5): this pair's worker beats on isolated-4100 and is not stale;
+    // no view shows a credential.
+    await page.goto(`${APP}/ops/queue`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.getByRole('heading', { name: 'Queue', exact: true }).waitFor({ timeout: 20_000 });
+    const workersBox = page.getByTestId('queue-workers');
+    await expect.poll(() => workersBox.innerText(), { timeout: 20_000, message: 'the pair’s worker is not on the Queue page' }).toContain('isolated-4100');
+    const ours = workersBox.locator('tbody tr', { hasText: 'isolated-4100' }).first();
+    expect(await ours.getAttribute('data-stale'), 'the pair’s worker reads as stopped').toBe('false');
+    for (const id of ['queue-types', 'queue-attention', 'queue-failures']) await page.getByTestId(id).waitFor({ timeout: 10_000 });
+    expect(await page.locator('main').innerText()).not.toMatch(/:\/\/[^\s/@]*:[^\s/@]*@/);
+    await shoot(page, 'staff-ops-queue.png');
     expect(pageErrors, `the operator's pages threw:\n  ${pageErrors.join('\n  ')}`).toEqual([]);
 
     // 7. The customer, in a fresh browser, reads it all in Settings.

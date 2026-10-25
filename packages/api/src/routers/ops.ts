@@ -16,6 +16,8 @@ import type { JevAgreement } from '../verify/jev-agreement.js';
 import { monthBounds } from './usage.js';
 import { NO_USAGE, usageByOrg, websitesByOrg } from '../metering/org-usage.js';
 import { capStateOf, effectiveCap, percentUsed } from '../metering/cap-state.js';
+import { jobQueueName } from '../jobs/queue.js';
+import { queueOverview } from '../monitoring/queue-view.js';
 
 /** The host for the quiet mono line under a website's name. Never throws: a
  * Source's `urlTemplate` is free text, and a malformed one just reads as no
@@ -422,4 +424,11 @@ export const opsRouter = router({
       rows.sort((a, b) => (b.percentUsed ?? -1) - (a.percentUsed ?? -1) || a.org.name.localeCompare(b.org.name));
       return { month, rows };
     }),
+
+  /**
+   * The queue (spec 2026-10-25 monitoring §2.5): every worker's heartbeat, this api-server's JOB_QUEUE by type and
+   * status, what needs attention (the watchdog's backlog / silent / dead-worker) and the last 20 failures, redacted.
+   * Read-only; refreshed by the app every 15 s.
+   */
+  queue: opsProcedure.query(() => queueOverview(jobQueueName())),
 });
