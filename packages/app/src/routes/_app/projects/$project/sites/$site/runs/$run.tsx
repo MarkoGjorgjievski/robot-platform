@@ -236,7 +236,7 @@ function RunScreen() {
     );
   }
 
-  const { run, source, capture, extraction, backfillRuns, delivery } = detail.data;
+  const { run, source, address, extraction, backfillRuns, delivery } = detail.data;
   const rowCount = extraction?.rowCount ?? 0;
   const variantLines = variantCountLines(run.variantSummary as VariantSummary | null);
 
@@ -316,16 +316,17 @@ function RunScreen() {
         <p className="rise mb-3 text-sm text-muted-foreground">This run produced no rows.</p>
       ) : null}
 
-      {capture?.url ? (
+      {/* The website's address as the customer added it (a crawl's listing), never the product page fetched last. */}
+      {address ? (
         <p className="rise mb-3 flex min-w-0 items-center gap-1.5 text-base text-muted-foreground">
           <a
-            href={capture.url}
+            href={address}
             target="_blank"
             rel="noopener noreferrer"
-            title={capture.url}
+            title={address}
             className="min-w-0 truncate font-mono text-link underline-offset-4 hover:underline"
           >
-            {capture.url}
+            {address}
           </a>
           <ExternalLink aria-hidden className="size-3 shrink-0" />
         </p>

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import { DETAIL_URL_FIELD } from '@robot/scraper';
-import { deriveColumns, buildRunExport, exportFilename, shapeRows } from './build-run-export.js';
+import { deriveColumns, buildRunExport, exportFilename, shapeRows, websiteAddress } from './build-run-export.js';
 import { toXlsx } from './xlsx.js';
 
 const RUN = {
@@ -79,7 +79,8 @@ describe('buildRunExport', () => {
         createdAt: '2026-08-19T09:59:00.000Z',
         rowCount: 1,
       },
-      source: { slug: 'newegg-gpu', name: 'Newegg GPUs', url: 'https://newegg.com/p/123?x=1' },
+      // The website's own address, not the page fetched last (first run, re-run 1).
+      source: { slug: 'newegg-gpu', name: 'Newegg GPUs', url: 'https://newegg.com/p/123' },
       fields: ['title', 'price'],
       rows: [{ title: 'Kallax', price: 79 }],
     });
@@ -93,6 +94,20 @@ describe('buildRunExport', () => {
       extractionData: [{ title: 'Kallax' }, { title: 'Billy' }],
     });
     expect(result.run.rowCount).toBe(2);
+  });
+
+  it("a crawl's source.url is the listing the customer added, never the last product page it captured (first run, re-run 1)", () => {
+    const listing = { ...SOURCE, urlTemplate: 'https://www.gymshark.com/collections/leggings/womens' };
+    const result = buildRunExport({ run: RUN, source: listing, captureUrl: 'https://www.gymshark.com/products/gymshark-whitney-leggings-leggings-black-aw26', extractionData: [] });
+    expect(result.source?.url).toBe('https://www.gymshark.com/collections/leggings/womens');
+  });
+
+  it('websiteAddress: the added address; a template with a placeholder gives the address fetched', () => {
+    expect(websiteAddress('https://shop.example/c/sofas', 'https://shop.example/p/1')).toBe('https://shop.example/c/sofas');
+    expect(websiteAddress('https://shop.example/search?q={query}', 'https://shop.example/search?q=sofa')).toBe('https://shop.example/search?q=sofa');
+    expect(websiteAddress('https://shop.example/search?q={query}', null)).toBe('https://shop.example/search?q={query}');
+    expect(websiteAddress(null, 'https://shop.example/p/1')).toBe('https://shop.example/p/1');
+    expect(websiteAddress(null, null)).toBeNull();
   });
 
   it('falls back to the source url template when the run captured no url', () => {

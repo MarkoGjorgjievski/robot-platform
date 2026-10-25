@@ -6,6 +6,7 @@ import { runInOrg, sourceInOrg } from '../auth/scope.js';
 import { contractAxes, type VariantMode } from '../contract.js';
 import { loadRunDelivery } from '../delivery/delivery-state.js';
 import { moneyFields, viewerSeesMoney } from '../isolation/money.js';
+import { websiteAddress } from '../export/build-run-export.js';
 
 const VIEW_ROW_CAP = 500;
 
@@ -136,6 +137,9 @@ export const runsRouter = router({
           targetFields: run.targetFields as string[] | null,
         },
         source: run.source,
+        // The website's address the run page links under its title (first run, re-run 1): the address the customer
+        // added, the listing for a crawl, never the product page captured last — the same one the export names.
+        address: websiteAddress(run.source?.urlTemplate, latestCapture?.url),
         // The project's variant setting and its mapped axis columns (variants
         // plan 3) — read once here so the run page's results sheet can add
         // them without a second round-trip. `'ignore'`/`[]` for a project
