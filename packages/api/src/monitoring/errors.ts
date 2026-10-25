@@ -103,6 +103,8 @@ let installed = false;
 /** An unhandled rejection is reported and the process goes on; an uncaught exception is reported, flushed (≤ 2 s), and the process exits 1. */
 export function installProcessHandlers(name: 'api-server' | 'worker'): void {
   configureErrorReports({ service: name });
+  // Read once now: serviceVersion() may run git synchronously, never inside an error handler (Task 3 review).
+  serviceVersion();
   if (installed) return;
   installed = true;
   process.on('unhandledRejection', (reason) => { void reportError(reason, { origin: 'unhandledRejection' }); });
