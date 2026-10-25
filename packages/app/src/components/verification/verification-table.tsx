@@ -151,7 +151,8 @@ function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefau
       return (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-warn">
-            same on every product — check it{status.odd?.length ? `; ${productsText(status.odd)} ${status.odd.length === 1 ? 'differs' : 'differ'}` : ''}
+            {/* The value is the same on every product, odd ones included (first run 2026-10-25): an odd product differs only in where it was found. */}
+            same on every product — check it{status.odd?.length ? `; different place on ${productsText(status.odd)}` : ''}
           </span>
           <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name} anyway`} title={locked ? LOCKED_REASON : undefined} onClick={onAccept}>
             Accept anyway
