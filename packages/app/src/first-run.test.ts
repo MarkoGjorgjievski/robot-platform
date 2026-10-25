@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 import type { AppRouter } from '@robot/api/routers';
 import { deleteUserByEmail } from '@robot/api/test-helpers/identity';
 import { parseCsv } from './lib/site/csv';
+import { listingBarStart } from './lib/site/listing-bar-view';
 
 const ENABLED = process.env.RUN_FIRST_RUN === '1';
 const APP = process.env.APP_URL ?? 'http://localhost:3100';
@@ -277,7 +278,12 @@ async function runSite(s: Site): Promise<SiteLog> {
 
     await step(5, 'Find products: "N products found" (N ≥ 3) and three proof pages ready', async () => {
       const box = page.getByRole('textbox', { name: 'Listing page' });
-      await box.fill(s.listing);
+      // D5: the address typed in Add website is already in the bar when it can be a listing (a category page);
+      // a FIRST_RUN_SITES address that cannot (a front page) is typed here as before.
+      const expected = listingBarStart('', s.listing);
+      const prefilled = await box.inputValue();
+      if (prefilled !== expected) throw new Error(`the listing bar should start with "${expected}"; it reads "${prefilled}"`);
+      if (!expected) await box.fill(s.listing);
       await page.getByRole('button', { name: 'Find products' }).click();
       const found = await until(
         async () => {
