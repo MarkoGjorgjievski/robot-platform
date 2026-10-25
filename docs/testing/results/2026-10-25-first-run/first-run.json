@@ -1,0 +1,379 @@
+{
+  "startedAt": "2026-10-25T12:08:22.268Z",
+  "app": "http://localhost:3100",
+  "api": "http://localhost:4100",
+  "sites": [
+    {
+      "site": "gymshark",
+      "listing": "https://www.gymshark.com/collections/leggings/womens",
+      "email": "first-run-gymshark-1792930102268@example.com",
+      "steps": [
+        {
+          "n": 1,
+          "name": "Sign in and land on /projects with its empty state",
+          "ok": true,
+          "ms": 1341,
+          "screenshot": "gymshark-1.png"
+        },
+        {
+          "n": 2,
+          "name": "New project \"First run gymshark\"",
+          "ok": true,
+          "ms": 360,
+          "screenshot": "gymshark-2.png",
+          "detail": "project first-run-gymshark"
+        },
+        {
+          "n": 3,
+          "name": "Fields: Title (Text) and Price (Money) from the catalogue",
+          "ok": true,
+          "ms": 1291,
+          "screenshot": "gymshark-3.png"
+        },
+        {
+          "n": 4,
+          "name": "Add website with the listing page; land on Verification; the reachability line",
+          "ok": true,
+          "ms": 14428,
+          "screenshot": "gymshark-4.png",
+          "detail": "website \"Gymshark\" (gymshark); This website opens normally."
+        },
+        {
+          "n": 5,
+          "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
+          "ok": true,
+          "ms": 78874,
+          "screenshot": "gymshark-5.png",
+          "detail": "124 products found · a pager too; 3 ready"
+        },
+        {
+          "n": 6,
+          "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
+          "ok": false,
+          "ms": 120,
+          "screenshot": "gymshark-6-trip.png",
+          "detail": "not agreed: Price reads \"same on every product — check it Accept anyway Make it the default\""
+        },
+        {
+          "n": 11,
+          "name": "Cleanup: the throwaway org and user deleted (guarded delete)",
+          "ok": true,
+          "ms": 0,
+          "screenshot": null,
+          "detail": "deleted"
+        }
+      ],
+      "trip": {
+        "step": 6,
+        "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
+        "error": "not agreed: Price reads \"same on every product — check it Accept anyway Make it the default\"",
+        "screenshot": "gymshark-6-trip.png",
+        "visibleText": "www.gymshark.com\nVerification\nExtract\nRuns\nSettings\nFind products\nNo listing? Paste product pages instead\n\n124 products found · a pager too\n\nAccept all agreed (1)\nVerify 2 fields\nAccept Title first\n\nsaved\n\nGo to Extract\n\nUnlocks when every field is verified\n\nSelect a cell to see its full value.\n\nField\n\nEveryday Seamless Leggings\n\n/products/gym…w26-b7a3l-uctn\n\nready\n×\n\n\nEveryday Seamless Leggings\n\n/products/gym…ngs-brown-aw26\n\nready\n×\n\n\nEveryday Seamless Flared Leggings\n\n/products/gym…ngs-black-aw25\n\nready\n×\n\n+ Add product\n\tStatus\n\nTitle\nText\n\nEveryday Seamless Leggings\nFix\n\nEveryday Seamless Leggings\nFix\n\nEveryday Seamless Flared Leggings\nFix\n\nagreed\nAccept\n\n\nPrice\nMoney\n\n38\nFix\n\n38\nFix\n\n38\nFix\n\nsame on every product — check it\nAccept anyway\nMake it the default\n\nField names and types come from the project. Edit fields",
+        "lastAnswers": [
+          "200 POST /trpc/sources.captureProofPage,sources.captureProofPage,sources.captureProofPage",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 POST /trpc/sources.updateBinding",
+          "200 GET /trpc/sources.get,projects.get,sources.verifyEstimate,sources.verificationStatus",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.suggestMarks",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.suggestMarks",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.suggestMarks"
+        ],
+        "problems": []
+      },
+      "cleanup": "deleted",
+      "facts": {
+        "found": "124 products found · a pager too",
+        "proofPages": [
+          "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-blue-aw26-b7a3l-uctn",
+          "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26",
+          "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25"
+        ],
+        "beforeAccept": {
+          "rows": {
+            "Title": "agreed Accept",
+            "Price": "same on every product — check it Accept anyway Make it the default"
+          },
+          "cells": {
+            "Title 1": "Title on product 1: suggested, Everyday Seamless Leggings",
+            "Title 2": "Title on product 2: suggested, Everyday Seamless Leggings",
+            "Title 3": "Title on product 3: suggested, Everyday Seamless Flared Leggings",
+            "Price 1": "Price on product 1: suggested, 38",
+            "Price 2": "Price on product 2: suggested, 38",
+            "Price 3": "Price on product 3: suggested, 38"
+          }
+        }
+      }
+    },
+    {
+      "site": "skullcandy",
+      "listing": "https://www.skullcandy.com/collections/wireless-wired-bluetooth-headphones",
+      "email": "first-run-skullcandy-1792930102268@example.com",
+      "steps": [
+        {
+          "n": 1,
+          "name": "Sign in and land on /projects with its empty state",
+          "ok": true,
+          "ms": 1316,
+          "screenshot": "skullcandy-1.png"
+        },
+        {
+          "n": 2,
+          "name": "New project \"First run skullcandy\"",
+          "ok": true,
+          "ms": 265,
+          "screenshot": "skullcandy-2.png",
+          "detail": "project first-run-skullcandy"
+        },
+        {
+          "n": 3,
+          "name": "Fields: Title (Text) and Price (Money) from the catalogue",
+          "ok": true,
+          "ms": 1272,
+          "screenshot": "skullcandy-3.png"
+        },
+        {
+          "n": 4,
+          "name": "Add website with the listing page; land on Verification; the reachability line",
+          "ok": true,
+          "ms": 13361,
+          "screenshot": "skullcandy-4.png",
+          "detail": "website \"Skullcandy\" (skullcandy); This website opens normally."
+        },
+        {
+          "n": 5,
+          "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
+          "ok": true,
+          "ms": 92938,
+          "screenshot": "skullcandy-5.png",
+          "detail": "15 products found · a pager too; 3 ready"
+        },
+        {
+          "n": 6,
+          "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
+          "ok": false,
+          "ms": 79,
+          "screenshot": "skullcandy-6-trip.png",
+          "detail": "not agreed: Title reads \"not the page's heading on product 1\""
+        },
+        {
+          "n": 11,
+          "name": "Cleanup: the throwaway org and user deleted (guarded delete)",
+          "ok": true,
+          "ms": 0,
+          "screenshot": null,
+          "detail": "deleted"
+        }
+      ],
+      "trip": {
+        "step": 6,
+        "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
+        "error": "not agreed: Title reads \"not the page's heading on product 1\"",
+        "screenshot": "skullcandy-6-trip.png",
+        "visibleText": "www.skullcandy.com\nVerification\nExtract\nRuns\nSettings\nFind products\nNo listing? Paste product pages instead\n\n15 products found · a pager too\n\nAccept all agreed (1)\nVerify 2 fields\nTitle still needs product 1\n\nsaved\n\nGo to Extract\n\nUnlocks when every field is verified\n\nSelect a cell to see its full value.\n\nField\n\nSave $70 on Crusher 720 | Free shipping on orders over $175\n\n/products/cru…720-headphones\n\nready\n×\n\n\nSHOP Crusher® 540 Active > 4.3 out 5 stars rating\n\n/products/crusher-540-active\n\nready\n×\n\n\nSHOP Aviator® 900 ANC > 4.1 out 5 stars rating\n\n/products/avi…anc-headphones\n\nready\n×\n\n+ Add product\n\tStatus\n\nTitle\nText\n\nCrusher® 720 - Primer\nFix\n\nCrusher® 540 Active - Skullcandy X Baker Skateboards\nFix\n\nAviator® 900 ANC - True Black\nFix\n\t\tnot the page's heading on product 1\n\nPrice\nMoney\n\n139.99\nFix\n\n229.99\nFix\n\n229.99\nFix\n\nagreed\nAccept\n\nField names and types come from the project. Edit fields",
+        "lastAnswers": [
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.suggestMarks",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.suggestMarks",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.suggestMarks"
+        ],
+        "problems": []
+      },
+      "cleanup": "deleted",
+      "facts": {
+        "found": "15 products found · a pager too",
+        "proofPages": [
+          "https://www.skullcandy.com/products/crusher-720-headphones",
+          "https://www.skullcandy.com/products/crusher-540-active",
+          "https://www.skullcandy.com/products/aviator-900-anc-headphones"
+        ],
+        "beforeAccept": {
+          "rows": {
+            "Title": "not the page's heading on product 1",
+            "Price": "agreed Accept"
+          },
+          "cells": {
+            "Title 1": "Title on product 1: suggested, Crusher® 720 - Primer",
+            "Title 2": "Title on product 2: suggested, Crusher® 540 Active - Skullcandy X Baker Skateboards",
+            "Title 3": "Title on product 3: suggested, Aviator® 900 ANC - True Black",
+            "Price 1": "Price on product 1: suggested, 139.99",
+            "Price 2": "Price on product 2: suggested, 229.99",
+            "Price 3": "Price on product 3: suggested, 229.99"
+          }
+        }
+      }
+    },
+    {
+      "site": "ikea",
+      "listing": "https://www.ikea.com/my/en/cat/sofas-fu003/",
+      "email": "first-run-ikea-1792930102268@example.com",
+      "steps": [
+        {
+          "n": 1,
+          "name": "Sign in and land on /projects with its empty state",
+          "ok": true,
+          "ms": 1249,
+          "screenshot": "ikea-1.png"
+        },
+        {
+          "n": 2,
+          "name": "New project \"First run ikea\"",
+          "ok": true,
+          "ms": 306,
+          "screenshot": "ikea-2.png",
+          "detail": "project first-run-ikea"
+        },
+        {
+          "n": 3,
+          "name": "Fields: Title (Text) and Price (Money) from the catalogue",
+          "ok": true,
+          "ms": 1220,
+          "screenshot": "ikea-3.png"
+        },
+        {
+          "n": 4,
+          "name": "Add website with the listing page; land on Verification; the reachability line",
+          "ok": true,
+          "ms": 8179,
+          "screenshot": "ikea-4.png",
+          "detail": "website \"Ikea\" (ikea); This website opens normally."
+        },
+        {
+          "n": 5,
+          "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
+          "ok": true,
+          "ms": 41490,
+          "screenshot": "ikea-5.png",
+          "detail": "92 products found · a pager too; 3 ready"
+        },
+        {
+          "n": 6,
+          "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
+          "ok": false,
+          "ms": 103,
+          "screenshot": "ikea-6-trip.png",
+          "detail": "not agreed: Title reads \"not the page's heading on product 1\"; Price reads \"same on every product — check it; product 3 differs Accept anyway Make it the default\""
+        },
+        {
+          "n": 11,
+          "name": "Cleanup: the throwaway org and user deleted (guarded delete)",
+          "ok": true,
+          "ms": 0,
+          "screenshot": null,
+          "detail": "deleted"
+        }
+      ],
+      "trip": {
+        "step": 6,
+        "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
+        "error": "not agreed: Title reads \"not the page's heading on product 1\"; Price reads \"same on every product — check it; product 3 differs Accept anyway Make it the default\"",
+        "screenshot": "ikea-6-trip.png",
+        "visibleText": "www.ikea.com\nVerification\nExtract\nRuns\nSettings\nFind products\nNo listing? Paste product pages instead\n\n92 products found · a pager too\n\nAccept all agreed (0)\nNothing agreed to accept\nVerify 2 fields\nTitle still needs product 1\n\nsaved\n\nGo to Extract\n\nUnlocks when every field is verified\n\nSelect a cell to see its full value.\n\nField\n\nOption: GLOSTAD, 3-seat sofa, Knisa dark grey\n\n/my/en/p/glos…grey-40595937/\n\nready\n×\n\n\nOption: GLOSTAD, 3-seat sofa, Knisa medium blue\n\n/my/en/p/glos…blue-30595933/\n\nready\n×\n\n\nOption: KIVIK, 3-seat sofa, Tibbleby beige/grey\n\n/my/en/p/kivi…rey-s59440592/\n\nready\n×\n\n+ Add product\n\tStatus\n\nTitle\nText\n\nGLOSTAD 3-seat sofa - Knisa dark grey\nFix\n\nGLOSTAD 3-seat sofa - Knisa medium blue\nFix\n\nKIVIK 3-seat sofa - Tibbleby beige/grey\nFix\n\t\tnot the page's heading on product 1\n\nPrice\nMoney\n\n449\nFix\n\n449\nFix\n\n1495\nFix\n\nsame on every product — check it; product 3 differs\nAccept anyway\nMake it the default\n\nField names and types come from the project. Edit fields",
+        "lastAnswers": [
+          "200 POST /trpc/datasets.addField",
+          "200 GET /trpc/projects.get,datasets.fieldStatus",
+          "200 GET /trpc/datasets.variants",
+          "200 GET /trpc/projects.get",
+          "200 POST /trpc/sources.createInProject",
+          "200 GET /trpc/projects.get",
+          "200 GET /trpc/sources.get",
+          "200 GET /trpc/datasets.variants,sources.verifyEstimate,sources.verificationStatus,sources.driftCheck,sources.attention,sources.coverage,sources.reachability",
+          "200 POST /trpc/sources.checkListingPage",
+          "200 GET /trpc/sources.proofPageCaptures",
+          "200 POST /trpc/sources.captureProofPage,sources.captureProofPage,sources.captureProofPage",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 POST /trpc/sources.updateBinding",
+          "200 GET /trpc/sources.get,projects.get,sources.verifyEstimate,sources.verificationStatus",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.suggestMarks",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
+          "200 GET /trpc/sources.suggestMarks",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.proofPageCapture",
+          "200 GET /trpc/sources.suggestMarks"
+        ],
+        "problems": []
+      },
+      "cleanup": "deleted",
+      "facts": {
+        "found": "92 products found · a pager too",
+        "proofPages": [
+          "https://www.ikea.com/my/en/p/glostad-3-seat-sofa-knisa-dark-grey-40595937/",
+          "https://www.ikea.com/my/en/p/glostad-3-seat-sofa-knisa-medium-blue-30595933/",
+          "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-tibbleby-beige-grey-s59440592/"
+        ],
+        "beforeAccept": {
+          "rows": {
+            "Title": "not the page's heading on product 1",
+            "Price": "same on every product — check it; product 3 differs Accept anyway Make it the default"
+          },
+          "cells": {
+            "Title 1": "Title on product 1: suggested, GLOSTAD 3-seat sofa - Knisa dark grey",
+            "Title 2": "Title on product 2: suggested, GLOSTAD 3-seat sofa - Knisa medium blue",
+            "Title 3": "Title on product 3: suggested, KIVIK 3-seat sofa - Tibbleby beige/grey",
+            "Price 1": "Price on product 1: suggested, 449",
+            "Price 2": "Price on product 2: suggested, 449",
+            "Price 3": "Price on product 3: suggested, 1495"
+          }
+        }
+      }
+    }
+  ]
+}
