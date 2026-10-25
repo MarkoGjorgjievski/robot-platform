@@ -73,7 +73,7 @@ describe('browserProfileForSource (spec §2.2)', () => {
   const saved = process.env.DEFAULT_PROXY_URL;
   afterAll(() => { if (saved === undefined) delete process.env.DEFAULT_PROXY_URL; else process.env.DEFAULT_PROXY_URL = saved; });
 
-  it('reads the website’s row and the env default; an unknown website loads as before', async () => {
+  it('reads the website’s row and the env default; an unknown website gets the default, never direct', async () => {
     const me = await signedInCaller('proxy-profile');
     const site = await createProjectWithSource(me.caller, { tag: 'proxy-profile', fields: [{ name: 'Title', type: 'text' }] });
     try {
@@ -85,6 +85,9 @@ describe('browserProfileForSource (spec §2.2)', () => {
       await db.update(sources).set({ proxyUrl: null, country: null }).where(eq(sources.id, site.sourceId));
       process.env.DEFAULT_PROXY_URL = DEFAULT;
       expect(await browserProfileForSource(db, site.sourceId)).toEqual({ proxy: { server: 'http://default.proxy.test:8000', username: 'd', password: 'dsecret' } });
+      // Fix round M4: a website deleted mid-job is not a reason to go direct — it gets the default, like a website with none.
+      expect(await browserProfileForSource(db, '00000000-0000-4000-8000-000000000000')).toEqual({ proxy: { server: 'http://default.proxy.test:8000', username: 'd', password: 'dsecret' } });
+      delete process.env.DEFAULT_PROXY_URL;
       expect(await browserProfileForSource(db, '00000000-0000-4000-8000-000000000000')).toEqual({});
     } finally {
       await site.cleanup();
