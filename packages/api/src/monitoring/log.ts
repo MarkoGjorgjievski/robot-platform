@@ -11,7 +11,8 @@ export type Log = Record<LogLevel, (message: string, fields?: LogFields) => void
 export type LogSink = (line: string, level: LogLevel) => void;
 
 const RANK: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
-const RESERVED = new Set(['t', 'level', 'scope', 'msg']);
+/** Names a field cannot take in a JSON line: the line's own, and __proto__ (an assignment would drop it). */
+const RESERVED = new Set(['t', 'level', 'scope', 'msg', '__proto__']);
 
 export function logLevel(env: Env = process.env): LogLevel {
   const v = String(env.LOG_LEVEL ?? '').trim().toLowerCase();
