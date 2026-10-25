@@ -111,25 +111,44 @@ const BASIC = /\b(Basic)\s+(?=\S{6,})\S+/g;
 const HEADER = /\b((?:proxy-)?authorization|(?:set-)?cookie|x-api-key|api-key)(\s*:\s*)([^\r\n]{1,4096})/gi;
 const headerValue = (_m: string, name: string, sep: string, value: string) =>
   `${name}${sep}${/^(?:bearer|basic)\s/i.test(value) ? `${value.split(/\s/, 1)[0]} ` : ''}${MASK}`;
-/** Their values are replaced wherever they appear (a key quoted in an error message). Shorter than 8: not a key. */
+/** Their values are replaced wherever they appear (a key quoted in an error message). */
 const ENV_SECRETS = ['ANTHROPIC_API_KEY', 'TYPESAFE_API_KEY', 'ERROR_REPORT_TOKEN'];
+/** The password inside each of these URLs is replaced wherever it appears, raw, decoded and encoded. */
+const ENV_URLS = ['SMTP_URL'];
+/** Shorter than this: not a secret worth masking everywhere (it would mangle ordinary words). */
+const MIN_SECRET = 6;
 
 type Redactor = (text: string) => string;
 
+function urlPassword(url: string): string {
+  try { return new URL(url).password; } catch { /* not a URL a parser takes: read it by hand */ }
+  const m = /^[a-z][\w+.-]*:\/\/[^:@/\s]*:([^\s]*)@/i.exec(url);
+  return m?.[1] ?? '';
+}
+
+function addSecret(secrets: Set<string>, value: string): void {
+  const forms = [value];
+  try { forms.push(decodeURIComponent(value)); } catch { /* not percent-encoded: the raw form is enough */ }
+  for (const f of [...forms]) { try { forms.push(encodeURIComponent(f)); } catch { /* a lone surrogate */ } }
+  for (const f of forms) if (f.trim().length >= MIN_SECRET) secrets.add(f.trim());
+}
+
+let cached: { key: string; redact: Redactor } | null = null;
+
 function redactor(env: Env): Redactor {
+  const values = [...ENV_SECRETS, ...ENV_URLS].map((n) => String(env[n] ?? ''));
+  const key = values.join('\u0000');
+  if (cached?.key === key) return cached.redact;
   const secrets = new Set<string>();
-  for (const name of ENV_SECRETS) {
-    const v = String(env[name] ?? '').trim();
-    if (v.length < 8) continue;
-    secrets.add(v);
-    try { secrets.add(encodeURIComponent(v)); } catch { /* a lone surrogate: the raw value is enough */ }
-  }
+  for (const name of ENV_SECRETS) addSecret(secrets, String(env[name] ?? '').trim());
+  for (const name of ENV_URLS) addSecret(secrets, urlPassword(String(env[name] ?? '').trim()));
   const ordered = [...secrets].sort((a, b) => b.length - a.length);
-  const smtpUrl = env.SMTP_URL ?? null;
-  return (input) => {
+  const redact: Redactor = (input) => {
     let out = input;
     for (const s of ordered) out = out.split(s).join(MASK);
-    out = redactSmtp(redactProxy(out), smtpUrl);
+    // redactSmtp without the URL: its pattern only. SMTP_URL's password is in `ordered`; its username is never
+    // sprayed over text (a one-letter or "apikey" username would mask ordinary words).
+    out = redactSmtp(redactProxy(out));
     out = out
       .replace(ANY_USERINFO, `$1${MASK}@`)
       .replace(RAW_USERINFO, `$1${MASK}@`)
@@ -145,6 +164,8 @@ function redactor(env: Env): Redactor {
     out = scan(out, ENCODED_PARAM, maskEncoded);
     return out.replace(KEY_PARAM, `$1=${MASK}`);
   };
+  cached = { key, redact };
+  return redact;
 }
 
 /** Text with every secret the rules above know taken out. Never throws (a non-string is turned into one first). */

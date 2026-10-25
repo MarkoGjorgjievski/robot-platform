@@ -280,3 +280,16 @@ describe('fix round 1, M2', () => {
     expect(redactText('http://u:p@h.test:1', {})).toBe('http://***@h.test:1');
   });
 });
+
+describe('fix round 1, M3: secret values from the environment', () => {
+  it('SMTP_URL: its password raw, decoded and encoded; an undecodable password still masked; its username never sprayed over text', () => {
+    expect(redactText('pw is 100%zz', { SMTP_URL: 'smtp://u:100%zz@m.test' })).toBe('pw is ***');
+    expect(redactText('a banana longpass1', { SMTP_URL: 'smtp://a:longpass1@m.test' })).toBe('a banana ***');
+    expect(redactText('p@ss-word and p%40ss-word', { SMTP_URL: 'smtp://apikey:p%40ss-word@m.test' })).toBe('*** and ***');
+    expect(redactText('apikey user', { SMTP_URL: 'smtp://apikey:p%40ss-word@m.test' })).toBe('apikey user');
+  });
+
+  it('values of 6 characters or more are masked; shorter ones are not keys', () => {
+    expect(redactText('k abcdef and abcde', { ERROR_REPORT_TOKEN: 'abcdef', TYPESAFE_API_KEY: 'abcde' })).toBe('k *** and abcde');
+  });
+});
