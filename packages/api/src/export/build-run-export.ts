@@ -35,7 +35,7 @@ export type RunExportInput = {
     selectorsJson: unknown;
     schemaDefinition?: unknown;
   } | null;
-  /** The URL actually fetched, which may carry parameters the template does not. */
+  /** The URL fetched last: the source's address only when its template has a placeholder (`websiteAddress`). */
   captureUrl: string | null;
   extractionData: unknown;
   /** The project's dataset (spec 2026-10-01 §2): its schema carries the
@@ -80,6 +80,17 @@ export type RunExport = {
    *  no dataset), so a flat run's envelope is untouched too. */
   types?: Record<string, string>;
 };
+
+/**
+ * The address a run's page and export name its website by (first run, re-run 1): the address the
+ * customer added (`sources.url_template`, the listing for a crawl), never the product page the run
+ * captured last. A template with a placeholder still in it ("…?q={query}") is not an address, so the
+ * page fetched stands in for it; with neither, null.
+ */
+export function websiteAddress(urlTemplate: string | null | undefined, captureUrl: string | null | undefined): string | null {
+  if (urlTemplate && !/[{}]/.test(urlTemplate)) return urlTemplate;
+  return captureUrl ?? urlTemplate ?? null;
+}
 
 /**
  * Column order comes from the schema so two runs of the same Source export the
@@ -442,7 +453,7 @@ export function buildRunExport(input: RunExportInput): RunExport {
       ? {
           slug: input.source.slug,
           name: input.source.name,
-          url: input.captureUrl ?? input.source.urlTemplate ?? null,
+          url: websiteAddress(input.source.urlTemplate, input.captureUrl),
         }
       : null,
     fields: outFields,

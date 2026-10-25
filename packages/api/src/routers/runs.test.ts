@@ -178,6 +178,17 @@ describe('runsRouter', () => {
       expect(result?.extraction?.rowCount).toBe(505);
     });
 
+    it("address: the listing the customer added, never the last product page the run captured (first run, re-run 1)", async () => {
+      const runId = await seedRunWithExtractions([
+        { title: 'One', _url: 'https://example.com/p/1' },
+        { title: 'Two', _url: 'https://example.com/p/2' },
+      ]);
+      const run = await db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { sourceId: true } });
+      expect((await caller.runs.getWithDetails({ id: runId }))?.address).toBe('https://example.com/p/2'); // no address added: the page fetched
+      await db.update(sources).set({ urlTemplate: 'https://example.com/collections/leggings' }).where(eq(sources.id, run!.sourceId!));
+      expect((await caller.runs.getWithDetails({ id: runId }))?.address).toBe('https://example.com/collections/leggings');
+    });
+
     it('still reads a single-extraction run exactly as before (back-compat)', async () => {
       const runId = await seedRunWithSingleExtraction([{ title: 'Only' }]);
 
