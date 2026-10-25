@@ -23,8 +23,8 @@ export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
       run: (p: JobPayloads['proof-page-capture']) => runProofPageCapture(p.captureId),
     },
     // The procedures that answered from a browser while the request waited: it waits for these (spec §4.4).
-    reachability: { policy: JOB_POLICIES.reachability, run: (p: JobPayloads['reachability']) => reachabilityNow(p.url) },
-    'listing-check': { policy: JOB_POLICIES['listing-check'], run: (p: JobPayloads['listing-check']) => listingCheckNow(p.listingUrl) },
+    reachability: { policy: JOB_POLICIES.reachability, run: (p: JobPayloads['reachability']) => reachabilityNow(p.url, p.sourceId) },
+    'listing-check': { policy: JOB_POLICIES['listing-check'], run: (p: JobPayloads['listing-check']) => listingCheckNow(p.listingUrl, p.sourceId) },
     'transfer-marks': { policy: JOB_POLICIES['transfer-marks'], run: (p: JobPayloads['transfer-marks']) => transferMarksNow(p) },
     'detect-variants': { policy: JOB_POLICIES['detect-variants'], run: (p: JobPayloads['detect-variants']) => detectVariantsNow(p.sourceId) },
     'variant-links-near': { policy: JOB_POLICIES['variant-links-near'], run: (p: JobPayloads['variant-links-near']) => variantLinksNearNow(p) },

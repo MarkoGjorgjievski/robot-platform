@@ -16,11 +16,19 @@ import {
 } from '@robot/scraper';
 import { CaptureError, BROWSER_UNAVAILABLE } from '@robot/browser';
 import { withBrowserSession } from '../../browser-session.js';
-import { forWebsite } from '../../proxy/website-session.js';
+import { forWebsite, type WebsiteSession } from '../../proxy/website-session.js';
 import { describeListingPage, unreadListingPage, type ListingPageCheck } from '../../verify/find-product-pages.js';
 import { reachabilityResult, type Reachability } from '../../verify/reachability.js';
 import { loadProofPageCaptures } from '../../verify/proof-page-capture.js';
 import type { TransferMarksPayload } from '../types.js';
+
+/**
+ * The session an address check opens (spec 2026-10-24 proxy §2.2, §3.4): a website's address loads through that
+ * website's profile; an address with no website yet (Add website) is the one page load that stays direct.
+ */
+function addressSession(sourceId: string | undefined): WebsiteSession {
+  return sourceId ? forWebsite(sourceId) : (fn) => withBrowserSession(fn);
+}
 
 /**
  * The Extract tab's per-row listing check — no AI, nothing saved, one page
@@ -41,13 +49,12 @@ import type { TransferMarksPayload } from '../types.js';
  *
  * Runs in the worker (job `listing-check`, spec 2026-10-23 §4.4).
  */
-export async function listingCheckNow(listingUrl: string): Promise<ListingPageCheck> {
+export async function listingCheckNow(listingUrl: string, sourceId?: string): Promise<ListingPageCheck> {
   const hostname = new URL(listingUrl).hostname;
   const waiting = backoffAnswer(listingUrl);
   if (waiting) return { ...unreadListingPage(waiting.verdict, listingUrl), message: waiting.message };
   try {
-    // Direct by design (spec 2026-10-24 proxy §2.2, §3.4): this runs before a website exists, or for an address alone.
-    const { links, html, verdict } = await withBrowserSession(async (browser) => {
+    const { links, html, verdict } = await addressSession(sourceId)(async (browser) => {
       // 20 s, not the browser's default 60 s: Brooklinen never goes idle
       // and the finder sat at a blank "Find products" for 90 s waiting
       // out two 60 s networkidle timeouts (campaign 2, 2026-10-11). The
@@ -86,7 +93,7 @@ export async function listingCheckNow(listingUrl: string): Promise<ListingPageCh
  *
  * Runs in the worker (job `reachability`, spec 2026-10-23 §4.4).
  */
-export async function reachabilityNow(url: string): Promise<Reachability> {
+export async function reachabilityNow(url: string, sourceId?: string): Promise<Reachability> {
   const hostname = new URL(url).hostname;
   // The wall that started the backoff, in its own words: a host that
   // refused us reads "refused", not a made-up human check (review I4).
@@ -94,8 +101,7 @@ export async function reachabilityNow(url: string): Promise<Reachability> {
   if (waiting) return reachabilityResult(url, waiting.verdict, null, 0, waiting.waitMs);
   const t0 = Date.now();
   try {
-    // Direct by design (spec 2026-10-24 proxy §2.2, §3.4): this runs before a website exists, or for an address alone.
-    return await withBrowserSession(async (browser) => {
+    return await addressSession(sourceId)(async (browser) => {
       const capture = await browser.capture(url, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1, timeout: 30_000 });
       reportVerdict(hostname, capture.verdict);
       return reachabilityResult(url, capture.verdict, capture.url, Date.now() - t0);

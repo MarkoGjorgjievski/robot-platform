@@ -75,9 +75,9 @@ describe('the counter (spec §2.4)', () => {
 });
 
 describe('groups and keys (spec §2.4)', () => {
-  it('the heavy and network lists are real procedures, and the stateless ones are network', () => {
+  it('the heavy and network lists are real procedures, and the address checks are network', () => {
     for (const p of [...HEAVY_PROCEDURES, ...NETWORK_PROCEDURES]) expect(procedures[p], p).toBeDefined();
-    for (const [p, e] of Object.entries(PROCEDURE_CLASSES)) if (e.class === 'stateless') expect(groupOf(p), p).toBe('network');
+    for (const p of ['sources.checkListingPage', 'sources.reachability']) expect(groupOf(p), p).toBe('network');
     expect(groupOf('auth.signIn')).toBe('sign-in');
     expect(groupOf('sources.verify')).toBe('heavy');
     expect(groupOf('sources.variantList')).toBe('network');

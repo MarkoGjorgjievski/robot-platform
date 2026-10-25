@@ -802,10 +802,14 @@ export const sourcesRouter = router({
    * backoff after a wall.
    */
   checkListingPage: protectedProcedure
-    .input(z.object({ listingUrl: httpUrl }))
-    .mutation(async ({ input }): Promise<ListingPageCheck> => {
+    // `sourceId`: the website this listing belongs to, when there is one — its page loads through that website's
+    // proxy, locale and time zone (spec 2026-10-24 proxy §2.2); without one, an address alone, direct.
+    .input(z.object({ listingUrl: httpUrl, sourceId: z.string().uuid().optional() }))
+    .mutation(async ({ ctx, input }): Promise<ListingPageCheck> => {
+      if (input.sourceId) await sourceInOrg(ctx, input.sourceId);
+      const payload = { listingUrl: input.listingUrl, ...(input.sourceId ? { sourceId: input.sourceId } : {}) };
       try {
-        return (await runAndWait('listing-check', { listingUrl: input.listingUrl }, { key: urlKey('listing', input.listingUrl) })) as ListingPageCheck;
+        return (await runAndWait('listing-check', payload, { key: urlKey(input.sourceId ? `listing:${input.sourceId}` : 'listing', input.listingUrl) })) as ListingPageCheck;
       } catch (err) {
         // No answer from the worker reads as a browser that could not start — the answer a crash gave before.
         if (err instanceof JobUnavailableError) return { ...unreadListingPage({ kind: 'crashed' }, input.listingUrl), message: BROWSER_UNAVAILABLE };
@@ -820,10 +824,13 @@ export const sourcesRouter = router({
    * spec 2026-10-23 §4.4), which also keeps the host's backoff after a wall.
    */
   reachability: protectedProcedure
-    .input(z.object({ url: httpUrl }))
-    .query(async ({ input }): Promise<Reachability> => {
+    // `sourceId`: as `checkListingPage`'s — a website's address through its profile (spec 2026-10-24 proxy §2.2).
+    .input(z.object({ url: httpUrl, sourceId: z.string().uuid().optional() }))
+    .query(async ({ ctx, input }): Promise<Reachability> => {
+      if (input.sourceId) await sourceInOrg(ctx, input.sourceId);
+      const payload = { url: input.url, ...(input.sourceId ? { sourceId: input.sourceId } : {}) };
       try {
-        return (await runAndWait('reachability', { url: input.url }, { key: urlKey('reachability', input.url) })) as Reachability;
+        return (await runAndWait('reachability', payload, { key: urlKey(input.sourceId ? `reachability:${input.sourceId}` : 'reachability', input.url) })) as Reachability;
       } catch (err) {
         // No answer from the worker reads as a browser that could not start — the answer a crash gave before.
         if (err instanceof JobUnavailableError) return { ...reachabilityResult(input.url, { kind: 'crashed' }, null, 0), message: BROWSER_UNAVAILABLE };

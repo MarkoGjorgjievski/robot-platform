@@ -504,7 +504,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   // so it is asked once and never refetched behind the customer's back.
   const newWebsite = board.cards.length === 0 && !board.listingUrl.trim();
   const reachability = trpc.sources.reachability.useQuery(
-    { url: source.url ?? '' },
+    { url: source.url ?? '', sourceId: source.id },
     { enabled: newWebsite && !!source.url, staleTime: Infinity, retry: false, refetchOnWindowFocus: false, refetchOnMount: false },
   );
   const captureIdsKey = JSON.stringify(captures.captureIds);
@@ -1526,6 +1526,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     <div className="min-w-0 space-y-4">
       <div className={`${panel} space-y-3 p-4`}>
         <ListingBar
+          sourceId={source.id}
           listingUrl={board.listingUrl}
           disabled={locked}
           onFound={(listingUrl, products) => onFound(listingUrl, products)}

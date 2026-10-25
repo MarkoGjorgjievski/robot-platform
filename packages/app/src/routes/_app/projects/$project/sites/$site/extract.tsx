@@ -175,7 +175,7 @@ function ExtractTab() {
   async function runCheck(url: string) {
     setChecks((prev) => ({ ...prev, [url]: null })); // null renders as "checking…"
     try {
-      const result = await checkMutation.mutateAsync({ listingUrl: url });
+      const result = await checkMutation.mutateAsync({ listingUrl: url, ...(sourceId ? { sourceId } : {}) });
       setChecks((prev) => ({ ...prev, [url]: { productLinks: result.productLinks, pagerSeen: result.pagerSeen } }));
     } catch (err) {
       setChecks((prev) => ({ ...prev, [url]: { error: message(err) } }));

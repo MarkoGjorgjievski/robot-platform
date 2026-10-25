@@ -107,15 +107,16 @@ describe('no website-scoped file opens a browser any other way (spec §2.2)', ()
   it.each(WEBSITE_SCOPED)('%s', (file) => {
     const src = code(file);
     const direct = src.match(/\bwithBrowserSession\(|\bsession\(/g) ?? [];
-    // Reachability and the listing check run before a website exists: direct by design (spec §2.2, §3.4).
-    expect(direct.length, `${file} opens a browser without the website's profile`).toBe(file === 'jobs/handlers/interactive.ts' ? 2 : 0);
+    // An address check with no website (Add website) is the one direct session (spec §2.2, §3.4; fix round I1).
+    expect(direct.length, `${file} opens a browser without the website's profile`).toBe(file === 'jobs/handlers/interactive.ts' ? 1 : 0);
   });
 
-  it('the two direct sessions are the reachability and listing checks', () => {
+  it("the one direct session is an address check with no website; with one, the website's", () => {
     const src = code('jobs/handlers/interactive.ts');
-    const body = (name: string) => src.slice(src.indexOf(`export async function ${name}`), src.indexOf('\nexport ', src.indexOf(`export async function ${name}`) + 1));
-    expect(body('listingCheckNow')).toMatch(/\bwithBrowserSession\(/);
-    expect(body('reachabilityNow')).toMatch(/\bwithBrowserSession\(/);
+    const body = (name: string) => src.slice(src.indexOf(`function ${name}`), src.indexOf('\nexport ', src.indexOf(`function ${name}`) + 1));
+    expect(body('addressSession')).toMatch(/sourceId \? forWebsite\(sourceId\) : \(fn\) => withBrowserSession\(fn\)/);
+    expect(body('listingCheckNow')).toMatch(/\baddressSession\(sourceId\)\(/);
+    expect(body('reachabilityNow')).toMatch(/\baddressSession\(sourceId\)\(/);
     for (const name of ['transferMarksNow', 'detectVariantsNow', 'variantLinksNearNow']) expect(body(name)).toMatch(/\bforWebsite\(/);
   });
 });
