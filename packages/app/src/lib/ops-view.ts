@@ -339,6 +339,11 @@ export function siteLastRunText(lastRun: { status: string; at: string; rows: num
   return `${label} ${when}${rows}`;
 }
 
+/** The ops website page's Network cell (spec 2026-10-24 proxy §2.3): "proxy (own | default | none) · country". */
+export function networkLine(n: { proxy: 'own' | 'default' | 'none'; country: { code: string; name: string } | null }): string {
+  return `proxy (${n.proxy}) · ${n.country?.name ?? 'no country'}`;
+}
+
 // `@robot/api`'s `DriftFieldResult`/`DriftPage` (verify/run-drift-check.ts),
 // re-declared narrow — the app never imports `@robot/scraper`'s verify
 // types, same reason `lib/site/drift-view.ts` re-declares its own.

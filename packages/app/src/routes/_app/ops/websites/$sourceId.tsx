@@ -27,6 +27,7 @@ import {
   responseText,
   runStatsText,
   siteLastRunText,
+  networkLine,
   verifiedState,
   verifiedText,
   type OpsDriftResults,
@@ -67,6 +68,8 @@ type OpsWebsiteData = {
   project: { name: string; slug: string };
   website: { name: string; slug: string; host: string };
   verified: { current: number; total: number };
+  /** Spec 2026-10-24 proxy §2.3. */
+  network: { proxy: 'own' | 'default' | 'none'; country: { code: string; name: string } | null };
   fields: OpsField[];
   drift: { status: string; results: unknown } | null;
   driftedFieldNames: string[];
@@ -367,6 +370,7 @@ function SummaryStrip({ data }: { data: OpsWebsiteData }) {
           {siteLastRunText(data.lastRun)}
         </span>,
       )}
+      {cell('Network', networkLine(data.network))}
       {cell(
         'Stopped extracting',
         data.driftedFieldNames.length > 0 ? (

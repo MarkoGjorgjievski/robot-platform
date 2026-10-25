@@ -12,13 +12,16 @@ const STAFF = [
   /^routes\/_app\/ops\//,
   /^components\/ops\//,
   /^lib\/ops-view\.ts$/,
+  /^components\/settings\/network-panel\.tsx$/,
+  /^lib\/site\/network-view\.ts$/,
 ];
 // The customer sentences the app and the emails share live in @robot/scraper (spec 2026-10-24 email §3.1):
 // swept here too, with no exemption.
 const SHARED = [fileURLToPath(new URL('../../scraper/src/customer-copy.ts', import.meta.url))];
-const FORBIDDEN = [/\bbudget\b/i, /\bHTTP \d/, /refused the browser/, /CAPTCHA/];
-// "proxy line item" is not swept: diagnose-run.ts keeps it in its staff-only branch, and
-// diagnose-run.test.ts pins that a customer never reads it.
+const FORBIDDEN = [/\bbudget\b/i, /\bHTTP \d/, /refused the browser/, /CAPTCHA/, /\bproxy\b/i];
+// Spec 2026-10-24 proxy §2.3: "proxy" is staff-only. The Network panel and its view are staff files; diagnose-run.ts's
+// staff branch keeps its one sentence (pinned by diagnose-run.test.ts: a customer never reads it).
+const STAFF_TEXT = new Set([' — wait and retry; long-term this needs the proxy line item.']);
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
@@ -50,9 +53,9 @@ describe('customer copy sweep', () => {
     for (const f of files(SRC)) {
       const rel = relative(SRC, f).split(sep).join('/');
       if (STAFF.some((re) => re.test(rel))) continue;
-      for (const t of texts(f)) if (FORBIDDEN.some((re) => re.test(t))) hits.push(`${rel}: ${t.trim().slice(0, 80)}`);
+      for (const t of texts(f)) if (!STAFF_TEXT.has(t) && FORBIDDEN.some((re) => re.test(t))) hits.push(`${rel}: ${t.trim().slice(0, 80)}`);
     }
-    for (const f of SHARED) for (const t of texts(f)) if (FORBIDDEN.some((re) => re.test(t))) hits.push(`scraper/customer-copy.ts: ${t.trim().slice(0, 80)}`);
+    for (const f of SHARED) for (const t of texts(f)) if (!STAFF_TEXT.has(t) && FORBIDDEN.some((re) => re.test(t))) hits.push(`scraper/customer-copy.ts: ${t.trim().slice(0, 80)}`);
     expect(hits).toEqual([]);
   });
 });
