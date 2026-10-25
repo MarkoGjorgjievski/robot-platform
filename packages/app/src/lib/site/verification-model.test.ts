@@ -681,6 +681,11 @@ describe('the table-first rules, revised', () => {
     expect(Object.keys(next.answers.title!)).toEqual([U[0], U[1]]);
     expect(toBindingInput(next, [title]).paths).toEqual({ title: { [U[0]!]: TL, [U[1]!]: TL } });
   });
+  it('first run 2026-10-25 (IKEA 449/449/1495): a majority whose odd product has another value is a majority, never "same on every product"', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('449', [1], JL), sug('449', [1], JL), sug('1495', [1], { source: 'meta', path: 'product:price:amount' })]);
+    expect(rowStatus(price, b, live, maps())).toEqual({ kind: 'majority', odd: [3], via: JL });
+  });
   it('yes/no fields are never "same on every product"', () => {
     const b = board();
     const live = liveFor(b, 'in_stock', [sug('https://schema.org/InStock', [0], JLA), sug('https://schema.org/InStock', [0], JLA), sug('https://schema.org/InStock', [0], JLA)]);
@@ -848,10 +853,10 @@ describe('a website\'s default (spec 2026-10-13 §6)', () => {
     const b = board();
     const live = liveFor(b, 'brand', [sug('X', [0], A), sug('Y', [0], B), sug('Y', [0], B)]);
     const boxes = { [U[0]!]: boxesOf(['X']), [U[1]!]: boxesOf(['Y']), [U[2]!]: boxesOf(['Y']) };
-    const st = rowStatus(BRAND, b, live, boxes);
-    expect(st).toEqual({ kind: 'same-everywhere', odd: [1], via: B });
-    expect(rowValue(b, live, 'brand', st.kind === 'same-everywhere' ? st.odd : undefined)).toBe('Y');
+    expect(rowValue(b, live, 'brand', [1])).toBe('Y');
     expect(rowValue(b, live, 'brand')).toBe('X');
+    // First run 2026-10-25 (D3): X on product 1 is another value, so the row is a majority, not "same on every product".
+    expect(rowStatus(BRAND, b, live, boxes)).toEqual({ kind: 'majority', odd: [1], via: B });
   });
 
   it('an invalid default stops the gate with its reason (fix round 1)', () => {

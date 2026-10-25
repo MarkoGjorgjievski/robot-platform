@@ -548,7 +548,7 @@ export function liveSuggestions(s: Suggestions, board: Board, captureIds: Record
 export type RowStatus =
   | { kind: 'accepted' }
   | { kind: 'agreed' }
-  /** `odd`/`via` when the paths disagree and a majority exists (A4): "Accept anyway" takes only `via`'s cells. */
+  /** Every product's value is the same, odd products included. `odd`/`via` when the paths disagree and a majority exists (A4): "Accept anyway" takes only `via`'s cells. */
   | { kind: 'same-everywhere'; odd?: number[]; via?: Via }
   /** Spec A4: two or more share `via`; Accept takes theirs, `odd` (product numbers) stay for a person. */
   | { kind: 'majority'; odd: number[]; via: Via }
@@ -658,9 +658,10 @@ export function rowStatus(
     if (!via) return { kind: 'needs-you', reason: 'comes from different places' };
     split = { odd: offered.filter((o) => !sameVia(o.via, via)).map((o) => o.product), via };
   }
-  const oddSet = new Set(split?.odd ?? []);
-  for (const o of offered) if (!oddSet.has(o.product)) values.push(o.value);
+  for (const o of offered) values.push(o.value);
   // Every product in stock is normal (A6): a yes/no field is never "same on every product".
+  // The words mean every product (first run 2026-10-25, IKEA 449/449/1495): an odd product's value counts too,
+  // so a majority whose odd product reads another value is a majority, never "same on every product".
   if (field.type !== 'boolean' && values.length > 1 && values.every((v) => sameValue(v, values[0]!))) return { kind: 'same-everywhere', ...split };
   return split ? { kind: 'majority', ...split } : { kind: 'agreed' };
 }
