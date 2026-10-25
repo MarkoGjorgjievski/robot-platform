@@ -7,6 +7,7 @@ import { db, users, runs, captures } from '@robot/db';
 import { deleteOwnOrg, signedInCaller } from '@robot/api/test-helpers/identity';
 import { createProjectWithSource } from '@robot/api/test-helpers/customer-source';
 import { RateLimiter, DEFAULT_LIMITS, useRateLimiter, RATE_LIMITED_MESSAGE } from '@robot/api/isolation/rate-limit';
+import { initTRPC, TRPCError } from '@trpc/server';
 import { createApp } from './app.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -298,5 +299,34 @@ describe('rate limits over HTTP', () => {
     expect((await signInFrom('10.9.2.1', 'f', { 'x-forwarded-for': '7.7.7.1, 198.51.100.9' })).status).toBe(400);
     expect((await signInFrom('10.9.2.1', 'g', { 'x-forwarded-for': '7.7.7.2, 198.51.100.9' })).status).toBe(400);
     expect((await signInFrom('10.9.2.1', 'h', { 'x-forwarded-for': '7.7.7.3, 198.51.100.9' })).status).toBe(429);
+  });
+});
+
+describe('errors (spec 2026-10-25 monitoring §2.4)', () => {
+  it('a route that throws answers 500 with no detail, and is reported once with its method and path only', async () => {
+    const seen: Array<[unknown, Record<string, unknown>]> = [];
+    const app = createApp({ reportError: (err, ctx) => { seen.push([err, ctx]); } });
+    app.get('/boom', () => { throw new Error('boom at http://u:route-secret@db.test:5432'); });
+    const res = await app.request('/boom?token=abc');
+    expect(res.status).toBe(500);
+    expect(await res.text()).toBe('{"error":"Internal error"}');
+    expect(seen).toHaveLength(1);
+    expect((seen[0]![0] as Error).message).toContain('boom');
+    expect(seen[0]![1]).toEqual({ method: 'GET', path: '/boom' });
+  });
+
+  it('tRPC reports INTERNAL_SERVER_ERROR with its path and type, never its input; a refusal is not reported', async () => {
+    const t = initTRPC.create();
+    const router = t.router({
+      broken: t.procedure.query(() => { throw new Error('db exploded'); }),
+      refused: t.procedure.query(() => { throw new TRPCError({ code: 'FORBIDDEN', message: 'no' }); }),
+    });
+    const seen: Array<[unknown, Record<string, unknown>]> = [];
+    const app = createApp({ router, reportError: (err, ctx) => { seen.push([err, ctx]); } });
+    expect((await app.request('/trpc/broken?input=%7B%22password%22%3A%22x%22%7D')).status).toBe(500);
+    expect((await app.request('/trpc/refused')).status).toBe(403);
+    expect(seen).toHaveLength(1);
+    expect((seen[0]![0] as Error).message).toBe('db exploded');
+    expect(seen[0]![1]).toEqual({ path: 'broken', type: 'query' });
   });
 });

@@ -1,10 +1,13 @@
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import type { AnyTRPCRouter } from '@trpc/server';
 import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { trpcServer } from '@hono/trpc-server';
 import { appRouter } from '@robot/api/routers';
 import { loadRunExport, loadProjectExport, orgIdForRun, orgIdForProject, orgIdForCaptureFile } from '@robot/api/export';
 import { loadSession } from '@robot/api/auth';
+import { reportError as defaultReportError } from '@robot/api/errors';
 import { loadRunFile, webhookSecretForRun } from '@robot/api/delivery';
 import { db } from '@robot/db';
 import { join } from 'node:path';
@@ -27,6 +30,10 @@ export type AppDeps = {
   orgIdForCaptureFile: (filename: string) => ReturnType<typeof orgIdForCaptureFile>;
   loadRunFile: (runId: string, format: 'csv' | 'json' | 'xlsx') => Promise<{ bytes: Uint8Array; filename: string } | null>;
   webhookSecretForRun: (runId: string) => Promise<string | null>;
+  /** Spec 2026-10-25 monitoring §2.4: where a 500 and a tRPC INTERNAL_SERVER_ERROR are reported (method/path or path/type only — never input). */
+  reportError: (err: unknown, context: Record<string, unknown>) => unknown;
+  /** Tests only: the tRPC router mounted at /trpc (default appRouter). */
+  router: AnyTRPCRouter;
 };
 
 export function createApp(deps: Partial<AppDeps> = {}) {
@@ -38,7 +45,15 @@ export function createApp(deps: Partial<AppDeps> = {}) {
   const loadCaptureOrgId = deps.orgIdForCaptureFile ?? ((filename: string) => orgIdForCaptureFile(db, filename));
   const loadSnapshot = deps.loadRunFile ?? ((runId: string, format: 'csv' | 'json' | 'xlsx') => loadRunFile(db, runId, format));
   const loadWebhookSecret = deps.webhookSecretForRun ?? ((runId: string) => webhookSecretForRun(db, runId));
+  const report = deps.reportError ?? defaultReportError;
   const app = new Hono();
+
+  // Spec 2026-10-25 monitoring §2.4: an exception a route did not handle is a 500 with no detail, reported once.
+  app.onError((err, c) => {
+    if (err instanceof HTTPException) return err.getResponse();
+    void Promise.resolve(report(err, { method: c.req.method, path: c.req.path })).catch(() => {});
+    return c.json({ error: 'Internal error' }, 500);
+  });
 
   // CORS — the app shell. `APP_ORIGINS` (comma-separated) lets an isolated pair
   // (e.g. :3100 → :4100) run beside the dev servers; unset or blank means :3000.
@@ -53,7 +68,12 @@ export function createApp(deps: Partial<AppDeps> = {}) {
   app.use(
     '/trpc/*',
     trpcServer({
-      router: appRouter,
+      router: (deps.router ?? appRouter) as typeof appRouter,
+      // Spec 2026-10-25 monitoring §2.4: only a fault — never a refusal, never the input.
+      onError: ({ error, path, type }) => {
+        if (error.code !== 'INTERNAL_SERVER_ERROR') return;
+        void Promise.resolve(report(error.cause ?? error, { path: path ?? null, type })).catch(() => {});
+      },
       createContext: async (_opts, c) => {
         const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
         return {

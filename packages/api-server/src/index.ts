@@ -13,6 +13,10 @@ try {
   // .env not present — fine; the app falls back to whatever's already in process.env
 }
 
+// Spec 2026-10-25 monitoring §2.4: an unhandled rejection is reported; an uncaught exception is reported, then exits 1.
+const { installProcessHandlers } = await import('@robot/api/errors');
+installProcessHandlers('api-server');
+
 // Before anything can load a page: in this process every browser launch throws (spec 2026-10-23 §4.4).
 const { configureApiProcess } = await import('./process.js');
 configureApiProcess();
