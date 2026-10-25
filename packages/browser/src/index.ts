@@ -1,13 +1,14 @@
 export { PlaywrightBrowser } from './playwright-browser.js';
 export { checkPageHealth, detectWall, type PageHealthResult } from './page-health.js';
-export { classifyVerdict, classifyNavigationError, okVerdict } from './verdict.js';
-export { verdictSentence, BROWSER_UNAVAILABLE } from './verdict-copy.js';
+export { classifyVerdict, classifyNavigationError, isProxyFailure, okVerdict } from './verdict.js';
+export { verdictSentence, BROWSER_UNAVAILABLE, PROXY_REFUSED } from './verdict-copy.js';
+export { COUNTRIES, countryByCode, type Country } from './countries.js';
 export { CaptureError, type CaptureVerdict, type CaptureErrorKind, type WallVendor } from './types.js';
 export { detectPaginationFromHtml } from './pagination-detector.js';
 export { isThirdPartyNoise } from './intercept-noise.js';
 export { findLoadMore, LOAD_MORE_MAX_ROUNDS, LOAD_MORE_QUIET_ROUNDS } from './load-more.js';
 export { addressVariant, isKeyValueFragment, normalizeLabel, pageVariantFrom, selectedInPageData, wrongVariant, type Selection } from './page-variant.js';
-export type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, ReadyCheck, ReadySnapshot, PageCapture, PageVariant, StructuredData, InterceptedRequest, PaginationConfig, CrawlOptions, CrawlPage, ScrollOptions } from './types.js';
+export type { IBrowser, BrowserOptions, BrowserProfile, ProxySettings, CaptureOptions, CaptureTimings, ReadyCheck, ReadySnapshot, PageCapture, PageVariant, StructuredData, InterceptedRequest, PaginationConfig, CrawlOptions, CrawlPage, ScrollOptions } from './types.js';
 export { rankInterceptedRequests, urlWords, collectJsonKeys, DEFAULT_WEIGHTS, type RankOptions, type RankWeights } from './rank-requests.js';
 export { computeTileClips, TILE_WIDTH, TILE_HEIGHT, MAX_TILES, type TileClip } from './screenshot-tiles.js';
 export { forbidBrowserLaunch, allowBrowserLaunch, assertBrowserLaunchAllowed, BrowserForbiddenError, setBrowserOwner, browserOwnerArgs, BROWSER_OWNER_SWITCH } from './launch-guard.js';

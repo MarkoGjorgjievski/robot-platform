@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyVerdict, classifyNavigationError } from './verdict.js';
+import { classifyVerdict, classifyNavigationError, isProxyFailure } from './verdict.js';
 
 const PRODUCT = `<html><head><title>Widget A</title></head><body><h1>Widget A</h1>${'<p>Real product copy that goes on. </p>'.repeat(60)}<script>var captcha = false;</script></body></html>`;
 const CF_CHALLENGE = '<html><head><title>Just a moment...</title></head><body><div>Checking your browser before accessing shop.example. Ray ID: abc</div></body></html>';
@@ -129,5 +129,19 @@ describe('classifyVerdict — redirects, other 4xx, titles', () => {
   it('inline CSS does not count as visible text for the blank rule', () => {
     const html = `<html><head><style>${'.a{color:red}'.repeat(200)}</style></head><body><div id="app">Loading the shop, one moment please while everything is fetched for you right now.</div></body></html>`;
     expect(classifyVerdict({ ...base, status: 200, html, title: 'Shop', boxCount: 0 }).kind).toBe('blank');
+  });
+});
+
+describe('isProxyFailure (spec 2026-10-24 proxy §2.2)', () => {
+  it('names Chromium’s proxy and tunnel errors, nothing else', () => {
+    for (const m of [
+      'page.goto: net::ERR_PROXY_CONNECTION_FAILED at http://127.0.0.1:5/p/1',
+      'net::ERR_TUNNEL_CONNECTION_FAILED at https://shop.example/',
+      'net::ERR_PROXY_AUTH_UNSUPPORTED', 'net::ERR_SOCKS_CONNECTION_FAILED', 'net::ERR_NO_SUPPORTED_PROXIES',
+      'net::ERR_UNEXPECTED_PROXY_AUTH', 'net::ERR_INVALID_AUTH_CREDENTIALS',
+    ]) expect(isProxyFailure(m)).toBe(true);
+    for (const m of ['net::ERR_CONNECTION_REFUSED at http://shop.example/', 'net::ERR_NAME_NOT_RESOLVED', 'Timeout 30000ms exceeded', 'Target crashed']) {
+      expect(isProxyFailure(m)).toBe(false);
+    }
   });
 });

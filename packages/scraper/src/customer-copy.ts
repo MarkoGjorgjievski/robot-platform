@@ -18,6 +18,9 @@ export const CAP_REACHED_MESSAGE = "This organisation has reached this month's l
 const RULES: ReadonlyArray<readonly [RegExp, string]> = [
   [/^Reached .+ \(HTTP \d+\)\.$/, 'This website opens normally.'],
   [/^.+ refused the browser \(HTTP \d+(?:, [^)]*)?\)\. We can't read this website from here yet\.$/, "This website turned us away, so we can't read it yet."],
+  // Spec 2026-10-24 proxy §2.2: a page the proxy would not carry is a blocked page to a customer — the same sentence,
+  // and never the word "proxy". (@robot/browser's PROXY_REFUSED.)
+  [/^The proxy refused the connection\.$/, "This website turned us away, so we can't read it yet."],
   [/^.+ asked for a human check \(CAPTCHA\)\. /, 'This website asked for a human check. Wait a few minutes and try again; its other pages are behind the same check.'],
   [/^That page doesn't exist on .+ \(404\)\. Check the address\.$/, "That page doesn't exist. Check the address."],
   [/^That address led to \S+\. Paste a page on .+\.$/, 'That address opened a page on another website. Paste a page from this website.'],

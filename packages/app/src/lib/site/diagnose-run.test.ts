@@ -257,3 +257,13 @@ describe('diagnoseRun for a customer (spec 2026-10-21)', () => {
     expect(d!.detail).toBe('This website took too long to answer. Try again.');
   });
 });
+
+describe('diagnoseRun — a proxy refusal (spec 2026-10-24 proxy §2.2)', () => {
+  it('RF5: a proxy refusal diagnoses as blocked, in customer words for a customer', () => {
+    const failures = [{ url: 'https://shop.example/p/1', error: 'The proxy refused the connection.' }];
+    expect(diagnoseRun(base({ itemFailures: failures }))[0]!.severity).toBe('blocked');
+    const customer = diagnoseRun(base({ itemFailures: failures, staff: false }))[0]!;
+    expect(customer).toEqual({ severity: 'blocked', title: 'Site blocked our requests', detail: "This website turned us away, so we can't read it yet." });
+    expect(JSON.stringify(customer)).not.toMatch(/proxy/i);
+  });
+});
