@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { IBrowser, PageCapture, CrawlPage, CrawlOptions, CaptureOptions, BrowserOptions, ScrollOptions } from '@robot/browser';
+import { CaptureError } from '@robot/browser';
 import { withBrowserSession, setBrowserGate, NestedBrowserSessionError, type BrowserGate } from './browser-session.js';
 
 /** Records launch/close calls; never touches a real browser. */
@@ -231,5 +232,31 @@ describe('withBrowserSession and the website profile (spec 2026-10-24 proxy §2.
     expect(err.message).not.toContain('pw-secret');
     expect(err.stack ?? '').not.toContain('pw-secret');
     expect(browser.closeCalls).toBe(1);
+  });
+});
+
+describe('no error carries the proxy credentials, however it is wrapped (spec 2026-10-24 proxy §3.2, fix round M1)', () => {
+  const profile = { proxy: { server: 'http://proxy.test:7000', username: 'user-country-de', password: 'p@ss:w/rd' } };
+  const leaks = (text: string) => ['user-country-de', 'p@ss:w/rd', 'p%40ss%3Aw%2Frd', 'u:p@'].filter((n) => text.includes(n));
+  const thrown = (make: () => unknown) => withBrowserSession(async () => { throw make(); }, { profile, factory: () => new RecordingBrowser() }).catch((e: unknown) => e);
+
+  it("a CaptureError's staff detail, its cause and an AggregateError's errors are scrubbed; userinfo is redacted whole", async () => {
+    const quoted = 'via http://user-country-de:p%40ss%3Aw%2Frd@proxy.test:7000 as user-country-de / p@ss:w/rd';
+    const capture = new CaptureError('proxy', 'https://shop.test/p/1', `refused ${quoted}`);
+    const err = await thrown(() => Object.assign(capture, { cause: new Error(`cause ${quoted}`) })) as CaptureError & { cause: Error };
+    expect(leaks(err.detail)).toEqual([]);
+    expect(err.detail).toContain('http://***@proxy.test:7000');
+    expect(leaks(err.cause.message)).toEqual([]);
+    expect(leaks(err.cause.stack ?? '')).toEqual([]);
+    const agg = await thrown(() => new AggregateError([new Error(`one ${quoted}`)], `all ${quoted}`)) as AggregateError;
+    expect(leaks(agg.message)).toEqual([]);
+    expect(leaks((agg.errors[0] as Error).message)).toEqual([]);
+    expect(leaks(String(await thrown(() => `a bare ${quoted}`)))).toEqual([]);
+  });
+
+  it('a one- or two-character secret is left alone, so a stack is not turned to stars', async () => {
+    const err = await withBrowserSession(async () => { throw new Error('a plain failure at http://a:b@proxy.test:7000'); },
+      { profile: { proxy: { server: 'http://proxy.test:7000', username: 'a', password: 'b' } }, factory: () => new RecordingBrowser() }).catch((e: Error) => e);
+    expect(err.message).toBe('a plain failure at http://***@proxy.test:7000');
   });
 });
