@@ -17,6 +17,7 @@ import { useStaffDetail } from '../../lib/use-staff-detail';
 export function ListingBar({
   sourceId,
   listingUrl,
+  startUrl,
   disabled,
   onFound,
   onNoListing,
@@ -26,6 +27,11 @@ export function ListingBar({
   /** The website whose listing this is: its page loads the way that website's pages do. */
   sourceId: string;
   listingUrl: string;
+  /**
+   * What the input starts with when it differs from `listingUrl` (first run 2026-10-25, D5): the address typed in
+   * Add website when it can be a listing (`listingBarStart`). Nothing is saved until Find products answers.
+   */
+  startUrl?: string;
   disabled: boolean;
   onFound: (listingUrl: string, products: Card[], found: { productLinks: number; pagerSeen: boolean }) => void;
   /** The listing URL as typed (possibly blank): it is kept either way (spec §2.1). */
@@ -34,7 +40,9 @@ export function ListingBar({
   /** Why the route refused this listing (e.g. it is on another website than the products), shown under the input. */
   problem?: string | null;
 }) {
-  const [url, setUrl] = useState(listingUrl);
+  const [url, setUrl] = useState(startUrl ?? listingUrl);
+  // "No listing?" with the untouched pre-filled address says that address is not a listing: none is kept.
+  const typedListing = () => (!listingUrl.trim() && startUrl && url.trim() === startUrl.trim() ? '' : url.trim());
   // Spec 2026-10-21: a customer reads a failed capture in customer words; staff read it as stored.
   const staff = useStaffDetail();
   const [found, setFound] = useState<{ productLinks: number; pagerSeen: boolean; message: string | null } | null>(null);
@@ -100,7 +108,7 @@ export function ListingBar({
         </p>
       ) : null}
 
-      <button type="button" disabled={disabled} onClick={() => onNoListing(url.trim())} className="text-base text-link underline-offset-4 hover:underline">
+      <button type="button" disabled={disabled} onClick={() => onNoListing(typedListing())} className="text-base text-link underline-offset-4 hover:underline">
         No listing? Paste product pages instead
       </button>
 

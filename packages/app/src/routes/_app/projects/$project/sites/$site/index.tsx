@@ -75,6 +75,7 @@ import {
 import { defaultNotShown, typedNotShown } from '../../../../../../lib/site/shown';
 import { createSaver, saveErrorReason } from '../../../../../../lib/site/saver';
 import { boardStore, seedDecision } from '../../../../../../lib/site/board-store';
+import { listingBarStart } from '../../../../../../lib/site/listing-bar-view';
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { showsMoney } from '../../../../../../lib/money-visibility';
@@ -1531,6 +1532,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         <ListingBar
           sourceId={source.id}
           listingUrl={board.listingUrl}
+          startUrl={listingBarStart(board.listingUrl, source.url)}
           disabled={locked}
           onFound={(listingUrl, products) => onFound(listingUrl, products)}
           onNoListing={onNoListing}
