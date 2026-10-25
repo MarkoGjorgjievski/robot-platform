@@ -9,7 +9,7 @@
 import type { EntryPath } from './variant-certify.js';
 import { readEntryPath } from './variant-certify.js';
 import { normalizeVariantLink } from './variant-collector.js';
-import { normalize, renderValue, type NormalizeContext } from './normalize.js';
+import { normalize, renderValue, storedText, type NormalizeContext } from './normalize.js';
 import type { CustomerFieldType, VariantListRef } from './types.js';
 
 export type VariantRunPlan = {
@@ -55,11 +55,12 @@ export function variantKeyOf(row: Record<string, unknown>, plan: VariantRunPlan,
   return plan.axes.map((a) => nonEmpty(row[a.key]) ?? '').join(' · ');
 }
 
-/** The same normalise-then-render a certified path's value takes for a product row (verified-extraction.ts's evaluatePath): empty/null/undefined reads as a miss (null), otherwise `normalize` then `renderValue`. */
+/** The same normalise-then-render a certified path's value takes for a product row (verified-extraction.ts's evaluatePath): empty/null/undefined reads as a miss (null), otherwise `normalize` then `renderValue` (text: `storedText`). */
 function resolveValue(type: CustomerFieldType, raw: unknown, ctx: NormalizeContext): unknown {
   if (raw === null || raw === undefined || raw === '') return null;
   const norm = normalize(type, raw, ctx);
-  return norm === null ? null : renderValue(type, norm);
+  if (norm === null) return null;
+  return type === 'text' ? storedText(raw) : renderValue(type, norm);
 }
 
 export function buildVariantRows(args: {

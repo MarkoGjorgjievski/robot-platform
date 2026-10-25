@@ -13,6 +13,15 @@ function text(raw: unknown): string | null {
   return s === '' ? null : s;
 }
 
+/**
+ * A text value as a run stores it: the page's own characters (NFC only), whitespace collapsed and
+ * trimmed — so a run writes "SoftSense™", as Verify showed it, never NFKC's "SoftSenseTM" or "m2"
+ * for "m²" (first run, re-run 1). Comparison (`normalize`, `valuesEqual`) still folds with NFKC.
+ */
+export function storedText(raw: unknown): string {
+  return String(raw).normalize('NFC').replace(/\s+/g, ' ').trim();
+}
+
 /** "1,299.50" | "1.299,50" | "1299" | 1299.5 → number. Currency symbols/codes stripped first. */
 function parseNumber(raw: unknown, mode: 'number' | 'money' = 'number'): number | null {
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
