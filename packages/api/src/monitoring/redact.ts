@@ -11,9 +11,13 @@ export const MASK = '***';
 
 // A secret name is judged by its words, never by a substring (ruling, fix round 1): `signal`, `design`, `passed`,
 // `bypass` and `dedupeKey` stay readable; `apiKey`, `X-Auth-Token`, `DB_PASSWORD` and `client_secret` do not.
-const SECRET_WORDS = new Set(['password', 'passwd', 'pwd', 'pass', 'secret', 'token', 'authorization', 'auth', 'cookie',
-  'credential', 'credentials', 'sig', 'signature', 'apikey', 'privatekey', 'accesskey']);
-const SECRET_PAIRS = new Set(['api key', 'access key', 'private key', 'client secret', 'session token', 'session id']);
+// `session` is the app's own cookie (`robot_session`). A session's id is its token (the sessions table is keyed by
+// it), so `sessionId` stays a secret; `sessions` and `sessionCount` are readable.
+const SECRET_WORDS = new Set(['password', 'passwd', 'pwd', 'pass', 'passphrase', 'secret', 'token', 'authorization', 'auth',
+  'cookie', 'cookies', 'session', 'jwt', 'otp', 'dsn', 'credential', 'credentials', 'sig', 'signature', 'apikey', 'privatekey',
+  'accesskey', 'signingkey', 'encryptionkey', 'masterkey', 'connectionstring']);
+const SECRET_PAIRS = new Set(['api key', 'access key', 'private key', 'client secret', 'signing key', 'encryption key',
+  'master key', 'connection string']);
 /** A key with no separators (accesstoken, clientsecret, refreshtoken). */
 const SECRET_ENDING = /(?:token|secret|password|passwd|apikey|signature)$/;
 /** A number of things is not a credential: tokenCount, passCount, passwordLength. */
@@ -80,12 +84,13 @@ const PARAM_VALUE = /[^\s&"',;]{1,4096}/y;
 const ENCODED_PARAM = /(?:(?<=%[0-9a-f]{2})|(?<![\w.%-]))([\w.-]{1,80})%3D/gi;
 const ENCODED_VALUE = /(?:(?!%26)[^\s&"',;]){1,4096}/iy;
 const KEY_PARAM = /([?&;]key)=([^\s&"',;]+)/gi;
-/** "name": "value" in JSON text. */
-const JSON_PAIR = /"([^"\\]{1,80})"\s*:\s*"/g;
+/** "name": then a string, a number or an array in JSON text (the value is read by maskValue). */
+const JSON_PAIR = /"([^"\\]{1,80})"\s*:\s*(?=["[\d-])/g;
 const DQ_VALUE = /(?:[^"\\\r\n]|\\.){0,4096}(?=")/y;
 const SQ_VALUE = /(?:[^'\\\r\n]|\\.){0,4096}(?=')/y;
-/** name: 'value', 'name':'value', name = "value" (Node's util.inspect, single-quoted JSON, config text). */
-const QUOTED_PAIR = /(?<![\w.-])(['"]?)([\w.-]{1,80})\1\s*[:=]\s*(['"])/g;
+/** name: 'value', 'name':'value', name = "value", secret: ['a'], 'otp': 123456 (Node's util.inspect, single-quoted
+ *  JSON, config text). */
+const QUOTED_PAIR = /(?<![\w.-])(['"]?)([\w.-]{1,80})\1\s*[:=]\s*(?=['"[\d-])/g;
 /** name: value, name = value, X-Auth-Token: value — a bare value, up to a space or a separator. */
 const BARE_PAIR = /(?<![\w.-])([\w.-]{1,80})\s*[:=]\s*/g;
 const BARE_VALUE = /[^\s'",;&}\])<>]{1,4096}/y;
@@ -98,9 +103,32 @@ type Decide = (m: RegExpExecArray, text: string) => { out: string; skip: number 
 const masked = (m: RegExpExecArray, value: string) => (value ? { out: m[0] + MASK, skip: value.length } : null);
 const maskParam: Decide = (m, t) => (isSecretKey(m[1]!) ? masked(m, valueAt(PARAM_VALUE, t, m.index + m[0].length)) : null);
 const maskEncoded: Decide = (m, t) => (isSecretKey(m[1]!) ? masked(m, valueAt(ENCODED_VALUE, t, m.index + m[0].length)) : null);
-const maskJson: Decide = (m, t) => (isSecretKey(m[1]!) ? masked(m, valueAt(DQ_VALUE, t, m.index + m[0].length)) : null);
-const maskQuoted: Decide = (m, t) =>
-  isSecretKey(m[2]!) ? masked(m, valueAt(m[3] === "'" ? SQ_VALUE : DQ_VALUE, t, m.index + m[0].length)) : null;
+const NUM_VALUE = /-?\d[\d.eE+-]{0,63}/y;
+/** An array up to its matching bracket, at most 4096 characters (unclosed by then or by the line's end: that far). */
+function arrayLength(t: string, at: number): number {
+  const end = Math.min(t.length, at + 4096);
+  let depth = 0;
+  for (let i = at; i < end; i++) {
+    const c = t[i];
+    if (c === '\n' || c === '\r') return i - at;
+    if (c === '[') depth++;
+    else if (c === ']' && --depth === 0) return i - at + 1;
+  }
+  return end - at;
+}
+/** The value right after a secret name's separator: a quoted string (its quotes kept), an array (whole) or a number. */
+const maskValue: Decide = (m, t) => {
+  const at = m.index + m[0].length;
+  const c = t[at];
+  if (c === '"' || c === "'") {
+    const v = valueAt(c === "'" ? SQ_VALUE : DQ_VALUE, t, at + 1);
+    return v ? { out: m[0] + c + MASK, skip: 1 + v.length } : null;
+  }
+  if (c === '[') return { out: m[0] + MASK, skip: arrayLength(t, at) };
+  return masked(m, valueAt(NUM_VALUE, t, at));
+};
+const maskJson: Decide = (m, t) => (isSecretKey(m[1]!) ? maskValue(m, t) : null);
+const maskQuoted: Decide = (m, t) => (isSecretKey(m[2]!) ? maskValue(m, t) : null);
 /** A value already masked, or the scheme word of a masked Bearer/Basic token, is left as it is. */
 const maskBare: Decide = (m, t) => {
   if (!isSecretKey(m[1]!)) return null;

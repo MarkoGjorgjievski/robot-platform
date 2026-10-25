@@ -351,3 +351,31 @@ describe('a failed query never carries its values (Task 3 review)', () => {
     expect(v).not.toContain('another-value');
   });
 });
+
+describe('fix wave: more secret names, number and array values, bidi controls', () => {
+  it('the session cookie and the names the reviews found are secret; the readable list stays readable', () => {
+    for (const k of ['session', 'robot_session', 'sessionToken', 'sessionId', 'cookies', 'passphrase', 'jwt', 'signingKey', 'encryptionKey',
+      'masterKey', 'otp', 'connectionString', 'connection_string', 'dsn', 'DATABASE_DSN']) expect([k, isSecretKey(k)]).toEqual([k, true]);
+    for (const k of ['signal', 'design', 'passed', 'bypass', 'dedupeKey', 'fieldKey', 'tokenCount', 'passCount', 'inputTokens', 'outputTokens',
+      'author', 'sessionCount', 'sessions']) expect([k, isSecretKey(k)]).toEqual([k, false]);
+    expect(redactText('set robot_session=abc123def456; path=/', {})).toBe('set robot_session=***; path=/');
+    expect(redactValue({ cookies: [{ name: 'sid', value: 'SESSIONVALUE' }] }, {})).toEqual({ cookies: MASK });
+  });
+
+  it('a number or an array after a secret name is masked, in JSON, inspect and bare text', () => {
+    const cases: Array<[string, string]> = [
+      ['{"token": 123456, "n": 2}', '{"token": ***, "n": 2}'],
+      ['{"otp":-42.5e3}', '{"otp":***}'],
+      ["{ secret: ['a', 'b'], design: 'kept' }", "{ secret: ***, design: 'kept' }"],
+      ['{"keys":["k1"],"apiKey":["k2","k3"]}', '{"keys":["k1"],"apiKey":***}'],
+      ["{ 'x-api-key': [ 'k4' ] }", "{ 'x-api-key': *** }"],
+      ['{"passCount": 3, "tokenCount": 4}', '{"passCount": 3, "tokenCount": 4}'],
+    ];
+    for (const [input, want] of cases) expect(redactText(input, {})).toBe(want);
+  });
+
+  it('bidi controls (U+202A–202E, U+2066–2069) are escaped in text lines', () => {
+    expect(formatLine('info', 't', 'a‮b⁦c⁩', { v: 'x‪y' }, 'text', T, {}))
+      .toBe('[t] a\\u202eb\\u2066c\\u2069 v="x\\u202ay"');
+  });
+});
