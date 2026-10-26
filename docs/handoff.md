@@ -35,9 +35,10 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Monitoring basics (2026-10-25)](#monitoring-basics-2026-10-25).** Workers beat into the database and answer a health port; the api-server answers /readyz; logs can be JSON and are redacted; a watchdog warns about stuck work; errors can be POSTed to a receiver; staff see it all in ops → Queue. Merged 2026-10-25.
+**Newest: [A fresh customer's first run (2026-10-26)](#a-fresh-customers-first-run-2026-10-26).** A script walks a new customer from sign-in to downloaded rows on IKEA, Gymshark and Skullcandy, free and keyless; it found 13 product defects, all fixed. Merged 2026-10-26.
 
-**Before it: [Proxy support (2026-10-24)](#proxy-support-2026-10-24).** Staff can give a website a proxy and a country; its pages then load through the proxy with that country's language and time zone. Merged 2026-10-25.
+**Before it: [Monitoring basics (2026-10-25)](#monitoring-basics-2026-10-25).** Workers beat into the database and answer a health port; the api-server answers /readyz; logs can be JSON and are redacted; a watchdog warns about stuck work; errors can be POSTed to a receiver; staff see it all in ops → Queue. Merged 2026-10-25.
+
 
 **Before that: [Metering and monthly AI limits (2026-10-24)](#metering-and-monthly-ai-limits-2026-10-24).** Pages, runs and AI spend are counted per organisation and month; AI work stops at each organisation's monthly limit ($25 by default); staff see and set it in ops and Settings. Merged 2026-10-24.
 
@@ -128,6 +129,46 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## A fresh customer's first run (2026-10-26)
+
+Spec `docs/superpowers/specs/2026-10-25-first-run-design.md` (exploratory; no plan). Results and triage
+`docs/testing/results/2026-10-25-first-run/first-run.md`.
+
+**What changed.**
+- *The script.* `packages/app/src/first-run.test.ts` (opt-in, `RUN_FIRST_RUN=1`) signs in a throwaway customer per
+  site and does what a new customer does, by roles and labels: a project, Title and Price from the catalogue, Add
+  website with a listing page, Find products, Accept all agreed (and a row's own Accept), Verify, the Extract tab
+  (Listing pages, Sample 3 products, run limits 10 / 1, Extract), the run page's CSV and JSON, the project's Output.
+  A failed step stops that site with its screenshot, visible text and last API answers. Users are deleted through
+  `deleteUserByEmail` (never the `default` org). See the CLAUDE.md command for the isolated pair.
+- *Product fixes, one per trip:* the Title suggestion prefers the heading when it is the product's name, with one
+  shared heading/shown text; a needs-you row offers "Fix on screenshot"; Find products puts three different products
+  first and treats "Option: …" links as swatches; card names are the card's own title; "same on every product" only
+  when all are the same; Add website's address starts the listing bar; runs keep "™" (NFC) and repairs match old
+  NFKC keys; the run page and export name the address the customer added; Accept all agreed takes only whole agreed
+  rows and a row's own Accept takes the whole row; reachability waits 60 s; deleting a website, project or org
+  stops its jobs.
+
+**How proven.** On the final code head (`411b6aa1`) all three default sites passed all ten steps, one vitest process
+per site, against the isolated keyless pair (spec "Proven"). The route smoke passed 28 of 28 on the same isolated pair, first try. The scraper, api and app suites ran
+on that head.
+
+**After pulling.** Nothing to migrate. Restart `pnpm dev:all` (the worker, the api-server and the app all changed).
+
+**What NOT to redo.** The first run is done; do not re-run it to "check" without a reason — it loads real websites
+and takes ~25 minutes with three Chromium-heavy steps. On this machine run one site per process
+(`FIRST_RUN_SITES` + `FIRST_RUN_MERGE=1`) with `WORKER_BROWSERS=1`; the low-memory reaper stopped two longer runs.
+
+**Open.**
+- *M1 (Needs Marko):* one click on a "different place" row's Accept now also confirms the odd product's value, which
+  could be a "was" price on a sale product. Keep, or make that cell need its own look?
+- *M5 (release note):* the export's `source.url` is now the address the customer added, not the page fetched last —
+  re-downloads of old runs change too.
+- *M6:* with Organization JSON-LD before Product, the shop name is still suggested as the Title when the heading
+  guard fails; the heading rule then reads "not the page's heading", so nothing wrong is agreed silently. Pre-existing.
+- *Smaller product counts:* IKEA-like listings find fewer products now that option-only colourways are swatches
+  (77 instead of 92 on the sofas listing); coverage-check samples change for such websites.
 
 ## Monitoring basics (2026-10-25)
 
