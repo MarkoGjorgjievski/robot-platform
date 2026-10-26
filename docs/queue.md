@@ -7,13 +7,13 @@ reason and goes on to the next.
 
 ## Next
 
-1. **A fresh-user first run, end to end** — a scripted new customer on three real sites, free and keyless; fix what trips it. *Done when:* the script passes on all three.
-2. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
-3. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
+1. **Verification tab UX polish** — last; needs Marko's notes (plan 2026-10-17, Task 9).
+2. **Tabs in captures** — last; turning the tabs step on needs a free replay of the certified
    websites first, to show their pages do not change in a way that breaks their paths.
 
 ## Needs Marko
 
+- One click on a 'different place' row's Accept now confirms the odd product's value too (it could be a 'was' price on a sale product). Keep, or make that cell need its own look?
 - **Customer-visible country?** Staff choose a website's country (and proxy) today; customers see nothing of it. Should customers pick the country themselves (e.g. "Read prices as shown in: Germany")?
 - **Proxy credentials and a website's own password prompt.** Playwright answers every HTTP auth challenge with the context's proxy user and password, so a website that asks for a password (HTTP 401) would have received them. Mitigated on the branch: a proxy with a user or password now goes through a per-session loopback forwarder, so Chromium (and any website) only ever holds a random throwaway credential that works nowhere else. An IP-allow-listed proxy with no password needs no forwarder at all. OK to configure a credentialed provider on this basis?
 - **The $25 default AI limit per organisation** (ORG_AI_CAP_USD): every org without its own limit stops AI work at $25 a month. Right default? Who should hear when an org reaches it (nobody is notified yet; ops shows "Limit reached")?
@@ -50,6 +50,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-26 — A fresh-user first run, end to end (branch `feat/first-run`, last code `6a2a59af`): `packages/app/src/first-run.test.ts` walks a new customer from sign-in to downloaded rows on IKEA, Gymshark and Skullcandy, free and keyless; all three pass on the final head; 13 product defects found and fixed (spec "Deviations"); M1 → Needs Marko.
 - 2026-10-25 — Monitoring basics (`976b5d74`): monitoring shipped; the local week of checks → Needs Marko. Worker heartbeat (workers table) and WORKER_HEALTH_PORT, /readyz, /healthz on the app, JSON and redacted logs (LOG_FORMAT, LOG_LEVEL), a stuck-job watchdog (jobs.progress_at), an error-report hook (ERROR_REPORT_URL), ops → Queue; live check docs/testing/results/2026-10-25-monitoring/live-monitoring.json. After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-25 — Proxy support in the browser (`4e9ed93d`): a proxy address and a country per website (staff only; DEFAULT_PROXY_URL for all), every page of the website through it with the country's locale and time zone, never direct on a proxy failure, a credentialed proxy behind a per-session loopback forwarder; proven against a local recording proxy (live-proxy.ts, docs/testing/results/2026-10-24-proxy/live-proxy.json). After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-24 — Metering and spend caps per organisation (`28948402`): pages, runs and AI spend per org and month from the recorded rows; a monthly AI limit per org (ORG_AI_CAP_USD, default $25; staff set it in Settings, logged) that stops Verify's AI, planning and legacy runs; ops → Organisations. After merge: pnpm db:migrate, restart dev:all.
