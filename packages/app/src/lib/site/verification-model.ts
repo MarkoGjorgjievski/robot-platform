@@ -721,12 +721,18 @@ export function acceptRowAction(board: Board, field: Field, live: Suggestions, b
 }
 
 /**
- * May this cell's suggestion be taken in one click (spec A7, strict A4)? Only a
- * valid, unanswered suggestion found in one place once its screenshot has
- * landed — and never on an odd product: one whose suggestion came by another
- * path than one two or more other products share (their suggestions' paths and
- * their answers' paths both count, so the odd product stays for a person even
- * after the majority is accepted).
+ * May this cell's own one-click accept take its suggestion (spec A7, strict A4)?
+ * Only a valid, unanswered suggestion found in one place once its screenshot
+ * has landed — and never on an odd product: one whose suggestion came by
+ * another path than one two or more other products share (their suggestions'
+ * paths and their answers' paths both count, so the odd cell gets no button of
+ * its own even after the majority is accepted). This is the cell's button only:
+ * on a "different place on product N — check it" (majority) row, the row's own
+ * Accept (`acceptRowAction`) takes every cell, product N included by its own
+ * path — clicking it beside the warning that names product N is the customer's
+ * check (first run 2026-10-25, re-run 3) — while Accept all agreed takes none of
+ * that row, and "Accept anyway" on a same-everywhere row still leaves the odd
+ * product.
  */
 export function cellAcceptable(field: Field, board: Board, live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>, url: string): boolean {
   const s = live[field.key]?.[url];
