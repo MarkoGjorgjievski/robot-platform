@@ -738,7 +738,12 @@ export function carryFrom(a: Answer): { value: string; mark?: Mark; via?: Struct
   return { value: a.value, ...(a.mark ? { mark: a.mark } : {}), ...(via ? { via } : {}) };
 }
 
-/** `pageFacts`: each page's heading, so the Title rows read as their row does (spec 2026-10-12 §B1; first run 2026-10-25). */
+/**
+ * `pageFacts`: each page's heading, so the Title rows read as their row does (spec 2026-10-12 §B1; first run 2026-10-25).
+ * All or nothing per row (first run 2026-10-25, IKEA): only a row that reads agreed is taken. A "different place"
+ * row (majority) is left whole, so it keeps its own Accept — taking its majority here left it reading "check
+ * product N" with only Fix on screenshot.
+ */
 export function acceptAllAgreed(
   board: Board, fields: Field[], live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>,
   pageFacts?: Record<string, { headingText: string | null; pageText: string }>,
@@ -747,9 +752,8 @@ export function acceptAllAgreed(
   const accepted: string[] = [];
   for (const f of fields) {
     const status = rowStatus(f, next, live, boxesByUrl, undefined, undefined, pageFacts);
-    if (status.kind === 'agreed') next = acceptRow(next, f, live, boxesByUrl);
-    else if (status.kind === 'majority') next = acceptRow(next, f, live, boxesByUrl, status.via);
-    else continue;
+    if (status.kind !== 'agreed') continue;
+    next = acceptRow(next, f, live, boxesByUrl);
     accepted.push(f.key);
   }
   return { board: next, accepted };
@@ -885,10 +889,10 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
 export function verifyReason(gate: ReturnType<typeof verifyGate>, fields: Field[], statuses: RowStatus[], buttonReason: string | undefined): string | undefined {
   if (gate.ok) return buttonReason;
   const i = gate.gap ? fields.findIndex((f) => f.key === gate.gap) : -1;
-  // A majority row's Accept is an agreed row's Accept for its majority part (spec A4).
-  const acceptable = (s: RowStatus | undefined) => s?.kind === 'agreed' || s?.kind === 'majority';
-  if (i < 0 || !acceptable(statuses[i])) return gate.reason;
-  return statuses.filter(acceptable).length > 1 ? 'Accept all agreed first' : `Accept ${fields[i]!.name} first`;
+  // A majority row is settled by its own Accept (spec A4); Accept all agreed never takes it (first run 2026-10-25).
+  const st = statuses[i];
+  if (i < 0 || (st?.kind !== 'agreed' && st?.kind !== 'majority')) return gate.reason;
+  return st.kind === 'agreed' && statuses.filter((s) => s.kind === 'agreed').length > 1 ? 'Accept all agreed first' : `Accept ${fields[i]!.name} first`;
 }
 
 /** Fields not current, or everything on a first run (no results yet). */

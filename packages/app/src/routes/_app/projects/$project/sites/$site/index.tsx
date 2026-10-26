@@ -1190,8 +1190,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   // ...and a refusal or a human check says which (spec 2026-10-09 §A2).
   const failedKinds = new Map(urls.flatMap((u) => { const k = captures.byUrl[u]?.verdict?.kind; return k ? [[u, k] as const] : []; }));
   const statuses = fields.map((f) => rowStatus(f, board, live, boxesByUrl, failedUrls, failedKinds, pageFacts));
-  // A majority row is accepted by Accept all for its majority part (A4), so it counts.
-  const agreedCount = statuses.filter((s) => s.kind === 'agreed' || s.kind === 'majority').length;
+  // Only rows that read agreed: Accept all never takes part of a "different place" row (first run 2026-10-25).
+  const agreedCount = statuses.filter((s) => s.kind === 'agreed').length;
 
   /**
    * A cell's one-click accept (A7): only for a valid suggestion found in one
