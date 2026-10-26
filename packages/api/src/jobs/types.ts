@@ -29,9 +29,15 @@ export const PLAN_STOPPED = 'Finding the products stopped before it finished. Tr
 
 const MIN = 60_000;
 
+/**
+ * How long the reachability check waits for the page to load (first run 2026-10-25: IKEA's listing took over 30 s and
+ * a new customer read "took too long"). Its job's stuck limit leaves room for that load, the browser and the tile.
+ */
+export const REACHABILITY_TIMEOUT_MS = 60_000;
+
 export const JOB_POLICIES = {
   'proof-page-capture': { lane: 'interactive', priority: 10, maxAttempts: 2, stuckMs: 3 * MIN, startWithinMs: 5 * MIN },
-  reachability: { lane: 'interactive', priority: 0, maxAttempts: 1, stuckMs: MIN, startWithinMs: MIN },
+  reachability: { lane: 'interactive', priority: 0, maxAttempts: 1, stuckMs: 2 * MIN, startWithinMs: MIN },
   'listing-check': { lane: 'interactive', priority: 0, maxAttempts: 1, stuckMs: 90_000, startWithinMs: MIN },
   'transfer-marks': { lane: 'interactive', priority: 0, maxAttempts: 1, stuckMs: MIN, startWithinMs: MIN },
   'detect-variants': { lane: 'interactive', priority: 0, maxAttempts: 1, stuckMs: MIN, startWithinMs: MIN },

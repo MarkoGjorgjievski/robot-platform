@@ -113,12 +113,12 @@ describe('reachabilityNow', () => {
     const result = await reachabilityNow('https://www.test-reach.example.com/shop');
     expect(result).toMatchObject({ verdict: { kind: 'ok', status: 200 }, message: 'Reached test-reach.example.com (HTTP 200).', finalUrl: 'https://www.test-reach.example.com/shop' });
     expect(typeof result.ms).toBe('number');
-    expect(captureMock).toHaveBeenCalledWith('https://www.test-reach.example.com/shop', expect.objectContaining({ waitUntil: 'load', timeout: 30_000, maxTiles: 1, interceptNetworkRequests: false }));
+    expect(captureMock).toHaveBeenCalledWith('https://www.test-reach.example.com/shop', expect.objectContaining({ waitUntil: 'load', timeout: 60_000, maxTiles: 1, interceptNetworkRequests: false }));
   });
 
   it('a CaptureError reads its sentence with no final url', async () => {
     withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: vi.fn().mockRejectedValue(new CaptureError('timeout', 'https://test-reach-slow.example.com/x', 'Timeout 30000ms exceeded')) }),
+      fn({ capture: vi.fn().mockRejectedValue(new CaptureError('timeout', 'https://test-reach-slow.example.com/x', 'Timeout 60000ms exceeded')) }),
     );
     const result = await reachabilityNow('https://test-reach-slow.example.com/x');
     expect(result).toMatchObject({ verdict: { kind: 'timeout' }, message: 'test-reach-slow.example.com did not answer in time.', finalUrl: null });

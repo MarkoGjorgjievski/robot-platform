@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db, jobs } from '@robot/db';
 import { enqueue, ceilingOf, runAndWait, urlKey } from './enqueue.js';
 import { jobQueueName } from './queue.js';
-import { JOB_POLICIES } from './types.js';
+import { JOB_POLICIES, REACHABILITY_TIMEOUT_MS } from './types.js';
 import { withJobRunner, JOB_TEST_MS } from '../test-helpers/jobs.js';
 
 const q = () => jobQueueName();
@@ -44,6 +44,18 @@ describe('urlKey (final review I3)', () => {
     expect(ceilingOf('listing-check', { JOB_AWAIT_MAX_MS: '2000' })).toBe(2000);
     expect(ceilingOf('variant-links-near', { JOB_AWAIT_MAX_MS: '999999999' })).toBe(60_000 + 30_000 + 10_000);
     expect(ceilingOf('listing-check', { JOB_AWAIT_MAX_MS: 'nonsense' })).toBe(160_000);
+  });
+});
+
+// First run 2026-10-25 (IKEA): the reachability line said "took too long" after 30 s on a slow listing. It waits
+// 60 s for the page; the job's own limits and the api-server's wait leave room for that load and the browser around it.
+describe('the reachability check waits up to 60 s for a slow page', () => {
+  it('loads for 60 s; its stuck limit covers that load and more; the api-server waits out its start window and the load', () => {
+    expect(REACHABILITY_TIMEOUT_MS).toBe(60_000);
+    const p = JOB_POLICIES.reachability;
+    expect(p.stuckMs).toBeGreaterThanOrEqual(REACHABILITY_TIMEOUT_MS + 30_000);
+    expect(ceilingOf('reachability', {})).toBe((p.startWithinMs ?? 0) + p.stuckMs + 10_000);
+    expect(ceilingOf('reachability', {})).toBeGreaterThan((p.startWithinMs ?? 0) + REACHABILITY_TIMEOUT_MS + 30_000);
   });
 });
 
