@@ -7,6 +7,8 @@ import { FIELD_TYPES, type FieldType } from '../fields-view';
 // The engine's own comparison. `@robot/scraper/normalize` is the one module of
 // that package safe for a browser bundle (it imports nothing but a type).
 import { afterLabel, labelled, normalize, valuesEqual } from '@robot/scraper/normalize';
+// The one shared rule for shown text and headings; import-free, so as safe for a browser bundle as `/normalize`.
+import { sameShownText } from '@robot/scraper/shown-text';
 import type { PageVariantLike } from './verification-view';
 import { AI_UNAVAILABLE_BADGE, NOT_VERIFIED_BADGE, notCheckedText } from './verify-messages';
 import { fixLabel } from './table-selection';
@@ -556,9 +558,11 @@ export type RowStatus =
 
 const norm = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase();
 export function sameValue(a: string, b: string): boolean { return norm(a) === norm(b); }
-/** NFKC + whitespace-collapse + lower-case (spec 2026-10-12 §B1): the heading comparison's own normalisation. */
-const normHeading = (v: string) => v.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
-const sameHeading = (a: string, b: string): boolean => normHeading(a) === normHeading(b);
+/**
+ * The heading comparison (spec 2026-10-12 §B1), the scraper's `sameHeading`: the shared shown-text key — a symbol
+ * mark joined to its word, whitespace collapsed, NFKC, lower case (first run, final review I1/I2).
+ */
+const sameHeading = (a: string, b: string): boolean => sameShownText(a, b);
 
 /**
  * What a field's row needs (spec 2026-09-28 A2). `live` must already be

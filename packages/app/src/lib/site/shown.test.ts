@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { numberShown, textShown, typedNotShown, normText, defaultNotShown } from './shown';
 import type { Field, Answer } from './verification-model';
+import { pageTextOf } from '@robot/scraper';
 
 const brand: Field = { key: 'brand', name: 'Brand', type: 'text', description: 'brand', concept: 'brand' };
 const title: Field = { key: 'title', name: 'Title', type: 'text', description: 'title', concept: 'product_name' };
@@ -88,5 +89,15 @@ describe('defaultNotShown (spec 2026-10-13 §6)', () => {
     expect(defaultNotShown(brand, 'Gymshark', ['', ''])).toBe(false);
     expect(defaultNotShown(brand, '  ', ['x'])).toBe(false);
     expect(defaultNotShown(available, 'yes', ['x'])).toBe(false);
+  });
+});
+
+// Final review I1: the server's page text (`pageTextOf`) joins a symbol mark to its word; a typed value is normalised
+// the same way, so "Crusher ® 720" typed and "Crusher® 720" shown (or the other way round) read alike.
+describe('textShown — symbol marks', () => {
+  it('a space before or after a mark does not matter', () => {
+    expect(textShown('Crusher ® 720', pageTextOf('<h1>Crusher<span>®</span> 720</h1>'))).toBe(true);
+    expect(textShown('Crusher® 720', pageTextOf('<h1>Crusher®720</h1>'))).toBe(true);
+    expect(normText('CottonMove ™ Tee')).toBe(normText('CottonMove™ tee'));
   });
 });

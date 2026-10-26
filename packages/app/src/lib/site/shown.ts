@@ -1,9 +1,11 @@
 // Is a typed Verify value shown on its proof page? (spec 2026-10-12 Part B,
-// rule B2, reusing §3's check). The app cannot import `@robot/scraper` (that
-// package graph reaches Playwright, the database and the Anthropic SDK, none
-// of which may enter a browser bundle), so this mirrors
-// `packages/scraper/src/verify/shown-on-page.ts`'s normalisation and number
-// renderings in miniature. Keep the two in step by the same test cases.
+// rule B2, reusing §3's check). The text form is the shared, import-free
+// `@robot/scraper/shown-text` rule. Otherwise the app cannot import
+// `@robot/scraper` (that package graph reaches Playwright, the database and
+// the Anthropic SDK, none of which may enter a browser bundle), so this
+// mirrors `packages/scraper/src/verify/shown-on-page.ts`'s number renderings
+// in miniature. Keep the two in step by the same test cases.
+import { shownKey } from '@robot/scraper/shown-text';
 import type { FieldType } from '../fields-view';
 import type { Answer, Field } from './verification-model';
 
@@ -22,8 +24,9 @@ function decodeNbsp(s: string): string {
   return s.replace(/&nbsp;/gi, ' ').replace(/ /g, ' ');
 }
 
+/** The scraper's `pageTextOf` form (`shownKey`): a symbol mark joined to its word, whitespace collapsed, NFKC, lower case. */
 export function normText(v: unknown): string {
-  return decodeNbsp(String(v ?? '').normalize('NFKC')).replace(/\s+/g, ' ').trim().toLowerCase();
+  return shownKey(decodeNbsp(String(v ?? '')));
 }
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

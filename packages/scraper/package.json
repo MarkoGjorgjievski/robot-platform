@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./executor": "./src/executor.ts",
     "./normalize": "./src/verify/normalize.ts",
+    "./shown-text": "./src/verify/shown-text.ts",
     "./customer-copy": "./src/customer-copy.ts",
     "./structured-extractor": "./src/structured-extractor.ts"
   },

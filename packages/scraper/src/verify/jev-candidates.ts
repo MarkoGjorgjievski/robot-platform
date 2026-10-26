@@ -5,7 +5,7 @@
 // options experiment 2 asked about.
 import type { PageCapture } from '@robot/browser';
 import type { Box } from './box-map.js';
-import { visibleTextFromHtml } from '../corroborate-value.js';
+import { pageHeading } from './suggest-marks.js';
 import { pathFitsConcept } from './field-fit.js';
 import { normalize } from './normalize.js';
 import { detectVariantLists, entryAxisValue, isVariantEntry } from './variant-detect.js';
@@ -39,24 +39,6 @@ function keyOf(type: CustomerFieldType, v: string): string | null {
 }
 
 /**
- * The page's rendered heading text — exactly as `pageHeading` in `./suggest-marks.ts`
- * (the Verification tab's heading) does: the first rendered `<h1>` in the html (scripts/styles stripped first, so a templated `<h1>` in
- * a `<script>` never counts, and a nested `<span>` is read, unlike a box's own-text-only `.text`), else
- * the largest h1/h2/h3 box's own text.
- */
-function headingTextFrom(html: string, boxes: Box[]): string | null {
-  const markup = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ');
-  const h1 = /<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1\s*>/i.exec(markup);
-  if (h1) return visibleTextFromHtml(h1[1]!).trim();
-  let best: Box | null = null;
-  for (const b of boxes) {
-    if (b.tag.toLowerCase() !== 'h1' && b.tag.toLowerCase() !== 'h2' && b.tag.toLowerCase() !== 'h3') continue;
-    if (!best || b.rect.w * b.rect.h > best.rect.w * best.rect.h) best = b;
-  }
-  return best ? best.text.trim() : null;
-}
-
-/**
  * Choice candidates for a field: distinct values of the page's structured leaves whose path fits the
  * field (JSON-LD and meta), plus the visible strings for it — money strings near the heading for a
  * price, the heading and og:title for a name, og:site_name/product:brand for a brand. Verbatim; ≤ 30.
@@ -84,7 +66,7 @@ export function jevFieldCandidates(field: JevField, structured: { ldJson: unknow
   }
   if (field.concept === 'brand') for (const k of ['og:site_name', 'application-name', 'product:brand']) if (structured.meta[k]) add(structured.meta[k]!, `meta ${k}`);
   if (field.concept === 'product_name') {
-    const heading = headingTextFrom(html, boxes);
+    const heading = pageHeading(html, boxes); // the Verification tab's heading, read the same way
     if (heading) add(heading, 'visible h1');
     if (structured.meta['og:title']) add(structured.meta['og:title'], 'meta og:title');
   }

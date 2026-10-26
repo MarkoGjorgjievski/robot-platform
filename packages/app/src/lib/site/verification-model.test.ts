@@ -10,6 +10,7 @@ import {
   typedAnswer, type Answer, notOnWebsiteWord, REVERIFY_FIELD, REVERIFY_FIELD_FREE, rowFix, type Segment,
 } from './verification-model';
 import { AI_UNAVAILABLE_BADGE, NOT_VERIFIED_BADGE } from './verify-messages';
+import { shownTextFromHtml } from '@robot/scraper/shown-text';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
 const FIELDS: Field[] = [
@@ -466,6 +467,21 @@ describe("rowStatus: a Title must be the page's main heading (spec 2026-10-12 §
     const pageFacts = facts({ [U[0]!]: 'Widget A', [U[1]!]: 'Widget B', [U[2]!]: 'Widget C - the heading' });
     expect(acceptAllAgreed(b, [titleField], live, maps(), pageFacts).accepted).toEqual([]);
     expect(acceptAllAgreed(b, [titleField], live, maps()).accepted).toEqual(['title']);
+  });
+  // Final review I1/I2: the heading is read by the one shared rule (`shownTextFromHtml`, what the server's pageHeading
+  // returns): brand and name spans with no whitespace read "Nike Air Max 90" as on main, and a mark in its own element
+  // or a space either side of it never makes a Title "not the heading".
+  it("separate spans and a mark in its own element: the Title row agrees", () => {
+    const b = board();
+    const heading = (inner: string) => shownTextFromHtml(inner);
+    const live = liveFor(b, 'title', [sug('Nike Air Max 90', [0], TL), sug('Crusher® 720', [0], TL), sug('Crusher ® 540 Active', [0], TL)]);
+    const pageFacts = facts({
+      [U[0]!]: heading('<span class="brand">Nike</span><span class="name">Air Max 90</span>'),
+      [U[1]!]: 'Crusher ® 720',
+      [U[2]!]: heading('Crusher<span class="marks">®</span> 540 Active'),
+    });
+    expect(pageFacts[U[0]!]!.headingText).toBe('Nike Air Max 90');
+    expect(rowStatus(titleField, b, live, maps(), undefined, undefined, pageFacts).kind).not.toBe('needs-you');
   });
   it('with a heading missing on one product, the paths must still agree as before', () => {
     const b = board();
