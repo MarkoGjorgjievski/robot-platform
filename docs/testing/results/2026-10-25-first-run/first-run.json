@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-10-26T09:59:39.913Z",
+  "startedAt": "2026-10-26T10:33:07.607Z",
   "app": "http://localhost:3100",
   "api": "http://localhost:4100",
   "sites": [
@@ -436,20 +436,20 @@
     {
       "site": "ikea",
       "listing": "https://www.ikea.com/my/en/cat/sofas-fu003/",
-      "email": "first-run-ikea-1793008020530@example.com",
+      "email": "first-run-ikea-1793010787607@example.com",
       "steps": [
         {
           "n": 1,
           "name": "Sign in and land on /projects with its empty state",
           "ok": true,
-          "ms": 3737,
+          "ms": 3999,
           "screenshot": "ikea-1.png"
         },
         {
           "n": 2,
           "name": "New project \"First run ikea\"",
           "ok": true,
-          "ms": 278,
+          "ms": 263,
           "screenshot": "ikea-2.png",
           "detail": "project first-run-ikea"
         },
@@ -457,14 +457,14 @@
           "n": 3,
           "name": "Fields: Title (Text) and Price (Money) from the catalogue",
           "ok": true,
-          "ms": 1676,
+          "ms": 1607,
           "screenshot": "ikea-3.png"
         },
         {
           "n": 4,
           "name": "Add website with the listing page; land on Verification; the reachability line",
           "ok": true,
-          "ms": 9832,
+          "ms": 8804,
           "screenshot": "ikea-4.png",
           "detail": "website \"Ikea\" (ikea); This website opens normally."
         },
@@ -472,7 +472,7 @@
           "n": 5,
           "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
           "ok": true,
-          "ms": 42557,
+          "ms": 39552,
           "screenshot": "ikea-5.png",
           "detail": "77 products found · a pager too; 3 ready"
         },
@@ -480,7 +480,7 @@
           "n": 6,
           "name": "Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages",
           "ok": true,
-          "ms": 1272,
+          "ms": 1261,
           "screenshot": "ikea-6.png",
           "detail": "Price (\"different place on product 2 — check it Accept\") accepted with its own Accept; Title on product 1: suggested, GLOSTAD 3-seat sofa, Knisa dark grey | Title on product 2: suggested, KIVIK 3-seat sofa, Tibbleby beige/grey | Title on product 3: suggested, GLOSTAD 2-seat sofa, Knisa dark grey | Price on product 1: suggested, 449 | Price on product 2: suggested, 1495 | Price on product 3: suggested, 349"
         },
@@ -488,7 +488,7 @@
           "n": 7,
           "name": "Verify: \"Verify 2 fields\", both fields certified, no customer-visible money",
           "ok": true,
-          "ms": 37975,
+          "ms": 37886,
           "screenshot": "ikea-7.png",
           "detail": "certified title, price in 6 s; Title \"verified 3/3\", Price \"verified 3/3\""
         },
@@ -496,15 +496,15 @@
           "n": 8,
           "name": "Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial",
           "ok": true,
-          "ms": 120875,
+          "ms": 120988,
           "screenshot": "ikea-8.png",
-          "detail": "listing page already saved; sample done in 48 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run da96e007 reads \"Extraction Done\" after 55 s"
+          "detail": "listing page already saved; sample done in 45 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run e8072e16 reads \"Extraction Done\" after 55 s"
         },
         {
           "n": 9,
           "name": "Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric",
           "ok": true,
-          "ms": 613,
+          "ms": 416,
           "screenshot": "ikea-9.png",
           "detail": "CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows"
         },
@@ -512,7 +512,7 @@
           "n": 10,
           "name": "Project Output shows the rows",
           "ok": true,
-          "ms": 930,
+          "ms": 968,
           "screenshot": "ikea-10.png",
           "detail": "10 rows on Output"
         },
@@ -590,7 +590,7 @@
           }
         },
         "runSeconds": 55,
-        "runId": "da96e007-f988-4ab3-80f0-a0dd7fc18feb",
+        "runId": "e8072e16-2c46-4563-b956-8b114b21fa07",
         "download": {
           "csvHeader": [
             "Title",
@@ -628,7 +628,7 @@
           ]
         }
       },
-      "ranAt": "2026-10-26T09:47:00.667Z"
+      "ranAt": "2026-10-26T10:33:07.762Z"
     }
   ]
 }

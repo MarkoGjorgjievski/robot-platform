@@ -1,5 +1,5 @@
 <!-- first-run:generated:start — written by first-run.test.ts; edit outside these markers -->
-# First run — 2026-10-26T09:59:39.913Z
+# First run — 2026-10-26T10:33:07.607Z
 
 App http://localhost:3100, api http://localhost:4100.
 
@@ -37,21 +37,37 @@ Listing: https://www.skullcandy.com/collections/wireless-wired-bluetooth-headpho
 
 ## ikea — passed (10 of 10 steps)
 
-Listing: https://www.ikea.com/my/en/cat/sofas-fu003/ · ran 2026-10-26T09:47:00.667Z
+Listing: https://www.ikea.com/my/en/cat/sofas-fu003/ · ran 2026-10-26T10:33:07.762Z
 
 1. ok — Sign in and land on /projects with its empty state (4 s)
 2. ok — New project "First run ikea": project first-run-ikea (0 s)
 3. ok — Fields: Title (Text) and Price (Money) from the catalogue (2 s)
-4. ok — Add website with the listing page; land on Verification; the reachability line: website "Ikea" (ikea); This website opens normally. (10 s)
-5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 77 products found · a pager too; 3 ready (43 s)
+4. ok — Add website with the listing page; land on Verification; the reachability line: website "Ikea" (ikea); This website opens normally. (9 s)
+5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 77 products found · a pager too; 3 ready (40 s)
 6. ok — Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages: Price ("different place on product 2 — check it Accept") accepted with its own Accept; Title on product 1: suggested, GLOSTAD 3-seat sofa, Knisa dark grey | Title on product 2: suggested, KIVIK 3-seat sofa, Tibbleby beige/grey | Title on product 3: suggested, GLOSTAD 2-seat sofa, Knisa dark grey | Price on product 1: suggested, 449 | Price on product 2: suggested, 1495 | Price on product 3: suggested, 349 (1 s)
 7. ok — Verify: "Verify 2 fields", both fields certified, no customer-visible money: certified title, price in 6 s; Title "verified 3/3", Price "verified 3/3" (38 s)
-8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 48 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run da96e007 reads "Extraction Done" after 55 s (121 s)
-9. ok — Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric: CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows (1 s)
+8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 45 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run e8072e16 reads "Extraction Done" after 55 s (121 s)
+9. ok — Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric: CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows (0 s)
 10. ok — Project Output shows the rows: 10 rows on Output (1 s)
 11. ok — Cleanup: the throwaway org and user deleted (guarded delete): deleted
 
 <!-- first-run:generated:end -->
+
+## Triage — Re-run 5, the gate (head 411b6aa1, written by hand, 2026-10-26): unfinished
+
+Each site ran in its own vitest process: IKEA, then Gymshark, then Skullcandy (`FIRST_RUN_MERGE=1`,
+`WORKER_BROWSERS=1`). Free memory was 3.8 GB before IKEA and 3.1 GB before Gymshark.
+
+- **ikea: 10 of 10 on 411b6aa1.**
+  - Proof pages: GLOSTAD 3-seat (449), KIVIK (1495) and GLOSTAD 2-seat (349).
+  - Price's "different place on product 2" row was taken by its own Accept, and Verify certified both fields 3/3.
+  - The sample took 45 s, and the run read Done. The CSV, JSON and Output each held 10 rows.
+- **gymshark: steps 1–7 passed on 411b6aa1**, and Verify certified both fields 3/3 (`re-run-5-gymshark-partial/`).
+  Claude Code's low-memory stop killed the process during step 8 (the sample). It was not restarted, as the notice
+  asks. Its entry above is still Re-run 4's (12d718e9).
+- **skullcandy: not run on 411b6aa1.** Its entry above is Re-run 4's (12d718e9).
+
+No trips. The route smoke was not run.
 
 ## Triage — Re-run 4 (head 12d718e9, written by hand, 2026-10-26): all three pass
 
