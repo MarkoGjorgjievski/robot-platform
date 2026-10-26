@@ -550,7 +550,7 @@ export type RowStatus =
   | { kind: 'agreed' }
   /** Every product's value is the same, odd products included. `odd`/`via` when the paths disagree and a majority exists (A4): "Accept anyway" takes only `via`'s cells. */
   | { kind: 'same-everywhere'; odd?: number[]; via?: Via }
-  /** Spec A4: two or more share `via`; Accept takes theirs, `odd` (product numbers) stay for a person. */
+  /** Spec A4: two or more share `via`; `odd` (product numbers) read "different place … check it". The row's own Accept takes every cell, odd ones included (`acceptRowAction`); Accept all agreed takes none. */
   | { kind: 'majority'; odd: number[]; via: Via }
   | { kind: 'needs-you'; reason: string; product?: number };
 
@@ -701,6 +701,19 @@ export function acceptRow(board: Board, field: Field, live: Suggestions, boxesBy
     next = answer(next, field.key, card.url, suggestionAnswer(boxes, field, s, card.url));
   }
   return next;
+}
+
+/**
+ * A row's own Accept button (spec A4, revised by the first run 2026-10-25, re-run 3, IKEA). On a "different
+ * place on product N — check it" row (majority) it takes every cell, product N included by its own path: the
+ * customer checked product N by clicking Accept beside the warning that names it, and each cell carries its own
+ * path to Verify, which certifies paths that together cover every proof page. Before, it took only the
+ * majority's cells and the row was left reading "check product N" with only Fix on screenshot. "Accept anyway"
+ * on a same-everywhere row still takes only the majority's cells: one value on every product is weak evidence,
+ * and the odd product's path there is typically the shop's name (og:site_name), which must not be confirmed.
+ */
+export function acceptRowAction(board: Board, field: Field, live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>, status: RowStatus): Board {
+  return acceptRow(board, field, live, boxesByUrl, status.kind === 'same-everywhere' ? status.via : undefined);
 }
 
 /**

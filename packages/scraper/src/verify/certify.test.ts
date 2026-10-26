@@ -1325,3 +1325,31 @@ describe('a multi-layout cover is not a set of backups (review, 2026-10-21)', ()
     expect(readsOneSource(cover.map(({ source, path }) => ({ source, path })))).toBe(true);
   });
 });
+
+// First run 2026-10-25, re-run 3 (IKEA): the Price row's own Accept now takes product 1 too, by its own path
+// (JSON-LD), and products 2–3 by the API path. Verify gets both as confirmed paths and certifies them as a cover.
+describe('a "different place" row accepted whole (IKEA 1495 / 449 / 349)', () => {
+  const urls = ['https://i.example/p/kivik', 'https://i.example/p/glostad-3', 'https://i.example/p/glostad-2'];
+  const f = { key: 'price', name: 'Price', type: 'money' as const, description: '', concept: 'price' };
+  const exp = { [urls[0]!]: '1495', [urls[1]!]: '449', [urls[2]!]: '349' };
+  const capOf = (url: string, ld: Array<Record<string, unknown>>, api: unknown): CaptureLike => ({
+    url, html: '<html></html>',
+    structuredData: { ldJson: ld, nextData: null, initialState: null, meta: {} },
+    interceptedRequests: (api ? [{ url: `${url}/api`, method: 'GET', status: 200, isJson: true, parsedJson: api }] : []) as unknown as CaptureLike['interceptedRequests'],
+  });
+  const confirmed = [{ source: 'json-ld' as const, path: 'offers.price' }, { source: 'api' as const, path: 'price' }];
+
+  it('the two confirmed paths cover the three proof pages together', async () => {
+    const caps = { [urls[0]!]: capOf(urls[0]!, [{ offers: { price: 1495 } }], null), [urls[1]!]: capOf(urls[1]!, [], { price: 449 }), [urls[2]!]: capOf(urls[2]!, [], { price: 349 }) };
+    const r = await certify({ field: f, expected: exp, captures: caps, confirmed, candidates: [] }, { evalXPaths: async () => ({}) });
+    expect(r.certified.map((p) => `${p.source} ${p.path} ${p.provenOn?.length}`).sort()).toEqual(['api price 2', 'json-ld offers.price 1']);
+    expect(Object.values(r.cells).every((c) => c.status === 'pass')).toBe(true);
+  });
+
+  it('where product 1\'s path reads every page, it certifies alone, as one layout', async () => {
+    const caps = { [urls[0]!]: capOf(urls[0]!, [{ offers: { price: 1495 } }], null), [urls[1]!]: capOf(urls[1]!, [{ offers: { price: 449 } }], { price: 449 }), [urls[2]!]: capOf(urls[2]!, [{ offers: { price: 349 } }], { price: 349 }) };
+    const r = await certify({ field: f, expected: exp, captures: caps, confirmed, candidates: [] }, { evalXPaths: async () => ({}) });
+    expect(r.certified[0]).toMatchObject({ source: 'json-ld', path: 'offers.price' });
+    expect(r.certified.every((p) => p.provenOn === undefined)).toBe(true);
+  });
+});

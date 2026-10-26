@@ -137,7 +137,7 @@ function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefau
         </div>
       );
     case 'majority':
-      // Spec A4: Accept takes the majority's cells only; the odd product stays for a person.
+      // Accept takes every cell, the odd product included: clicking it beside the warning is the customer's check (first run 2026-10-25, re-run 3).
       return (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-warn">different place on {productsText(status.odd)} — check it</span>
