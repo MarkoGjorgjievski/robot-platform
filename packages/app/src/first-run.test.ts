@@ -266,7 +266,7 @@ async function runSite(s: Site): Promise<SiteLog> {
       const line = await until(
         async () => {
           const t = await mainText(page);
-          const m = t.match(/This website opens normally\.|[^\n]*(?:blocked|could not|did not|refused|wall|human check|Waiting)[^\n]*/i);
+          const m = t.match(/This website opens normally\.|[^\n]*(?:blocked|could not|did not|refused|wall|human check|Waiting|took too long|Try again)[^\n]*/i);
           return m ? m[0] : null;
         },
         T.reach,
@@ -317,7 +317,7 @@ async function runSite(s: Site): Promise<SiteLog> {
       return `${found.line}; ${ready} ready`;
     });
 
-    await step(6, 'Accept all agreed: Title and Price agreed and accepted on all three proof pages', async () => {
+    await step(6, "Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages", async () => {
       const rows: Record<string, string> = {};
       for (const f of ['Title', 'Price']) {
         rows[f] = await until(
@@ -332,9 +332,25 @@ async function runSite(s: Site): Promise<SiteLog> {
       const cells: Record<string, string | null> = {};
       for (const f of ['Title', 'Price']) for (let i = 1; i <= 3; i++) cells[`${f} ${i}`] = await cellLabel(page, f, i);
       log.facts.beforeAccept = { rows, cells };
+      // Spec §2 step 6, amended 2026-10-25: a row's own one-click Accept is a normal new-customer action, so a row
+      // that is not agreed but offers exactly "Accept <field>" is accepted with it. Anything else — "Fix on
+      // screenshot", "Mark … on the screenshot", "Accept anyway", "Make it the default" — is marking by hand or a
+      // judgement a new customer would need help with, and stays a trip.
       const notAgreed = Object.entries(rows).filter(([, t]) => !/^agreed\b/.test(t));
-      if (notAgreed.length) throw new Error(`not agreed: ${notAgreed.map(([f, t]) => `${f} reads "${t}"`).join('; ')}`);
-      await page.getByRole('button', { name: /^Accept all agreed \(\d+\)$/ }).click();
+      const rowAccept = (f: string) => page.getByRole('button', { name: `Accept ${f}`, exact: true });
+      const blocked: string[] = [];
+      for (const [f, t] of notAgreed) if ((await rowAccept(f).count()) !== 1) blocked.push(`${f} reads "${t}"`);
+      if (blocked.length) throw new Error(`not agreed, and no one-click Accept on the row: ${blocked.join('; ')}`);
+      // The row's own Accept first, then Accept all agreed: the other order lets Accept all agreed take the row's
+      // matching cells and leave the odd one needing "Fix on screenshot" (Re-run 2, ikea: recorded as a defect).
+      const rowAccepted: string[] = [];
+      for (const [f, t] of notAgreed) {
+        await rowAccept(f).click();
+        rowAccepted.push(`${f} ("${t}") accepted with its own Accept`);
+      }
+      log.facts.rowAccepted = rowAccepted;
+      const acceptAll = page.getByRole('button', { name: /^Accept all agreed \(\d+\)$/ });
+      if (await acceptAll.isEnabled()) await acceptAll.click();
       const missing: string[] = [];
       for (const f of ['Title', 'Price']) {
         for (let i = 1; i <= 3; i++) {
@@ -344,7 +360,7 @@ async function runSite(s: Site): Promise<SiteLog> {
       }
       if (missing.length) throw new Error(`not accepted after Accept all agreed: ${missing.join('; ')}`);
       await until(async () => (await page.getByText('saved', { exact: true }).count()) === 1, 20_000, 'the board never read "saved"');
-      return Object.entries(cells).map(([k, v]) => v ?? `${k}: none`).join(' | ');
+      return [...rowAccepted, Object.entries(cells).map(([k, v]) => v ?? `${k}: none`).join(' | ')].join('; ');
     });
 
     await step(7, 'Verify: "Verify 2 fields", both fields certified, no customer-visible money', async () => {
@@ -397,9 +413,22 @@ async function runSite(s: Site): Promise<SiteLog> {
       await page.getByRole('radiogroup', { name: 'Where the products come from' }).waitFor({ timeout: T.ui });
       await waitForHydration(page, '[role="radiogroup"] button');
       const notes: string[] = [];
-      // Section 1: the listing page, unless it is already saved there.
+      // Section 1: the listing page, unless it is already saved there. The tab seeds its mode from saved data after
+      // its queries land, so wait for it to settle first — on a saved website "Edit pages" appears (and the mode
+      // buttons go disabled); on an unsaved one "Pick one to carry on." or a Save button does. Reading before
+      // that races the seeding (Re-run 2, skullcandy: the radio was clicked as it went disabled).
+      const editPages = page.getByRole('button', { name: 'Edit pages', exact: true });
+      await until(
+        async () =>
+          (await editPages.count()) > 0 ||
+          (await page.getByRole('button', { name: /^(Save pages|Save URLs)$/ }).count()) > 0 ||
+          (await page.getByText('Pick one to carry on.', { exact: true }).count()) > 0,
+        T.ui,
+        'the Extract tab never settled its Pages section',
+      );
+      await page.waitForTimeout(1000);
       const saved = (await page.locator('main table').filter({ hasText: 'Listing page' }).locator('tbody tr').filter({ hasText: s.listing }).count()) > 0;
-      const editable = (await page.getByRole('button', { name: /^(Save pages|Save URLs)$/ }).count()) > 0 || (await page.getByRole('radio', { name: 'Listing pages' }).isEnabled());
+      const editable = (await editPages.count()) === 0;
       if (saved && !editable) {
         notes.push('listing page already saved');
       } else {
