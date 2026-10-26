@@ -85,6 +85,8 @@ const report: { startedAt: string; app: string; api: string; sites: SiteLog[] } 
 };
 
 let browser: Browser;
+/** Set once beforeAll has loaded the kept sites: a start that failed before that must not write an empty report over the real one. */
+let reportLoaded = false;
 
 function apiAs(cookie: string) {
   return createTRPCClient<AppRouter>({
@@ -634,13 +636,14 @@ beforeAll(async () => {
   }
   mkdirSync(OUT, { recursive: true });
   loadKept();
+  reportLoaded = true;
   browser = await chromium.launch({ headless: true });
 }, 60_000);
 
 afterAll(async () => {
   if (!ENABLED) return;
   await browser?.close();
-  writeReport();
+  if (reportLoaded) writeReport();
 });
 
 describe.skipIf(!ENABLED)('a fresh customer, first run', () => {

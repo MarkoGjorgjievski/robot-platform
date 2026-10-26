@@ -1,0 +1,83 @@
+{
+  "run": {
+    "id": "c6372f01-0382-43d4-a8e4-f15634a1ed7c",
+    "status": "completed",
+    "startedAt": "2026-10-26T11:00:08.331Z",
+    "completedAt": "2026-10-26T11:03:07.748Z",
+    "createdAt": "2026-10-26T11:00:08.328Z",
+    "rowCount": 10
+  },
+  "source": {
+    "slug": "skullcandy",
+    "name": "Skullcandy",
+    "url": "https://www.skullcandy.com/collections/wireless-wired-bluetooth-headphones"
+  },
+  "fields": [
+    "Title",
+    "Price",
+    "_url",
+    "_page_number"
+  ],
+  "rows": [
+    {
+      "Title": "Crusher® 540 Active",
+      "Price": 209.99,
+      "_url": "https://www.skullcandy.com/products/crusher-540-active",
+      "_page_number": 1
+    },
+    {
+      "Title": "Crusher® ANC 2",
+      "Price": 259.99,
+      "_url": "https://www.skullcandy.com/products/crusher-anc-2-sensory-bass-headphones-with-active-noise-canceling",
+      "_page_number": 1
+    },
+    {
+      "Title": "Crusher® 720",
+      "Price": 209.99,
+      "_url": "https://www.skullcandy.com/products/crusher-720-headphones",
+      "_page_number": 1
+    },
+    {
+      "Title": "Crusher® Evo",
+      "Price": 209.99,
+      "_url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound",
+      "_page_number": 1
+    },
+    {
+      "Title": "Crusher® 1080 ANC",
+      "Price": 279.99,
+      "_url": "https://www.skullcandy.com/products/crusher-1080-anc-headphones",
+      "_page_number": 1
+    },
+    {
+      "Title": "Aviator® 900 ANC",
+      "Price": 299.99,
+      "_url": "https://www.skullcandy.com/products/aviator-900-anc-headphones",
+      "_page_number": 1
+    },
+    {
+      "Title": "Hesh® 360",
+      "Price": 99.99,
+      "_url": "https://www.skullcandy.com/products/hesh-360-wireless-headphones",
+      "_page_number": 1
+    },
+    {
+      "Title": "Icon® ANC",
+      "Price": 99.99,
+      "_url": "https://www.skullcandy.com/products/icon-anc",
+      "_page_number": 1
+    },
+    {
+      "Title": "Hesh® 540 ANC",
+      "Price": 159.99,
+      "_url": "https://www.skullcandy.com/products/hesh-540-anc-noise-canceling-headphones",
+      "_page_number": 1
+    },
+    {
+      "Title": "Icon® 180",
+      "Price": 49.99,
+      "_url": "https://www.skullcandy.com/products/icon-180-wireless-headphones",
+      "_page_number": 1
+    }
+  ]
+}
