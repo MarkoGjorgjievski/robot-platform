@@ -347,6 +347,28 @@ describe('mergeBackfillResult', () => {
       expect(rowCount).toBe(2);
     });
 
+    // Final review M2 (first run): runs stored before 2026-10-26 hold NFKC axis text ("CottonMoveTM", "m2");
+    // a repair's rows now carry NFC ("CottonMove™", "m²"). The keys are matched in their NFKC form, so the
+    // old run's rows still fill and keep their stored key.
+    it('matches a pre-deploy NFKC _variant_key to a new NFC one (™, ²)', async () => {
+      const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+      const parentItemId = await seedParentItemWithRows(sourceId, parentRunId, [
+        { _variant_key: 'CottonMoveTM · Black', price: null },
+        { _variant_key: '10 m2', price: null },
+      ]);
+      const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+        { _variant_key: 'CottonMove™ · Black', price: 20 },
+        { _variant_key: '10 m²', price: 21 },
+      ]);
+
+      await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
+
+      const { rows, rowCount } = await loadParentRowsAndCount(parentItemId);
+      expect(rows.find((r) => r._variant_key === 'CottonMoveTM · Black')!.price).toBe(20);
+      expect(rows.find((r) => r._variant_key === '10 m2')!.price).toBe(21);
+      expect(rowCount).toBe(2);
+    });
+
     it('never overwrites an already-filled cell on a matched row', async () => {
       const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
       const parentItemId = await seedParentItemWithRows(sourceId, parentRunId, [

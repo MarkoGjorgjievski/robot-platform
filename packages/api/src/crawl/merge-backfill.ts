@@ -18,6 +18,10 @@ import { finaliseRun, refreshVariantSummary } from './roll-up-run.js';
 import { isCancelledStatus } from './is-cancelled.js';
 import type { ValidationResult } from './extract-item.js';
 
+/** A `_variant_key` in the form repairs match by: NFKC, so a pre-NFC run's keys meet a new extraction's. */
+const variantMatchKey = (key: string): string => key.normalize('NFKC');
+
+
 function isEmpty(value: unknown): boolean {
   return value == null || value === '';
 }
@@ -179,10 +183,12 @@ export async function mergeBackfillResult(
   // always keeps `skuKey`/`gtinKey` precisely to make that rare.
   const { rows: backfillRows, validationResult: backfillResult } = await loadBackfill(db, extractionId, row);
 
+  // Keys compare in their NFKC form (final review M2): a run stored before 2026-10-26 holds NFKC axis text
+  // ("CottonMoveTM", "m2") where a repair's rows now carry NFC ("CottonMove™", "m²"). The parent keeps its stored key.
   const parentIndexByKey = new Map<string, number>();
   parentRows.forEach((r, i) => {
     const key = r._variant_key;
-    if (typeof key === 'string' && key !== '') parentIndexByKey.set(key, i);
+    if (typeof key === 'string' && key !== '') parentIndexByKey.set(variantMatchKey(key), i);
   });
 
   const mergedRows = parentRows.map((r) => ({ ...r }));
@@ -191,7 +197,7 @@ export async function mergeBackfillResult(
 
   for (const backfillRow of backfillRows) {
     const key = backfillRow._variant_key;
-    const parentIndex = typeof key === 'string' && key !== '' ? parentIndexByKey.get(key) : undefined;
+    const parentIndex = typeof key === 'string' && key !== '' ? parentIndexByKey.get(variantMatchKey(key)) : undefined;
     if (parentIndex === undefined) {
       unmatchedCount++;
       continue;
