@@ -3,7 +3,7 @@ import {
   addressWarning,
   answer, answerFromSuggestion, badge, boardFrom, canSave, pointable, MIN_BOX_SIDE, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
-  acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus, cellLabel, verifyReason,
+  acceptAllAgreed, acceptRow, acceptRowAction, rowStatus, sameValue, type RowStatus, cellLabel, verifyReason,
   failsText, displayValue, pickAnswer, cellAcceptable, carryFrom, type Suggestion,
   markAbsent, isAbsent, titleFromCapture,
   setDefault, defaultOf, isDefaultCell, rowValue, defaultOnlyWord, DEFAULT_ONLY_WORD, cellText, type Suggestions,
@@ -676,6 +676,38 @@ describe('the table-first rules, revised', () => {
     // …which takes the majority's cells, as before.
     const after = acceptRow(r.board, price, live, maps(), JL);
     expect(Object.keys(after.answers.price!)).toEqual([U[1], U[2]]);
+  });
+  // First run 2026-10-25, re-run 3 (IKEA, ruling): the row's own Accept beside "different place on product 1 —
+  // check it" is the customer's check, so it takes every cell of the row — product 1 included, by its own path.
+  it('the own Accept of a "different place" row takes every cell, the odd product by its own path, and Verify may run (IKEA)', () => {
+    const b = board();
+    const ikea = (): Record<string, Box[]> => ({
+      [U[0]!]: boxesOf(['KIVIK 3-seat sofa', '1,495']), [U[1]!]: boxesOf(['GLOSTAD 3-seat sofa', '449']), [U[2]!]: boxesOf(['GLOSTAD 2-seat sofa', '349']),
+    });
+    const titles = liveFor(b, 'title', [sug('KIVIK 3-seat sofa', [0], TL), sug('GLOSTAD 3-seat sofa', [0], TL), sug('GLOSTAD 2-seat sofa', [0], TL)]);
+    const prices = liveFor(b, 'price', [sug('1495', [1], JL), sug('449', [1], API), sug('349', [1], API)]);
+    const live = { ...titles, ...prices };
+    const st = rowStatus(price, b, live, ikea());
+    expect(st).toEqual({ kind: 'majority', odd: [1], via: API });
+    // Accept all agreed still leaves the row whole (Task 8)…
+    const all = acceptAllAgreed(b, FIELDS, live, ikea());
+    expect(all.accepted).toEqual(['title']);
+    expect(all.board.answers.price).toBeUndefined();
+    // …and the row's own Accept takes products 1, 2 and 3.
+    const next = acceptRowAction(all.board, price, live, ikea(), rowStatus(price, all.board, live, ikea()));
+    expect(U.map((u) => next.answers.price?.[u]?.value)).toEqual(['1495', '449', '349']);
+    expect(next.answers.price![U[0]!]!.via).toEqual(JL);
+    expect(next.answers.price![U[1]!]!.via).toEqual(API);
+    expect(rowStatus(price, next, live, ikea())).toEqual({ kind: 'accepted' });
+    // Each cell carries its own path to Verify, so the two paths can cover the proof pages together.
+    expect(toBindingInput(next, FIELDS).paths?.price).toEqual({ [U[0]!]: JL, [U[1]!]: API, [U[2]!]: API });
+    expect(verifyGate(next, FIELDS, live)).toEqual({ ok: true });
+  });
+  it('"Accept anyway" on a same-everywhere row still leaves its odd product for a person', () => {
+    const b = board();
+    const live = liveFor(b, 'title', [sug('IKEA', [0], TL), sug('IKEA', [0], TL), sug('IKEA', [0], { source: 'meta', path: 'og:site_name' })]);
+    const next = acceptRowAction(b, title, live, maps(), rowStatus(title, b, live, maps()));
+    expect(Object.keys(next.answers.title!)).toEqual([U[0], U[1]]);
   });
   it('a suggestion with no path is the odd one out of a majority', () => {
     const b = board();

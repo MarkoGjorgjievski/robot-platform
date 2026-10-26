@@ -21,7 +21,7 @@ import {
   PRODUCTS_MAX,
   PRODUCTS_MIN,
   acceptAllAgreed,
-  acceptRow,
+  acceptRowAction,
   addressWarning,
   answer,
   answerFromSuggestion,
@@ -1406,8 +1406,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         onDefault: (text: string) => setBoard((b) => setDefault(b, f.key, text)),
         focusTyped: typeFocus.key === f.key ? typeFocus.n : 0,
       },
-      // A row whose paths disagree accepts only the majority's cells (spec A4).
-      onAccept: () => setBoard((b) => acceptRow(b, f, live, boxesByUrl, 'via' in statuses[fi]! ? statuses[fi]!.via : undefined)),
+      // A "different place" row's Accept takes every cell, the odd product included; "Accept anyway" only the majority's (acceptRowAction).
+      onAccept: () => setBoard((b) => acceptRowAction(b, f, live, boxesByUrl, statuses[fi]!)),
       onToggle: () => setExpanded((e) => ({ ...e, [f.key]: !e[f.key] })),
       // Same-everywhere's second action (spec 2026-10-13 §6): the row's value becomes the default and the row is
       // accepted as "Accept anyway" would, so the cells keep their path — it certifies, the default is the fallback.
@@ -1415,7 +1415,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         const st = statuses[fi]!;
         const v = rowValue(board, live, f.key, 'odd' in st ? st.odd : undefined);
         if (!v) return;
-        setBoard((b) => acceptRow(setDefault(b, f.key, v), f, live, boxesByUrl, 'via' in statuses[fi]! ? statuses[fi]!.via : undefined));
+        setBoard((b) => acceptRowAction(setDefault(b, f.key, v), f, live, boxesByUrl, st));
       },
     };
   });
