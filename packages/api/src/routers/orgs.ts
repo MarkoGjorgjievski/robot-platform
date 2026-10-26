@@ -8,6 +8,7 @@ import { listStaffActivity, type StaffEntry } from '../auth/staff-activity.js';
 import { queueEmailsSafely } from '../email/queue-emails.js';
 import { viewerSeesMoney } from '../isolation/money.js';
 import { customerSummary } from '../auth/staff-actions.js';
+import { cancelWebsiteJobs } from '../jobs/cancel.js';
 
 /** A staff-activity entry as a customer reads it (spec 2026-10-24 tenant isolation §2.3): which run, never its cost;
  *  no procedure name, and a staff-only sentence reworded (spec 2026-10-24 metering §3.3). */
@@ -53,7 +54,9 @@ export const orgsRouter = router({
     if (!personal) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'This account has no personal organisation' });
     await ctx.db.transaction(async (tx) => {
       await tx.update(sessions).set({ orgId: personal.id }).where(eq(sessions.token, ctx.session.token));
-      // Projects, datasets, websites and runs cascade from the org row (schema.ts).
+      // Projects, datasets, websites and runs cascade from the org row (schema.ts); the websites' jobs stop
+      // with them (first run 2026-10-25), as `sources.delete`'s do.
+      await cancelWebsiteJobs(tx, { orgId: ctx.session.org.id });
       await tx.delete(orgs).where(eq(orgs.id, ctx.session.org.id));
     });
     return { ok: true as const, nextOrg: personal };
