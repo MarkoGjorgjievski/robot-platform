@@ -1,4 +1,4 @@
-# First run — 2026-10-26T09:09:30.967Z
+# First run — 2026-10-26T09:34:14.900Z
 
 App http://localhost:3100, api http://localhost:4100.
 
@@ -34,20 +34,39 @@ Listing: https://www.skullcandy.com/collections/wireless-wired-bluetooth-headpho
 10. ok — Project Output shows the rows: 10 rows on Output (1 s)
 11. ok — Cleanup: the throwaway org and user deleted (guarded delete): deleted
 
-## ikea — tripped at step 4 (3 of 10 steps)
+## ikea — tripped at step 6 (5 of 10 steps)
 
-Listing: https://www.ikea.com/my/en/cat/sofas-fu003/ · ran 2026-10-26T09:09:31.109Z
+Listing: https://www.ikea.com/my/en/cat/sofas-fu003/ · ran 2026-10-26T09:34:15.030Z
 
-1. ok — Sign in and land on /projects with its empty state (1 s)
+1. ok — Sign in and land on /projects with its empty state (5 s)
 2. ok — New project "First run ikea": project first-run-ikea (0 s)
-3. ok — Fields: Title (Text) and Price (Money) from the catalogue (1 s)
-4. TRIP — Add website with the listing page; land on Verification; the reachability line: the reachability line reads: This website took too long to answer. Try again. (33 s)
+3. ok — Fields: Title (Text) and Price (Money) from the catalogue (2 s)
+4. ok — Add website with the listing page; land on Verification; the reachability line: website "Ikea" (ikea); This website opens normally. (13 s)
+5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 76 products found · a pager too; 3 ready (46 s)
+6. TRIP — Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages: not accepted after Accept all agreed: Price on product 1: Price on product 1: suggested, 1495 (10 s)
 11. ok — Cleanup: the throwaway org and user deleted (guarded delete): deleted
 
-Attempts in Re-run 2:
-- 1: tripped at step 6 — Price "different place on product 2 — check it Accept": the script clicked Accept all agreed first, which took Title, and then Price's row Accept was gone and only "Fix on screenshot" (check product 2) was left. The script was fixed (row Accept first). Proof pages: GLOSTAD 3-seat dark grey, KIVIK 3-seat, GLOSTAD 2-seat dark grey; 77 products found.
-- 2: tripped at step 4 — reachability: "This website took too long to answer. Try again." (worker log: page.goto timeout 30 s on the listing). This attempt is the entry recorded below.
-- 3: not finished — steps 1–4 passed (ikea-1..4.png are from this attempt; "This website opens normally."); Claude Code killed the vitest process during step 5 because the machine ran low on memory (1.8 GB free afterwards). Not restarted.
+## Triage — Re-run 3 (head f0ace845, written by hand, 2026-10-26)
+
+IKEA ran alone (one vitest process, `FIRST_RUN_MERGE=1`, `WORKER_BROWSERS=1`, 3.2 GB free). Gymshark and Skullcandy
+were not re-run on this head, because IKEA did not pass. Their entries above are from Re-run 2 (head fdaefd78 plus
+script fixes).
+
+- **ikea: tripped at step 6, (a).** Steps 1–5 passed: "This website opens normally.", "76 products found", 3 ready.
+  - Proof pages: KIVIK 3-seat (1495), GLOSTAD 3-seat (449), GLOSTAD 2-seat (349).
+  - Title agreed. Price read "different place on product 1 — check it", with its Accept button.
+  - The script clicked the row's own **Accept Price** first, as the ruling allows. It accepted Price on products 2
+    and 3 only.
+  - Product 1 (1495) stayed "suggested", and the row then read "check product 1" with only **Fix on screenshot**.
+    The Verify bar says "Price still needs product 1" (`ikea-6-trip.png`).
+  - So the row's one-click Accept does not accept the cell its own warning names. The customer is left with
+    marking by hand. 5b734eb5 kept the Accept from being taken away by Accept all agreed, but the Accept itself
+    still leaves the odd cell.
+  - Script reading: no script problem. The click happened (recorded in `facts.rowAccepted`), and the trip is what
+    the page shows after it.
+
+Re-run 2's IKEA screenshots (attempt 3, steps 1–4) are kept in `re-run-2/`.
+
 ## Triage — Re-run 2 (head fdaefd78 + script fixes, written by hand, 2026-10-26)
 
 **Ruling recorded (spec §2 step 6, amended 2026-10-25):** a row's own one-click Accept counts as a normal action for
