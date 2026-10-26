@@ -1,25 +1,25 @@
 {
-  "startedAt": "2026-10-26T10:33:07.607Z",
+  "startedAt": "2026-10-26T10:53:32.395Z",
   "app": "http://localhost:3100",
   "api": "http://localhost:4100",
   "sites": [
     {
       "site": "gymshark",
       "listing": "https://www.gymshark.com/collections/leggings/womens",
-      "email": "first-run-gymshark-1793008265556@example.com",
+      "email": "first-run-gymshark-1793011531017@example.com",
       "steps": [
         {
           "n": 1,
           "name": "Sign in and land on /projects with its empty state",
           "ok": true,
-          "ms": 1381,
+          "ms": 1109,
           "screenshot": "gymshark-1.png"
         },
         {
           "n": 2,
           "name": "New project \"First run gymshark\"",
           "ok": true,
-          "ms": 254,
+          "ms": 244,
           "screenshot": "gymshark-2.png",
           "detail": "project first-run-gymshark"
         },
@@ -27,14 +27,14 @@
           "n": 3,
           "name": "Fields: Title (Text) and Price (Money) from the catalogue",
           "ok": true,
-          "ms": 1279,
+          "ms": 1010,
           "screenshot": "gymshark-3.png"
         },
         {
           "n": 4,
           "name": "Add website with the listing page; land on Verification; the reachability line",
           "ok": true,
-          "ms": 13361,
+          "ms": 13042,
           "screenshot": "gymshark-4.png",
           "detail": "website \"Gymshark\" (gymshark); This website opens normally."
         },
@@ -42,7 +42,7 @@
           "n": 5,
           "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
           "ok": true,
-          "ms": 74858,
+          "ms": 70865,
           "screenshot": "gymshark-5.png",
           "detail": "124 products found · a pager too; 3 ready"
         },
@@ -50,7 +50,7 @@
           "n": 6,
           "name": "Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages",
           "ok": true,
-          "ms": 1272,
+          "ms": 1206,
           "screenshot": "gymshark-6.png",
           "detail": "Title on product 1: suggested, Everyday Seamless Leggings | Title on product 2: suggested, Everyday Seamless Flared Leggings | Title on product 3: suggested, Poise Seamless Leggings | Price on product 1: suggested, 38 | Price on product 2: suggested, 38 | Price on product 3: suggested, 30"
         },
@@ -58,7 +58,7 @@
           "n": 7,
           "name": "Verify: \"Verify 2 fields\", both fields certified, no customer-visible money",
           "ok": true,
-          "ms": 34859,
+          "ms": 34813,
           "screenshot": "gymshark-7.png",
           "detail": "certified title, price in 3 s; Title \"verified 3/3\", Price \"verified 3/3\""
         },
@@ -66,15 +66,15 @@
           "n": 8,
           "name": "Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial",
           "ok": true,
-          "ms": 363175,
+          "ms": 345791,
           "screenshot": "gymshark-8.png",
-          "detail": "listing page already saved; sample done in 175 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run eccd6b18 reads \"Extraction Done\" after 103 s"
+          "detail": "listing page already saved; sample done in 157 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run 00d2f486 reads \"Extraction Done\" after 105 s"
         },
         {
           "n": 9,
           "name": "Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric",
           "ok": true,
-          "ms": 403,
+          "ms": 378,
           "screenshot": "gymshark-9.png",
           "detail": "CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows"
         },
@@ -82,7 +82,7 @@
           "n": 10,
           "name": "Project Output shows the rows",
           "ok": true,
-          "ms": 934,
+          "ms": 714,
           "screenshot": "gymshark-10.png",
           "detail": "10 rows on Output"
         },
@@ -177,8 +177,8 @@
             ]
           }
         },
-        "runSeconds": 103,
-        "runId": "eccd6b18-e905-4a71-91d1-3baa1fee8ec3",
+        "runSeconds": 105,
+        "runId": "00d2f486-6500-4004-b5fa-93d72e666b35",
         "download": {
           "csvHeader": [
             "Title",
@@ -216,25 +216,25 @@
           ]
         }
       },
-      "ranAt": "2026-10-26T09:51:05.736Z"
+      "ranAt": "2026-10-26T10:45:31.170Z"
     },
     {
       "site": "skullcandy",
       "listing": "https://www.skullcandy.com/collections/wireless-wired-bluetooth-headphones",
-      "email": "first-run-skullcandy-1793008779913@example.com",
+      "email": "first-run-skullcandy-1793012012395@example.com",
       "steps": [
         {
           "n": 1,
           "name": "Sign in and land on /projects with its empty state",
           "ok": true,
-          "ms": 1244,
+          "ms": 1009,
           "screenshot": "skullcandy-1.png"
         },
         {
           "n": 2,
           "name": "New project \"First run skullcandy\"",
           "ok": true,
-          "ms": 259,
+          "ms": 285,
           "screenshot": "skullcandy-2.png",
           "detail": "project first-run-skullcandy"
         },
@@ -242,14 +242,14 @@
           "n": 3,
           "name": "Fields: Title (Text) and Price (Money) from the catalogue",
           "ok": true,
-          "ms": 1190,
+          "ms": 1001,
           "screenshot": "skullcandy-3.png"
         },
         {
           "n": 4,
           "name": "Add website with the listing page; land on Verification; the reachability line",
           "ok": true,
-          "ms": 14233,
+          "ms": 14018,
           "screenshot": "skullcandy-4.png",
           "detail": "website \"Skullcandy\" (skullcandy); This website opens normally."
         },
@@ -257,7 +257,7 @@
           "n": 5,
           "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
           "ok": true,
-          "ms": 93040,
+          "ms": 88947,
           "screenshot": "skullcandy-5.png",
           "detail": "15 products found · a pager too; 3 ready"
         },
@@ -265,7 +265,7 @@
           "n": 6,
           "name": "Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages",
           "ok": true,
-          "ms": 1231,
+          "ms": 1154,
           "screenshot": "skullcandy-6.png",
           "detail": "Title on product 1: suggested, Crusher® ANC 2 | Title on product 2: suggested, Crusher® 720 | Title on product 3: suggested, Crusher® Evo | Price on product 1: suggested, 259.99 | Price on product 2: suggested, 209.99 | Price on product 3: suggested, 209.99"
         },
@@ -273,7 +273,7 @@
           "n": 7,
           "name": "Verify: \"Verify 2 fields\", both fields certified, no customer-visible money",
           "ok": true,
-          "ms": 37965,
+          "ms": 37797,
           "screenshot": "skullcandy-7.png",
           "detail": "certified title, price in 6 s; Title \"verified 3/3\", Price \"verified 3/3\""
         },
@@ -281,15 +281,15 @@
           "n": 8,
           "name": "Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial",
           "ok": true,
-          "ms": 416328,
+          "ms": 436414,
           "screenshot": "skullcandy-8.png",
-          "detail": "listing page already saved; sample done in 238 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run 5ef3b732 reads \"Extraction Done\" after 93 s"
+          "detail": "listing page already saved; sample done in 250 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run c6372f01 reads \"Extraction Done\" after 96 s"
         },
         {
           "n": 9,
           "name": "Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric",
           "ok": true,
-          "ms": 363,
+          "ms": 410,
           "screenshot": "skullcandy-9.png",
           "detail": "CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows"
         },
@@ -297,7 +297,7 @@
           "n": 10,
           "name": "Project Output shows the rows",
           "ok": true,
-          "ms": 871,
+          "ms": 700,
           "screenshot": "skullcandy-10.png",
           "detail": "10 rows on Output"
         },
@@ -351,6 +351,12 @@
                 "transform": "identity"
               },
               {
+                "path": "product.variants[0].price",
+                "source": "api",
+                "container": "https://www.skullcandy.com/products/crusher-anc-2-sensory-bass-headphones-with-active-noise-canceling.json",
+                "transform": "identity"
+              },
+              {
                 "path": "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" no-js-hidden \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" price \")]/div[@class=\"price__container\"]/div[@class=\"price__regular\"]/span[contains(concat(\" \",normalize-space(@class),\" \"),\" price-item \")]",
                 "source": "xpath",
                 "transform": "identity"
@@ -379,6 +385,12 @@
                 "transform": "identity"
               },
               {
+                "path": "product.title",
+                "source": "api",
+                "container": "https://www.skullcandy.com/products/crusher-anc-2-sensory-bass-headphones-with-active-noise-canceling.json",
+                "transform": "identity"
+              },
+              {
                 "path": "products[0].name",
                 "source": "api",
                 "container": "https://api-cdn.yotpo.com/v3/storefront/store/DMWE2vqdaiL2vSEKQf2zWCbC2i8wc1uLafmvoCNG/product/7191197089849/reviews",
@@ -392,8 +404,8 @@
             ]
           }
         },
-        "runSeconds": 93,
-        "runId": "5ef3b732-3a10-4e6d-bf44-3474e9cb7a8e",
+        "runSeconds": 96,
+        "runId": "c6372f01-0382-43d4-a8e4-f15634a1ed7c",
         "download": {
           "csvHeader": [
             "Title",
@@ -411,6 +423,12 @@
           ],
           "sample": [
             {
+              "Title": "Crusher® 540 Active",
+              "Price": 209.99,
+              "_url": "https://www.skullcandy.com/products/crusher-540-active",
+              "_page_number": 1
+            },
+            {
               "Title": "Crusher® ANC 2",
               "Price": 259.99,
               "_url": "https://www.skullcandy.com/products/crusher-anc-2-sensory-bass-headphones-with-active-noise-canceling",
@@ -421,17 +439,11 @@
               "Price": 209.99,
               "_url": "https://www.skullcandy.com/products/crusher-720-headphones",
               "_page_number": 1
-            },
-            {
-              "Title": "Crusher® Evo",
-              "Price": 209.99,
-              "_url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound",
-              "_page_number": 1
             }
           ]
         }
       },
-      "ranAt": "2026-10-26T09:59:40.038Z"
+      "ranAt": "2026-10-26T10:53:32.520Z"
     },
     {
       "site": "ikea",

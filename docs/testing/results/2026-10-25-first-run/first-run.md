@@ -1,36 +1,36 @@
 <!-- first-run:generated:start — written by first-run.test.ts; edit outside these markers -->
-# First run — 2026-10-26T10:33:07.607Z
+# First run — 2026-10-26T10:53:32.395Z
 
 App http://localhost:3100, api http://localhost:4100.
 
 ## gymshark — passed (10 of 10 steps)
 
-Listing: https://www.gymshark.com/collections/leggings/womens · ran 2026-10-26T09:51:05.736Z
+Listing: https://www.gymshark.com/collections/leggings/womens · ran 2026-10-26T10:45:31.170Z
 
 1. ok — Sign in and land on /projects with its empty state (1 s)
 2. ok — New project "First run gymshark": project first-run-gymshark (0 s)
 3. ok — Fields: Title (Text) and Price (Money) from the catalogue (1 s)
 4. ok — Add website with the listing page; land on Verification; the reachability line: website "Gymshark" (gymshark); This website opens normally. (13 s)
-5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 124 products found · a pager too; 3 ready (75 s)
+5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 124 products found · a pager too; 3 ready (71 s)
 6. ok — Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages: Title on product 1: suggested, Everyday Seamless Leggings | Title on product 2: suggested, Everyday Seamless Flared Leggings | Title on product 3: suggested, Poise Seamless Leggings | Price on product 1: suggested, 38 | Price on product 2: suggested, 38 | Price on product 3: suggested, 30 (1 s)
 7. ok — Verify: "Verify 2 fields", both fields certified, no customer-visible money: certified title, price in 3 s; Title "verified 3/3", Price "verified 3/3" (35 s)
-8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 175 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run eccd6b18 reads "Extraction Done" after 103 s (363 s)
+8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 157 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run 00d2f486 reads "Extraction Done" after 105 s (346 s)
 9. ok — Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric: CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows (0 s)
 10. ok — Project Output shows the rows: 10 rows on Output (1 s)
 11. ok — Cleanup: the throwaway org and user deleted (guarded delete): deleted
 
 ## skullcandy — passed (10 of 10 steps)
 
-Listing: https://www.skullcandy.com/collections/wireless-wired-bluetooth-headphones · ran 2026-10-26T09:59:40.038Z
+Listing: https://www.skullcandy.com/collections/wireless-wired-bluetooth-headphones · ran 2026-10-26T10:53:32.520Z
 
 1. ok — Sign in and land on /projects with its empty state (1 s)
 2. ok — New project "First run skullcandy": project first-run-skullcandy (0 s)
 3. ok — Fields: Title (Text) and Price (Money) from the catalogue (1 s)
 4. ok — Add website with the listing page; land on Verification; the reachability line: website "Skullcandy" (skullcandy); This website opens normally. (14 s)
-5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 15 products found · a pager too; 3 ready (93 s)
+5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 15 products found · a pager too; 3 ready (89 s)
 6. ok — Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages: Title on product 1: suggested, Crusher® ANC 2 | Title on product 2: suggested, Crusher® 720 | Title on product 3: suggested, Crusher® Evo | Price on product 1: suggested, 259.99 | Price on product 2: suggested, 209.99 | Price on product 3: suggested, 209.99 (1 s)
 7. ok — Verify: "Verify 2 fields", both fields certified, no customer-visible money: certified title, price in 6 s; Title "verified 3/3", Price "verified 3/3" (38 s)
-8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 238 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run 5ef3b732 reads "Extraction Done" after 93 s (416 s)
+8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 250 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run c6372f01 reads "Extraction Done" after 96 s (436 s)
 9. ok — Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric: CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows (0 s)
 10. ok — Project Output shows the rows: 10 rows on Output (1 s)
 11. ok — Cleanup: the throwaway org and user deleted (guarded delete): deleted
@@ -53,22 +53,32 @@ Listing: https://www.ikea.com/my/en/cat/sofas-fu003/ · ran 2026-10-26T10:33:07.
 
 <!-- first-run:generated:end -->
 
-## Triage — Re-run 5, the gate (head 411b6aa1, written by hand, 2026-10-26): unfinished
+## Triage — the gate, finished (head 411b6aa1, written by hand, 2026-10-26): all three pass
 
-Each site ran in its own vitest process: IKEA, then Gymshark, then Skullcandy (`FIRST_RUN_MERGE=1`,
-`WORKER_BROWSERS=1`). Free memory was 3.8 GB before IKEA and 3.1 GB before Gymshark.
+**Spec §3 done on the final code head (`411b6aa1`):** all three default sites pass 10 of 10. The app was a
+production build served by `serve.mjs` on :3100, with `WORKER_BROWSERS=1` and one vitest process per site.
 
-- **ikea: 10 of 10 on 411b6aa1.**
-  - Proof pages: GLOSTAD 3-seat (449), KIVIK (1495) and GLOSTAD 2-seat (349).
-  - Price's "different place on product 2" row was taken by its own Accept, and Verify certified both fields 3/3.
-  - The sample took 45 s, and the run read Done. The CSV, JSON and Output each held 10 rows.
-- **gymshark: steps 1–7 passed on 411b6aa1**, and Verify certified both fields 3/3 (`re-run-5-gymshark-partial/`).
-  Claude Code's low-memory stop killed the process during step 8 (the sample). It was not restarted, as the notice
-  asks. Its entry above is still Re-run 4's (12d718e9).
-- **skullcandy: not run on 411b6aa1.** Its entry above is Re-run 4's (12d718e9).
+- **ikea: 10 of 10** (run at 10:33, before the low-memory stop).
+  - 77 products found. Proof pages: GLOSTAD 3-seat (449), KIVIK (1495) and GLOSTAD 2-seat (349).
+  - Price's "different place on product 2" row was taken by its own Accept.
+  - Verify certified both fields 3/3 in 6 s. The sample took 45 s, and the run read Done in 55 s. The CSV, JSON and
+    Output each held 10 rows.
+- **gymshark: 10 of 10** (4.5 GB free at start).
+  - 124 found. Proof pages: Everyday Seamless, Everyday Seamless Flared and Poise Seamless.
+  - Verify certified both fields 3/3 in 3 s. The sample took 157 s, and the run read Done in 105 s. 10 rows.
+- **skullcandy: 10 of 10** (2.8 GB free at start).
+  - 15 found. Title from the heading ("Crusher® ANC 2", "Crusher® 720", "Crusher® Evo").
+  - Verify certified both fields 3/3 in 6 s. The sample took 250 s, and the run read Done in 96 s. 10 rows, with ®
+    kept.
+- **Route smoke:** 28 of 28 on the same isolated pair, first try (`docs/testing/screens/` restored afterwards).
 
-No trips. The route smoke was not run.
-
+Earlier on this head:
+- Re-run 5's Gymshark was stopped by the low-memory reaper during step 8; its steps 1–7 are in
+  `re-run-5-gymshark-partial/`.
+- A first try with the built app bound to 127.0.0.1 failed before step 1, class (c): Node's fetch of `localhost`
+  went to ::1. The app was re-served on `::`.
+- The script now writes the report only after it has loaded the kept sites, so a start that fails early cannot
+  blank the report (class c).
 ## Triage — Re-run 4 (head 12d718e9, written by hand, 2026-10-26): all three pass
 
 **Done (spec §3): all three default sites pass, 10 of 10, on one head (12d718e9).** Each site ran in its own vitest
