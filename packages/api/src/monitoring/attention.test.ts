@@ -49,10 +49,11 @@ describe('what needs attention (spec 2026-10-25 monitoring §2.3)', () => {
   });
 
   it('silent: running with a live lease and no progress for over half its stuckMs; recent progress or a lapsed lease is not', async () => {
-    // reachability's stuckMs is 60 s: half is 30 s, but never under 45 s — silent past 45 s.
-    const [quiet] = await db.insert(jobs).values(running({ progressAt: ago(50) })).returning();
-    await db.insert(jobs).values(running({ lockedBy: 'w:1:aaaa#t2', progressAt: ago(10) }));
-    await db.insert(jobs).values(running({ lockedBy: 'w:1:aaaa#t3', progressAt: ago(50), lockedUntil: ago(5) }));
+    // transfer-marks' stuckMs is 60 s: half is 30 s, but never under 45 s — silent past 45 s.
+    const T = { type: 'transfer-marks' };
+    const [quiet] = await db.insert(jobs).values(running({ ...T, progressAt: ago(50) })).returning();
+    await db.insert(jobs).values(running({ ...T, lockedBy: 'w:1:aaaa#t2', progressAt: ago(10) }));
+    await db.insert(jobs).values(running({ ...T, lockedBy: 'w:1:aaaa#t3', progressAt: ago(50), lockedUntil: ago(5) }));
     const items = await findAttention(q());
     expect(items).toEqual([expect.objectContaining({ kind: 'silent', jobId: quiet!.id, workerId: 'w:1:aaaa', lane: 'interactive' })]);
     expect(items[0]!.ageMs).toBeGreaterThanOrEqual(49_000);

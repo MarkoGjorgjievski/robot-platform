@@ -20,7 +20,7 @@ import { forWebsite, type WebsiteSession } from '../../proxy/website-session.js'
 import { describeListingPage, unreadListingPage, type ListingPageCheck } from '../../verify/find-product-pages.js';
 import { reachabilityResult, type Reachability } from '../../verify/reachability.js';
 import { loadProofPageCaptures } from '../../verify/proof-page-capture.js';
-import type { TransferMarksPayload } from '../types.js';
+import { REACHABILITY_TIMEOUT_MS, type TransferMarksPayload } from '../types.js';
 
 /**
  * The session an address check opens (spec 2026-10-24 proxy §2.2, §3.4): a website's address loads through that
@@ -102,7 +102,7 @@ export async function reachabilityNow(url: string, sourceId?: string): Promise<R
   const t0 = Date.now();
   try {
     return await addressSession(sourceId)(async (browser) => {
-      const capture = await browser.capture(url, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1, timeout: 30_000 });
+      const capture = await browser.capture(url, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1, timeout: REACHABILITY_TIMEOUT_MS });
       reportVerdict(hostname, capture.verdict);
       return reachabilityResult(url, capture.verdict, capture.url, Date.now() - t0);
     });
