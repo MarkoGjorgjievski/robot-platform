@@ -1,25 +1,25 @@
 {
-  "startedAt": "2026-10-26T09:34:14.900Z",
+  "startedAt": "2026-10-26T09:59:39.913Z",
   "app": "http://localhost:3100",
   "api": "http://localhost:4100",
   "sites": [
     {
       "site": "gymshark",
       "listing": "https://www.gymshark.com/collections/leggings/womens",
-      "email": "first-run-gymshark-1793003624065@example.com",
+      "email": "first-run-gymshark-1793008265556@example.com",
       "steps": [
         {
           "n": 1,
           "name": "Sign in and land on /projects with its empty state",
           "ok": true,
-          "ms": 5782,
+          "ms": 1381,
           "screenshot": "gymshark-1.png"
         },
         {
           "n": 2,
           "name": "New project \"First run gymshark\"",
           "ok": true,
-          "ms": 328,
+          "ms": 254,
           "screenshot": "gymshark-2.png",
           "detail": "project first-run-gymshark"
         },
@@ -27,14 +27,14 @@
           "n": 3,
           "name": "Fields: Title (Text) and Price (Money) from the catalogue",
           "ok": true,
-          "ms": 1675,
+          "ms": 1279,
           "screenshot": "gymshark-3.png"
         },
         {
           "n": 4,
           "name": "Add website with the listing page; land on Verification; the reachability line",
           "ok": true,
-          "ms": 21943,
+          "ms": 13361,
           "screenshot": "gymshark-4.png",
           "detail": "website \"Gymshark\" (gymshark); This website opens normally."
         },
@@ -42,7 +42,7 @@
           "n": 5,
           "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
           "ok": true,
-          "ms": 72832,
+          "ms": 74858,
           "screenshot": "gymshark-5.png",
           "detail": "124 products found · a pager too; 3 ready"
         },
@@ -50,7 +50,7 @@
           "n": 6,
           "name": "Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages",
           "ok": true,
-          "ms": 1208,
+          "ms": 1272,
           "screenshot": "gymshark-6.png",
           "detail": "Title on product 1: suggested, Everyday Seamless Leggings | Title on product 2: suggested, Everyday Seamless Flared Leggings | Title on product 3: suggested, Poise Seamless Leggings | Price on product 1: suggested, 38 | Price on product 2: suggested, 38 | Price on product 3: suggested, 30"
         },
@@ -58,7 +58,7 @@
           "n": 7,
           "name": "Verify: \"Verify 2 fields\", both fields certified, no customer-visible money",
           "ok": true,
-          "ms": 34863,
+          "ms": 34859,
           "screenshot": "gymshark-7.png",
           "detail": "certified title, price in 3 s; Title \"verified 3/3\", Price \"verified 3/3\""
         },
@@ -66,15 +66,15 @@
           "n": 8,
           "name": "Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial",
           "ok": true,
-          "ms": 393716,
+          "ms": 363175,
           "screenshot": "gymshark-8.png",
-          "detail": "listing page already saved; sample done in 178 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run 150b656e reads \"Extraction Done\" after 133 s"
+          "detail": "listing page already saved; sample done in 175 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run eccd6b18 reads \"Extraction Done\" after 103 s"
         },
         {
           "n": 9,
           "name": "Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric",
           "ok": true,
-          "ms": 884,
+          "ms": 403,
           "screenshot": "gymshark-9.png",
           "detail": "CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows"
         },
@@ -82,7 +82,7 @@
           "n": 10,
           "name": "Project Output shows the rows",
           "ok": true,
-          "ms": 1014,
+          "ms": 934,
           "screenshot": "gymshark-10.png",
           "detail": "10 rows on Output"
         },
@@ -177,8 +177,8 @@
             ]
           }
         },
-        "runSeconds": 133,
-        "runId": "150b656e-dfd3-45cb-ac42-8077b0a062ad",
+        "runSeconds": 103,
+        "runId": "eccd6b18-e905-4a71-91d1-3baa1fee8ec3",
         "download": {
           "csvHeader": [
             "Title",
@@ -216,25 +216,25 @@
           ]
         }
       },
-      "ranAt": "2026-10-26T08:33:44.310Z"
+      "ranAt": "2026-10-26T09:51:05.736Z"
     },
     {
       "site": "skullcandy",
       "listing": "https://www.skullcandy.com/collections/wireless-wired-bluetooth-headphones",
-      "email": "first-run-skullcandy-1793004630698@example.com",
+      "email": "first-run-skullcandy-1793008779913@example.com",
       "steps": [
         {
           "n": 1,
           "name": "Sign in and land on /projects with its empty state",
           "ok": true,
-          "ms": 1445,
+          "ms": 1244,
           "screenshot": "skullcandy-1.png"
         },
         {
           "n": 2,
           "name": "New project \"First run skullcandy\"",
           "ok": true,
-          "ms": 258,
+          "ms": 259,
           "screenshot": "skullcandy-2.png",
           "detail": "project first-run-skullcandy"
         },
@@ -242,14 +242,14 @@
           "n": 3,
           "name": "Fields: Title (Text) and Price (Money) from the catalogue",
           "ok": true,
-          "ms": 1239,
+          "ms": 1190,
           "screenshot": "skullcandy-3.png"
         },
         {
           "n": 4,
           "name": "Add website with the listing page; land on Verification; the reachability line",
           "ok": true,
-          "ms": 13249,
+          "ms": 14233,
           "screenshot": "skullcandy-4.png",
           "detail": "website \"Skullcandy\" (skullcandy); This website opens normally."
         },
@@ -257,7 +257,7 @@
           "n": 5,
           "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
           "ok": true,
-          "ms": 197703,
+          "ms": 93040,
           "screenshot": "skullcandy-5.png",
           "detail": "15 products found · a pager too; 3 ready"
         },
@@ -265,7 +265,7 @@
           "n": 6,
           "name": "Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages",
           "ok": true,
-          "ms": 1223,
+          "ms": 1231,
           "screenshot": "skullcandy-6.png",
           "detail": "Title on product 1: suggested, Crusher® ANC 2 | Title on product 2: suggested, Crusher® 720 | Title on product 3: suggested, Crusher® Evo | Price on product 1: suggested, 259.99 | Price on product 2: suggested, 209.99 | Price on product 3: suggested, 209.99"
         },
@@ -273,23 +273,23 @@
           "n": 7,
           "name": "Verify: \"Verify 2 fields\", both fields certified, no customer-visible money",
           "ok": true,
-          "ms": 34857,
+          "ms": 37965,
           "screenshot": "skullcandy-7.png",
-          "detail": "certified title, price in 3 s; Title \"verified 3/3\", Price \"verified 3/3\""
+          "detail": "certified title, price in 6 s; Title \"verified 3/3\", Price \"verified 3/3\""
         },
         {
           "n": 8,
           "name": "Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial",
           "ok": true,
-          "ms": 630628,
+          "ms": 416328,
           "screenshot": "skullcandy-8.png",
-          "detail": "listing page already saved; sample done in 247 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run c62941ba reads \"Extraction Done\" after 265 s"
+          "detail": "listing page already saved; sample done in 238 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run 5ef3b732 reads \"Extraction Done\" after 93 s"
         },
         {
           "n": 9,
           "name": "Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric",
           "ok": true,
-          "ms": 488,
+          "ms": 363,
           "screenshot": "skullcandy-9.png",
           "detail": "CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows"
         },
@@ -297,7 +297,7 @@
           "n": 10,
           "name": "Project Output shows the rows",
           "ok": true,
-          "ms": 903,
+          "ms": 871,
           "screenshot": "skullcandy-10.png",
           "detail": "10 rows on Output"
         },
@@ -334,7 +334,7 @@
           }
         },
         "rowAccepted": [],
-        "verifySeconds": 3,
+        "verifySeconds": 6,
         "verify": {
           "allPassed": true,
           "currentKeys": [
@@ -348,12 +348,6 @@
               {
                 "path": "offers.price",
                 "source": "json-ld",
-                "transform": "identity"
-              },
-              {
-                "path": "product.variants[0].price",
-                "source": "api",
-                "container": "https://www.skullcandy.com/products/crusher-anc-2-sensory-bass-headphones-with-active-noise-canceling.json",
                 "transform": "identity"
               },
               {
@@ -385,12 +379,6 @@
                 "transform": "identity"
               },
               {
-                "path": "product.title",
-                "source": "api",
-                "container": "https://www.skullcandy.com/products/crusher-anc-2-sensory-bass-headphones-with-active-noise-canceling.json",
-                "transform": "identity"
-              },
-              {
                 "path": "products[0].name",
                 "source": "api",
                 "container": "https://api-cdn.yotpo.com/v3/storefront/store/DMWE2vqdaiL2vSEKQf2zWCbC2i8wc1uLafmvoCNG/product/7191197089849/reviews",
@@ -404,8 +392,8 @@
             ]
           }
         },
-        "runSeconds": 265,
-        "runId": "c62941ba-81e9-4d09-adbf-54d58a9433d2",
+        "runSeconds": 93,
+        "runId": "5ef3b732-3a10-4e6d-bf44-3474e9cb7a8e",
         "download": {
           "csvHeader": [
             "Title",
@@ -443,25 +431,25 @@
           ]
         }
       },
-      "ranAt": "2026-10-26T08:50:30.854Z"
+      "ranAt": "2026-10-26T09:59:40.038Z"
     },
     {
       "site": "ikea",
       "listing": "https://www.ikea.com/my/en/cat/sofas-fu003/",
-      "email": "first-run-ikea-1793007254900@example.com",
+      "email": "first-run-ikea-1793008020530@example.com",
       "steps": [
         {
           "n": 1,
           "name": "Sign in and land on /projects with its empty state",
           "ok": true,
-          "ms": 5226,
+          "ms": 3737,
           "screenshot": "ikea-1.png"
         },
         {
           "n": 2,
           "name": "New project \"First run ikea\"",
           "ok": true,
-          "ms": 269,
+          "ms": 278,
           "screenshot": "ikea-2.png",
           "detail": "project first-run-ikea"
         },
@@ -469,14 +457,14 @@
           "n": 3,
           "name": "Fields: Title (Text) and Price (Money) from the catalogue",
           "ok": true,
-          "ms": 1662,
+          "ms": 1676,
           "screenshot": "ikea-3.png"
         },
         {
           "n": 4,
           "name": "Add website with the listing page; land on Verification; the reachability line",
           "ok": true,
-          "ms": 12942,
+          "ms": 9832,
           "screenshot": "ikea-4.png",
           "detail": "website \"Ikea\" (ikea); This website opens normally."
         },
@@ -484,17 +472,49 @@
           "n": 5,
           "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
           "ok": true,
-          "ms": 45528,
+          "ms": 42557,
           "screenshot": "ikea-5.png",
-          "detail": "76 products found · a pager too; 3 ready"
+          "detail": "77 products found · a pager too; 3 ready"
         },
         {
           "n": 6,
           "name": "Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages",
-          "ok": false,
-          "ms": 10398,
-          "screenshot": "ikea-6-trip.png",
-          "detail": "not accepted after Accept all agreed: Price on product 1: Price on product 1: suggested, 1495"
+          "ok": true,
+          "ms": 1272,
+          "screenshot": "ikea-6.png",
+          "detail": "Price (\"different place on product 2 — check it Accept\") accepted with its own Accept; Title on product 1: suggested, GLOSTAD 3-seat sofa, Knisa dark grey | Title on product 2: suggested, KIVIK 3-seat sofa, Tibbleby beige/grey | Title on product 3: suggested, GLOSTAD 2-seat sofa, Knisa dark grey | Price on product 1: suggested, 449 | Price on product 2: suggested, 1495 | Price on product 3: suggested, 349"
+        },
+        {
+          "n": 7,
+          "name": "Verify: \"Verify 2 fields\", both fields certified, no customer-visible money",
+          "ok": true,
+          "ms": 37975,
+          "screenshot": "ikea-7.png",
+          "detail": "certified title, price in 6 s; Title \"verified 3/3\", Price \"verified 3/3\""
+        },
+        {
+          "n": 8,
+          "name": "Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial",
+          "ok": true,
+          "ms": 120875,
+          "screenshot": "ikea-8.png",
+          "detail": "listing page already saved; sample done in 48 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run da96e007 reads \"Extraction Done\" after 55 s"
+        },
+        {
+          "n": 9,
+          "name": "Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric",
+          "ok": true,
+          "ms": 613,
+          "screenshot": "ikea-9.png",
+          "detail": "CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows"
+        },
+        {
+          "n": 10,
+          "name": "Project Output shows the rows",
+          "ok": true,
+          "ms": 930,
+          "screenshot": "ikea-10.png",
+          "detail": "10 rows on Output"
         },
         {
           "n": 11,
@@ -505,73 +525,110 @@
           "detail": "deleted"
         }
       ],
-      "trip": {
-        "step": 6,
-        "name": "Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages",
-        "error": "not accepted after Accept all agreed: Price on product 1: Price on product 1: suggested, 1495",
-        "screenshot": "ikea-6-trip.png",
-        "visibleText": "www.ikea.com\nVerification\nExtract\nRuns\nSettings\nFind products\nNo listing? Paste product pages instead\n\n76 products found · a pager too\n\nAccept all agreed (0)\nNothing agreed to accept\nVerify 2 fields\nPrice still needs product 1\n\nsaved\n\nGo to Extract\n\nUnlocks when every field is verified\n\nSelect a cell to see its full value.\n\nField\n\nKIVIK 3-seat sofa, Tibbleby beige/grey\n\n/my/en/p/kivi…rey-s59440592/\n\nready\n×\n\n\nGLOSTAD 3-seat sofa, Knisa dark grey\n\n/my/en/p/glos…grey-40595937/\n\nready\n×\n\n\nGLOSTAD 2-seat sofa, Knisa dark grey\n\n/my/en/p/glos…grey-10489009/\n\nready\n×\n\n+ Add product\n\tStatus\n\nTitle\nText\n\nKIVIK 3-seat sofa, Tibbleby beige/grey\nFix\n\nGLOSTAD 3-seat sofa, Knisa dark grey\nFix\n\nGLOSTAD 2-seat sofa, Knisa dark grey\nFix\n\n\nPrice\nMoney\n\n1495\nFix\n\n449\nFix\n\n349\nFix\n\ncheck product 1\nFix on screenshot\n\nField names and types come from the project. Edit fields",
-        "lastAnswers": [
-          "200 GET /trpc/projects.get",
-          "200 POST /trpc/sources.createInProject",
-          "200 GET /trpc/projects.get",
-          "200 GET /trpc/sources.get",
-          "200 GET /trpc/datasets.variants,sources.verifyEstimate,sources.verificationStatus,sources.driftCheck,sources.attention,sources.coverage,sources.reachability",
-          "200 POST /trpc/sources.checkListingPage",
-          "200 GET /trpc/sources.proofPageCaptures",
-          "200 POST /trpc/sources.captureProofPage,sources.captureProofPage,sources.captureProofPage",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 POST /trpc/sources.updateBinding",
-          "200 GET /trpc/sources.get,projects.get,sources.verifyEstimate,sources.verificationStatus",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.suggestMarks",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.suggestMarks",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.suggestMarks",
-          "200 POST /trpc/sources.updateBinding",
-          "200 GET /trpc/sources.get,projects.get,sources.verifyEstimate,sources.verificationStatus"
-        ],
-        "problems": []
-      },
+      "trip": null,
       "cleanup": "deleted",
       "facts": {
-        "found": "76 products found · a pager too",
+        "found": "77 products found · a pager too",
         "proofPages": [
-          "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-tibbleby-beige-grey-s59440592/",
           "https://www.ikea.com/my/en/p/glostad-3-seat-sofa-knisa-dark-grey-40595937/",
+          "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-tibbleby-beige-grey-s59440592/",
           "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/"
         ],
         "beforeAccept": {
           "rows": {
             "Title": "agreed Accept",
-            "Price": "different place on product 1 — check it Accept"
+            "Price": "different place on product 2 — check it Accept"
           },
           "cells": {
-            "Title 1": "Title on product 1: suggested, KIVIK 3-seat sofa, Tibbleby beige/grey",
-            "Title 2": "Title on product 2: suggested, GLOSTAD 3-seat sofa, Knisa dark grey",
+            "Title 1": "Title on product 1: suggested, GLOSTAD 3-seat sofa, Knisa dark grey",
+            "Title 2": "Title on product 2: suggested, KIVIK 3-seat sofa, Tibbleby beige/grey",
             "Title 3": "Title on product 3: suggested, GLOSTAD 2-seat sofa, Knisa dark grey",
-            "Price 1": "Price on product 1: suggested, 1495",
-            "Price 2": "Price on product 2: suggested, 449",
+            "Price 1": "Price on product 1: suggested, 449",
+            "Price 2": "Price on product 2: suggested, 1495",
             "Price 3": "Price on product 3: suggested, 349"
           }
         },
         "rowAccepted": [
-          "Price (\"different place on product 1 — check it Accept\") accepted with its own Accept"
-        ]
+          "Price (\"different place on product 2 — check it Accept\") accepted with its own Accept"
+        ],
+        "verifySeconds": 6,
+        "verify": {
+          "allPassed": true,
+          "currentKeys": [
+            "title",
+            "price"
+          ],
+          "runnable": true,
+          "failedRun": null,
+          "certified": {
+            "price": [
+              {
+                "path": "price",
+                "source": "api",
+                "container": "https://www.ikea.com/my/en/products/937/40595937.json",
+                "transform": "identity"
+              },
+              {
+                "path": "priceExclTax",
+                "source": "api",
+                "container": "https://www.ikea.com/my/en/products/937/40595937.json",
+                "transform": "identity"
+              }
+            ],
+            "title": [
+              {
+                "path": "//*[@id=\"content\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-page js-product-pip\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[@class=\"pipf-price-package\"]/div[@class=\"pipf-price-package__price-module-wrapper\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipcom-price-module \")]/div[@class=\"pipcom-price-module__information\"]/h1[@class=\"pipcom-text pipcom-typography-heading-s\"]",
+                "source": "xpath",
+                "transform": "identity"
+              },
+              {
+                "path": "//body/div[2]/main[@class=\"main no-outline\"]/div[@class=\"pipf-content-container\"]/div[@class=\"pipf-page js-product-pip\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipf-page__right-container \")]/div[@class=\"pipf-page__right-container-content\"]/div[@class=\"pipf-price-package\"]/div[@class=\"pipf-price-package__price-module-wrapper\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" pipcom-price-module \")]/div[@class=\"pipcom-price-module__information\"]/h1[@class=\"pipcom-text pipcom-typography-heading-s\"]",
+                "source": "xpath",
+                "transform": "identity"
+              }
+            ]
+          }
+        },
+        "runSeconds": 55,
+        "runId": "da96e007-f988-4ab3-80f0-a0dd7fc18feb",
+        "download": {
+          "csvHeader": [
+            "Title",
+            "Price",
+            "_url",
+            "_page_number"
+          ],
+          "csvRows": 10,
+          "jsonRows": 10,
+          "jsonKeys": [
+            "Title",
+            "Price",
+            "_url",
+            "_page_number"
+          ],
+          "sample": [
+            {
+              "Title": "GLOSTAD 3-seat sofa, Knisa dark grey",
+              "Price": 449,
+              "_url": "https://www.ikea.com/my/en/p/glostad-3-seat-sofa-knisa-dark-grey-40595937/",
+              "_page_number": 1
+            },
+            {
+              "Title": "KIVIK 3-seat sofa, Tibbleby beige/grey",
+              "Price": 1495,
+              "_url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-tibbleby-beige-grey-s59440592/",
+              "_page_number": 1
+            },
+            {
+              "Title": "GLOSTAD 2-seat sofa, Knisa dark grey",
+              "Price": 349,
+              "_url": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/",
+              "_page_number": 1
+            }
+          ]
+        }
       },
-      "ranAt": "2026-10-26T09:34:15.030Z"
+      "ranAt": "2026-10-26T09:47:00.667Z"
     }
   ]
 }

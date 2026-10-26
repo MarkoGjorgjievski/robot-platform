@@ -605,8 +605,25 @@ function writeReport() {
     for (const x of s.steps) lines.push(`${x.n}. ${x.ok ? 'ok' : 'TRIP'} — ${x.name}${x.detail ? `: ${x.detail}` : ''}${x.ms ? ` (${Math.round(x.ms / 1000)} s)` : ''}`);
     lines.push('');
   }
-  writeFileSync(path.join(OUT, 'first-run.md'), lines.join('\n'));
+  // Only the part between the markers is the script's; everything around it (the hand-written triage) is kept.
+  // A file without the markers is kept whole, below a fresh generated block.
+  const file = path.join(OUT, 'first-run.md');
+  const block = `${MD_START}\n${lines.join('\n')}\n${MD_END}`;
+  let prior = '';
+  try {
+    prior = readFileSync(file, 'utf8');
+  } catch {
+    // No report yet.
+  }
+  const a = prior.indexOf(MD_START);
+  const b = prior.indexOf(MD_END);
+  const next =
+    a >= 0 && b > a ? prior.slice(0, a) + block + prior.slice(b + MD_END.length) : `${block}\n${prior ? `\n${prior}` : ''}`;
+  writeFileSync(file, next.endsWith('\n') ? next : `${next}\n`);
 }
+
+const MD_START = '<!-- first-run:generated:start — written by first-run.test.ts; edit outside these markers -->';
+const MD_END = '<!-- first-run:generated:end -->';
 
 beforeAll(async () => {
   if (!ENABLED) return;

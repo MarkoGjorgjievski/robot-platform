@@ -1,50 +1,83 @@
-# First run — 2026-10-26T09:34:14.900Z
+<!-- first-run:generated:start — written by first-run.test.ts; edit outside these markers -->
+# First run — 2026-10-26T09:59:39.913Z
 
 App http://localhost:3100, api http://localhost:4100.
 
 ## gymshark — passed (10 of 10 steps)
 
-Listing: https://www.gymshark.com/collections/leggings/womens · ran 2026-10-26T08:33:44.310Z
+Listing: https://www.gymshark.com/collections/leggings/womens · ran 2026-10-26T09:51:05.736Z
 
-1. ok — Sign in and land on /projects with its empty state (6 s)
+1. ok — Sign in and land on /projects with its empty state (1 s)
 2. ok — New project "First run gymshark": project first-run-gymshark (0 s)
-3. ok — Fields: Title (Text) and Price (Money) from the catalogue (2 s)
-4. ok — Add website with the listing page; land on Verification; the reachability line: website "Gymshark" (gymshark); This website opens normally. (22 s)
-5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 124 products found · a pager too; 3 ready (73 s)
+3. ok — Fields: Title (Text) and Price (Money) from the catalogue (1 s)
+4. ok — Add website with the listing page; land on Verification; the reachability line: website "Gymshark" (gymshark); This website opens normally. (13 s)
+5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 124 products found · a pager too; 3 ready (75 s)
 6. ok — Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages: Title on product 1: suggested, Everyday Seamless Leggings | Title on product 2: suggested, Everyday Seamless Flared Leggings | Title on product 3: suggested, Poise Seamless Leggings | Price on product 1: suggested, 38 | Price on product 2: suggested, 38 | Price on product 3: suggested, 30 (1 s)
 7. ok — Verify: "Verify 2 fields", both fields certified, no customer-visible money: certified title, price in 3 s; Title "verified 3/3", Price "verified 3/3" (35 s)
-8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 178 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run 150b656e reads "Extraction Done" after 133 s (394 s)
-9. ok — Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric: CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows (1 s)
+8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 175 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run eccd6b18 reads "Extraction Done" after 103 s (363 s)
+9. ok — Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric: CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows (0 s)
 10. ok — Project Output shows the rows: 10 rows on Output (1 s)
 11. ok — Cleanup: the throwaway org and user deleted (guarded delete): deleted
 
 ## skullcandy — passed (10 of 10 steps)
 
-Listing: https://www.skullcandy.com/collections/wireless-wired-bluetooth-headphones · ran 2026-10-26T08:50:30.854Z
+Listing: https://www.skullcandy.com/collections/wireless-wired-bluetooth-headphones · ran 2026-10-26T09:59:40.038Z
 
 1. ok — Sign in and land on /projects with its empty state (1 s)
 2. ok — New project "First run skullcandy": project first-run-skullcandy (0 s)
 3. ok — Fields: Title (Text) and Price (Money) from the catalogue (1 s)
-4. ok — Add website with the listing page; land on Verification; the reachability line: website "Skullcandy" (skullcandy); This website opens normally. (13 s)
-5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 15 products found · a pager too; 3 ready (198 s)
+4. ok — Add website with the listing page; land on Verification; the reachability line: website "Skullcandy" (skullcandy); This website opens normally. (14 s)
+5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 15 products found · a pager too; 3 ready (93 s)
 6. ok — Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages: Title on product 1: suggested, Crusher® ANC 2 | Title on product 2: suggested, Crusher® 720 | Title on product 3: suggested, Crusher® Evo | Price on product 1: suggested, 259.99 | Price on product 2: suggested, 209.99 | Price on product 3: suggested, 209.99 (1 s)
-7. ok — Verify: "Verify 2 fields", both fields certified, no customer-visible money: certified title, price in 3 s; Title "verified 3/3", Price "verified 3/3" (35 s)
-8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 247 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run c62941ba reads "Extraction Done" after 265 s (631 s)
+7. ok — Verify: "Verify 2 fields", both fields certified, no customer-visible money: certified title, price in 6 s; Title "verified 3/3", Price "verified 3/3" (38 s)
+8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 238 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run 5ef3b732 reads "Extraction Done" after 93 s (416 s)
 9. ok — Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric: CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows (0 s)
 10. ok — Project Output shows the rows: 10 rows on Output (1 s)
 11. ok — Cleanup: the throwaway org and user deleted (guarded delete): deleted
 
-## ikea — tripped at step 6 (5 of 10 steps)
+## ikea — passed (10 of 10 steps)
 
-Listing: https://www.ikea.com/my/en/cat/sofas-fu003/ · ran 2026-10-26T09:34:15.030Z
+Listing: https://www.ikea.com/my/en/cat/sofas-fu003/ · ran 2026-10-26T09:47:00.667Z
 
-1. ok — Sign in and land on /projects with its empty state (5 s)
+1. ok — Sign in and land on /projects with its empty state (4 s)
 2. ok — New project "First run ikea": project first-run-ikea (0 s)
 3. ok — Fields: Title (Text) and Price (Money) from the catalogue (2 s)
-4. ok — Add website with the listing page; land on Verification; the reachability line: website "Ikea" (ikea); This website opens normally. (13 s)
-5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 76 products found · a pager too; 3 ready (46 s)
-6. TRIP — Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages: not accepted after Accept all agreed: Price on product 1: Price on product 1: suggested, 1495 (10 s)
+4. ok — Add website with the listing page; land on Verification; the reachability line: website "Ikea" (ikea); This website opens normally. (10 s)
+5. ok — Find products: "N products found" (N ≥ 3) and three proof pages ready: 77 products found · a pager too; 3 ready (43 s)
+6. ok — Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages: Price ("different place on product 2 — check it Accept") accepted with its own Accept; Title on product 1: suggested, GLOSTAD 3-seat sofa, Knisa dark grey | Title on product 2: suggested, KIVIK 3-seat sofa, Tibbleby beige/grey | Title on product 3: suggested, GLOSTAD 2-seat sofa, Knisa dark grey | Price on product 1: suggested, 449 | Price on product 2: suggested, 1495 | Price on product 3: suggested, 349 (1 s)
+7. ok — Verify: "Verify 2 fields", both fields certified, no customer-visible money: certified title, price in 6 s; Title "verified 3/3", Price "verified 3/3" (38 s)
+8. ok — Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial: listing page already saved; sample done in 48 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run da96e007 reads "Extraction Done" after 55 s (121 s)
+9. ok — Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric: CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows (1 s)
+10. ok — Project Output shows the rows: 10 rows on Output (1 s)
 11. ok — Cleanup: the throwaway org and user deleted (guarded delete): deleted
+
+<!-- first-run:generated:end -->
+
+## Triage — Re-run 4 (head 12d718e9, written by hand, 2026-10-26): all three pass
+
+**Done (spec §3): all three default sites pass, 10 of 10, on one head (12d718e9).** Each site ran in its own vitest
+process, in this order: IKEA, then Gymshark, then Skullcandy. Every run used `FIRST_RUN_MERGE=1`, the isolated
+keyless pair and `WORKER_BROWSERS=1`, with 2.9–3.3 GB free before each site.
+
+- **ikea: 10 of 10** (228 s).
+  - Proof pages: GLOSTAD 3-seat (449), KIVIK 3-seat (1495) and GLOSTAD 2-seat (349). Title agreed.
+  - Price read "different place on product 2 — check it". Its own **Accept** took all three cells (the ruling, and
+    fix 12d718e9).
+  - Verify certified both fields 3/3 in 6 s. The sample took 48 s, and the run read Done after 55 s.
+  - The CSV and JSON held 10 rows; Output showed 10 rows. The run page links the listing.
+- **gymshark: 10 of 10** (501 s).
+  - Proof pages: Everyday Seamless, Everyday Seamless Flared and Poise; prices 38 / 38 / 30. Both rows agreed.
+  - Verify certified both fields 3/3. The sample took 175 s, and the run read Done after 103 s.
+  - 10 rows, with "SoftSense™" and "CottonMove™" kept in the stored text. The run links the listing.
+- **skullcandy: 10 of 10** (576 s).
+  - Title from the heading: "Crusher® ANC 2", "Crusher® 720", "Crusher® Evo". Both rows agreed.
+  - Verify certified both fields 3/3. The sample took 238 s.
+  - The run read Done, and the CSV, JSON and Output each held 10 rows.
+
+No trips, and no money appeared in the app's own text on any Verification tab.
+
+Script change, class (c): `first-run.md` now keeps everything outside the generated markers, so the hand-written
+triage below survives a run. Earlier runs' screenshots moved to `re-run-2/` and `re-run-3/`; nothing was deleted.
 
 ## Triage — Re-run 3 (head f0ace845, written by hand, 2026-10-26)
 
