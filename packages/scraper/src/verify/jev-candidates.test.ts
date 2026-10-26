@@ -88,3 +88,13 @@ describe('jevVariantOptions', () => {
     expect(withoutSkus.options.map((o) => o.label)).toEqual(['Black (entry 1)', 'Red', 'Black (entry 3)']);
   });
 });
+
+describe('jevFieldCandidates — the heading reads as the Verification tab reads it (final review M3)', () => {
+  const title = { key: 'title', name: 'Title', type: 'text' as const, concept: 'product_name' };
+  const box = (text: string, tag: string) => ({ kind: 'text' as const, tag, text, rect: { x: 0, y: 80, w: 300, h: 40 }, xpaths: ['//x'] });
+  it('a mark in its own element attaches to its word: Crusher<span>®</span> 720 is "Crusher® 720"', () => {
+    const html = '<h1>Crusher<span class="marks">®</span> 720</h1>';
+    const c = jevFieldCandidates(title, { ldJson: [], meta: {} }, [box('', 'h1')] as never, html);
+    expect(c.find((x) => x.source === 'visible h1')?.value).toBe('Crusher® 720');
+  });
+});

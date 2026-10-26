@@ -269,14 +269,29 @@ describe('suggestMarks — the Title on the real first-run pages', () => {
 });
 
 describe('pageHeading — the text as the page shows it', () => {
-  it('an inline element inside the heading adds no space: Crusher<span>®</span> 720 reads "Crusher® 720"', () => {
+  it('a symbol mark in its own element attaches to the word before it: Crusher<span>®</span> 720 reads "Crusher® 720"', () => {
     expect(pageHeading('<h1 class="h2">Crusher<span class="marks">®</span> 720</h1>', [])).toBe('Crusher® 720');
     expect(pageHeading('<h1>Super Shock <em>Shadow</em></h1>', [])).toBe('Super Shock Shadow');
-    expect(pageHeading('<h1>Foo<sup>™</sup>Bar</h1>', [])).toBe('Foo™Bar');
+    expect(pageHeading('<h1>Foo<sup>™</sup>Bar</h1>', [])).toBe('Foo™ Bar');
   });
   it('a line break or a block inside the heading is a space; entities are decoded', () => {
     expect(pageHeading('<h1>Widget<br>A</h1>', [])).toBe('Widget A');
     expect(pageHeading('<h1><div>Widget</div><div>A</div></h1>', [])).toBe('Widget A');
-    expect(pageHeading('<h1>Salt &amp; Pepper&nbsp;Mill &#174; &#x2122;</h1>', [])).toBe('Salt & Pepper Mill ® ™');
+    expect(pageHeading('<h1>Salt &amp; Pepper&nbsp;Mill &#174; &#x2122;</h1>', [])).toBe('Salt & Pepper Mill®™');
+  });
+});
+
+// Final review I2: every tag is a space again (the ruling's one shared rule), so brand and name spans with no
+// whitespace between them — React output, each span styled as a block — never glue into "NikeAir Max 90".
+describe('pageHeading — separate spans never glue (final review I2)', () => {
+  const html = '<h1><span class="brand">Nike</span><span class="name">Air Max 90</span></h1>';
+  it('reads "Nike Air Max 90", the same heading as the page data\'s name', () => {
+    expect(pageHeading(html, [])).toBe('Nike Air Max 90');
+    expect(sameHeading('Nike Air Max 90', pageHeading(html, [])!)).toBe(true);
+  });
+  it('the Title suggestion stays the JSON-LD name, which is the heading', () => {
+    const capture = { ...p1, html: `<html><body>${html}</body></html>`, structuredData: { ...p1.structuredData, ldJson: [{ '@type': 'Product', name: 'Nike Air Max 90' }], meta: {} }, interceptedRequests: [] };
+    const s = suggestMarks(capture, [], [f('title', 'text', 'product_name')]).title!;
+    expect(s).toMatchObject({ value: 'Nike Air Max 90', via: { source: 'json-ld', path: 'name' } });
   });
 });

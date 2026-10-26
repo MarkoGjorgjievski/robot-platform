@@ -7,7 +7,7 @@ import type { Box } from './box-map.js';
 import { normalize, valuesEqual } from './normalize.js';
 import { CONCEPT_PATHS } from './field-fit.js';
 import type { SchemaDefinitionField } from './types.js';
-import { visibleTextFromHtml } from '../corroborate-value.js';
+import { sameShownText, shownTextFromHtml, tidyShownText } from './shown-text.js';
 import { resolveStructured } from './search-structured.js';
 
 /** `xpath`: the element that shows the page's heading (a Title only, first run 2026-10-25) — never a structured path. */
@@ -97,44 +97,25 @@ export function suggestMarks(capture: CaptureLike, boxes: Box[], fields: SchemaD
  * the largest of the box map's `h1`/`h2`/`h3` by area; else none. Read from
  * the HTML because a box carries only its element's own text nodes, so an
  * `<h1><span>Widget A</span></h1>` has no `h1` box at all and a split
- * `Super Shock <em>Shadow</em>` box reads "Super Shock" (final review I3).
+ * `Super Shock <em>Shadow</em>` box reads "Super Shock" (final review I3). The text is `shownTextFromHtml`'s,
+ * the one rule every heading and shown-text comparison shares (first run, final review I1/I2): every tag a space,
+ * so `<span>Nike</span><span>Air Max 90</span>` never glues, and a mark in its own element attaches to its word.
  */
 export function pageHeading(html: string, boxes: Box[]): string | null {
   // Scripts and styles out first: a template `<script>` can carry an `<h1>` the page never renders.
   const markup = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ');
   const h1 = /<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1\s*>/i.exec(markup);
-  if (h1) return headingText(h1[1]!);
+  if (h1) return shownTextFromHtml(h1[1]!);
   let best: Box | null = null;
   for (const b of boxes) {
     if (b.tag !== 'h1' && b.tag !== 'h2' && b.tag !== 'h3') continue;
     if (!best || b.rect.w * b.rect.h > best.rect.w * best.rect.h) best = b;
   }
-  return best ? best.text.trim() : null;
+  return best ? tidyShownText(best.text) || null : null;
 }
 
-/** Inline elements: their tags join the text around them, as the page renders it (and as the box map's `textContent` reads it). */
-const INLINE_TAGS = new Set(['a', 'abbr', 'b', 'bdi', 'bdo', 'cite', 'code', 'data', 'dfn', 'em', 'font', 'i', 'kbd', 'mark', 'q', 's', 'samp', 'small', 'span', 'strong', 'sub', 'sup', 'time', 'u', 'var']);
-const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', reg: '®', trade: '™', copy: '©' };
-const decodeEntities = (s: string) => s.replace(/&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|[a-z]{2,6});/gi, (m, e: string) => {
-  const cp = e[0] === '#' ? (e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : NaN;
-  if (!Number.isNaN(cp)) return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
-  return ENTITIES[e.toLowerCase()] ?? m;
-});
-
-/**
- * A heading's text as the page shows it (fix task 6, Skullcandy's real `Crusher<span class="marks">®</span> 720`):
- * an inline tag adds no space — `visibleTextFromHtml` makes every tag a space, which read "Crusher ® 720", a
- * heading no value and no element equals — while a line break or a block tag still separates words; entities
- * are decoded (the box map's text is the DOM's, already decoded).
- */
-function headingText(inner: string): string {
-  const text = inner.replace(/<\/?([a-z][a-z0-9-]*)\b[^>]*>/gi, (_m, tag: string) => (INLINE_TAGS.has(tag.toLowerCase()) ? '' : ' '));
-  return decodeEntities(text.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
-}
-
-/** NFKC + whitespace-collapse + lower-case: the heading rule's own comparison (the app's `sameHeading`). */
-const normHeading = (v: string) => v.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
-export function sameHeading(a: string, b: string): boolean { return normHeading(a) === normHeading(b); }
+/** The heading rule's own comparison (the app's `sameHeading` agrees): the shared shown-text key. */
+export function sameHeading(a: string, b: string): boolean { return sameShownText(a, b); }
 
 /**
  * The product-name containment check's form: NFKC, lower-cased, its words only — ®/™/©, punctuation and spacing
@@ -170,7 +151,7 @@ function productNames(capture: CaptureLike): string[] {
   const og = capture.structuredData.meta['og:title'];
   if (typeof og === 'string' && og.trim()) out.push(og);
   const t = /<title(?:\s[^>]*)?>([\s\S]*?)<\/title\s*>/i.exec(capture.html ?? '');
-  if (t && t[1]!.trim()) out.push(visibleTextFromHtml(t[1]!));
+  if (t && t[1]!.trim()) out.push(shownTextFromHtml(t[1]!));
   return out;
 }
 

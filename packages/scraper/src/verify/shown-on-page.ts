@@ -1,7 +1,7 @@
 // Is a certified value shown on the product's rendered page? (spec 2026-10-12 §3)
 // Pure and free: the capture's visible text is in memory at extraction time.
 import type { CertifiedPath, CustomerFieldType } from './types.js';
-import { visibleTextFromHtml } from '../corroborate-value.js';
+import { decodeEntities, shownKey, shownTextFromHtml } from './shown-text.js';
 
 export type Shown = boolean | null;
 const PREFIX = 80;
@@ -10,21 +10,16 @@ const PREFIX = 80;
 // every multi-item list (final review I1). The app's `UNCHECKED_TYPES` agrees.
 const UNCHECKED: ReadonlySet<string> = new Set(['url', 'image', 'boolean', 'date', 'text_list']);
 
-// `visibleTextFromHtml` strips tags but does not decode entities, so a literal
-// "&nbsp;" (common in serialized markup) survives alongside a real U+00A0
-// (common in captured text nodes) — both are decoded to a plain space before
-// whitespace collapse, or neither "Hello&nbsp;  World" nor "Hello World"
-// would normalise to the same token as the page's own rendering.
-function decodeNbsp(s: string): string {
-  return s.replace(/&nbsp;/gi, ' ').replace(/ /g, ' ');
-}
-
+// The page's text and a value compare in one form, the shared shown-text rule (first run, final review I1): every
+// tag a space, entities decoded (a literal "&nbsp;" and a real U+00A0 are both a space), a symbol mark joined to its
+// word — Skullcandy's `Crusher<span class="marks">®</span> 720` shows "Crusher® 720", the JSON-LD Title — then NFKC
+// and lower case (`shownKey`). The app's `shown.ts` twin normalises a typed value the same way.
 export function pageTextOf(html: string): string {
-  return decodeNbsp(visibleTextFromHtml(html).normalize('NFKC')).replace(/\s+/g, ' ').trim().toLowerCase();
+  return shownKey(shownTextFromHtml(html));
 }
 
 function normText(v: unknown): string {
-  return decodeNbsp(String(v ?? '').normalize('NFKC')).replace(/\s+/g, ' ').trim().toLowerCase();
+  return shownKey(decodeEntities(String(v ?? '')));
 }
 
 /** Every common rendering of a number: decimal mark `.` or `,`, with or without thousands separators, one or two decimals. */

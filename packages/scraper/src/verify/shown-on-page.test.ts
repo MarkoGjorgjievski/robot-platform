@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { numberShownInText, pageTextOf, shownOnPage } from './shown-on-page.js';
+import { loadVerifyFixture } from '../__fixtures__/verify/load.js';
 
 const xp = { source: 'xpath' as const, path: '//h1', transform: 'identity' as const };
 const ld = { source: 'json-ld' as const, path: 'description', transform: 'identity' as const };
@@ -59,5 +60,23 @@ describe('shownOnPage', () => {
   it('an empty page flags every checkable value false and never throws', () => {               // Review Focus 3
     expect(shownOnPage(text('text'), ld, 'x', pageTextOf(''))).toBe(false);
     expect(shownOnPage(text('money'), ld, '12', '')).toBe(false);
+  });
+});
+
+// Final review I1 (first run 2026-10-26): Skullcandy's h1 is `Crusher<span class="marks">®</span> 720`, so the page
+// text read "crusher ® 720" and a Title certified on JSON-LD `isVariantOf.name` = "Crusher® 720" was flagged not shown.
+describe('shownOnPage — a mark in its own element (the real Skullcandy pages)', () => {
+  const title = { type: 'text' as const, key: 'title', concept: 'product_name' };
+  const path = { source: 'json-ld' as const, path: 'isVariantOf.name', transform: 'identity' as const };
+  for (const [name, value] of [['skullcandy-crusher-720', 'Crusher® 720'], ['skullcandy-crusher-540-active', 'Crusher® 540 Active']] as const) {
+    it(`${name}: the JSON-LD Title "${value}" is shown`, () => {
+      const capture = loadVerifyFixture('first-run', name);
+      expect((capture.structuredData.ldJson[0] as { isVariantOf?: { name?: string } }).isVariantOf?.name).toBe(value);
+      expect(shownOnPage(title, path, value, pageTextOf(capture.html))).toBe(true);
+    });
+  }
+  it('a value typed with the space, or the page without one, still reads alike', () => {
+    expect(shownOnPage(title, path, 'Crusher ® 720', pageTextOf('<h1>Crusher®720</h1>'))).toBe(true);
+    expect(shownOnPage(title, path, 'Nike Air Max 90', pageTextOf('<h1><span>Nike</span><span>Air Max 90</span></h1>'))).toBe(true);
   });
 });
