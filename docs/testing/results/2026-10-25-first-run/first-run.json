@@ -1,25 +1,25 @@
 {
-  "startedAt": "2026-10-25T14:50:31.195Z",
+  "startedAt": "2026-10-26T09:09:30.967Z",
   "app": "http://localhost:3100",
   "api": "http://localhost:4100",
   "sites": [
     {
       "site": "gymshark",
       "listing": "https://www.gymshark.com/collections/leggings/womens",
-      "email": "first-run-gymshark-1792939159407@example.com",
+      "email": "first-run-gymshark-1793003624065@example.com",
       "steps": [
         {
           "n": 1,
           "name": "Sign in and land on /projects with its empty state",
           "ok": true,
-          "ms": 4712,
+          "ms": 5782,
           "screenshot": "gymshark-1.png"
         },
         {
           "n": 2,
           "name": "New project \"First run gymshark\"",
           "ok": true,
-          "ms": 288,
+          "ms": 328,
           "screenshot": "gymshark-2.png",
           "detail": "project first-run-gymshark"
         },
@@ -27,14 +27,14 @@
           "n": 3,
           "name": "Fields: Title (Text) and Price (Money) from the catalogue",
           "ok": true,
-          "ms": 1792,
+          "ms": 1675,
           "screenshot": "gymshark-3.png"
         },
         {
           "n": 4,
           "name": "Add website with the listing page; land on Verification; the reachability line",
           "ok": true,
-          "ms": 17014,
+          "ms": 21943,
           "screenshot": "gymshark-4.png",
           "detail": "website \"Gymshark\" (gymshark); This website opens normally."
         },
@@ -42,23 +42,23 @@
           "n": 5,
           "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
           "ok": true,
-          "ms": 77898,
+          "ms": 72832,
           "screenshot": "gymshark-5.png",
           "detail": "124 products found · a pager too; 3 ready"
         },
         {
           "n": 6,
-          "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
+          "name": "Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages",
           "ok": true,
-          "ms": 1213,
+          "ms": 1208,
           "screenshot": "gymshark-6.png",
-          "detail": "Title on product 1: suggested, Everyday Seamless Leggings | Title on product 2: suggested, Everyday Seamless Flared Leggings | Title on product 3: suggested, SoftSense™ High-Rise Leggings | Price on product 1: suggested, 38 | Price on product 2: suggested, 38 | Price on product 3: suggested, 58"
+          "detail": "Title on product 1: suggested, Everyday Seamless Leggings | Title on product 2: suggested, Everyday Seamless Flared Leggings | Title on product 3: suggested, Poise Seamless Leggings | Price on product 1: suggested, 38 | Price on product 2: suggested, 38 | Price on product 3: suggested, 30"
         },
         {
           "n": 7,
           "name": "Verify: \"Verify 2 fields\", both fields certified, no customer-visible money",
           "ok": true,
-          "ms": 34893,
+          "ms": 34863,
           "screenshot": "gymshark-7.png",
           "detail": "certified title, price in 3 s; Title \"verified 3/3\", Price \"verified 3/3\""
         },
@@ -66,15 +66,15 @@
           "n": 8,
           "name": "Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial",
           "ok": true,
-          "ms": 366670,
+          "ms": 393716,
           "screenshot": "gymshark-8.png",
-          "detail": "listing page already saved; sample done in 172 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run e8ac4a0f reads \"Extraction Done\" after 109 s"
+          "detail": "listing page already saved; sample done in 178 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run 150b656e reads \"Extraction Done\" after 133 s"
         },
         {
           "n": 9,
           "name": "Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric",
           "ok": true,
-          "ms": 921,
+          "ms": 884,
           "screenshot": "gymshark-9.png",
           "detail": "CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows"
         },
@@ -82,7 +82,7 @@
           "n": 10,
           "name": "Project Output shows the rows",
           "ok": true,
-          "ms": 1066,
+          "ms": 1014,
           "screenshot": "gymshark-10.png",
           "detail": "10 rows on Output"
         },
@@ -102,7 +102,7 @@
         "proofPages": [
           "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-blue-aw26-b7a3l-uctn",
           "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25",
-          "https://www.gymshark.com/products/gymshark-ultimate-adaptive-leggings-leggings-black-aw26"
+          "https://www.gymshark.com/products/gymshark-poise-seamless-leggings-leggings-purple-ss26"
         ],
         "beforeAccept": {
           "rows": {
@@ -112,12 +112,13 @@
           "cells": {
             "Title 1": "Title on product 1: suggested, Everyday Seamless Leggings",
             "Title 2": "Title on product 2: suggested, Everyday Seamless Flared Leggings",
-            "Title 3": "Title on product 3: suggested, SoftSense™ High-Rise Leggings",
+            "Title 3": "Title on product 3: suggested, Poise Seamless Leggings",
             "Price 1": "Price on product 1: suggested, 38",
             "Price 2": "Price on product 2: suggested, 38",
-            "Price 3": "Price on product 3: suggested, 58"
+            "Price 3": "Price on product 3: suggested, 30"
           }
         },
+        "rowAccepted": [],
         "verifySeconds": 3,
         "verify": {
           "allPassed": true,
@@ -176,8 +177,8 @@
             ]
           }
         },
-        "runSeconds": 109,
-        "runId": "e8ac4a0f-be89-4baf-8e34-5aedd5e36e02",
+        "runSeconds": 133,
+        "runId": "150b656e-dfd3-45cb-ac42-8077b0a062ad",
         "download": {
           "csvHeader": [
             "Title",
@@ -207,33 +208,33 @@
               "_page_number": 1
             },
             {
-              "Title": "Everyday Seamless Flared Leggings",
+              "Title": "Everyday Seamless Leggings",
               "Price": 38,
-              "_url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25",
+              "_url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-pink-aw26",
               "_page_number": 1
             }
           ]
         }
       },
-      "ranAt": "2026-10-25T14:39:19.653Z"
+      "ranAt": "2026-10-26T08:33:44.310Z"
     },
     {
       "site": "skullcandy",
       "listing": "https://www.skullcandy.com/collections/wireless-wired-bluetooth-headphones",
-      "email": "first-run-skullcandy-1792939693459@example.com",
+      "email": "first-run-skullcandy-1793004630698@example.com",
       "steps": [
         {
           "n": 1,
           "name": "Sign in and land on /projects with its empty state",
           "ok": true,
-          "ms": 1301,
+          "ms": 1445,
           "screenshot": "skullcandy-1.png"
         },
         {
           "n": 2,
           "name": "New project \"First run skullcandy\"",
           "ok": true,
-          "ms": 280,
+          "ms": 258,
           "screenshot": "skullcandy-2.png",
           "detail": "project first-run-skullcandy"
         },
@@ -241,14 +242,14 @@
           "n": 3,
           "name": "Fields: Title (Text) and Price (Money) from the catalogue",
           "ok": true,
-          "ms": 1321,
+          "ms": 1239,
           "screenshot": "skullcandy-3.png"
         },
         {
           "n": 4,
           "name": "Add website with the listing page; land on Verification; the reachability line",
           "ok": true,
-          "ms": 15499,
+          "ms": 13249,
           "screenshot": "skullcandy-4.png",
           "detail": "website \"Skullcandy\" (skullcandy); This website opens normally."
         },
@@ -256,17 +257,49 @@
           "n": 5,
           "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
           "ok": true,
-          "ms": 94016,
+          "ms": 197703,
           "screenshot": "skullcandy-5.png",
           "detail": "15 products found · a pager too; 3 ready"
         },
         {
           "n": 6,
-          "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
-          "ok": false,
-          "ms": 144,
-          "screenshot": "skullcandy-6-trip.png",
-          "detail": "not agreed: Title reads \"not the page's heading on product 1 Fix on screenshot\""
+          "name": "Accept all agreed (and a row's own one-click Accept): Title and Price accepted on all three proof pages",
+          "ok": true,
+          "ms": 1223,
+          "screenshot": "skullcandy-6.png",
+          "detail": "Title on product 1: suggested, Crusher® ANC 2 | Title on product 2: suggested, Crusher® 720 | Title on product 3: suggested, Crusher® Evo | Price on product 1: suggested, 259.99 | Price on product 2: suggested, 209.99 | Price on product 3: suggested, 209.99"
+        },
+        {
+          "n": 7,
+          "name": "Verify: \"Verify 2 fields\", both fields certified, no customer-visible money",
+          "ok": true,
+          "ms": 34857,
+          "screenshot": "skullcandy-7.png",
+          "detail": "certified title, price in 3 s; Title \"verified 3/3\", Price \"verified 3/3\""
+        },
+        {
+          "n": 8,
+          "name": "Extract: listing pages, a sample, run limits 10 items / 1 page, Extract; the run reads done or partial",
+          "ok": true,
+          "ms": 630628,
+          "screenshot": "skullcandy-8.png",
+          "detail": "listing page already saved; sample done in 247 s; limits 10/1 (1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing); run c62941ba reads \"Extraction Done\" after 265 s"
+        },
+        {
+          "n": 9,
+          "name": "Run page: download the CSV and JSON; ≥ 5 rows, Title and Price on every row, prices numeric",
+          "ok": true,
+          "ms": 488,
+          "screenshot": "skullcandy-9.png",
+          "detail": "CSV 10 rows (Title, Price, _url, _page_number); JSON 10 rows"
+        },
+        {
+          "n": 10,
+          "name": "Project Output shows the rows",
+          "ok": true,
+          "ms": 903,
+          "screenshot": "skullcandy-10.png",
+          "detail": "10 rows on Output"
         },
         {
           "n": 11,
@@ -277,88 +310,158 @@
           "detail": "deleted"
         }
       ],
-      "trip": {
-        "step": 6,
-        "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
-        "error": "not agreed: Title reads \"not the page's heading on product 1 Fix on screenshot\"",
-        "screenshot": "skullcandy-6-trip.png",
-        "visibleText": "www.skullcandy.com\nVerification\nExtract\nRuns\nSettings\nFind products\nNo listing? Paste product pages instead\n\n15 products found · a pager too\n\nAccept all agreed (1)\nVerify 2 fields\nTitle still needs product 1\n\nsaved\n\nGo to Extract\n\nUnlocks when every field is verified\n\nSelect a cell to see its full value.\n\nField\n\nCRUSHER® 720\n\n/products/cru…720-headphones\n\nready\n×\n\n\nCRUSHER® 540 ACTIVE\n\n/products/crusher-540-active\n\nready\n×\n\n\nAVIATOR® 900 ANC\n\n/products/avi…anc-headphones\n\nready\n×\n\n+ Add product\n\tStatus\n\nTitle\nText\n\nCrusher® 720 - Primer\nFix\n\nCrusher® 540 Active - Skullcandy X Baker Skateboards\nFix\n\nAviator® 900 ANC - True Black\nFix\n\nnot the page's heading on product 1\nFix on screenshot\n\n\nPrice\nMoney\n\n139.99\nFix\n\n229.99\nFix\n\n229.99\nFix\n\nagreed\nAccept\n\nField names and types come from the project. Edit fields",
-        "lastAnswers": [
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.suggestMarks",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.suggestMarks",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.suggestMarks"
-        ],
-        "problems": []
-      },
+      "trip": null,
       "cleanup": "deleted",
       "facts": {
         "found": "15 products found · a pager too",
         "proofPages": [
+          "https://www.skullcandy.com/products/crusher-anc-2-sensory-bass-headphones-with-active-noise-canceling",
           "https://www.skullcandy.com/products/crusher-720-headphones",
-          "https://www.skullcandy.com/products/crusher-540-active",
-          "https://www.skullcandy.com/products/aviator-900-anc-headphones"
+          "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound"
         ],
         "beforeAccept": {
           "rows": {
-            "Title": "not the page's heading on product 1 Fix on screenshot",
+            "Title": "agreed Accept",
             "Price": "agreed Accept"
           },
           "cells": {
-            "Title 1": "Title on product 1: suggested, Crusher® 720 - Primer",
-            "Title 2": "Title on product 2: suggested, Crusher® 540 Active - Skullcandy X Baker Skateboards",
-            "Title 3": "Title on product 3: suggested, Aviator® 900 ANC - True Black",
-            "Price 1": "Price on product 1: suggested, 139.99",
-            "Price 2": "Price on product 2: suggested, 229.99",
-            "Price 3": "Price on product 3: suggested, 229.99"
+            "Title 1": "Title on product 1: suggested, Crusher® ANC 2",
+            "Title 2": "Title on product 2: suggested, Crusher® 720",
+            "Title 3": "Title on product 3: suggested, Crusher® Evo",
+            "Price 1": "Price on product 1: suggested, 259.99",
+            "Price 2": "Price on product 2: suggested, 209.99",
+            "Price 3": "Price on product 3: suggested, 209.99"
           }
+        },
+        "rowAccepted": [],
+        "verifySeconds": 3,
+        "verify": {
+          "allPassed": true,
+          "currentKeys": [
+            "title",
+            "price"
+          ],
+          "runnable": true,
+          "failedRun": null,
+          "certified": {
+            "price": [
+              {
+                "path": "offers.price",
+                "source": "json-ld",
+                "transform": "identity"
+              },
+              {
+                "path": "product.variants[0].price",
+                "source": "api",
+                "container": "https://www.skullcandy.com/products/crusher-anc-2-sensory-bass-headphones-with-active-noise-canceling.json",
+                "transform": "identity"
+              },
+              {
+                "path": "//*[@id=\"MainContent\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" no-js-hidden \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" price \")]/div[@class=\"price__container\"]/div[@class=\"price__regular\"]/span[contains(concat(\" \",normalize-space(@class),\" \"),\" price-item \")]",
+                "source": "xpath",
+                "transform": "identity"
+              },
+              {
+                "path": "hasVariant[page].offers.price",
+                "source": "json-ld",
+                "transform": "identity"
+              },
+              {
+                "path": "//body/main[@class=\"content-for-layout focus-none\"]/section[@class=\"shopify-section section\"]/section[contains(concat(\" \",normalize-space(@class),\" \"),\" page-width \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" product \")]/div[@class=\"product-pdp-content page-width\"]/div[@class=\"product__info-wrapper col\"]/div[@class=\"product__info-container\"]/div[@class=\"sidebar__inner\"]/div[@class=\"sidebar__inner-padding\"]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" no-js-hidden \")]/div[contains(concat(\" \",normalize-space(@class),\" \"),\" price \")]/div[@class=\"price__container\"]/div[@class=\"price__regular\"]/span[contains(concat(\" \",normalize-space(@class),\" \"),\" price-item \")]",
+                "source": "xpath",
+                "transform": "identity"
+              }
+            ],
+            "title": [
+              {
+                "path": "isVariantOf.name",
+                "source": "json-ld",
+                "transform": "identity"
+              },
+              {
+                "path": "data.name",
+                "source": "api",
+                "container": "https://api-cdn.yotpo.com/v3/rich_snippets/store_id/DMWE2vqdaiL2vSEKQf2zWCbC2i8wc1uLafmvoCNG/product_id/7191197089849",
+                "transform": "identity"
+              },
+              {
+                "path": "product.title",
+                "source": "api",
+                "container": "https://www.skullcandy.com/products/crusher-anc-2-sensory-bass-headphones-with-active-noise-canceling.json",
+                "transform": "identity"
+              },
+              {
+                "path": "products[0].name",
+                "source": "api",
+                "container": "https://api-cdn.yotpo.com/v3/storefront/store/DMWE2vqdaiL2vSEKQf2zWCbC2i8wc1uLafmvoCNG/product/7191197089849/reviews",
+                "transform": "identity"
+              },
+              {
+                "path": "//form[@data-type=\"add-to-cart-form\"]/div[@class=\"sticky-content\"]/div[@class=\"sticky-name\"]/h3[1]",
+                "source": "xpath",
+                "transform": "identity"
+              }
+            ]
+          }
+        },
+        "runSeconds": 265,
+        "runId": "c62941ba-81e9-4d09-adbf-54d58a9433d2",
+        "download": {
+          "csvHeader": [
+            "Title",
+            "Price",
+            "_url",
+            "_page_number"
+          ],
+          "csvRows": 10,
+          "jsonRows": 10,
+          "jsonKeys": [
+            "Title",
+            "Price",
+            "_url",
+            "_page_number"
+          ],
+          "sample": [
+            {
+              "Title": "Crusher® ANC 2",
+              "Price": 259.99,
+              "_url": "https://www.skullcandy.com/products/crusher-anc-2-sensory-bass-headphones-with-active-noise-canceling",
+              "_page_number": 1
+            },
+            {
+              "Title": "Crusher® 720",
+              "Price": 209.99,
+              "_url": "https://www.skullcandy.com/products/crusher-720-headphones",
+              "_page_number": 1
+            },
+            {
+              "Title": "Crusher® Evo",
+              "Price": 209.99,
+              "_url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound",
+              "_page_number": 1
+            }
+          ]
         }
       },
-      "ranAt": "2026-10-25T14:48:13.631Z"
+      "ranAt": "2026-10-26T08:50:30.854Z"
     },
     {
       "site": "ikea",
       "listing": "https://www.ikea.com/my/en/cat/sofas-fu003/",
-      "email": "first-run-ikea-1792939831195@example.com",
+      "email": "first-run-ikea-1793005770967@example.com",
       "steps": [
         {
           "n": 1,
           "name": "Sign in and land on /projects with its empty state",
           "ok": true,
-          "ms": 1287,
+          "ms": 1369,
           "screenshot": "ikea-1.png"
         },
         {
           "n": 2,
           "name": "New project \"First run ikea\"",
           "ok": true,
-          "ms": 294,
+          "ms": 265,
           "screenshot": "ikea-2.png",
           "detail": "project first-run-ikea"
         },
@@ -366,32 +469,16 @@
           "n": 3,
           "name": "Fields: Title (Text) and Price (Money) from the catalogue",
           "ok": true,
-          "ms": 1374,
+          "ms": 1261,
           "screenshot": "ikea-3.png"
         },
         {
           "n": 4,
           "name": "Add website with the listing page; land on Verification; the reachability line",
-          "ok": true,
-          "ms": 9231,
-          "screenshot": "ikea-4.png",
-          "detail": "website \"Ikea\" (ikea); This website opens normally."
-        },
-        {
-          "n": 5,
-          "name": "Find products: \"N products found\" (N ≥ 3) and three proof pages ready",
-          "ok": true,
-          "ms": 37484,
-          "screenshot": "ikea-5.png",
-          "detail": "92 products found · a pager too; 3 ready"
-        },
-        {
-          "n": 6,
-          "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
           "ok": false,
-          "ms": 159,
-          "screenshot": "ikea-6-trip.png",
-          "detail": "not agreed: Title reads \"not the page's heading on product 1 Fix on screenshot\"; Price reads \"different place on product 3 — check it Accept\""
+          "ms": 32525,
+          "screenshot": "ikea-4-trip.png",
+          "detail": "the reachability line reads: This website took too long to answer. Try again."
         },
         {
           "n": 11,
@@ -403,69 +490,52 @@
         }
       ],
       "trip": {
-        "step": 6,
-        "name": "Accept all agreed: Title and Price agreed and accepted on all three proof pages",
-        "error": "not agreed: Title reads \"not the page's heading on product 1 Fix on screenshot\"; Price reads \"different place on product 3 — check it Accept\"",
-        "screenshot": "ikea-6-trip.png",
-        "visibleText": "www.ikea.com\nVerification\nExtract\nRuns\nSettings\nFind products\nNo listing? Paste product pages instead\n\n92 products found · a pager too\n\nAccept all agreed (1)\nVerify 2 fields\nTitle still needs product 1\n\nsaved\n\nGo to Extract\n\nUnlocks when every field is verified\n\nSelect a cell to see its full value.\n\nField\n\nGLOSTAD 3-seat sofa, Knisa dark grey\n\n/my/en/p/glos…grey-40595937/\n\nready\n×\n\n\nOption: GLOSTAD, 3-seat sofa, Knisa medium blue\n\n/my/en/p/glos…blue-30595933/\n\nready\n×\n\n\nKIVIK 3-seat sofa, Tibbleby beige/grey\n\n/my/en/p/kivi…rey-s59440592/\n\nready\n×\n\n+ Add product\n\tStatus\n\nTitle\nText\n\nGLOSTAD 3-seat sofa - Knisa dark grey\nFix\n\nGLOSTAD 3-seat sofa - Knisa medium blue\nFix\n\nKIVIK 3-seat sofa - Tibbleby beige/grey\nFix\n\nnot the page's heading on product 1\nFix on screenshot\n\n\nPrice\nMoney\n\n449\nFix\n\n449\nFix\n\n1495\nFix\n\ndifferent place on product 3 — check it\nAccept\n\nField names and types come from the project. Edit fields",
+        "step": 4,
+        "name": "Add website with the listing page; land on Verification; the reachability line",
+        "error": "the reachability line reads: This website took too long to answer. Try again.",
+        "screenshot": "ikea-4-trip.png",
+        "visibleText": "www.ikea.com\nVerification\nExtract\nRuns\nSettings\nFind products\nNo listing? Paste product pages instead\n\nThis website took too long to answer. Try again.\n\nAccept all agreed (0)\nNothing agreed to accept\nVerify 2 fields\nAdd at least three products\n\nsaved\n\nGo to Extract\n\nUnlocks when every field is verified\n\nFind products from a listing page, or paste product pages, to start.",
         "lastAnswers": [
+          "200 POST /trpc/auth.signIn",
+          "200 GET /trpc/projects.list",
+          "200 POST /trpc/projects.create",
+          "200 GET /trpc/projects.list",
+          "200 GET /trpc/projects.get",
+          "200 GET /trpc/datasets.catalogue,datasets.fieldStatus,datasets.variants",
+          "200 POST /trpc/datasets.addField",
+          "200 GET /trpc/projects.get,datasets.fieldStatus",
+          "200 GET /trpc/datasets.variants",
+          "200 POST /trpc/datasets.addField",
           "200 GET /trpc/projects.get,datasets.fieldStatus",
           "200 GET /trpc/datasets.variants",
           "200 GET /trpc/projects.get",
           "200 POST /trpc/sources.createInProject",
           "200 GET /trpc/projects.get",
           "200 GET /trpc/sources.get",
-          "200 GET /trpc/datasets.variants,sources.verifyEstimate,sources.verificationStatus,sources.driftCheck,sources.attention,sources.coverage,sources.reachability",
-          "200 POST /trpc/sources.checkListingPage",
-          "200 GET /trpc/sources.proofPageCaptures",
-          "200 POST /trpc/sources.captureProofPage,sources.captureProofPage,sources.captureProofPage",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 POST /trpc/sources.updateBinding",
-          "200 GET /trpc/sources.get,projects.get,sources.verifyEstimate,sources.verificationStatus",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.suggestMarks",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture,sources.proofPageCapture",
-          "200 GET /trpc/sources.suggestMarks",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.proofPageCapture",
-          "200 GET /trpc/sources.suggestMarks"
+          "200 GET /trpc/datasets.variants,sources.verifyEstimate,sources.verificationStatus,sources.driftCheck,sources.attention,sources.coverage,sources.reachability"
         ],
         "problems": []
       },
       "cleanup": "deleted",
-      "facts": {
-        "found": "92 products found · a pager too",
-        "proofPages": [
-          "https://www.ikea.com/my/en/p/glostad-3-seat-sofa-knisa-dark-grey-40595937/",
-          "https://www.ikea.com/my/en/p/glostad-3-seat-sofa-knisa-medium-blue-30595933/",
-          "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-tibbleby-beige-grey-s59440592/"
-        ],
-        "beforeAccept": {
-          "rows": {
-            "Title": "not the page's heading on product 1 Fix on screenshot",
-            "Price": "different place on product 3 — check it Accept"
-          },
-          "cells": {
-            "Title 1": "Title on product 1: suggested, GLOSTAD 3-seat sofa - Knisa dark grey",
-            "Title 2": "Title on product 2: suggested, GLOSTAD 3-seat sofa - Knisa medium blue",
-            "Title 3": "Title on product 3: suggested, KIVIK 3-seat sofa - Tibbleby beige/grey",
-            "Price 1": "Price on product 1: suggested, 449",
-            "Price 2": "Price on product 2: suggested, 449",
-            "Price 3": "Price on product 3: suggested, 1495"
-          }
+      "facts": {},
+      "ranAt": "2026-10-26T09:09:31.109Z",
+      "attempts": [
+        {
+          "attempt": 1,
+          "result": "tripped at step 6",
+          "cause": "Price \"different place on product 2 — check it Accept\": the script clicked Accept all agreed first, which took Title, and then Price's row Accept was gone and only \"Fix on screenshot\" (check product 2) was left. The script was fixed (row Accept first). Proof pages: GLOSTAD 3-seat dark grey, KIVIK 3-seat, GLOSTAD 2-seat dark grey; 77 products found."
+        },
+        {
+          "attempt": 2,
+          "result": "tripped at step 4",
+          "cause": "reachability: \"This website took too long to answer. Try again.\" (worker log: page.goto timeout 30 s on the listing). This attempt is the entry recorded below."
+        },
+        {
+          "attempt": 3,
+          "result": "not finished",
+          "cause": "steps 1–4 passed (ikea-1..4.png are from this attempt; \"This website opens normally.\"); Claude Code killed the vitest process during step 5 because the machine ran low on memory (1.8 GB free afterwards). Not restarted."
         }
-      },
-      "ranAt": "2026-10-25T14:50:31.388Z"
+      ]
     }
   ]
 }
