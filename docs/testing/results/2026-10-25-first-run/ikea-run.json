@@ -1,0 +1,83 @@
+{
+  "run": {
+    "id": "da96e007-f988-4ab3-80f0-a0dd7fc18feb",
+    "status": "completed",
+    "startedAt": "2026-10-26T09:49:28.669Z",
+    "completedAt": "2026-10-26T09:50:36.398Z",
+    "createdAt": "2026-10-26T09:49:28.667Z",
+    "rowCount": 10
+  },
+  "source": {
+    "slug": "ikea",
+    "name": "Ikea",
+    "url": "https://www.ikea.com/my/en/cat/sofas-fu003/"
+  },
+  "fields": [
+    "Title",
+    "Price",
+    "_url",
+    "_page_number"
+  ],
+  "rows": [
+    {
+      "Title": "GLOSTAD 3-seat sofa, Knisa dark grey",
+      "Price": 449,
+      "_url": "https://www.ikea.com/my/en/p/glostad-3-seat-sofa-knisa-dark-grey-40595937/",
+      "_page_number": 1
+    },
+    {
+      "Title": "KIVIK 3-seat sofa, Tibbleby beige/grey",
+      "Price": 1495,
+      "_url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-tibbleby-beige-grey-s59440592/",
+      "_page_number": 1
+    },
+    {
+      "Title": "GLOSTAD 2-seat sofa, Knisa dark grey",
+      "Price": 349,
+      "_url": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/",
+      "_page_number": 1
+    },
+    {
+      "Title": "KIVIK 3-seat sofa with chaise longue, Tibbleby beige/grey",
+      "Price": 2245,
+      "_url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-with-chaise-longue-tibbleby-beige-grey-s19440589/",
+      "_page_number": 1
+    },
+    {
+      "Title": "SALTMYRAN 3-seat sofa, Öreryd grey-beige",
+      "Price": 795,
+      "_url": "https://www.ikea.com/my/en/p/saltmyran-3-seat-sofa-oereryd-grey-beige-90618516/",
+      "_page_number": 1
+    },
+    {
+      "Title": "LILLESÄTER 3-seat sofa, Axvall off-white",
+      "Price": 2495,
+      "_url": "https://www.ikea.com/my/en/p/lillesaeter-3-seat-sofa-axvall-off-white-20619072/",
+      "_page_number": 1
+    },
+    {
+      "Title": "EKTORP 3-seat sofa, Mångbyn brown/multicolour",
+      "Price": 1495,
+      "_url": "https://www.ikea.com/my/en/p/ektorp-3-seat-sofa-mangbyn-brown-multicolour-s99619757/",
+      "_page_number": 1
+    },
+    {
+      "Title": "GLOSTAD 3-seat sofa with chaise longue, Knisa dark grey",
+      "Price": 599,
+      "_url": "https://www.ikea.com/my/en/p/glostad-3-seat-sofa-with-chaise-longue-knisa-dark-grey-s49578599/",
+      "_page_number": 1
+    },
+    {
+      "Title": "HEMLINGBY 2-seat sofa, Knisa dark grey",
+      "Price": 595,
+      "_url": "https://www.ikea.com/my/en/p/hemlingby-2-seat-sofa-knisa-dark-grey-70434368/",
+      "_page_number": 1
+    },
+    {
+      "Title": "SALTSJÖBADEN 3-seat sofa, Fridtuna light beige",
+      "Price": 1595,
+      "_url": "https://www.ikea.com/my/en/p/saltsjoebaden-3-seat-sofa-fridtuna-light-beige-s09599933/",
+      "_page_number": 1
+    }
+  ]
+}
