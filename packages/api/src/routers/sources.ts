@@ -28,6 +28,7 @@ import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency, notOnWebs
 import { customerDriftResults, forCustomer, latestRefreshes, needsAttention, websiteAttention } from '../verify/attention.js';
 import { variantsRequired } from '../verify/variant-check.js';
 import { isJobLive } from '../jobs/queue.js';
+import { cancelWebsiteJobs } from '../jobs/cancel.js';
 import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification, startVerificationRow } from '../verify/in-flight.js';
@@ -1021,10 +1022,14 @@ export const sourcesRouter = router({
         });
       }
 
-      await ctx.db.delete(sources).where(eq(sources.id, source.id));
-      if (source.inputSetId) {
-        await ctx.db.delete(inputSets).where(eq(inputSets.id, source.inputSetId));
-      }
+      // Its queued and running jobs stop with it (first run 2026-10-25): failed before the rows that name them cascade away.
+      await ctx.db.transaction(async (tx) => {
+        await cancelWebsiteJobs(tx, { sourceId: source.id });
+        await tx.delete(sources).where(eq(sources.id, source.id));
+        if (source.inputSetId) {
+          await tx.delete(inputSets).where(eq(inputSets.id, source.inputSetId));
+        }
+      });
 
       return { deleted: true };
     }),

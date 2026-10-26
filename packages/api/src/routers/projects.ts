@@ -5,6 +5,7 @@ import { projects, datasets, sources, runs } from '@robot/db';
 import { router, protectedProcedure, type Context } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
+import { cancelWebsiteJobs } from '../jobs/cancel.js';
 import { loadCurrentCertification, loadFieldCurrency } from '../verify/current-certification.js';
 import { needsAttention, websiteAttention } from '../verify/attention.js';
 import { contractFields } from '../contract.js';
@@ -246,7 +247,11 @@ export const projectsRouter = router({
       const org = resolveOrg(ctx);
       const project = await ctx.db.query.projects.findFirst({ where: eq(projects.id, input.projectId), columns: { id: true, orgId: true } });
       if (!project || project.orgId !== org.id) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectId} not found` });
-      const rows = await ctx.db.delete(projects).where(eq(projects.id, input.projectId)).returning({ id: projects.id });
+      // Its websites' jobs stop with them (first run 2026-10-25), as `sources.delete`'s do.
+      const rows = await ctx.db.transaction(async (tx) => {
+        await cancelWebsiteJobs(tx, { projectId: project.id });
+        return tx.delete(projects).where(eq(projects.id, input.projectId)).returning({ id: projects.id });
+      });
       return { deleted: rows.length > 0 };
     }),
 });
