@@ -658,13 +658,24 @@ describe('the table-first rules, revised', () => {
     expect(next.answers.in_stock![U[0]!]).toMatchObject({ value: 'https://schema.org/InStock', via: JLA });
     expect(next.answers.in_stock![U[2]!]).toBeUndefined();
   });
-  it('Accept all takes the majority part of such a row', () => {
+  // First run 2026-10-25 (IKEA, ruling): Accept all agreed never takes part of a row. A "different place"
+  // row is left untouched, so its own Accept still works afterwards.
+  it('Accept all agreed leaves a "different place" row whole, and its own Accept still works afterwards (IKEA)', () => {
     const b = board();
-    const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], { source: 'meta', path: 'product:price:amount' }), sug('149.00', [1], JL)]);
-    expect(rowStatus(price, b, live, maps())).toEqual({ kind: 'majority', odd: [2], via: JL });
-    const r = acceptAllAgreed(b, [price], live, maps());
-    expect(r.accepted).toEqual(['price']);
-    expect(Object.keys(r.board.answers.price!)).toEqual([U[0], U[2]]);
+    const META = { source: 'meta', path: 'product:price:amount' };
+    const titles = liveFor(b, 'title', [sug('Widget A', [0], TL), sug('Widget B', [0], TL), sug('Widget C', [0], TL)]);
+    const prices = liveFor(b, 'price', [sug('129.99', [1], META), sug('219.99', [1], JL), sug('149.00', [1], JL)]);
+    const live = { ...titles, ...prices };
+    expect(rowStatus(price, b, live, maps())).toEqual({ kind: 'majority', odd: [1], via: JL });
+    const r = acceptAllAgreed(b, FIELDS, live, maps());
+    expect(r.accepted).toEqual(['title']);
+    expect(U.map((u) => r.board.answers.title?.[u]?.value)).toEqual(['Widget A', 'Widget B', 'Widget C']);
+    expect(r.board.answers.price).toBeUndefined();
+    // The row still reads "different place on product 1" with its own Accept…
+    expect(rowStatus(price, r.board, live, maps())).toEqual({ kind: 'majority', odd: [1], via: JL });
+    // …which takes the majority's cells, as before.
+    const after = acceptRow(r.board, price, live, maps(), JL);
+    expect(Object.keys(after.answers.price!)).toEqual([U[1], U[2]]);
   });
   it('a suggestion with no path is the odd one out of a majority', () => {
     const b = board();
@@ -744,11 +755,13 @@ describe('the tab keeps page data over a carry', () => {
     s = mergeSuggestions(s, { in_stock: { value: 'x', boxes: [0], via: JL } }, U[2]!, 'c2', 'from-product', b);
     expect(s.in_stock![U[2]!]!.origin).toBe('from-product');
   });
-  it('a majority row counts as agreed for the Verify reason', () => {
+  it('a majority row is settled by its own Accept, never by Accept all agreed (first run 2026-10-25)', () => {
     const maj: RowStatus = { kind: 'majority', odd: [3], via: JL };
     const gate = { ok: false as const, reason: 'Title still needs product 1', gap: 'title' };
     expect(verifyReason(gate, FIELDS, [maj, { kind: 'needs-you', reason: 'x' }], undefined)).toBe('Accept Title first');
-    expect(verifyReason(gate, FIELDS, [maj, { kind: 'agreed' }], undefined)).toBe('Accept all agreed first');
+    expect(verifyReason(gate, FIELDS, [maj, { kind: 'agreed' }], undefined)).toBe('Accept Title first');
+    // An agreed gap with only a majority row beside it: Accept all agreed takes just the one row.
+    expect(verifyReason(gate, FIELDS, [{ kind: 'agreed' }, maj], undefined)).toBe('Accept Title first');
   });
 });
 
