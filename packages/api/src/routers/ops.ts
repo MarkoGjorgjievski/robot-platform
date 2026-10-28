@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
-import { datasets, orgs, projects, runs, sessions, sourceVerifications, sources, staffActions, users, type Database } from '@robot/db';
+import { captures, datasets, orgs, projects, runs, sessions, sourceVerifications, sources, staffActions, users, type Database } from '@robot/db';
 import { lookupDomainCache, type FieldPathSet, type FieldVerification, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, publicProcedure, protectedProcedure, opsProcedure } from '../trpc.js';
 import { isCustomerSchema } from '../crawl/effective-schema.js';
@@ -10,6 +10,8 @@ import { latestDriftCheck } from '../verify/run-drift-check.js';
 import { opsRefreshes } from '../verify/attention.js';
 import { recordStaffAction, recordStaffStop } from '../auth/staff-actions.js';
 import { networkOf } from '../proxy/browser-profile.js';
+import { fallbackConfigured } from '../proxy/fallback.js';
+import { PROOF_PAGE_STALL_MS, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { listStaffActivity } from '../auth/staff-activity.js';
 import { queueEmailsSafely } from '../email/queue-emails.js';
 import type { JevAgreement } from '../verify/jev-agreement.js';
@@ -87,6 +89,46 @@ async function spendThisMonthBySource(db: Database, sourceIds: string[]): Promis
   return spend;
 }
 
+/** Spec 2026-10-28 §3.5: a website the ladder is retrying (`gaveUp: false`) or gave up on, and whether a try went by the fallback. */
+export type TurnedAway = { since: string; gaveUp: boolean; viaFallback: boolean };
+const TURNED_AWAY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The websites turned away (spec 2026-10-28 §3.5), in one query: the newest proof-page capture of each page of each
+ * website in the last 24 h — an older row of a page is superseded and can be a stale `capturing` or `waiting` — that
+ * is `waiting` (its retry still due, not one whose job vanished: that reads as stalled on the card) or `failed` with
+ * `gaveUp`. Any page still waiting reads as retrying; `since` is the first try of the earliest page; `viaFallback`
+ * says a page gave up on a fallback try.
+ */
+async function turnedAwayBySource(db: Database, sourceIds: string[], now = Date.now()): Promise<Map<string, TurnedAway>> {
+  if (sourceIds.length === 0) return new Map();
+  const newest = await db
+    .selectDistinctOn([captures.sourceId, captures.url], { sourceId: captures.sourceId, metadata: captures.metadata })
+    .from(captures)
+    .where(and(
+      inArray(captures.sourceId, sourceIds),
+      gte(captures.createdAt, new Date(now - TURNED_AWAY_WINDOW_MS)),
+      sql`${captures.metadata}->>'kind' = 'proof-page'`,
+    ))
+    .orderBy(captures.sourceId, captures.url, desc(captures.createdAt));
+  const out = new Map<string, TurnedAway>();
+  for (const r of newest) {
+    const m = r.metadata as ProofPageMeta | null;
+    if (m?.status !== 'waiting' && m?.status !== 'failed') continue;
+    const waiting = m.status === 'waiting' && Date.parse(m.retryAt) + PROOF_PAGE_STALL_MS > now;
+    const gaveUp = m.status === 'failed' && m.gaveUp === true;
+    if (!waiting && !gaveUp) continue;
+    const first = m.firstStartedAt ?? m.startedAt;
+    const prev = out.get(r.sourceId);
+    out.set(r.sourceId, {
+      since: prev && Date.parse(prev.since) <= Date.parse(first) ? prev.since : new Date(first).toISOString(),
+      gaveUp: (prev?.gaveUp ?? true) && !waiting,
+      viaFallback: (prev?.viaFallback ?? false) || (m.status === 'failed' && m.gaveUp === true && m.via === 'fallback'),
+    });
+  }
+  return out;
+}
+
 /**
  * Operators (ops mode, 2026-10-06): staff who answer "which customer websites
  * need us, and why?" from their own shell, read-only except for `enterOrg` and
@@ -120,6 +162,7 @@ export const opsRouter = router({
         schemaDefinition: sources.schemaDefinition,
         verificationSet: sources.verificationSet,
         driftedFields: sources.driftedFields,
+        fallbackProxyAt: sources.fallbackProxyAt,
         orgId: orgs.id,
         orgName: orgs.name,
         orgSlug: orgs.slug,
@@ -130,18 +173,21 @@ export const opsRouter = router({
       .innerJoin(datasets, eq(sources.datasetId, datasets.id))
       .innerJoin(projects, eq(datasets.projectId, projects.id))
       .innerJoin(orgs, eq(projects.orgId, orgs.id));
+    // Spec 2026-10-28 §3.5: once per answer, so the app can tell "may need a proxy" from a fallback that is there.
+    const fallback = fallbackConfigured();
 
     const customerRows = siteRows.filter((r) => isCustomerSchema({ schemaDefinition: r.schemaDefinition }));
-    if (customerRows.length === 0) return [];
+    if (customerRows.length === 0) return { rows: [], fallbackConfigured: fallback };
 
     const sourceIds = customerRows.map((r) => r.sourceId);
-    const [currencyBySource, lastRunBySource, spendBySource] = await Promise.all([
+    const [currencyBySource, lastRunBySource, spendBySource, turnedAwayBySourceId] = await Promise.all([
       loadFieldCurrencyBatch(db, customerRows.map((r) => ({ id: r.sourceId, schemaDefinition: r.schemaDefinition, verificationSet: r.verificationSet }))),
       lastRunsBySource(db, sourceIds),
       spendThisMonthBySource(db, sourceIds),
+      turnedAwayBySource(db, sourceIds),
     ]);
 
-    return customerRows.map((r) => {
+    const rows = customerRows.map((r) => {
       const fields = r.schemaDefinition as SchemaDefinitionField[];
       const driftedKeys = Array.isArray(r.driftedFields) ? (r.driftedFields as string[]) : [];
       const lastRun = lastRunBySource.get(r.sourceId) ?? null;
@@ -159,8 +205,12 @@ export const opsRouter = router({
         driftedFieldNames: driftedKeys.map((key) => fields.find((f) => f.key === key)?.name ?? key),
         lastRun: lastRun ? { status: lastRun.status, at: lastRun.createdAt.toISOString(), rows: lastRun.resultCount } : null,
         spentThisMonthUsd: spendBySource.get(r.sourceId) ?? 0,
+        // Spec 2026-10-28 §3.5: turned away (retrying or gave up), and when it switched to the fallback proxy on its own.
+        turnedAway: turnedAwayBySourceId.get(r.sourceId) ?? null,
+        fallbackProxyAt: r.fallbackProxyAt?.toISOString() ?? null,
       };
     });
+    return { rows, fallbackConfigured: fallback };
   }),
 
   /**
@@ -198,6 +248,7 @@ export const opsRouter = router({
         driftedFields: sources.driftedFields,
         proxyUrl: sources.proxyUrl,
         country: sources.country,
+        fallbackProxyAt: sources.fallbackProxyAt,
         orgId: orgs.id,
         orgName: orgs.name,
         orgSlug: orgs.slug,
@@ -253,8 +304,9 @@ export const opsRouter = router({
       org: { id: row.orgId, name: row.orgName, slug: row.orgSlug },
       project: { name: row.projectName, slug: row.projectSlug },
       website: { name: row.sourceName, slug: row.sourceSlug, host: safeHost(row.url) },
-      // Spec 2026-10-24 proxy §2.3: own, the default or none, and the country — never the address.
-      network: ((n) => ({ proxy: n.proxy, country: n.country ? { code: n.country, name: n.countryName! } : null }))(networkOf({ proxyUrl: row.proxyUrl, country: row.country })),
+      // Spec 2026-10-24 proxy §2.3: own, the default or none, and the country — never the address. Spec 2026-10-28
+      // §3.3: or the fallback the website switched to on its own.
+      network: ((n) => ({ proxy: n.proxy, country: n.country ? { code: n.country, name: n.countryName! } : null }))(networkOf({ proxyUrl: row.proxyUrl, country: row.country, fallbackProxyAt: row.fallbackProxyAt })),
       verified: { current: fieldCurrency.currentKeys.length, total: fields.length },
       fields: fields.map((f) => {
         const result = results[f.key];

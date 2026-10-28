@@ -100,7 +100,7 @@ const inputFor = (path: string) => {
 /** Spec 2026-10-24 proxy §3.2: the address, its user, its password and the country, all staff-only. */
 const SWEEP_PROXY = 'http://sweep-user-{country}:sweep-secret-pw@proxy-sweep.test:7000';
 const PROXY_TEXT = /sweep-secret-pw|sweep-user|proxy-sweep\.test/;
-const PROXY_KEY = /^(proxy|countr|networkProblem)/i;
+const PROXY_KEY = /^(proxy|countr|networkProblem|fallback)/i;
 function proxyPaths(v: unknown, path = ''): string[] {
   if (typeof v === 'string') return PROXY_TEXT.test(v) ? [path] : [];
   if (Array.isArray(v)) return v.flatMap((x, i) => proxyPaths(x, `${path}[${i}]`));
@@ -118,7 +118,8 @@ beforeAll(async () => {
   process.env.OPS_EMAILS = op.user.email; // the operator only: org A's owner is a plain customer
   staff = await enterAsStaff(op, t.a.org.id);
   // Spec 2026-10-24 proxy §3.2: org A's website carries a proxy with credentials and a country for the proxy sweep.
-  await db.update(sources).set({ proxyUrl: SWEEP_PROXY, country: 'de' }).where(eq(sources.id, t.a.sourceId));
+  // Spec 2026-10-28 §3.3: and it switched to the fallback route on its own, which is staff-only too.
+  await db.update(sources).set({ proxyUrl: SWEEP_PROXY, country: 'de', fallbackProxyAt: new Date() }).where(eq(sources.id, t.a.sourceId));
 }, 120_000);
 afterAll(async () => {
   if (savedOps === undefined) delete process.env.OPS_EMAILS; else process.env.OPS_EMAILS = savedOps;
@@ -202,7 +203,7 @@ describe('no proxy setting in a customer answer (spec 2026-10-24 proxy §3.2)', 
 
   it('staff read the masked address and the country in sources.get', async () => {
     const got = await at(staff.caller, 'sources.get')(inputFor('sources.get'));
-    expect(got).toMatchObject({ proxyUrl: 'http://sweep-user-{country}:•••@proxy-sweep.test:7000', country: 'de' });
+    expect(got).toMatchObject({ proxyUrl: 'http://sweep-user-{country}:•••@proxy-sweep.test:7000', country: 'de', fallbackProxyAt: expect.any(Date) });
   });
 
   it.each(mutations)('%s carries no proxy setting to a customer either', async (path) => {

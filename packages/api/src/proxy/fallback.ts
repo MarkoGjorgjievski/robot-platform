@@ -14,6 +14,12 @@ export function fallbackProxyUrl(env: NodeJS.ProcessEnv = process.env): string |
   return v ? v : null;
 }
 
+/** A usable FALLBACK_PROXY_URL is set (ops' badges, spec 2026-10-28 §3.5): set, and it passes `checkProxyUrl`. */
+export function fallbackConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
+  const url = fallbackProxyUrl(env);
+  return url !== null && checkProxyUrl(url).ok;
+}
+
 const known = (code: string | undefined | null): string | null => countryByCode(code)?.code ?? null;
 
 /**

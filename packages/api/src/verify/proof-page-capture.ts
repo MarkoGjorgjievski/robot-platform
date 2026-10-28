@@ -109,6 +109,8 @@ export type ProofPageMeta =
       firstStartedAt?: string;
       /** Set only when the ladder ran out on walls: every try was turned away. */
       gaveUp?: true;
+      /** The route of the last try, on a row of more than one try (ops reads "even through the proxy" from it, spec §3.5). */
+      via?: Route;
     }
   | {
       /** Turned away; the next try is a queued job due at `retryAt` (spec 2026-10-28 §3.1). */
@@ -218,7 +220,7 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     .catch((e) => { console.error(`[proof-page] failed to record the start of ${captureId}:`, e); return [{ id: captureId }]; });
   if (began.length === 0) return;
   const hostname = hostOf(row.url);
-  const tries = { attempts: attempt, firstStartedAt };
+  const tries = { attempts: attempt, firstStartedAt, via: route };
 
   // A host still backing off after a wall is answered from the backoff, with
   // no browser (review I4, 2026-10-09). On the ladder that start does not
@@ -231,7 +233,7 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     if (ladder && Date.now() - Date.parse(firstStartedAt) > DEFERRAL_LIMIT_MS) {
       const failed: ProofPageMeta = {
         kind: 'proof-page', status: 'failed', url: row.url, startedAt, error: verdictSentence(answered.verdict, row.url), verdict: answered.verdict,
-        attempts: Math.max(attempt - 1, 0), firstStartedAt, gaveUp: true,
+        attempts: Math.max(attempt - 1, 0), firstStartedAt, gaveUp: true, via: route,
       };
       await db.update(captures).set({ metadata: failed }).where(and(eq(captures.id, captureId), stillCapturing))
         .catch((e) => console.error(`[proof-page] failed to record the give-up of ${captureId}:`, e));

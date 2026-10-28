@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { db, domainIntelligence, projects, runs, sourceVerifications, sources, users } from '@robot/db';
+import { captures, db, domainIntelligence, projects, runs, sourceVerifications, sources, users } from '@robot/db';
 import { and, eq } from 'drizzle-orm';
 import { fieldHash, readsOneSource, type CertifiedPath, type FieldVerification, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, createCallerFactory, isOperatorEmail, opsProcedure } from '../trpc.js';
@@ -205,7 +205,7 @@ describe('ops.websites', () => {
       await certifyAllFields(healthy.sourceId, '0.0200');
       await db.insert(runs).values({ sourceId: healthy.sourceId, status: 'completed', completedAt: new Date(), createdAt: new Date(), resultCount: 42, costUsd: '0.0100' });
 
-      const rows = await u1.caller.ops.websites();
+      const { rows } = await u1.caller.ops.websites();
       const bySourceId = new Map(rows.map((r) => [r.sourceId, r]));
 
       const d = bySourceId.get(drifting.sourceId);
@@ -258,6 +258,62 @@ describe('ops.websites', () => {
   it('gives UNAUTHORIZED to a signed-out caller', async () => {
     const { caller } = callerWith(null);
     await expect(caller.ops.websites()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  });
+
+  // Spec 2026-10-28 §3.5: the newest proof-page capture per page in the last 24 h says whether a website is turned away.
+  it('flags a website turned away (retrying, gave up, gave up by the fallback), its automatic proxy, and whether a fallback is configured', async () => {
+    const tag = Date.now();
+    const op = await signIn(`ops-ws-turned-${tag}@example.com`);
+    process.env.OPS_EMAILS = op.user.email;
+    const savedFallback = process.env.FALLBACK_PROXY_URL;
+    const make = (name: string) => createProjectWithSource(op.caller, { tag: `ops-ta-${name}-${tag}`, fields: [{ name: 'Title', type: 'text' }] });
+    const sites = { retrying: await make('retry'), direct: await make('direct'), fallback: await make('fb'), old: await make('old'), healed: await make('healed'), kept: await make('kept') };
+    const at = (minAgo: number) => new Date(Date.now() - minAgo * 60_000);
+    const wall = { kind: 'refused', status: 403 };
+    const waiting = (url: string, first: Date) => ({ kind: 'proof-page', status: 'waiting', url, startedAt: first.toISOString(), firstStartedAt: first.toISOString(), error: 'x', verdict: wall, retryAt: new Date(Date.now() + 60_000).toISOString(), attempt: 2, via: 'direct' });
+    const gaveUp = (url: string, first: Date, via: 'direct' | 'fallback') => ({ kind: 'proof-page', status: 'failed', url, startedAt: first.toISOString(), error: 'x', verdict: wall, gaveUp: true, attempts: 4, firstStartedAt: first.toISOString(), via });
+    const captured = (url: string) => ({ kind: 'proof-page', status: 'captured', url, startedAt: new Date().toISOString(), capturedAt: new Date().toISOString(), tiles: [], boxes: [], pageHeight: 0, capturedHeight: 0, contentHeight: 0 });
+    const insert = (sourceId: string, url: string, metadata: object, createdAt: Date) => db.insert(captures).values({ sourceId, url, metadata, createdAt });
+    try {
+      const r = sites.retrying, d = sites.direct, f = sites.fallback, o = sites.old, h = sites.healed;
+      // Retrying: page 1 is waiting; page 2 gave up earlier — any page still trying reads as retrying.
+      await insert(r.sourceId, r.urls[0]!, waiting(r.urls[0]!, at(20)), at(5));
+      await insert(r.sourceId, r.urls[1]!, gaveUp(r.urls[1]!, at(30), 'direct'), at(10));
+      await insert(d.sourceId, d.urls[0]!, gaveUp(d.urls[0]!, at(40), 'direct'), at(3));
+      await insert(f.sourceId, f.urls[0]!, gaveUp(f.urls[0]!, at(50), 'fallback'), at(3));
+      // Older than a day: not flagged.
+      await insert(o.sourceId, o.urls[0]!, gaveUp(o.urls[0]!, at(26 * 60), 'direct'), at(25 * 60));
+      // Superseded: an older waiting row, then a newer captured one of the same page.
+      await insert(h.sourceId, h.urls[0]!, waiting(h.urls[0]!, at(20)), at(10));
+      await insert(h.sourceId, h.urls[0]!, captured(h.urls[0]!), at(2));
+      const keptAt = new Date('2026-10-27T09:30:00Z');
+      await db.update(sources).set({ fallbackProxyAt: keptAt }).where(eq(sources.id, sites.kept.sourceId));
+
+      delete process.env.FALLBACK_PROXY_URL;
+      const answer = await op.caller.ops.websites();
+      expect(answer.fallbackConfigured).toBe(false);
+      const by = new Map(answer.rows.map((x) => [x.sourceId, x]));
+      expect(by.get(r.sourceId)!.turnedAway).toMatchObject({ gaveUp: false, viaFallback: false });
+      // Since the first try of the earliest page turned away.
+      expect(Math.abs(Date.parse(by.get(r.sourceId)!.turnedAway!.since) - at(30).getTime())).toBeLessThan(5_000);
+      expect(by.get(d.sourceId)!.turnedAway).toMatchObject({ gaveUp: true, viaFallback: false });
+      expect(by.get(f.sourceId)!.turnedAway).toMatchObject({ gaveUp: true, viaFallback: true });
+      expect(by.get(o.sourceId)!.turnedAway).toBeNull();
+      expect(by.get(h.sourceId)!.turnedAway).toBeNull();
+      expect(by.get(sites.kept.sourceId)).toMatchObject({ turnedAway: null, fallbackProxyAt: keptAt.toISOString() });
+      expect(by.get(r.sourceId)!.fallbackProxyAt).toBeNull();
+
+      process.env.FALLBACK_PROXY_URL = 'http://fallback.invalid:8080';
+      expect((await op.caller.ops.websites()).fallbackConfigured).toBe(true);
+      process.env.FALLBACK_PROXY_URL = '   ';
+      expect((await op.caller.ops.websites()).fallbackConfigured).toBe(false);
+      process.env.FALLBACK_PROXY_URL = 'ftp://not-usable:21';
+      expect((await op.caller.ops.websites()).fallbackConfigured).toBe(false);
+    } finally {
+      if (savedFallback === undefined) delete process.env.FALLBACK_PROXY_URL; else process.env.FALLBACK_PROXY_URL = savedFallback;
+      for (const s of Object.values(sites)) await s.cleanup();
+      await dropIdentity(op);
+    }
   });
 });
 
@@ -640,7 +696,7 @@ describe('ops.website', () => {
       expect(title.paths.map((p) => p.path)).toEqual(['name']); // the hold's path (seedAttention certifies `json-ld name`)
       expect(site.refreshes).toEqual([expect.objectContaining({ key: built.keys.Price, name: 'Price' })]);
 
-      const row = (await op.caller.ops.websites()).find((r) => r.sourceId === built.sourceId)!;
+      const row = (await op.caller.ops.websites()).rows.find((r) => r.sourceId === built.sourceId)!;
       expect(row.held).toBe(1);
 
       await built.cleanup();

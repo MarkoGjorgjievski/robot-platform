@@ -275,10 +275,11 @@ const COUNTRY_CHOICES = COUNTRIES.map(({ code, name }) => ({ code, name }));
 
 /**
  * A website row as an answer carries it (spec 2026-10-24 proxy §3.2): the proxy address and the country are staff
- * settings, read only through `sources.get`'s staff fields — never in the row a mutation hands back to anyone.
+ * settings, read only through `sources.get`'s staff fields — never in the row a mutation hands back to anyone. So is
+ * when the website switched to the fallback proxy on its own (spec 2026-10-28 §3.3).
  */
-function withoutNetwork<T extends { proxyUrl?: unknown; country?: unknown }>(row: T): Omit<T, 'proxyUrl' | 'country'> {
-  const { proxyUrl: _proxyUrl, country: _country, ...rest } = row;
+function withoutNetwork<T extends { proxyUrl?: unknown; country?: unknown; fallbackProxyAt?: unknown }>(row: T): Omit<T, 'proxyUrl' | 'country' | 'fallbackProxyAt'> {
+  const { proxyUrl: _proxyUrl, country: _country, fallbackProxyAt: _fallbackProxyAt, ...rest } = row;
   return rest;
 }
 
@@ -311,9 +312,11 @@ export const sourcesRouter = router({
       const parameters = (s.parameters ?? {}) as Record<string, unknown>;
       const attention = await websiteAttention(ctx.db, s.id);
       // Proxy support (spec 2026-10-24 proxy §2.3): staff only, like money — a customer receives none of these keys.
-      const n = networkOf({ proxyUrl: s.proxyUrl, country: s.country });
+      // Spec 2026-10-28 §3.3: and when the website switched to the fallback proxy on its own, with that route read as its own.
+      const n = networkOf({ proxyUrl: s.proxyUrl, country: s.country, fallbackProxyAt: s.fallbackProxyAt });
       const network = moneyFields(viewerSeesMoney(ctx), {
-        proxyUrl: n.proxyUrl, proxyFromDefault: n.proxy === 'default', country: n.country, countries: COUNTRY_CHOICES, networkProblem: n.problem,
+        proxyUrl: n.proxyUrl, proxyFromDefault: n.proxy === 'default', proxyFromFallback: n.proxy === 'fallback',
+        fallbackProxyAt: s.fallbackProxyAt, country: n.country, countries: COUNTRY_CHOICES, networkProblem: n.problem,
       });
       return {
         id: s.id, slug: s.slug, name: s.name, url: s.urlTemplate, hostname, datasetId: s.datasetId,
@@ -356,11 +359,14 @@ export const sourcesRouter = router({
         // refusals are below, before anything is written.
         proxyUrl: z.string().max(2000).nullable().optional(),
         country: z.string().max(10).nullable().optional(),
+        // Spec 2026-10-28 §3.3 "Undo": staff only, as `proxyUrl`. `false` is "Go direct again" — the website stops
+        // loading through the fallback proxy it switched to on its own. There is no `true`: only a try that worked keeps it.
+        fallbackProxy: z.literal(false).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.id);
-      const { id, schedule, webhookUrl, proxyUrl, country, ...rest } = input;
+      const { id, schedule, webhookUrl, proxyUrl, country, fallbackProxy, ...rest } = input;
 
       // Recurring extraction (spec 2026-10-24 §3.5): validated before anything is written; each refusal is one sentence.
       const recurring: { schedule?: Schedule | null; nextRunAt?: Date | null; webhookUrl?: string | null; webhookSecret?: SQL } = {};
@@ -390,7 +396,11 @@ export const sourcesRouter = router({
 
       // Proxy support (spec 2026-10-24 proxy §2.3): operators only — a staff session's user is one. A customer's call
       // carrying either field is refused whole: nothing is written.
-      const network: { proxyUrl?: string | null; country?: string | null } = {};
+      const network: { proxyUrl?: string | null; country?: string | null; fallbackProxyAt?: null } = {};
+      if (fallbackProxy !== undefined) {
+        if (!ctx.isOperator) throw new TRPCError({ code: 'FORBIDDEN', message: 'Operators only' });
+        network.fallbackProxyAt = null;
+      }
       if (proxyUrl !== undefined || country !== undefined) {
         if (!ctx.isOperator) throw new TRPCError({ code: 'FORBIDDEN', message: 'Operators only' });
         if (country !== undefined) {
