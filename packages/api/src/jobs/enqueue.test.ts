@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { db, jobs } from '@robot/db';
 import { enqueue, ceilingOf, runAndWait, urlKey } from './enqueue.js';
-import { jobQueueName } from './queue.js';
+import { claimJob, jobQueueName } from './queue.js';
 import { JOB_POLICIES, REACHABILITY_TIMEOUT_MS } from './types.js';
 import { withJobRunner, JOB_TEST_MS } from '../test-helpers/jobs.js';
 
@@ -66,4 +66,28 @@ describe('runAndWait', () => {
       .toEqual({ reachable: 'https://shop.example/' });
     expect(await db.query.jobs.findMany({ where: eq(jobs.queue, q()) })).toMatchObject([{ type: 'reachability', key: 'reachability:x', status: 'done' }]);
   }, JOB_TEST_MS);
+});
+
+// Spec 2026-10-28 turned away §3.2: a capture's next try is a job due at its retryAt.
+describe('enqueue runAfter (spec 2026-10-28 §3.2)', () => {
+  it('a job due later is not claimed before it is due; its start window starts at runAfter', async () => {
+    const runAfter = new Date(Date.now() + 60 * 60_000);
+    const id = await enqueue(db, 'verify', { sourceId: 's', verificationId: 'v' }, { key: 'verify:later', runAfter });
+    const [row] = (await db.execute(sql`SELECT run_after, extract(epoch FROM expires_at - run_after) * 1000 AS window
+      FROM jobs WHERE id = ${id}`)) as unknown as Array<{ run_after: Date | string; window: unknown }>;
+    expect(new Date(row!.run_after).getTime()).toBe(runAfter.getTime());
+    expect(Number(row!.window)).toBe(JOB_POLICIES.verify.startWithinMs);
+    expect(await claimJob({ queue: q(), workerId: 'w-later', types: ['verify'], leaseMs: 60_000 })).toBeNull();
+    // Due now: claimed.
+    await db.execute(sql`UPDATE jobs SET run_after = now() - interval '1 second', expires_at = now() + interval '1 minute' WHERE id = ${id}`);
+    expect(await claimJob({ queue: q(), workerId: 'w-later', types: ['verify'], leaseMs: 60_000 })).toMatchObject({ id });
+  });
+
+  it('no runAfter: due at once, as before; a job with no window keeps none', async () => {
+    const id = await enqueue(db, 'run', { runId: 'r' }, { runAfter: new Date(Date.now() + 60_000) });
+    expect(await db.query.jobs.findFirst({ where: eq(jobs.id, id) })).toMatchObject({ expiresAt: null });
+    const now = await enqueue(db, 'verify', { sourceId: 's', verificationId: 'v2' }, {});
+    const [r] = (await db.execute(sql`SELECT run_after <= now() AS due FROM jobs WHERE id = ${now}`)) as unknown as Array<{ due: boolean }>;
+    expect(r!.due).toBe(true);
+  });
 });
