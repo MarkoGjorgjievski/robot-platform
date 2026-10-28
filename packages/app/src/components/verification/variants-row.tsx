@@ -558,7 +558,7 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
                 return (
                   <td key={i} className={cn(td, 'space-y-1 px-2 py-2')}>
                     <p className="text-sm">Checking the {label} page</p>
-                    {!cap || cap.status === 'starting' || cap.status === 'capturing' ? (
+                    {!cap || cap.status === 'starting' || cap.status === 'capturing' || cap.status === 'waiting' ? (
                       <p className="text-sm text-muted-foreground">taking screenshot…</p>
                     ) : cap.status === 'captured' ? (
                       <p className="text-sm text-muted-foreground">ready</p>

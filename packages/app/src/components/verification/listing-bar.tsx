@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -23,6 +23,7 @@ export function ListingBar({
   onNoListing,
   extractOwnsInput,
   problem,
+  openSignal,
 }: {
   /** The website whose listing this is: its page loads the way that website's pages do. */
   sourceId: string;
@@ -39,6 +40,11 @@ export function ListingBar({
   extractOwnsInput: boolean;
   /** Why the route refused this listing (e.g. it is on another website than the products), shown under the input. */
   problem?: string | null;
+  /**
+   * Bumped by Swap product (spec 2026-10-28 §3.6): the bar comes into view with its input focused,
+   * filled with the website's listing page when it has one, ready for Find products.
+   */
+  openSignal?: number;
 }) {
   const [url, setUrl] = useState(startUrl ?? listingUrl);
   // "No listing?" with the untouched pre-filled address says that address is not a listing: none is kept.
@@ -47,6 +53,19 @@ export function ListingBar({
   const staff = useStaffDetail();
   const [found, setFound] = useState<{ productLinks: number; pagerSeen: boolean; message: string | null } | null>(null);
   const check = trpc.sources.checkListingPage.useMutation();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!openSignal) return;
+    const listing = listingUrl.trim() || startUrl?.trim() || '';
+    if (listing) setUrl(listing);
+    const input = inputRef.current;
+    if (!input) return;
+    input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    input.focus({ preventScroll: true });
+    // Only a new signal opens the bar; the listing it fills in is read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSignal]);
 
   // A visible seconds counter while Find products is in flight (campaign 2,
   // 2026-10-11): a slow site used to leave the bar blank for up to 90 s with
@@ -83,6 +102,7 @@ export function ListingBar({
     <div className="space-y-1.5">
       <div className="flex gap-2">
         <Input
+          ref={inputRef}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => {

@@ -50,6 +50,7 @@ export function ProductGrid({
           onDrop={() => onDrop(i)}
           onReplace={(url) => onReplace(i, url)}
           onRetry={() => onRetry(card.url)}
+          onSwap={() => onDrop(i)}
           hostProblem={hostProblem}
         />
       ))}
