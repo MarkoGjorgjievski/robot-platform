@@ -22,8 +22,13 @@ import { isJobLive, type DbOrTx } from '../jobs/queue.js';
 
 /** Every write after the start is fenced on it: a row closed meanwhile (stalled, retried) is left as it is (spec 2026-10-23 §7.6). */
 const stillCapturing = sql`${captures.metadata}->>'status' = 'capturing'`;
-/** A row a try may take: its try running, or waiting for its next one (spec 2026-10-28 §3.2). */
-const takeable = sql`${captures.metadata}->>'status' IN ('capturing', 'waiting')`;
+/**
+ * A row this job may take (spec 2026-10-28 §3.2): its try running, or waiting for its next one — and then only by the
+ * job the row names. An earlier try's job claimed again (its worker died after queueing the next) takes nothing.
+ */
+const takeableBy = (jobId: string | null) => jobId
+  ? sql`(${captures.metadata}->>'status' = 'capturing' OR (${captures.metadata}->>'status' = 'waiting' AND ${captures.jobId} = ${jobId}::uuid))`
+  : sql`${captures.metadata}->>'status' = 'capturing'`;
 
 /** The tries one capture takes when the website turns it away (spec 2026-10-28 §3.2). */
 export const LADDER_TRIES = 4;
@@ -34,6 +39,15 @@ const MIN = 60_000;
  * else four minutes after try 2; try 4 four minutes after a fallback try 3, else eight.
  */
 export const LADDER_WAITS = { second: 2 * MIN, third: 4 * MIN, thirdByFallback: 0, fourth: 8 * MIN, fourthByFallback: 4 * MIN } as const;
+
+/**
+ * Retries of one website on one host and route come back at least this far apart (review I1): products walled
+ * together would otherwise all wake at the same backoff end and wall each other again. Scaled like the waits.
+ */
+export const RETRY_SPACING_MS = 30_000;
+
+/** A start answered from the backoff stops waiting this long after the first try started: the row gives up (review M3). */
+export const DEFERRAL_LIMIT_MS = 30 * MIN;
 
 /** `PROOF_LADDER_WAIT_SCALE` (test-only; the live check shortens the waits with it): a non-negative number, default 1. */
 export function ladderWaitScale(env: NodeJS.ProcessEnv = process.env): number {
@@ -199,7 +213,8 @@ export async function runProofPageCapture(captureId: string, session: Session = 
   const startedAt = new Date().toISOString();
   const firstStartedAt = stored.firstStartedAt ?? startedAt;
   const meta: ProofPageMeta = { kind: 'proof-page', status: 'capturing', url: row.url, startedAt, attempt, firstStartedAt, via: route };
-  const began = await db.update(captures).set({ metadata: meta }).where(and(eq(captures.id, captureId), takeable)).returning({ id: captures.id })
+  const fence = and(eq(captures.id, captureId), takeableBy(currentJobId()), ladder ? sql`NOT ${supersededSql(captureId)}` : undefined);
+  const began = await db.update(captures).set({ metadata: meta }).where(fence).returning({ id: captures.id })
     .catch((e) => { console.error(`[proof-page] failed to record the start of ${captureId}:`, e); return [{ id: captureId }]; });
   if (began.length === 0) return;
   const hostname = hostOf(row.url);
@@ -212,6 +227,16 @@ export async function runProofPageCapture(captureId: string, session: Session = 
   // again is the way back.
   const answered = backoffAnswer(row.url, undefined, route);
   if (answered) {
+    // Waited long enough on other products' walls: the row gives up with the tries it made (review M3).
+    if (ladder && Date.now() - Date.parse(firstStartedAt) > DEFERRAL_LIMIT_MS) {
+      const failed: ProofPageMeta = {
+        kind: 'proof-page', status: 'failed', url: row.url, startedAt, error: verdictSentence(answered.verdict, row.url), verdict: answered.verdict,
+        attempts: Math.max(attempt - 1, 0), firstStartedAt, gaveUp: true,
+      };
+      await db.update(captures).set({ metadata: failed }).where(and(eq(captures.id, captureId), stillCapturing))
+        .catch((e) => console.error(`[proof-page] failed to record the give-up of ${captureId}:`, e));
+      return;
+    }
     if (ladder) {
       const retryAt = new Date(Date.now() + answered.waitMs);
       const waiting: WaitingProofPage = {
@@ -219,7 +244,7 @@ export async function runProofPageCapture(captureId: string, session: Session = 
         verdict: answered.verdict, retryAt: retryAt.toISOString(), attempt, via: route,
       };
       // Its own key: the job running now may hold `capture:<id>:<attempt>` (a deferral of a deferral, too).
-      if (await scheduleNext(captureId, waiting, `capture:${captureId}:${attempt}:wait-${randomUUID().slice(0, 8)}`)) return;
+      if (await scheduleNext(captureId, row.sourceId, waiting, `capture:${captureId}:${attempt}:wait-${randomUUID().slice(0, 8)}`)) return;
     }
     const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: row.url, startedAt, error: answered.message, verdict: answered.verdict, ...(attempt > 1 ? tries : {}) };
     await db.update(captures).set({ metadata: failed }).where(and(eq(captures.id, captureId), stillCapturing))
@@ -280,7 +305,7 @@ export async function runProofPageCapture(captureId: string, session: Session = 
           kind: 'proof-page', status: 'waiting', url: row.url, startedAt, firstStartedAt, error, verdict,
           retryAt: new Date(Date.now() + next.waitMs).toISOString(), attempt: next.attempt, via: next.via,
         };
-        if (await scheduleNext(captureId, waiting, `capture:${captureId}:${next.attempt}`)) return;
+        if (await scheduleNext(captureId, row.sourceId, waiting, `capture:${captureId}:${next.attempt}`)) return;
         // Superseded meanwhile (or the queue would not take it): the wall is this row's answer.
       }
     }
@@ -294,13 +319,36 @@ export async function runProofPageCapture(captureId: string, session: Session = 
 }
 
 /**
+ * The earliest moment at or after `wantMs` that is at least `spacingMs` from every one of `takenMs` (review I1).
+ * Pure; exported for its test.
+ */
+export function spacedRetry(wantMs: number, takenMs: number[], spacingMs: number): number {
+  let at = wantMs;
+  for (const t of [...takenMs].sort((a, b) => a - b)) if (Math.abs(at - t) < spacingMs) at = t + spacingMs;
+  return at;
+}
+
+/**
  * Writes the `waiting` row and queues its next try in one transaction (spec 2026-10-28 §3.2): the job due at
  * `retryAt` under `key`, and `captures.job_id` pointed at it. Fenced on the row still capturing and not superseded;
  * false when it wrote nothing (the caller then fails the row as before the ladder).
+ *
+ * `retryAt` is first moved off the other waiting rows of the website on the same host and route (review I1): at
+ * least `RETRY_SPACING_MS` from each one whose next try is still queued. A lock per website serialises the choice,
+ * across workers too.
  */
-async function scheduleNext(captureId: string, waiting: WaitingProofPage, key: string): Promise<boolean> {
+async function scheduleNext(captureId: string, sourceId: string, planned: WaitingProofPage, key: string): Promise<boolean> {
   try {
     return await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`proof-page-retry:${sourceId}`}))`);
+      const others = (await tx.execute(sql`
+        SELECT c.url, c.metadata->>'retryAt' AS retry_at FROM captures c JOIN jobs j ON j.id = c.job_id
+         WHERE c.source_id = ${sourceId} AND c.id <> ${captureId} AND j.status = 'queued'
+           AND c.metadata->>'kind' = 'proof-page' AND c.metadata->>'status' = 'waiting' AND c.metadata->>'via' = ${planned.via}`)) as unknown as Array<{ url: string; retry_at: string | null }>;
+      const host = hostOf(planned.url);
+      const taken = others.filter((o) => o.retry_at && hostOf(o.url) === host).map((o) => Date.parse(o.retry_at!)).filter(Number.isFinite);
+      const retryAtMs = spacedRetry(Date.parse(planned.retryAt), taken, Math.round(RETRY_SPACING_MS * ladderWaitScale()));
+      const waiting: WaitingProofPage = { ...planned, retryAt: new Date(retryAtMs).toISOString() };
       const [w] = await tx.update(captures).set({ metadata: waiting })
         .where(and(eq(captures.id, captureId), stillCapturing, sql`NOT ${supersededSql(captureId)}`)).returning({ id: captures.id });
       if (!w) return false;

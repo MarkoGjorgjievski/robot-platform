@@ -17,7 +17,7 @@ vi.mock('./jev-client.js', async (importOriginal) => ({ ...(await importOriginal
 import { TILE_HEIGHT, CaptureError, BROWSER_UNAVAILABLE, type IBrowser, type PageCapture } from '@robot/browser';
 import { backoffAnswer, backoffRemainingMs, reportVerdict, _resetBackoffForTests } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
-import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, nextTry, LADDER_TRIES, LADDER_WAITS, PROOF_PAGE_STALL_MS, type ProofPageMeta } from './proof-page-capture.js';
+import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, nextTry, spacedRetry, LADDER_TRIES, LADDER_WAITS, PROOF_PAGE_STALL_MS, type ProofPageMeta } from './proof-page-capture.js';
 import { jobsOf, jobContext } from '../test-helpers/jobs.js';
 import { runInJob } from '../jobs/context.js';
 import { enqueueJob } from '../jobs/queue.js';
@@ -45,6 +45,11 @@ const fakeCapture = (url: string): PageCapture => ({
 });
 const sessionWith = (capture: (url: string) => Promise<PageCapture>) => async <T>(fn: (b: IBrowser) => Promise<T>) =>
   fn({ launch: async () => {}, close: async () => {}, capture: (u: string) => capture(u) } as unknown as IBrowser);
+/** One try as the worker runs it: inside the row's current job (the start write is fenced on it), the ladder on. */
+const ladderTry = async (captureId: string, session: Parameters<typeof runProofPageCapture>[1], opts: { jobId?: string } = {}) => {
+  const jobId = opts.jobId ?? (await db.query.captures.findFirst({ where: eq(captures.id, captureId), columns: { jobId: true } }))?.jobId ?? undefined;
+  return runInJob(jobContext('proof-page-capture', new AbortController(), { jobId }), () => runProofPageCapture(captureId, session, { ladder: true, jev: false }));
+};
 
 describe('proof-page capture job', () => {
   it('records a captured page: tiles, boxes, capture file', async () => {
@@ -386,7 +391,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       for (let attempt = 1; attempt <= 3; attempt++) {
         _resetBackoffForTests(); // the backoff a wall starts is as long as the wait: time passes between tries
         const before = Date.now();
-        await runProofPageCapture(captureId, walled, { ladder: true, jev: false });
+        await ladderTry(captureId, walled);
         const row = await metaOf(captureId);
         const meta = row.metadata as ProofPageMeta;
         expect(meta).toMatchObject({ status: 'waiting', url, attempt: attempt + 1, via: 'direct', verdict: refused });
@@ -406,7 +411,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       }
       _resetBackoffForTests();
       const lastJob = (await metaOf(captureId)).jobId;
-      await runProofPageCapture(captureId, walled, { ladder: true, jev: false });
+      await ladderTry(captureId, walled);
       const row = await metaOf(captureId);
       expect(row.metadata).toMatchObject({ status: 'failed', gaveUp: true, attempts: 4, firstStartedAt, verdict: refused });
       expect(row.jobId).toBe(lastJob); // no fifth try
@@ -422,7 +427,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
     try {
       const url = f.urls[0]!;
       const { captureId } = await startProofPageCapture(f.sourceId, url);
-      await runProofPageCapture(captureId, walled, { ladder: true, jev: false });
+      await ladderTry(captureId, walled);
       const meta = (await metaOf(captureId)).metadata as Extract<ProofPageMeta, { status: 'waiting' }>;
       const one = await caller.sources.proofPageCapture({ captureId });
       expect(one).toMatchObject({ status: 'waiting', retryAt: meta.retryAt, attempt: 2, of: 4, via: 'direct', firstStartedAt: meta.firstStartedAt, verdict: refused, tiles: [] });
@@ -448,9 +453,9 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
     const f = await createProjectWithSource(caller, { tag: 'ppc-ladder-ok', fields: [{ name: 'Title', type: 'text' }] });
     try {
       const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!);
-      await runProofPageCapture(captureId, walled, { ladder: true, jev: false });
+      await ladderTry(captureId, walled);
       _resetBackoffForTests();
-      await runProofPageCapture(captureId, sessionWith(async (u) => fakeCapture(u)), { ladder: true, jev: false });
+      await ladderTry(captureId, sessionWith(async (u) => fakeCapture(u)));
       expect((await metaOf(captureId)).metadata).toMatchObject({ status: 'captured', attempt: 2 });
     } finally { await f.cleanup(); }
   });
@@ -464,7 +469,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       const { captureId } = await startProofPageCapture(f.sourceId, url);
       // Two other products walled during this try: the third strike backs the host off 8 minutes.
       const session = sessionWith(async (u) => { reportVerdict(host, refused); reportVerdict(host, refused); return { ...fakeCapture(u), verdict: refused }; });
-      await runProofPageCapture(captureId, session, { ladder: true, jev: false });
+      await ladderTry(captureId, session);
       const meta = (await metaOf(captureId)).metadata as ProofPageMeta;
       expect(meta).toMatchObject({ status: 'waiting', attempt: 2 });
       if (meta.status === 'waiting') expect(Date.parse(meta.retryAt)).toBeGreaterThan(Date.now() + 7 * MIN);
@@ -480,7 +485,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       const { captureId } = await startProofPageCapture(f.sourceId, url);
       let opened = 0;
       const counting = sessionWith(async (u) => { opened++; return fakeCapture(u); });
-      await runProofPageCapture(captureId, counting, { ladder: true, jev: false });
+      await ladderTry(captureId, counting);
       expect(opened).toBe(0);
       const row = await metaOf(captureId);
       const meta = row.metadata as ProofPageMeta;
@@ -490,13 +495,13 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       expect(Math.abs(Date.parse(meta.retryAt) - (Date.now() + remaining))).toBeLessThan(2000);
       expect(await jobById(row.jobId)).toMatchObject({ status: 'queued' });
       // Deferred again: its own job.
-      await runProofPageCapture(captureId, counting, { ladder: true, jev: false });
+      await ladderTry(captureId, counting);
       const again = await metaOf(captureId);
       expect(again.metadata).toMatchObject({ status: 'waiting', attempt: 1 });
       expect(again.jobId).not.toBe(row.jobId);
       // The backoff over, try 1 runs.
       _resetBackoffForTests();
-      await runProofPageCapture(captureId, counting, { ladder: true, jev: false });
+      await ladderTry(captureId, counting);
       expect(opened).toBe(1);
       expect((await metaOf(captureId)).metadata).toMatchObject({ status: 'captured', attempt: 1 });
     } finally { await f.cleanup(); }
@@ -508,7 +513,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
     try {
       const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!);
       const job = (await metaOf(captureId)).jobId;
-      await runProofPageCapture(captureId, sessionWith(async (u) => { throw new CaptureError('timeout', u, 'Timeout'); }), { ladder: true, jev: false });
+      await ladderTry(captureId, sessionWith(async (u) => { throw new CaptureError('timeout', u, 'Timeout'); }));
       const row = await metaOf(captureId);
       expect(row.metadata).toMatchObject({ status: 'failed', verdict: { kind: 'timeout' } });
       expect(row.metadata).not.toHaveProperty('gaveUp');
@@ -529,16 +534,107 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
     } finally { await f.cleanup(); }
   });
 
-  it('the worker runs the job with the ladder on', async () => {
-    const { jobRegistry } = await import('../jobs/handlers.js');
-    expect(String(jobRegistry()['proof-page-capture']!.run)).toContain('ladder: true');
+  it('the worker runs the job with the ladder on: a start answered from the backoff waits, it does not fail', async () => {
+    noFallback();
+    const f = await createProjectWithSource(caller, { tag: 'ppc-ladder-handler', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const url = f.urls[0]!;
+      reportVerdict(new URL(url).hostname, refused); // no browser opens: the backoff answers
+      const { captureId } = await startProofPageCapture(f.sourceId, url);
+      const jobId = (await metaOf(captureId)).jobId!;
+      const { jobRegistry } = await import('../jobs/handlers.js');
+      const ctx = jobContext('proof-page-capture', new AbortController(), { jobId });
+      await runInJob(ctx, () => jobRegistry()['proof-page-capture']!.run({ captureId }, ctx) as Promise<unknown>);
+      expect((await metaOf(captureId)).metadata).toMatchObject({ status: 'waiting', attempt: 1 });
+    } finally { await f.cleanup(); }
+  });
+
+  it('a job that is not the row\'s current one takes nothing (an earlier try\'s job claimed again)', async () => {
+    noFallback();
+    const f = await createProjectWithSource(caller, { tag: 'ppc-ladder-oldjob', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!);
+      const firstJob = (await metaOf(captureId)).jobId!;
+      await ladderTry(captureId, walled);
+      const waitingRow = await metaOf(captureId);
+      expect(waitingRow.metadata).toMatchObject({ status: 'waiting', attempt: 2 });
+      _resetBackoffForTests();
+      let opened = 0;
+      await ladderTry(captureId, sessionWith(async (u) => { opened++; return fakeCapture(u); }), { jobId: firstJob });
+      expect(opened).toBe(0);
+      expect((await metaOf(captureId)).metadata).toEqual(waitingRow.metadata);
+    } finally { await f.cleanup(); }
+  });
+
+  it('retries of one website are spaced: two and three products walled together never come back in the same 30 s', async () => {
+    noFallback();
+    const f = await createProjectWithSource(caller, { tag: 'ppc-ladder-stagger', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const ids: string[] = [];
+      for (const url of f.urls) ids.push((await startProofPageCapture(f.sourceId, url)).captureId);
+      const retryAts: number[] = [];
+      for (const id of ids) {
+        _resetBackoffForTests(); // every wall alone would ask for the same 2 min
+        await ladderTry(id, walled);
+        const meta = (await metaOf(id)).metadata as ProofPageMeta;
+        expect(meta).toMatchObject({ status: 'waiting', attempt: 2 });
+        if (meta.status === 'waiting') retryAts.push(Date.parse(meta.retryAt));
+      }
+      expect(retryAts[1]! - retryAts[0]!).toBeGreaterThanOrEqual(30_000);
+      expect(retryAts[2]! - retryAts[1]!).toBeGreaterThanOrEqual(30_000);
+      // Each row's job is due at its own retryAt.
+      for (const [i, id] of ids.entries()) {
+        const job = await jobById((await metaOf(id)).jobId);
+        expect(Math.abs(job!.runAfter.getTime() - retryAts[i]!)).toBeLessThan(1000);
+      }
+    } finally { await f.cleanup(); }
+  });
+
+  it('deferrals of one website are spaced too: two starts answered by one backoff do not both wake at its end', async () => {
+    noFallback();
+    const f = await createProjectWithSource(caller, { tag: 'ppc-ladder-stagger-bo', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      reportVerdict(new URL(f.urls[0]!).hostname, refused);
+      const a = (await startProofPageCapture(f.sourceId, f.urls[0]!)).captureId;
+      const b = (await startProofPageCapture(f.sourceId, f.urls[1]!)).captureId;
+      await ladderTry(a, walled);
+      await ladderTry(b, walled);
+      const ra = (await metaOf(a)).metadata as Extract<ProofPageMeta, { status: 'waiting' }>;
+      const rb = (await metaOf(b)).metadata as Extract<ProofPageMeta, { status: 'waiting' }>;
+      expect(ra).toMatchObject({ status: 'waiting', attempt: 1 });
+      expect(rb).toMatchObject({ status: 'waiting', attempt: 1 });
+      expect(Date.parse(rb.retryAt) - Date.parse(ra.retryAt)).toBeGreaterThanOrEqual(30_000);
+    } finally { await f.cleanup(); }
+  });
+
+  it('deferrals stop after 30 min from the first try: the row gives up with the tries it made', async () => {
+    noFallback();
+    const f = await createProjectWithSource(caller, { tag: 'ppc-ladder-cap', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const url = f.urls[0]!;
+      const { captureId } = await startProofPageCapture(f.sourceId, url);
+      const firstStartedAt = new Date(Date.now() - 31 * MIN).toISOString();
+      const old: ProofPageMeta = {
+        kind: 'proof-page', status: 'waiting', url, startedAt: new Date(Date.now() - 2 * MIN).toISOString(), firstStartedAt,
+        error: 'x refused the browser.', verdict: refused, retryAt: new Date().toISOString(), attempt: 3, via: 'direct',
+      };
+      await db.update(captures).set({ metadata: old }).where(eq(captures.id, captureId));
+      reportVerdict(new URL(url).hostname, refused);
+      const job = (await metaOf(captureId)).jobId;
+      await ladderTry(captureId, walled);
+      const row = await metaOf(captureId);
+      expect(row.metadata).toMatchObject({ status: 'failed', gaveUp: true, attempts: 2, firstStartedAt, verdict: refused });
+      expect(row.jobId).toBe(job); // nothing queued
+    } finally { await f.cleanup(); }
   });
 
   it('try 3 goes by the fallback at once when the website has one; a page read there keeps the fallback for the website', async () => {
     delete process.env.DEFAULT_PROXY_URL;
     process.env.FALLBACK_PROXY_URL = 'http://fallback.invalid:8080';
-    const f = await createProjectWithSource(caller, { tag: 'ppc-ladder-fb', fields: [{ name: 'Title', type: 'text' }] });
+    const f = await createProjectWithSource(caller, { tag: 'ppc-ladder-fb', fields: [{ name: 'Title', type: 'text' }], urls: ['https://shop.ppc-ladder-fb.example.de/p/1', 'https://shop.ppc-ladder-fb.example.de/p/2', 'https://shop.ppc-ladder-fb.example.de/p/3'] });
     try {
+      // A website with no country: the try guesses it from the address (.de), and keeping the route saves it.
+      await db.update(sources).set({ country: null }).where(eq(sources.id, f.sourceId));
       const url = f.urls[0]!;
       const proxies: Array<string | null> = [];
       const recording = (inner: ReturnType<typeof sessionWith>) => (async <T,>(fn: (b: IBrowser) => Promise<T>, o?: { profile?: { proxy?: { server: string } } }) => {
@@ -546,19 +642,20 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
         return inner(fn);
       }) as never;
       const { captureId } = await startProofPageCapture(f.sourceId, url);
-      await runProofPageCapture(captureId, recording(walled), { ladder: true, jev: false });
+      await ladderTry(captureId, recording(walled));
       _resetBackoffForTests();
-      await runProofPageCapture(captureId, recording(walled), { ladder: true, jev: false });
+      await ladderTry(captureId, recording(walled));
       const meta = (await metaOf(captureId)).metadata as ProofPageMeta;
       expect(meta).toMatchObject({ status: 'waiting', attempt: 3, via: 'fallback' });
       // The direct route is backing off; the fallback's is not, so try 3 is due at once.
       if (meta.status === 'waiting') expect(Date.parse(meta.retryAt)).toBeLessThanOrEqual(Date.now() + 1000);
       expect(backoffRemainingMs(new URL(url).hostname)).toBeGreaterThan(0);
-      await runProofPageCapture(captureId, recording(sessionWith(async (u) => fakeCapture(u))), { ladder: true, jev: false });
+      await ladderTry(captureId, recording(sessionWith(async (u) => fakeCapture(u))));
       expect(proxies).toEqual([null, null, expect.stringContaining('fallback.invalid')]);
       expect((await metaOf(captureId)).metadata).toMatchObject({ status: 'captured', attempt: 3, via: 'fallback' });
       const src = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
       expect(src!.fallbackProxyAt).toBeInstanceOf(Date);
+      expect(src!.country).toBe('de');
     } finally { await f.cleanup(); }
   });
 
@@ -570,19 +667,19 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       const url = f.urls[0]!;
       const host = new URL(url).hostname;
       const { captureId } = await startProofPageCapture(f.sourceId, url);
-      await runProofPageCapture(captureId, walled, { ladder: true, jev: false });
+      await ladderTry(captureId, walled);
       _resetBackoffForTests();
-      await runProofPageCapture(captureId, walled, { ladder: true, jev: false });
+      await ladderTry(captureId, walled);
       _resetBackoffForTests();
       const before = Date.now();
-      await runProofPageCapture(captureId, walled, { ladder: true, jev: false }); // try 3, by the fallback
+      await ladderTry(captureId, walled); // try 3, by the fallback
       expect(backoffRemainingMs(host, Date.now, 'fallback')).toBeGreaterThan(0);
       expect(backoffRemainingMs(host)).toBe(0);
       const meta = (await metaOf(captureId)).metadata as ProofPageMeta;
       expect(meta).toMatchObject({ status: 'waiting', attempt: 4, via: 'fallback' });
       if (meta.status === 'waiting') expect(Date.parse(meta.retryAt)).toBeGreaterThanOrEqual(before + 4 * MIN - 1000);
       _resetBackoffForTests();
-      await runProofPageCapture(captureId, walled, { ladder: true, jev: false });
+      await ladderTry(captureId, walled);
       expect((await metaOf(captureId)).metadata).toMatchObject({ status: 'failed', gaveUp: true, attempts: 4 });
       expect((await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) }))!.fallbackProxyAt).toBeNull();
     } finally { await f.cleanup(); }
@@ -594,9 +691,9 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
     const f = await createProjectWithSource(caller, { tag: 'ppc-ladder-def', fields: [{ name: 'Title', type: 'text' }] });
     try {
       const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!);
-      await runProofPageCapture(captureId, walled, { ladder: true, jev: false });
+      await ladderTry(captureId, walled);
       _resetBackoffForTests();
-      await runProofPageCapture(captureId, walled, { ladder: true, jev: false });
+      await ladderTry(captureId, walled);
       expect((await metaOf(captureId)).metadata).toMatchObject({ status: 'waiting', attempt: 3, via: 'direct' });
     } finally { await f.cleanup(); }
   });
@@ -607,7 +704,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
     try {
       const url = f.urls[0]!;
       const { captureId: old } = await startProofPageCapture(f.sourceId, url);
-      await runProofPageCapture(old, walled, { ladder: true, jev: false });
+      await ladderTry(old, walled);
       const waitingRow = await metaOf(old);
       await new Promise((r) => setTimeout(r, 5));
       const { captureId: fresh } = await startProofPageCapture(f.sourceId, url);
@@ -616,7 +713,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       // The old job ran anyway (claimed just before the cancel): it opens nothing and writes nothing.
       _resetBackoffForTests();
       let opened = 0;
-      await runProofPageCapture(old, sessionWith(async (u) => { opened++; return fakeCapture(u); }), { ladder: true, jev: false });
+      await ladderTry(old, sessionWith(async (u) => { opened++; return fakeCapture(u); }));
       expect(opened).toBe(0);
       expect((await metaOf(old)).metadata).toEqual(waitingRow.metadata);
       expect((await latestProofPageCaptures(f.sourceId, [url]))[url]).toMatchObject({ captureId: fresh, status: 'capturing' });
@@ -631,7 +728,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       const { captureId: old } = await startProofPageCapture(f.sourceId, url);
       const oldJob = (await metaOf(old)).jobId;
       const session = sessionWith(async (u) => { await startProofPageCapture(f.sourceId, url); return { ...fakeCapture(u), verdict: refused }; });
-      await runProofPageCapture(old, session, { ladder: true, jev: false });
+      await ladderTry(old, session);
       const row = await metaOf(old);
       expect(row.metadata).toMatchObject({ status: 'failed', verdict: refused });
       expect(row.jobId).toBe(oldJob);
@@ -701,12 +798,22 @@ describe('a website that keeps the fallback (spec 2026-10-28 §3.3)', () => {
         return sessionWith(async (u) => ({ ...fakeCapture(u), verdict: refused }))(fn);
       }) as never;
       const { captureId } = await startProofPageCapture(f.sourceId, url);
-      await runProofPageCapture(captureId, session, { ladder: true, jev: false });
+      await ladderTry(captureId, session);
       expect(proxies).toEqual([expect.stringContaining('fallback.invalid')]);
       expect((await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata).toMatchObject({ status: 'waiting', attempt: 2, via: 'fallback' });
       const host = new URL(url).hostname;
       expect(backoffRemainingMs(host, Date.now, 'fallback')).toBeGreaterThan(0);
       expect(backoffRemainingMs(host)).toBe(0);
     } finally { await f.cleanup(); }
+  });
+});
+
+describe('spacedRetry (review I1)', () => {
+  it('keeps a free moment, and moves one too near another to just after it, past every later one too', () => {
+    expect(spacedRetry(100_000, [], 30_000)).toBe(100_000);
+    expect(spacedRetry(100_000, [20_000, 200_000], 30_000)).toBe(100_000);
+    expect(spacedRetry(100_000, [100_000], 30_000)).toBe(130_000);
+    expect(spacedRetry(100_000, [125_000, 90_000, 150_000], 30_000)).toBe(180_000);
+    expect(spacedRetry(100_000, [80_000], 30_000)).toBe(110_000);
   });
 });
