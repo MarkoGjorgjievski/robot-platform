@@ -540,17 +540,28 @@ describe('rowStatus: answered cells and failed screenshots (final review M4, M6)
     expect(rowStatus(price, b, live, noShot, new Set()))
       .toEqual({ kind: 'needs-you', reason: 'screenshot not ready on product 3', product: 3 });
   });
-  it('a refused or challenged screenshot says so on the row (spec 2026-10-09 §A2)', () => {
+  it('a turned-away screenshot says so on the row (spec 2026-10-28 §3.6, was 2026-10-09 §A2)', () => {
     const b = board();
     const live = liveFor(b, 'price', [null, sug('219.99', [1], JL), sug('149.00', [1], JL)]);
     const noShot = { ...maps(), [U[0]!]: undefined };
     const failed = new Set([U[0]!]);
+    expect(rowStatus(price, b, live, noShot, failed, new Map([[U[0]!, 'turned-away']])))
+      .toEqual({ kind: 'needs-you', reason: 'turned away on product 1', product: 1 });
     expect(rowStatus(price, b, live, noShot, failed, new Map([[U[0]!, 'refused']])))
-      .toEqual({ kind: 'needs-you', reason: 'screenshot refused on product 1', product: 1 });
+      .toEqual({ kind: 'needs-you', reason: 'turned away on product 1', product: 1 });
     expect(rowStatus(price, b, live, noShot, failed, new Map([[U[0]!, 'challenge']])))
-      .toEqual({ kind: 'needs-you', reason: 'human check on product 1', product: 1 });
+      .toEqual({ kind: 'needs-you', reason: 'turned away on product 1', product: 1 });
+    expect(rowStatus(price, b, live, noShot, failed, new Map([[U[0]!, 'timeout']])))
+      .toEqual({ kind: 'needs-you', reason: 'screenshot failed on product 1', product: 1 });
     expect(rowStatus(price, b, live, noShot, failed))
       .toEqual({ kind: 'needs-you', reason: 'screenshot failed on product 1', product: 1 });
+  });
+  it('a screenshot waiting for its next try, or trying again, reads waiting (spec 2026-10-28 §3.6)', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [1], JL), null, sug('149.00', [1], JL)]);
+    const noShot = { ...maps(), [U[1]!]: undefined };
+    expect(rowStatus(price, b, live, noShot, new Set(), new Map([[U[1]!, 'waiting']])))
+      .toEqual({ kind: 'needs-you', reason: 'waiting for product 2', product: 2 });
   });
 });
 

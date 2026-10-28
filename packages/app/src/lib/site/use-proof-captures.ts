@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import { trpc, API_URL } from '../trpc';
 import { useStaffDetail } from '../use-staff-detail';
-import { proofCaptureState, type ProofCapture } from './proof-capture-state';
+import { WAITING_POLL_MS, capturePollMs, proofCaptureState, type ProofCapture } from './proof-capture-state';
 
 export type { ProofCapture } from './proof-capture-state';
 
@@ -43,7 +43,16 @@ export function useProofCaptures(
   // Keyed on the whole url list: without the previous answer held while the
   // new one loads, every card would flicker back to "taking screenshot…"
   // whenever one card changes (final review M3).
-  const lookup = trpc.sources.proofPageCaptures.useQuery({ sourceId: sourceId ?? '', urls }, { enabled, placeholderData: keepPreviousData });
+  // While a page waits for its next try (spec 2026-10-28 §3.6) the lookup is read again every 5 s, so a
+  // newer capture of that page started elsewhere (a reload, a check) is the one this screen resumes.
+  const lookup = trpc.sources.proofPageCaptures.useQuery(
+    { sourceId: sourceId ?? '', urls },
+    {
+      enabled,
+      placeholderData: keepPreviousData,
+      refetchInterval: (query) => (Object.values(query.state.data ?? {}).some((c) => c?.status === 'waiting') ? WAITING_POLL_MS : false),
+    },
+  );
 
   // Captures this hook itself started this session, by url. Takes priority
   // over `lookup` so a retry's fresh id is never shadowed by the stale one
@@ -113,7 +122,7 @@ export function useProofCaptures(
     ids.map((id) =>
       t.sources.proofPageCapture(
         { captureId: id },
-        { refetchInterval: (query) => (query.state.data?.status === 'capturing' || query.state.data?.status === 'waiting' ? 2000 : false) },
+        { refetchInterval: (query) => capturePollMs(query.state.data?.status) },
       ),
     ),
   );
@@ -127,7 +136,7 @@ export function useProofCaptures(
     byUrl[url] = proofCaptureState({
       ...(url in startErrors ? { startError: startErrors[url]! } : {}),
       captureId: id,
-      ...(poll ? { poll: { data: poll.data, isError: poll.isError } } : {}),
+      ...(poll ? { poll: { data: poll.data, isError: poll.isError, ...(poll.dataUpdatedAt ? { updatedAt: poll.dataUpdatedAt } : {}) } } : {}),
       staff,
     });
   }

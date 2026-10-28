@@ -21,7 +21,9 @@ const SHARED = [fileURLToPath(new URL('../../scraper/src/customer-copy.ts', impo
 const FORBIDDEN = [/\bbudget\b/i, /\bHTTP \d/, /refused the browser/, /CAPTCHA/, /\bproxy\b/i];
 // Spec 2026-10-24 proxy §2.3: "proxy" is staff-only. The Network panel and its view are staff files; diagnose-run.ts's
 // staff branch keeps its one sentence (pinned by diagnose-run.test.ts: a customer never reads it).
-const STAFF_TEXT = new Set([' — wait and retry; long-term this needs the proxy line item.']);
+// Spec 2026-10-28 §3.6: lib/site/turned-away.ts adds the route to a card's stored sentence for staff only (pinned by
+// turned-away.test.ts: no customer line says proxy).
+const STAFF_TEXT = new Set([' — wait and retry; long-term this needs the proxy line item.', ' (via fallback proxy)']);
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
