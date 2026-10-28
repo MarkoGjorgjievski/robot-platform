@@ -3,7 +3,7 @@
 **Status:** approved by Marko 2026-10-28 in chat ("yes to your recommendations, go ahead, but I won't be choosing a
 proxy provider for now"). Branch `feat/turned-away` from `main` @ `126af9cd`, worktree
 `C:\Users\Marko\Documents\projects\robot-platform-turnedaway`. Implemented on `feat/turned-away` (Tasks 1–5 of plan
-`docs/superpowers/plans/2026-10-28-turned-away.md`), 2026-10-28; merge pending the gate.
+`docs/superpowers/plans/2026-10-28-turned-away.md`), 2026-10-28; merged to `main` 2026-10-28.
 
 **Proven:** per-task unit, router and app tests (task reports in `.superpowers/sdd/2026-10-28-turned-away/`); the free
 live check `packages/worker/src/live-turned-away.ts` passed 25 of 25 checks
@@ -16,7 +16,9 @@ the proxy's address; (b) no fallback: waits 5.9 / 11.7 / 23.7 s, four walled dir
 `attempts: 4`, nothing through the proxy, ops "turned away, gave up, not via the fallback"; (c) two products walled
 together: their queued retries never closer than 1,500 ms (30 s × 0.05) over 185 polls, both given up after four
 tries; the worker closed its browsers and the throwaway database was dropped. Route smoke (the new turned-away step,
-screens `docs/testing/screens/app-turned-away-*.png`): pending the controller's run on the isolated pair.
+screens `docs/testing/screens/app-turned-away-*.png`): 29 of 29 on the isolated keyless pair, first run, screenshots
+looked at (the waiting card with its countdown, Swap product, the bar, "waiting for product 3"). Whole-branch review:
+no Critical or Important; its Minors are follow-ups in `docs/queue.md`.
 
 **Deviations:** (from the task reports) `waiting.attempt` can be 1 (try 1 answered from the backoff); `capturing` and
 `captured` rows carry `via`, failed rows of more than one try carry `via` too (ops' "even through the proxy"); one
