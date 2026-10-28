@@ -5,7 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { trpc } from '../../lib/trpc';
 import { mutationErrorText, type MutationErrorLike } from '../../lib/mutation-error';
 import {
-  NETWORK_HELP, NETWORK_TITLE, NO_COUNTRY, countryChoices, countryFromChoice, proxySaveReason, proxyStateLine, useDefaultReason, type NetworkSettings,
+  GO_DIRECT, NETWORK_HELP, NETWORK_TITLE, NO_COUNTRY, countryChoices, countryFromChoice, fallbackSwitchLine, proxySaveReason, proxyStateLine, useDefaultReason,
+  type NetworkSettings,
 } from '../../lib/site/network-view';
 import { SettingsRow } from './settings-row';
 
@@ -19,6 +20,7 @@ export function NetworkPanel({ siteId, network }: { siteId: string; network: Net
   const save = trpc.sources.update.useMutation();
   const useDefault = trpc.sources.update.useMutation();
   const setCountry = trpc.sources.update.useMutation();
+  const goDirect = trpc.sources.update.useMutation();
   const [typed, setTyped] = useState('');
   const [shown, setShown] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +38,7 @@ export function NetworkPanel({ siteId, network }: { siteId: string; network: Net
 
   const saveReason = proxySaveReason(typed);
   const defaultReason = useDefaultReason(network);
+  const switched = fallbackSwitchLine(network.fallbackProxyAt);
 
   return (
     <section className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
@@ -63,6 +66,16 @@ export function NetworkPanel({ siteId, network }: { siteId: string; network: Net
               <p className="text-sm text-muted-foreground">{[saveReason, defaultReason].filter(Boolean).join(' · ')}</p>
             ) : null}
             {network.problem ? <p role="alert" className="text-sm text-warn">{network.problem}</p> : null}
+            {/* Spec 2026-10-28 §3.3 "Undo": the website switched to the fallback proxy on its own; staff can send it direct again. */}
+            {switched ? (
+              <div className="flex flex-wrap items-center gap-2" data-testid="fallback-switch">
+                <p className="text-sm">{switched}</p>
+                <Button size="sm" variant="outline" disabled={goDirect.isPending}
+                  onClick={() => void act(() => goDirect.mutateAsync({ id: siteId, fallbackProxy: false }))}>
+                  {goDirect.isPending ? 'Saving…' : GO_DIRECT}
+                </Button>
+              </div>
+            ) : null}
           </div>
         </SettingsRow>
         <SettingsRow label="Country">

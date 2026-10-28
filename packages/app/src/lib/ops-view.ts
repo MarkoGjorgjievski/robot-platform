@@ -20,7 +20,29 @@ export type OpsWebsiteRow = {
   drifted: number;
   lastRun: { status: string; at: string } | null;
   spentThisMonthUsd: number;
+  /** Spec 2026-10-28 §3.5: a page's newest proof-page capture in the last day is waiting to try again, or gave up. */
+  turnedAway: { since: string; gaveUp: boolean; viaFallback: boolean } | null;
+  /** When the website switched to the fallback proxy on its own; null when it never did. */
+  fallbackProxyAt: string | null;
 };
+
+/** The badge a turned-away website carries in the list (spec 2026-10-28 §3.5), or null. `title` says why, when there is more to say. */
+export function turnedAwayBadge(
+  row: Pick<OpsWebsiteRow, 'turnedAway'>,
+  fallbackConfigured: boolean,
+): { text: string; tone: 'warn' | 'fail'; title: string | null } | null {
+  const t = row.turnedAway;
+  if (!t) return null;
+  if (!t.gaveUp) return { text: 'Turned away · retrying', tone: 'warn', title: null };
+  if (t.viaFallback) return { text: 'Turned away even through the proxy', tone: 'fail', title: null };
+  return { text: 'Turned away · may need a proxy', tone: 'fail', title: fallbackConfigured ? null : 'FALLBACK_PROXY_URL is not set.' };
+}
+
+export const AUTOMATIC_PROXY = 'Proxy (automatic)';
+/** Spec 2026-10-28 §3.5: the website loads through the fallback proxy it switched to on its own. */
+export function automaticProxyBadge(row: Pick<OpsWebsiteRow, 'fallbackProxyAt'>): string | null {
+  return row.fallbackProxyAt ? AUTOMATIC_PROXY : null;
+}
 
 /**
  * Is this pathname inside ops mode? `/ops` itself and every route below it
@@ -339,8 +361,8 @@ export function siteLastRunText(lastRun: { status: string; at: string; rows: num
   return `${label} ${when}${rows}`;
 }
 
-/** The ops website page's Network cell (spec 2026-10-24 proxy §2.3): "proxy (own | default | none) · country". */
-export function networkLine(n: { proxy: 'own' | 'default' | 'none'; country: { code: string; name: string } | null }): string {
+/** The ops website page's Network cell (spec 2026-10-24 proxy §2.3): "proxy (own | default | fallback | none) · country" (fallback: spec 2026-10-28 §3.3). */
+export function networkLine(n: { proxy: 'own' | 'default' | 'fallback' | 'none'; country: { code: string; name: string } | null }): string {
   return `proxy (${n.proxy}) · ${n.country?.name ?? 'no country'}`;
 }
 
