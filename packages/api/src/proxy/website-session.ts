@@ -6,15 +6,16 @@
 import type { IBrowser } from '@robot/browser';
 import { db } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
-import { browserProfileForSource } from './browser-profile.js';
+import { browserProfileForSource, type RouteOptions } from './browser-profile.js';
 
 export type WebsiteSession = <T>(fn: (browser: IBrowser) => Promise<T>) => Promise<T>;
 
-/** `session`: the one to open (tests inject a fake one; the drift check and proof-page capture pass theirs through). */
-export function forWebsite(sourceId: string, session: typeof withBrowserSession = withBrowserSession): WebsiteSession {
+/** `session`: the one to open (tests inject a fake one; the drift check and proof-page capture pass theirs through).
+ *  `opts`: a try by the fallback route and the country it uses (spec 2026-10-28 turned away §3.3). */
+export function forWebsite(sourceId: string, session: typeof withBrowserSession = withBrowserSession, opts: RouteOptions = {}): WebsiteSession {
   return async <T,>(fn: (browser: IBrowser) => Promise<T>): Promise<T> => {
     // An address that cannot be used throws the proxy CaptureError here, before any browser opens (spec §3.1).
-    const profile = await browserProfileForSource(db, sourceId);
+    const profile = await browserProfileForSource(db, sourceId, opts);
     return session(fn, { profile });
   };
 }

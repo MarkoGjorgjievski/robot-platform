@@ -96,3 +96,76 @@ describe('browserProfileForSource (spec §2.2)', () => {
     }
   });
 });
+
+// Spec 2026-10-28 turned away §3.3: own → default → the fallback (kept, or asked for by a try) → direct.
+describe('the fallback route (spec 2026-10-28 §3.3)', () => {
+  const FALLBACK = 'http://f-{country}:fsecret@fallback.proxy.test:9000';
+  const kept = new Date('2026-10-28T09:00:00Z');
+
+  it('a website with no fallback kept and no try asking for it resolves as before, whatever FALLBACK_PROXY_URL is', () => {
+    expect(buildProfile({ proxyUrl: null, country: null, fallbackProxyAt: null }, undefined, FALLBACK)).toEqual({});
+    expect(buildProfile({ proxyUrl: null, country: 'de' }, undefined, FALLBACK)).toEqual({ locale: 'de-DE', timezoneId: 'Europe/Berlin' });
+    expect(networkOf({ proxyUrl: null, country: null, fallbackProxyAt: null }, undefined, FALLBACK)).toEqual({ proxy: 'none', proxyUrl: null, country: null, countryName: null, problem: null });
+  });
+
+  it('kept: the fallback with {country} filled in and the country’s locale; FALLBACK_PROXY_URL unset: direct again', () => {
+    expect(buildProfile({ proxyUrl: null, country: 'de', fallbackProxyAt: kept }, undefined, FALLBACK)).toEqual({
+      proxy: { server: 'http://fallback.proxy.test:9000', username: 'f-de', password: 'fsecret' }, locale: 'de-DE', timezoneId: 'Europe/Berlin',
+    });
+    expect(buildProfile({ proxyUrl: null, country: 'de', fallbackProxyAt: kept }, undefined, undefined)).toEqual({ locale: 'de-DE', timezoneId: 'Europe/Berlin' });
+    expect(buildProfile({ proxyUrl: null, country: 'de', fallbackProxyAt: kept }, undefined, '  ')).toEqual({ locale: 'de-DE', timezoneId: 'Europe/Berlin' });
+  });
+
+  it('own and default come first, kept or asked for', () => {
+    expect(buildProfile({ proxyUrl: OWN, country: 'de', fallbackProxyAt: kept }, DEFAULT, FALLBACK, { via: 'fallback', country: 'fr' }))
+      .toMatchObject({ proxy: { server: 'http://own.proxy.test:7000' } });
+    expect(buildProfile({ proxyUrl: null, country: null, fallbackProxyAt: kept }, DEFAULT, FALLBACK, { via: 'fallback', country: 'fr' }))
+      .toMatchObject({ proxy: { server: 'http://default.proxy.test:8000' } });
+  });
+
+  it('a try via the fallback: the try’s country fills {country} and sets the locale', () => {
+    expect(buildProfile({ proxyUrl: null, country: null, fallbackProxyAt: null }, undefined, FALLBACK, { via: 'fallback', country: 'gb' })).toEqual({
+      proxy: { server: 'http://fallback.proxy.test:9000', username: 'f-gb', password: 'fsecret' }, locale: 'en-GB', timezoneId: 'Europe/London',
+    });
+    // No country given: the website's.
+    expect(buildProfile({ proxyUrl: null, country: 'fr', fallbackProxyAt: null }, undefined, FALLBACK, { via: 'fallback' }))
+      .toMatchObject({ proxy: { username: 'f-fr' }, locale: 'fr-FR' });
+  });
+
+  it('a try via the fallback never goes direct: no address, an unusable one, or {country} with none is a proxy failure', () => {
+    expect(failure(() => buildProfile({ proxyUrl: null, country: 'de', fallbackProxyAt: null }, undefined, undefined, { via: 'fallback' })))
+      .toMatchObject({ kind: 'proxy', message: 'The proxy refused the connection.', detail: 'FALLBACK_PROXY_URL is not set.' });
+    const bad = failure(() => buildProfile({ proxyUrl: null, country: 'de', fallbackProxyAt: null }, undefined, 'gate.provider.com:7000', { via: 'fallback' }));
+    expect((bad as CaptureError).detail).toMatch(/^FALLBACK_PROXY_URL is not usable: /);
+    expect(failure(() => buildProfile({ proxyUrl: null, country: null, fallbackProxyAt: null }, undefined, FALLBACK, { via: 'fallback' })))
+      .toMatchObject({ kind: 'proxy', detail: 'FALLBACK_PROXY_URL fills in {country}, and this website has no country.' });
+  });
+
+  it('networkOf: a kept fallback reads "fallback" with the address masked; unset, none', () => {
+    expect(networkOf({ proxyUrl: null, country: 'de', fallbackProxyAt: kept }, undefined, FALLBACK)).toEqual({
+      proxy: 'fallback', proxyUrl: 'http://f-{country}:•••@fallback.proxy.test:9000', country: 'de', countryName: 'Germany', problem: null,
+    });
+    expect(networkOf({ proxyUrl: null, country: 'de', fallbackProxyAt: kept }, undefined, undefined)).toMatchObject({ proxy: 'none', proxyUrl: null });
+    expect(networkOf({ proxyUrl: null, country: 'de', fallbackProxyAt: kept }, DEFAULT, FALLBACK)).toMatchObject({ proxy: 'default' });
+  });
+
+  it('browserProfileForSource reads fallback_proxy_at and passes a try’s options through', async () => {
+    const me = await signedInCaller('proxy-fallback');
+    const site = await createProjectWithSource(me.caller, { tag: 'proxy-fallback', fields: [{ name: 'Title', type: 'text' }] });
+    const saved = { d: process.env.DEFAULT_PROXY_URL, f: process.env.FALLBACK_PROXY_URL };
+    try {
+      delete process.env.DEFAULT_PROXY_URL;
+      process.env.FALLBACK_PROXY_URL = FALLBACK;
+      expect(await browserProfileForSource(db, site.sourceId)).toEqual({ locale: 'en-US', timezoneId: 'America/New_York' });
+      expect(await browserProfileForSource(db, site.sourceId, { via: 'fallback', country: 'de' }))
+        .toMatchObject({ proxy: { username: 'f-de' }, locale: 'de-DE' });
+      await db.update(sources).set({ fallbackProxyAt: kept }).where(eq(sources.id, site.sourceId));
+      expect(await browserProfileForSource(db, site.sourceId)).toMatchObject({ proxy: { username: 'f-us' }, locale: 'en-US' });
+    } finally {
+      if (saved.d === undefined) delete process.env.DEFAULT_PROXY_URL; else process.env.DEFAULT_PROXY_URL = saved.d;
+      if (saved.f === undefined) delete process.env.FALLBACK_PROXY_URL; else process.env.FALLBACK_PROXY_URL = saved.f;
+      await site.cleanup();
+      await me.cleanup();
+    }
+  });
+});
