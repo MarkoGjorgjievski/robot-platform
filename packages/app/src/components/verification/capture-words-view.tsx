@@ -5,8 +5,8 @@ import { barWords, cardWords, isWaiting, type CardIcon } from '../../lib/site/tu
 import { useNow } from '../../lib/use-now';
 import { useStaffDetail } from '../../lib/use-staff-detail';
 
-/** Ticks only while this capture counts up (taking a screenshot, trying again) or down (waiting). */
-const counting = (c: ProofCapture | undefined) => !c || c.status === 'starting' || c.status === 'capturing' || c.status === 'waiting';
+/** Ticks only while this capture shows a clock: counting up (capturing) or down (waiting). */
+const counting = (c: ProofCapture | undefined) => c?.status === 'capturing' || c?.status === 'waiting';
 
 function StateIcon({ icon }: { icon: CardIcon }) {
   if (icon === 'spinner') return <Loader2 aria-hidden className="mt-[2px] size-3.5 shrink-0 animate-spin" />;

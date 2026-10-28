@@ -4,6 +4,7 @@ import { Input } from '../ui/input';
 import { shortUrl, type Card } from '../../lib/site/verification-model';
 import type { ProofCapture } from '../../lib/site/use-proof-captures';
 import { CaptureStateWords } from './capture-words-view';
+import { isWaiting } from '../../lib/site/turned-away';
 
 /**
  * One product in the grid (spec §2.2): the listing's photo and title, the
@@ -52,7 +53,8 @@ export function ProductCard({
   }
 
   const status = capture?.status ?? 'starting';
-  const rail = status === 'captured' ? 'bg-pass' : status === 'failed' || status === 'waiting' ? 'bg-warn' : 'bg-text';
+  // Amber through every try of a turned-away page, the running retries included, so it never flickers between tries.
+  const rail = status === 'captured' ? 'bg-pass' : status === 'failed' || isWaiting(capture) ? 'bg-warn' : 'bg-text';
 
   return (
     <div className={`relative flex flex-col overflow-hidden rounded-[6px] border ${selected ? 'border-text' : 'border-line hover:border-line-hover'}`}>

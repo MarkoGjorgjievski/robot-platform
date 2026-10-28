@@ -53,14 +53,14 @@ describe('proofCaptureState (spec 2026-10-20 §3.5.5)', () => {
       const s = proofCaptureState({ captureId: 'c', poll: { data: { status: 'capturing', ...empty, startedAt: 'x', attempt: 3, of: 4, via: 'direct' }, isError: false } });
       expect(s).toMatchObject({ status: 'capturing', startedAt: 'x', attempt: 3, of: 4, via: 'direct' });
     });
-    it('a given-up row keeps gaveUp, attempts, its first start and the poll\'s time', () => {
-      const gaveUp: ProofPoll = { status: 'failed', error: 'shop.example refused the browser (HTTP 403).', verdict: { kind: 'refused' }, ...empty, gaveUp: true, attempts: 4, firstStartedAt: 'f' };
-      expect(proofCaptureState({ captureId: 'c', poll: { data: gaveUp, isError: false, updatedAt: 123 } }))
-        .toMatchObject({ status: 'failed', gaveUp: true, attempts: 4, firstStartedAt: 'f', polledAt: 123 });
+    it("a given-up row keeps gaveUp, attempts, its first start and its last try's start", () => {
+      const gaveUp: ProofPoll = { status: 'failed', error: 'shop.example refused the browser (HTTP 403).', verdict: { kind: 'refused' }, ...empty, gaveUp: true, attempts: 4, firstStartedAt: 'f', startedAt: 'l' };
+      expect(proofCaptureState({ captureId: 'c', poll: { data: gaveUp, isError: false } }))
+        .toMatchObject({ status: 'failed', gaveUp: true, attempts: 4, firstStartedAt: 'f', startedAt: 'l' });
     });
     it('a row written before the ladder carries none of its fields', () => {
       const s = proofCaptureState({ captureId: 'c', poll: { data: { status: 'capturing', ...empty }, isError: false } });
-      for (const k of ['startedAt', 'retryAt', 'attempt', 'of', 'via', 'gaveUp', 'attempts', 'firstStartedAt', 'polledAt']) expect(s).not.toHaveProperty(k);
+      for (const k of ['startedAt', 'retryAt', 'attempt', 'of', 'via', 'gaveUp', 'attempts', 'firstStartedAt']) expect(s).not.toHaveProperty(k);
     });
   });
   it('no id yet, or no answer yet, is starting', () => {

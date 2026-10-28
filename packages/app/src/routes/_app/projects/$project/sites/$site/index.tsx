@@ -7,7 +7,7 @@ import { ListingBar } from '../../../../../../components/verification/listing-ba
 import { AddProductCard } from '../../../../../../components/verification/product-grid';
 import { ProductCard } from '../../../../../../components/verification/product-card';
 import { CaptureStateWords, TurnedAwayBar } from '../../../../../../components/verification/capture-words-view';
-import { captureKind } from '../../../../../../lib/site/turned-away';
+import { captureKind, isWaiting } from '../../../../../../lib/site/turned-away';
 import { PageViewer, type Overlay } from '../../../../../../components/verification/page-viewer';
 import { MarkPopover } from '../../../../../../components/verification/mark-popover';
 import { VerificationTable, type TableRow, type DriftLine } from '../../../../../../components/verification/verification-table';
@@ -1741,7 +1741,8 @@ function ProductView({
   }
   // Spec 2026-10-28 §3.6: the card's own words here too — the clock, the countdown, the whole sentence and its actions.
   const words = <CaptureStateWords capture={capture} name={websiteName} disabled={locked} onRetry={onRetry} onSwap={onSwap} size="sm" />;
-  if (!capture || capture.status === 'starting' || capture.status === 'capturing') {
+  // A retry in progress keeps the waiting panel's height (no skeleton), so the panel does not jump at each try.
+  if (!capture || capture.status === 'starting' || (capture.status === 'capturing' && !isWaiting(capture))) {
     return (
       <div className={panel}>
         {words}
@@ -1749,7 +1750,7 @@ function ProductView({
       </div>
     );
   }
-  if (capture.status === 'failed' || capture.status === 'waiting') {
+  if (capture.status === 'failed' || isWaiting(capture)) {
     return <div className={panel}>{words}</div>;
   }
   return <>{children}</>;
