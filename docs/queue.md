@@ -13,6 +13,8 @@ reason and goes on to the next.
 
 ## Needs Marko
 
+- **Choose a proxy provider (FALLBACK_PROXY_URL).** A turned-away proof page tries the fallback proxy at try 3 and a website keeps it when it works (spec 2026-10-28 turned away); with none configured the ladder is all direct and ops says "Turned away · may need a proxy".
+- Follow-up (turned away): removing or swapping a card does not cancel its waiting capture job (up to 3 more loads; harmless, the screen reads the newest row per URL).
 - One click on a 'different place' row's Accept now confirms the odd product's value too (it could be a 'was' price on a sale product). Keep, or make that cell need its own look?
 - **Customer-visible country?** Staff choose a website's country (and proxy) today; customers see nothing of it. Should customers pick the country themselves (e.g. "Read prices as shown in: Germany")?
 - **Proxy credentials and a website's own password prompt.** Playwright answers every HTTP auth challenge with the context's proxy user and password, so a website that asks for a password (HTTP 401) would have received them. Mitigated on the branch: a proxy with a user or password now goes through a per-session loopback forwarder, so Chromium (and any website) only ever holds a random throwaway credential that works nowhere else. An IP-allow-listed proxy with no password needs no forwarder at all. OK to configure a credentialed provider on this basis?
@@ -50,6 +52,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-28 — When a website turns us away (branch `feat/turned-away`): a walled proof-page screenshot waits and tries again on its own — four tries (direct 2 / 4 / 8 min; with FALLBACK_PROXY_URL, try 3 by the fallback at once and kept when it works, `sources.fallback_proxy_at`), retries spaced per website, a 30-min cap; the customer sees the countdown, "Try n of 4", one bar and Swap product, never "proxy"; staff get ops badges and "Go direct again". Live check docs/testing/results/2026-10-28-turned-away/live-turned-away.json (25/25). After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-26 — A fresh-user first run, end to end (branch `feat/first-run`, last code `6a2a59af`): `packages/app/src/first-run.test.ts` walks a new customer from sign-in to downloaded rows on IKEA, Gymshark and Skullcandy, free and keyless; all three pass on the final head; 13 product defects found and fixed (spec "Deviations"); M1 → Needs Marko.
 - 2026-10-25 — Monitoring basics (`976b5d74`): monitoring shipped; the local week of checks → Needs Marko. Worker heartbeat (workers table) and WORKER_HEALTH_PORT, /readyz, /healthz on the app, JSON and redacted logs (LOG_FORMAT, LOG_LEVEL), a stuck-job watchdog (jobs.progress_at), an error-report hook (ERROR_REPORT_URL), ops → Queue; live check docs/testing/results/2026-10-25-monitoring/live-monitoring.json. After merge: pnpm db:migrate, restart dev:all.
 - 2026-10-25 — Proxy support in the browser (`4e9ed93d`): a proxy address and a country per website (staff only; DEFAULT_PROXY_URL for all), every page of the website through it with the country's locale and time zone, never direct on a proxy failure, a credentialed proxy behind a per-session loopback forwarder; proven against a local recording proxy (live-proxy.ts, docs/testing/results/2026-10-24-proxy/live-proxy.json). After merge: pnpm db:migrate, restart dev:all.

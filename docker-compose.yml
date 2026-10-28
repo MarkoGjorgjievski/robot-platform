@@ -8,6 +8,8 @@
 # ${STACK_*} values, and nothing here names a key).
 name: robot-stack
 
+# ./stack.env reaches the api and the worker as it is: keys and switches such as ANTHROPIC_API_KEY, DEFAULT_PROXY_URL
+# or FALLBACK_PROXY_URL (the turned-away fallback, spec 2026-10-28) are set there, never here.
 x-stack-env: &stack-env
   env_file:
     - path: ./stack.env
