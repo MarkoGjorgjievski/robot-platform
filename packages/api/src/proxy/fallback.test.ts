@@ -62,6 +62,14 @@ describe('fallbackFor (spec §3.3 "Available")', () => {
     expect(fallbackFor(bare, 'https://www.shop.com/p/1', env({ FALLBACK_PROXY_URL: PLAIN }))).toEqual({ available: true, country: null });
   });
 
+  it('a website on the default us takes the country its address names; another stored country is kept (ruling 2026-10-28)', () => {
+    const e = env({ FALLBACK_PROXY_URL: FALLBACK });
+    expect(fallbackFor({ ...bare, country: 'us' }, 'https://www.shop.com/de-de/p/1', e)).toEqual({ available: true, country: 'de' });
+    expect(fallbackFor({ ...bare, country: 'US' }, 'https://www.shop.de/p/1', e)).toEqual({ available: true, country: 'de' });
+    expect(fallbackFor({ ...bare, country: 'us' }, 'https://www.shop.com/p/1', e)).toEqual({ available: true, country: 'us' });
+    expect(fallbackFor({ ...bare, country: 'fr' }, 'https://www.shop.com/de-de/p/1', e)).toEqual({ available: true, country: 'fr' });
+  });
+
   it('not available, and why', () => {
     expect(fallbackFor(bare, url, env({}))).toEqual({ available: false, reason: 'none' });
     expect(fallbackFor(bare, url, env({ FALLBACK_PROXY_URL: ' ' }))).toEqual({ available: false, reason: 'none' });
@@ -103,6 +111,14 @@ describe('markFallbackKept (spec §3.3 "Kept when it works")', () => {
       await db.update(sources).set({ fallbackProxyAt: null, country: null }).where(eq(sources.id, site.sourceId));
       expect(await markFallbackKept(site.sourceId, null)).toBe(true);
       expect((await read()).country).toBeNull();
+
+      // The country used replaces the default us, never another stored country (ruling 2026-10-28).
+      await db.update(sources).set({ fallbackProxyAt: null, country: 'us' }).where(eq(sources.id, site.sourceId));
+      expect(await markFallbackKept(site.sourceId, 'de')).toBe(true);
+      expect((await read()).country).toBe('de');
+      await db.update(sources).set({ fallbackProxyAt: null, country: 'fr' }).where(eq(sources.id, site.sourceId));
+      expect(await markFallbackKept(site.sourceId, 'de')).toBe(true);
+      expect((await read()).country).toBe('fr');
 
       // An own address (set meanwhile by staff): never kept.
       await db.update(sources).set({ fallbackProxyAt: null, proxyUrl: 'http://own.proxy.test:7000' }).where(eq(sources.id, site.sourceId));
