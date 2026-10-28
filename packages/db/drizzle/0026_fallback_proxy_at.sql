@@ -1,0 +1,1 @@
+ALTER TABLE "sources" ADD COLUMN "fallback_proxy_at" timestamp with time zone;
