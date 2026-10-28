@@ -259,7 +259,8 @@ describe('sources.proofPageCaptures', () => {
       const { captureId: capturing } = await caller.sources.captureProofPage({ sourceId: f.sourceId, url: f.urls[1]! });
       const r = await caller.sources.proofPageCaptures({ sourceId: f.sourceId, urls: [f.urls[0]!, f.urls[1]!, f.urls[2]!] });
       expect(r[f.urls[0]!]).toEqual({ captureId: newer, status: 'captured' });
-      expect(r[f.urls[1]!]).toEqual({ captureId: capturing, status: 'capturing' });
+      // A capturing row tells when its try started (the card's timer; spec 2026-10-28 §3.1).
+      expect(r[f.urls[1]!]).toEqual({ captureId: capturing, status: 'capturing', startedAt: expect.any(String) });
       expect(r[f.urls[2]!]).toBeNull();
     } finally { await f.cleanup(); }
   });
