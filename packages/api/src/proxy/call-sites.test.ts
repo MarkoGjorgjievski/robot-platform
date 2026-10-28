@@ -65,6 +65,25 @@ describe('forWebsite (spec §2.2)', () => {
       await db.update(sources).set({ country: 'de' }).where(eq(sources.id, site.sourceId));
     }
   });
+
+  it('a try by the fallback route (spec 2026-10-28 §3.3) opens the session with the fallback and the try’s country', async () => {
+    const saved = process.env.FALLBACK_PROXY_URL;
+    const profiles: unknown[] = [];
+    const session = (async (_fn: unknown, opts?: { profile?: unknown }) => { profiles.push(opts?.profile); return 1; }) as unknown as Parameters<typeof forWebsite>[1];
+    await db.update(sources).set({ proxyUrl: null }).where(eq(sources.id, site.sourceId));
+    try {
+      process.env.FALLBACK_PROXY_URL = 'http://f-{country}:fsecret@fallback.proxy.test:9000';
+      await forWebsite(site.sourceId, session, { via: 'fallback', country: 'gb' })(async () => 1);
+      await forWebsite(site.sourceId, session)(async () => 1);
+      expect(profiles).toEqual([
+        { proxy: { server: 'http://fallback.proxy.test:9000', username: 'f-gb', password: 'fsecret' }, locale: 'en-GB', timezoneId: 'Europe/London' },
+        { locale: 'de-DE', timezoneId: 'Europe/Berlin' },
+      ]);
+    } finally {
+      if (saved === undefined) delete process.env.FALLBACK_PROXY_URL; else process.env.FALLBACK_PROXY_URL = saved;
+      await db.update(sources).set({ proxyUrl: 'http://u-country-{country}:secret@proxy.test:7000' }).where(eq(sources.id, site.sourceId));
+    }
+  });
 });
 
 describe('the call sites (spec §2.2, every website-scoped page load)', () => {
