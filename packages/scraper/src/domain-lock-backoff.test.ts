@@ -91,3 +91,38 @@ describe('wrong-variant and pacing (spec 2026-10-14 §11 property 5)', () => {
     expect(backoffRemainingMs('shop.example')).toBe(0);
   });
 });
+
+// Spec 2026-10-28 turned away §3.4: the direct route and the fallback route back off on their own, so a wall on
+// the direct route never holds back the first fallback try.
+describe('backoff per route (spec 2026-10-28 §3.4)', () => {
+  it('a direct wall leaves the fallback route free, and the reverse', () => {
+    reportVerdict('shop.example', 'refused');
+    expect(backoffRemainingMs('shop.example')).toBe(BACKOFF_FIRST_MS);
+    expect(backoffRemainingMs('shop.example', undefined, 'direct')).toBe(BACKOFF_FIRST_MS);
+    expect(backoffRemainingMs('shop.example', undefined, 'fallback')).toBe(0);
+    expect(backoffVerdict('shop.example', undefined, 'fallback')).toBeNull();
+    expect(backoffAnswer('https://shop.example/p/1', undefined, 'fallback')).toBeNull();
+    expect(backoffAnswer('https://shop.example/p/1')).not.toBeNull();
+
+    reportVerdict('other.example', { kind: 'challenge', status: 200 }, undefined, 'fallback');
+    expect(backoffRemainingMs('other.example')).toBe(0);
+    expect(backoffRemainingMs('other.example', undefined, 'fallback')).toBe(BACKOFF_FIRST_MS);
+    expect(backoffVerdict('other.example', undefined, 'fallback')?.kind).toBe('challenge');
+    expect(backoffAnswer('https://other.example/p/1', undefined, 'fallback')?.waitMs).toBe(BACKOFF_FIRST_MS);
+  });
+  it('each route doubles on its own strikes; an ok on one route clears that route only', () => {
+    reportVerdict('shop.example', 'refused');
+    reportVerdict('shop.example', 'refused');
+    reportVerdict('shop.example', 'refused', undefined, 'fallback');
+    expect(backoffRemainingMs('shop.example')).toBe(BACKOFF_FIRST_MS * 2);
+    expect(backoffRemainingMs('shop.example', undefined, 'fallback')).toBe(BACKOFF_FIRST_MS);
+    reportVerdict('shop.example', 'ok', undefined, 'fallback');
+    expect(backoffRemainingMs('shop.example', undefined, 'fallback')).toBe(0);
+    expect(backoffRemainingMs('shop.example')).toBe(BACKOFF_FIRST_MS * 2);
+  });
+  it('the direct route still paces acquireDomainLock on the host; a fallback wall does not', async () => {
+    reportVerdict('shop.example', 'refused', undefined, 'fallback');
+    (await acquireDomainLock('shop.example'))();
+    expect(waits).toEqual([]);
+  });
+});

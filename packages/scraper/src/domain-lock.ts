@@ -36,7 +36,17 @@ const lastRequestTime = new Map<string, number>();
 export const BACKOFF_FIRST_MS = Number(process.env.ROBOT_BACKOFF_FIRST_MS ?? 120_000);
 export const BACKOFF_MAX_MS = Math.max(480_000, BACKOFF_FIRST_MS);
 
-/** Per host: when the backoff ends, how many walls in a row set it, and the last wall's verdict. */
+/**
+ * The route a page load went by (spec 2026-10-28 turned away §3.4): the website's own (direct, or its own or the
+ * default proxy) or the fallback proxy. Each backs off on its own, so a wall on the direct route never holds back
+ * the first fallback try.
+ */
+export type Route = 'direct' | 'fallback';
+
+/** The backoff key: the host for the direct route, `host via fallback` for the fallback route. */
+const routeKey = (domain: string, route: Route): string => (route === 'fallback' ? `${domain} via fallback` : domain);
+
+/** Per host and route: when the backoff ends, how many walls in a row set it, and the last wall's verdict. */
 const backoff = new Map<string, { until: number; strikes: number; verdict: CaptureVerdict }>();
 
 // The clock the politeness delay and the backoff share. `Date.now` and
@@ -69,24 +79,26 @@ export function reportVerdict(
   domain: string,
   verdictOrKind: CaptureVerdict | CaptureVerdict['kind'] | CaptureErrorKind,
   nowFn: () => number = now,
+  route: Route = 'direct',
 ): void {
+  const key = routeKey(domain, route);
   const kind = typeof verdictOrKind === 'string' ? verdictOrKind : verdictOrKind.kind;
   if (kind === 'ok' || kind === 'wrong-variant') {
-    backoff.delete(domain);
+    backoff.delete(key);
     return;
   }
   if (kind !== 'challenge' && kind !== 'refused') return;
-  const strikes = (backoff.get(domain)?.strikes ?? 0) + 1;
+  const strikes = (backoff.get(key)?.strikes ?? 0) + 1;
   const ms = Math.min(BACKOFF_FIRST_MS * 2 ** (strikes - 1), BACKOFF_MAX_MS);
   // A bare kind (no response to read a status from) is kept as a status-0 verdict.
   const verdict: CaptureVerdict = typeof verdictOrKind === 'string' ? { kind, status: 0 } : verdictOrKind;
-  backoff.set(domain, { until: nowFn() + ms, strikes, verdict });
-  console.log(`[lock] ${domain} ${kind}: backing off ${Math.round(ms / 1000)}s`);
+  backoff.set(key, { until: nowFn() + ms, strikes, verdict });
+  console.log(`[lock] ${key} ${kind}: backing off ${Math.round(ms / 1000)}s`);
 }
 
 /** How long the host's backoff still has to run; 0 when there is none. */
-export function backoffRemainingMs(domain: string, nowFn: () => number = now): number {
-  const b = backoff.get(domain);
+export function backoffRemainingMs(domain: string, nowFn: () => number = now, route: Route = 'direct'): number {
+  const b = backoff.get(routeKey(domain, route));
   if (!b) return 0;
   return Math.max(0, b.until - nowFn());
 }
@@ -97,8 +109,8 @@ export function backoffRemainingMs(domain: string, nowFn: () => number = now): n
  * page, reachability) answer from this instead of sleeping inside a request
  * or opening a browser on a host that just walled us (review I4, 2026-10-09).
  */
-export function backoffVerdict(domain: string, nowFn: () => number = now): CaptureVerdict | null {
-  const b = backoff.get(domain);
+export function backoffVerdict(domain: string, nowFn: () => number = now, route: Route = 'direct'): CaptureVerdict | null {
+  const b = backoff.get(routeKey(domain, route));
   if (!b || b.until - nowFn() <= 0) return null;
   return b.verdict;
 }
@@ -107,12 +119,12 @@ export function backoffVerdict(domain: string, nowFn: () => number = now): Captu
  * What an interactive path says instead of waiting: the wall's own sentence
  * and how long the wait still is. Null when the host is not backing off.
  */
-export function backoffAnswer(url: string, nowFn: () => number = now): { verdict: CaptureVerdict; waitMs: number; message: string } | null {
+export function backoffAnswer(url: string, nowFn: () => number = now, route: Route = 'direct'): { verdict: CaptureVerdict; waitMs: number; message: string } | null {
   let host: string;
   try { host = new URL(url).hostname; } catch { return null; }
-  const verdict = backoffVerdict(host, nowFn);
+  const verdict = backoffVerdict(host, nowFn, route);
   if (!verdict) return null;
-  const waitMs = backoffRemainingMs(host, nowFn);
+  const waitMs = backoffRemainingMs(host, nowFn, route);
   return { verdict, waitMs, message: `${verdictSentence(verdict, url)} Waiting ${Math.ceil(waitMs / 60_000)} min before trying again.` };
 }
 
