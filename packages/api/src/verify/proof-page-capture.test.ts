@@ -418,6 +418,12 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       expect(await jobsOfCapture(captureId)).toHaveLength(4);
       const state = (await latestProofPageCaptures(f.sourceId, [url]))[url];
       expect(state).toMatchObject({ captureId, status: 'failed', gaveUp: true, attempts: 4, firstStartedAt });
+      // The last try's start ends the give-up sentence's clock, through both procedures (spec 2026-10-28 §3.6).
+      const lastStart = (row.metadata as Extract<ProofPageMeta, { status: 'failed' }>).startedAt;
+      expect(Date.parse(lastStart)).toBeGreaterThanOrEqual(Date.parse(firstStartedAt!));
+      expect(state!.startedAt).toBe(lastStart);
+      expect(await caller.sources.proofPageCapture({ captureId })).toMatchObject({ status: 'failed', gaveUp: true, startedAt: lastStart, firstStartedAt });
+      expect((await caller.sources.proofPageCaptures({ sourceId: f.sourceId, urls: [url] }))[url]).toMatchObject({ status: 'failed', startedAt: lastStart });
     } finally { await f.cleanup(); }
   });
 
@@ -517,6 +523,8 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       const row = await metaOf(captureId);
       expect(row.metadata).toMatchObject({ status: 'failed', verdict: { kind: 'timeout' } });
       expect(row.metadata).not.toHaveProperty('gaveUp');
+      // A failure that did not give up tells no start: the card has no clock for it.
+      expect((await latestProofPageCaptures(f.sourceId, [f.urls[0]!]))[f.urls[0]!]).not.toHaveProperty('startedAt');
       expect(row.jobId).toBe(job);
     } finally { await f.cleanup(); }
   });

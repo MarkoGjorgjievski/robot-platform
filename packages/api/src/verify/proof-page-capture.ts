@@ -479,7 +479,8 @@ export function proofPageStateOf(meta: ProofPageMeta): Omit<ProofPageCaptureStat
     case 'failed':
       return {
         status: 'failed', error: meta.error, ...(meta.verdict ? { verdict: meta.verdict } : {}),
-        ...(meta.gaveUp ? { gaveUp: true as const } : {}), ...(meta.attempts ? { attempts: meta.attempts } : {}),
+        // A given-up row also tells its last try's start: the end of the give-up sentence's clock (spec 2026-10-28 §3.6).
+        ...(meta.gaveUp ? { gaveUp: true as const, startedAt: meta.startedAt } : {}), ...(meta.attempts ? { attempts: meta.attempts } : {}),
         ...(meta.firstStartedAt ? { firstStartedAt: meta.firstStartedAt } : {}),
       };
     case 'captured':
