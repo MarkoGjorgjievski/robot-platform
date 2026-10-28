@@ -113,7 +113,7 @@ export function useProofCaptures(
     ids.map((id) =>
       t.sources.proofPageCapture(
         { captureId: id },
-        { refetchInterval: (query) => (query.state.data?.status === 'capturing' ? 2000 : false) },
+        { refetchInterval: (query) => (query.state.data?.status === 'capturing' || query.state.data?.status === 'waiting' ? 2000 : false) },
       ),
     ),
   );
