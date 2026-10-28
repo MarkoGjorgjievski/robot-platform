@@ -183,6 +183,13 @@
       "when": 1792917027864,
       "tag": "0025_monitoring",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793188213787,
+      "tag": "0026_fallback_proxy_at",
+      "breakpoints": true
     }
   ]
 }

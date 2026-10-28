@@ -211,6 +211,11 @@ export const sources = pgTable('sources', {
   // in at use. Null: DEFAULT_PROXY_URL when set, else direct. The password is plain text, like the webhook secret; it is
   // never logged (`redactProxy`) and never reaches a customer. Staff set it (`sources.update`, operators only).
   proxyUrl: text('proxy_url'),
+  // When a website turns us away (spec 2026-10-28 turned away §3.3): set when a try through FALLBACK_PROXY_URL read
+  // the page after the direct route was walled. While set (and FALLBACK_PROXY_URL is), the website loads through the
+  // fallback proxy unless it has its own address or DEFAULT_PROXY_URL is set. A preference, not an address; staff
+  // clear it ("Go direct again").
+  fallbackProxyAt: timestamp('fallback_proxy_at', { withTimezone: true }),
   // Email (spec 2026-10-24 email §3.2): when this website turned to "Needs attention" — null while it does not need
   // it. `syncAttention` claims the off → on turn with `WHERE attention_since IS NULL`, so one writer sends.
   attentionSince: timestamp('attention_since', { withTimezone: true }),

@@ -346,3 +346,17 @@ describe('monitoring (spec 2026-10-25 monitoring §2.1, §2.3)', () => {
     expect(migrationCount()).toBeGreaterThanOrEqual(26);
   });
 });
+
+describe('turned away (spec 2026-10-28 §3.3, migration 0026)', () => {
+  it('a website reads no fallback until one is kept; the time round-trips', async () => {
+    const { orgId: seeded, source } = await seedSource();
+    orgId = seeded;
+    const [row] = await db.select().from(sources).where(eq(sources.id, source.id));
+    expect(row!.fallbackProxyAt).toBeNull();
+    const at = new Date('2026-10-28T09:00:00.123Z');
+    await db.update(sources).set({ fallbackProxyAt: at }).where(eq(sources.id, source.id));
+    const [kept] = await db.select().from(sources).where(eq(sources.id, source.id));
+    expect(kept!.fallbackProxyAt!.toISOString()).toBe(at.toISOString());
+    expect(migrationCount()).toBeGreaterThanOrEqual(27);
+  });
+});
