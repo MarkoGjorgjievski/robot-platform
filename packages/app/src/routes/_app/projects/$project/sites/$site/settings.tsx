@@ -52,6 +52,8 @@ function SettingsTab() {
         country: source.country ?? null,
         countries: source.countries,
         problem: source.networkProblem ?? null,
+        proxyFromFallback: source.proxyFromFallback ?? false,
+        fallbackProxyAt: source.fallbackProxyAt ?? null,
       }
     : null;
 

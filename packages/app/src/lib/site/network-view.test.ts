@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  NETWORK_HELP, NETWORK_TITLE, NO_COUNTRY, countryChoices, countryFromChoice, proxySaveReason, proxyStateLine, useDefaultReason,
+  GO_DIRECT, NETWORK_HELP, NETWORK_TITLE, NO_COUNTRY, countryChoices, countryFromChoice, fallbackSwitchLine, proxySaveReason, proxyStateLine, useDefaultReason,
 } from './network-view';
 
 describe('the Network (staff) panel (spec 2026-10-24 proxy §2.3)', () => {
@@ -29,5 +29,20 @@ describe('the Network (staff) panel (spec 2026-10-24 proxy §2.3)', () => {
 
   it('notes what goes direct (spec §2.2)', () => {
     expect(NETWORK_HELP).toContain('go direct');
+  });
+});
+
+describe('the automatic fallback on the Network panel (spec 2026-10-28 §3.3 "Undo")', () => {
+  it('reads the fallback as the website’s route, and "Use the default" stays off for it', () => {
+    const n = { proxyUrl: 'http://f:•••@fallback.test:9000', proxyFromDefault: false, proxyFromFallback: true };
+    expect(proxyStateLine(n)).toBe('The fallback, switched to automatically: http://f:•••@fallback.test:9000');
+    expect(useDefaultReason(n)).toBe('This website has no address of its own');
+  });
+
+  it('says when the website switched, with "Go direct again"', () => {
+    expect(fallbackSwitchLine(new Date('2026-10-27T09:30:00Z'))).toBe('Switched to the fallback proxy on 2026-10-27 after being turned away');
+    expect(fallbackSwitchLine('2026-10-27T23:59:00Z')).toBe('Switched to the fallback proxy on 2026-10-27 after being turned away');
+    expect(fallbackSwitchLine(null)).toBeNull();
+    expect(GO_DIRECT).toBe('Go direct again');
   });
 });

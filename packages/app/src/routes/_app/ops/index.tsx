@@ -11,6 +11,7 @@ import { relativeTime } from '../../../lib/projects-view';
 import { runDotState } from '../../../lib/run-dot-view';
 import {
   OPS_REASONS,
+  automaticProxyBadge,
   defaultOpsView,
   encodeOpsOverviewState,
   lastRunText,
@@ -21,6 +22,7 @@ import {
   sortFooterText,
   sortRowsBy,
   totalsText,
+  turnedAwayBadge,
   verifiedState,
   verifiedText,
   type OpsOverviewState,
@@ -64,7 +66,9 @@ function OpsOverviewPage() {
   const navigate = useNavigate();
   const websites = trpc.ops.websites.useQuery(undefined, { refetchInterval: REFRESH_MS, refetchOnWindowFocus: true });
   const unauthorized = useUnauthorizedRedirect(websites);
-  const rows = (websites.data ?? []) as OpsWebsiteRow[];
+  const rows = (websites.data?.rows ?? []) as OpsWebsiteRow[];
+  // Spec 2026-10-28 §3.5: whether a usable FALLBACK_PROXY_URL is set, for the turned-away badge's note.
+  const fallbackConfigured = websites.data?.fallbackConfigured ?? false;
 
   function patchSearch(patch: Partial<OpsOverviewSearch>) {
     void navigate({
@@ -257,7 +261,7 @@ function OpsOverviewPage() {
                 <tbody>
                   {loading ? <LoadingRows /> : null}
                   {!loading && visible.map((row) => (
-                    <OpsRow key={row.sourceId} row={row} from={search} onCustomerClick={() => patchSearch({ customer: row.org.id })} />
+                    <OpsRow key={row.sourceId} row={row} from={search} fallbackConfigured={fallbackConfigured} onCustomerClick={() => patchSearch({ customer: row.org.id })} />
                   ))}
                 </tbody>
               </table>
@@ -309,9 +313,11 @@ function problemLine(row: OpsWebsiteRow, runFailed: boolean): string | null {
   return null;
 }
 
-function OpsRow({ row, from, onCustomerClick }: { row: OpsWebsiteRow; from: OpsOverviewSearch; onCustomerClick: () => void }) {
+function OpsRow({ row, from, fallbackConfigured, onCustomerClick }: { row: OpsWebsiteRow; from: OpsOverviewSearch; fallbackConfigured: boolean; onCustomerClick: () => void }) {
   const runState = row.lastRun ? runDotState({ status: row.lastRun.status }) : 'idle';
   const problem = problemLine(row, runState === 'failed');
+  const turned = turnedAwayBadge(row, fallbackConfigured);
+  const automatic = automaticProxyBadge(row);
   const fromState = encodeOpsOverviewState(from);
 
   return (
@@ -329,6 +335,20 @@ function OpsRow({ row, from, onCustomerClick }: { row: OpsWebsiteRow; from: OpsO
         </Link>
         {row.website.host ? <div className="truncate font-mono text-sm text-muted-foreground">{row.website.host}</div> : null}
         {problem ? <div className={`truncate text-sm ${row.drifted > 0 ? 'text-warn' : 'text-fail'}`}>{problem}</div> : null}
+        {/* Spec 2026-10-28 §3.5: turned away, and the proxy it switched to on its own. Read-only. */}
+        {turned || automatic ? (
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {turned ? (
+              <span title={turned.title ?? undefined} data-testid="turned-away"
+                className={`inline-block rounded-[4px] border border-line px-1.5 text-xs whitespace-nowrap ${turned.tone === 'warn' ? 'text-warn' : 'text-fail'}`}>
+                {turned.text}
+              </span>
+            ) : null}
+            {automatic ? (
+              <span data-testid="automatic-proxy" className="inline-block rounded-[4px] border border-line px-1.5 text-xs whitespace-nowrap text-muted-foreground">{automatic}</span>
+            ) : null}
+          </div>
+        ) : null}
       </td>
       <td className="px-3 py-2.5">
         <button

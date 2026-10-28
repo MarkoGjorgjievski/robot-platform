@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  AUTOMATIC_PROXY,
+  automaticProxyBadge,
+  turnedAwayBadge,
   DEFAULT_ONLY_PATHS,
   NOT_ON_WEBSITE_PATHS,
   ONE_SOURCE_WARNING,
@@ -55,6 +58,8 @@ function row(over: Partial<OpsWebsiteRow> & { sourceId: string }): OpsWebsiteRow
     drifted: 0,
     lastRun: null,
     spentThisMonthUsd: 0,
+    turnedAway: null,
+    fallbackProxyAt: null,
     ...over,
   };
 }
@@ -587,5 +592,34 @@ describe('networkLine (spec 2026-10-24 proxy §2.3 "Ops")', () => {
     expect(networkLine({ proxy: 'own', country: { code: 'de', name: 'Germany' } })).toBe('proxy (own) · Germany');
     expect(networkLine({ proxy: 'default', country: null })).toBe('proxy (default) · no country');
     expect(networkLine({ proxy: 'none', country: { code: 'gb', name: 'United Kingdom' } })).toBe('proxy (none) · United Kingdom');
+    expect(networkLine({ proxy: 'fallback', country: { code: 'de', name: 'Germany' } })).toBe('proxy (fallback) · Germany');
+  });
+});
+
+// ─── Turned away (spec 2026-10-28 §3.5) ─────────────────────────────────────
+describe('turnedAwayBadge / automaticProxyBadge (spec 2026-10-28 §3.5)', () => {
+  const since = '2026-10-28T08:00:00.000Z';
+  it('says retrying while any page is still trying', () => {
+    expect(turnedAwayBadge({ turnedAway: { since, gaveUp: false, viaFallback: false } }, false)).toEqual({ text: 'Turned away · retrying', tone: 'warn', title: null });
+    expect(turnedAwayBadge({ turnedAway: { since, gaveUp: false, viaFallback: true } }, true)!.text).toBe('Turned away · retrying');
+  });
+
+  it('gave up: "may need a proxy" without a fallback try, "even through the proxy" after one', () => {
+    expect(turnedAwayBadge({ turnedAway: { since, gaveUp: true, viaFallback: false } }, false)).toEqual({
+      text: 'Turned away · may need a proxy', tone: 'fail', title: 'FALLBACK_PROXY_URL is not set.',
+    });
+    // A fallback is configured but no try went by it (an own address or DEFAULT_PROXY_URL): still "may need a proxy".
+    expect(turnedAwayBadge({ turnedAway: { since, gaveUp: true, viaFallback: false } }, true)).toEqual({ text: 'Turned away · may need a proxy', tone: 'fail', title: null });
+    expect(turnedAwayBadge({ turnedAway: { since, gaveUp: true, viaFallback: true } }, true)).toEqual({ text: 'Turned away even through the proxy', tone: 'fail', title: null });
+  });
+
+  it('no badge for a website not turned away', () => {
+    expect(turnedAwayBadge({ turnedAway: null }, true)).toBeNull();
+  });
+
+  it('"Proxy (automatic)" when the website switched to the fallback on its own', () => {
+    expect(AUTOMATIC_PROXY).toBe('Proxy (automatic)');
+    expect(automaticProxyBadge({ fallbackProxyAt: '2026-10-27T09:30:00.000Z' })).toBe('Proxy (automatic)');
+    expect(automaticProxyBadge({ fallbackProxyAt: null })).toBeNull();
   });
 });

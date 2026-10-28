@@ -69,7 +69,7 @@ type OpsWebsiteData = {
   website: { name: string; slug: string; host: string };
   verified: { current: number; total: number };
   /** Spec 2026-10-24 proxy §2.3. */
-  network: { proxy: 'own' | 'default' | 'none'; country: { code: string; name: string } | null };
+  network: { proxy: 'own' | 'default' | 'fallback' | 'none'; country: { code: string; name: string } | null };
   fields: OpsField[];
   drift: { status: string; results: unknown } | null;
   driftedFieldNames: string[];
