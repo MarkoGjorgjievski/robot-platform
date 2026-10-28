@@ -47,9 +47,15 @@ const minutesText = (m: number) => (m === 1 ? '1 minute' : `${m} minutes`);
 export function giveUpSentence(attempts: number | undefined, minutes: number | null, name: string | null | undefined): string {
   const { start, mid } = websiteName(name);
   const n = attempts ?? 0;
-  if (n >= 2) return `We tried ${n} times${minutes === null ? '' : ` over ${minutesText(minutes)}`} and ${mid} kept turning us away. ${TAIL}`;
-  if (n === 1) return `We tried once and ${mid} kept turning us away${minutes === null ? '' : ` for ${minutesText(minutes)}`}. ${TAIL}`;
-  return `${start} kept turning us away${minutes === null ? '' : ` for ${minutesText(minutes)}`}. ${TAIL}`;
+  if (minutes === null) {
+    // No clock (a row without its last try's start): the minutes are left out, never guessed.
+    if (n >= 2) return `We tried ${n} times and ${mid} kept turning us away. ${TAIL}`;
+    if (n === 1) return `We tried once and ${mid} turned us away. ${TAIL}`;
+    return `${start} kept turning us away. ${TAIL}`;
+  }
+  if (n >= 2) return `We tried ${n} times over ${minutesText(minutes)} and ${mid} kept turning us away. ${TAIL}`;
+  if (n === 1) return `We tried once and ${mid} kept turning us away for ${minutesText(minutes)}. ${TAIL}`;
+  return `${start} kept turning us away for ${minutesText(minutes)}. ${TAIL}`;
 }
 
 /** Waiting for its next try, or that try in progress (a retry, try 2 or later). */
@@ -107,7 +113,8 @@ export function cardWords(c: ProofCapture | undefined, name: string | null | und
 
   if (c.status === 'failed') {
     if (c.gaveUp) {
-      const minutes = minutesSpent(c.firstStartedAt, c.startedAt ?? c.polledAt ?? nowMs);
+      // From the first try to the last try's start, both stored: a number that never grows after the fact.
+      const minutes = c.startedAt ? minutesSpent(c.firstStartedAt, c.startedAt) : null;
       const lines = [giveUpSentence(c.attempts, minutes, name)];
       if (opts.staff && c.error) lines.push(`${c.error}${route}`);
       return { tone: 'warn', icon: 'alert', lines, actions: ['retry', 'swap'] };
@@ -140,7 +147,8 @@ export function barWords(cards: ReadonlyArray<ProofCapture | undefined>, name: s
       const at = c!.status === 'waiting' && c!.retryAt ? Date.parse(c!.retryAt) : Number.NaN;
       if (Number.isFinite(at) && at > nowMs) soonest = Math.min(soonest, at);
     } else if (isGivenUp(c)) gaveUp.push(i + 1);
-    else if (c) others.push(i + 1);
+    // Only a product that is ready, or on its first try, is one to keep working on — never another failure.
+    else if (c && (c.status === 'captured' || c.status === 'capturing' || c.status === 'starting')) others.push(i + 1);
   });
   if (waiting.length === 0 && gaveUp.length === 0) return null;
   const { start } = websiteName(name);

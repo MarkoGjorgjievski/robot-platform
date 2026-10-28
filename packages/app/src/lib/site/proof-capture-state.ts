@@ -7,7 +7,7 @@ import { SCREENSHOT_COULD_NOT_START, captureErrorText } from './verify-messages'
 
 /** The proof-page ladder's fields (spec 2026-10-28 §3.1): where a turned-away page stands across its tries. */
 export type LadderFields = {
-  /** When this try started (capturing, waiting), or the last try's start on a failed row when the answer carries it. */
+  /** When this try started (capturing, waiting), or the last try's start on a given-up row: the give-up sentence's clock ends there. */
   startedAt?: string;
   /** When the next try starts (waiting). */
   retryAt?: string;
@@ -38,8 +38,6 @@ export type ProofCapture = LadderFields & {
   capturedHeight: number;
   /** The captured page's `<title>`, when it reported one and this capture landed. */
   title?: string;
-  /** When this answer was fetched (ms): a given-up row's clock ends here when the answer has no last try's start. */
-  polledAt?: number;
 };
 
 /** The part of `sources.proofPageCapture`'s answer this reads. */
@@ -64,7 +62,7 @@ export function capturePollMs(status: string | undefined): number | false {
 export const EMPTY_CAPTURE:Pick<ProofCapture, 'tiles' | 'boxes' | 'pageHeight' | 'capturedHeight'> = { tiles: [], boxes: [], pageHeight: 0, capturedHeight: 0 };
 
 /** `staff` (`showsMoney`, spec 2026-10-21): staff read a failed capture's stored sentence; a customer reads it through `captureWords`. */
-export function proofCaptureState(args: { startError?: string; captureId: string | null; poll?: { data?: ProofPoll; isError: boolean; updatedAt?: number }; staff?: boolean }): ProofCapture {
+export function proofCaptureState(args: { startError?: string; captureId: string | null; poll?: { data?: ProofPoll; isError: boolean }; staff?: boolean }): ProofCapture {
   if (args.startError !== undefined) return { captureId: '', status: 'failed', error: SCREENSHOT_COULD_NOT_START, ...EMPTY_CAPTURE };
   if (!args.captureId) return { captureId: '', status: 'starting', ...EMPTY_CAPTURE };
   const data = args.poll?.data;
@@ -81,7 +79,6 @@ export function proofCaptureState(args: { startError?: string; captureId: string
     ...(data.verdict ? { verdict: { kind: data.verdict.kind } } : {}),
     ...(data.title ? { title: data.title } : {}),
     ...ladderOf(data),
-    ...(args.poll?.updatedAt ? { polledAt: args.poll.updatedAt } : {}),
     tiles: data.tiles,
     boxes: data.boxes,
     pageHeight: data.pageHeight,

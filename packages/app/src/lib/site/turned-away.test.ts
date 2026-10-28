@@ -13,7 +13,7 @@ const waiting = (extra: Partial<ProofCapture> = {}): ProofCapture => ({
 });
 const gaveUp = (extra: Partial<ProofCapture> = {}): ProofCapture => ({
   ...base, status: 'failed', error: 'shop.example refused the browser (HTTP 403).', verdict: { kind: 'refused' },
-  gaveUp: true, attempts: 4, firstStartedAt: iso(T0), polledAt: T0 + 14 * 60_000 + 10_000, ...extra,
+  gaveUp: true, attempts: 4, firstStartedAt: iso(T0), startedAt: iso(T0 + 14 * 60_000 + 10_000), ...extra,
 });
 const failed = (error: string, kind?: string): ProofCapture => ({ ...base, status: 'failed', error, ...(kind ? { verdict: { kind } } : {}) });
 const captured: ProofCapture = { ...base, status: 'captured', tiles: ['/a.png'] };
@@ -83,8 +83,11 @@ describe('giveUpSentence', () => {
   });
   it('no clock: the minutes are left out', () => {
     expect(giveUpSentence(4, null, 'Zara')).toBe(`We tried 4 times and Zara kept turning us away. ${TAIL}`);
-    expect(giveUpSentence(1, null, 'Zara')).toBe(`We tried once and Zara kept turning us away. ${TAIL}`);
+    expect(giveUpSentence(2, null, 'Zara')).toBe(`We tried 2 times and Zara kept turning us away. ${TAIL}`);
+    expect(giveUpSentence(1, null, 'Zara')).toBe(`We tried once and Zara turned us away. ${TAIL}`);
     expect(giveUpSentence(0, null, 'Zara')).toBe(`Zara kept turning us away. ${TAIL}`);
+    expect(giveUpSentence(undefined, null, '')).toBe(`This website kept turning us away. ${TAIL}`);
+    expect(giveUpSentence(1, null, '')).toBe(`We tried once and this website turned us away. ${TAIL}`);
   });
 });
 
@@ -160,13 +163,19 @@ describe('cardWords', () => {
       tone: 'warn', icon: 'alert', lines: [`We tried 4 times over 15 minutes and Zara kept turning us away. ${TAIL}`], actions: ['retry', 'swap'],
     });
   });
-  it('given up: the clock ends at the last try when the answer has it, else at the poll, else now', () => {
+  it("given up: the clock ends at the last try's start, however late the card is read", () => {
     expect(cardWords(gaveUp({ startedAt: iso(T0 + 2 * 60_000) }), 'Zara', T0 + 99 * 60_000).lines[0]).toContain('over 2 minutes');
-    expect(cardWords(gaveUp({ polledAt: undefined }), 'Zara', T0 + 3 * 60_000).lines[0]).toContain('over 3 minutes');
+    expect(cardWords(gaveUp(), 'Zara', T0 + 24 * 60 * 60_000).lines[0]).toContain('over 15 minutes');
+  });
+  it("given up with no last try's start: the minutes are left out, never counted to now", () => {
+    expect(cardWords(gaveUp({ startedAt: undefined }), 'Zara', T0 + 3 * 60_000).lines[0]).toBe(`We tried 4 times and Zara kept turning us away. ${TAIL}`);
+    expect(cardWords(gaveUp({ startedAt: undefined, attempts: 1 }), 'Zara', T0 + 60 * 60_000).lines[0]).toBe(`We tried once and Zara turned us away. ${TAIL}`);
+    expect(cardWords(gaveUp({ startedAt: undefined, attempts: undefined }), 'Zara', T0).lines[0]).toBe(`Zara kept turning us away. ${TAIL}`);
+    expect(cardWords(gaveUp({ firstStartedAt: undefined }), 'Zara', T0).lines[0]).toBe(`We tried 4 times and Zara kept turning us away. ${TAIL}`);
   });
   it('given up after one try or none (the 30-minute cap)', () => {
-    expect(cardWords(gaveUp({ attempts: 1, polledAt: T0 + 30 * 60_000 }), 'Zara', T0).lines[0]).toBe(`We tried once and Zara kept turning us away for 30 minutes. ${TAIL}`);
-    expect(cardWords(gaveUp({ attempts: undefined, polledAt: T0 + 30 * 60_000 }), 'Zara', T0).lines[0]).toBe(`Zara kept turning us away for 30 minutes. ${TAIL}`);
+    expect(cardWords(gaveUp({ attempts: 1, startedAt: iso(T0 + 30 * 60_000) }), 'Zara', T0).lines[0]).toBe(`We tried once and Zara kept turning us away for 30 minutes. ${TAIL}`);
+    expect(cardWords(gaveUp({ attempts: undefined, startedAt: iso(T0 + 30 * 60_000) }), 'Zara', T0).lines[0]).toBe(`Zara kept turning us away for 30 minutes. ${TAIL}`);
   });
   it('any other failure: its sentence and Try again, as today', () => {
     expect(cardWords(failed('This website took too long to answer. Try again.', 'timeout'), 'Zara', T0))
@@ -231,6 +240,14 @@ describe('barWords', () => {
   });
   it('no name: "This website"', () => {
     expect(barWords(cards(gaveUp()), '', T0)).toBe('This website kept turning us away on product 1. Swap it for another product, or try again later.');
+  });
+  it('"keep working on" names only products that are ready or on their first try, never another failure', () => {
+    expect(barWords(cards(waiting(), failed('x', 'timeout'), captured), 'Zara', T0))
+      .toBe("Zara turned us away on product 1. We're trying again on our own, next in 1:42. You can keep working on product 3.");
+    expect(barWords(cards(waiting(), capturing(), starting), 'Zara', T0))
+      .toBe("Zara turned us away on product 1. We're trying again on our own, next in 1:42. You can keep working on products 2 and 3.");
+    expect(barWords(cards(waiting(), failed('x', 'timeout'), failed('y', 'refused')), 'Zara', T0))
+      .toBe("Zara turned us away on product 1. We're trying again on our own, next in 1:42.");
   });
   it('a one-off refusal (no ladder) is not the bar\'s', () => {
     expect(barWords(cards(failed('x', 'refused')), 'Zara', T0)).toBeNull();

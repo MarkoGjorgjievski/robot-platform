@@ -136,7 +136,7 @@ export function useProofCaptures(
     byUrl[url] = proofCaptureState({
       ...(url in startErrors ? { startError: startErrors[url]! } : {}),
       captureId: id,
-      ...(poll ? { poll: { data: poll.data, isError: poll.isError, ...(poll.dataUpdatedAt ? { updatedAt: poll.dataUpdatedAt } : {}) } } : {}),
+      ...(poll ? { poll: { data: poll.data, isError: poll.isError } } : {}),
       staff,
     });
   }
