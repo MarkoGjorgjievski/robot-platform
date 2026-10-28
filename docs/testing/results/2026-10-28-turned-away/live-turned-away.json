@@ -1,0 +1,483 @@
+{
+ "at": "2026-10-28T13:45:13.456Z",
+ "settings": {
+  "ROBOT_BACKOFF_FIRST_MS": 1000,
+  "PROOF_LADDER_WAIT_SCALE": 0.05,
+  "workerBrowsers": 1
+ },
+ "a": {
+  "url": "/de-de/p/1",
+  "states": [
+   {
+    "at": "2026-10-28T13:42:11.221Z",
+    "status": "capturing"
+   },
+   {
+    "at": "2026-10-28T13:42:12.325Z",
+    "status": "capturing",
+    "attempt": 1,
+    "via": "direct"
+   },
+   {
+    "at": "2026-10-28T13:42:22.808Z",
+    "status": "waiting",
+    "attempt": 2,
+    "via": "direct",
+    "retryAt": "2026-10-28T13:42:28.670Z",
+    "inMs": 5862,
+    "verdict": "refused"
+   },
+   {
+    "at": "2026-10-28T13:42:28.997Z",
+    "status": "capturing",
+    "attempt": 2,
+    "via": "direct"
+   },
+   {
+    "at": "2026-10-28T13:42:39.107Z",
+    "status": "waiting",
+    "attempt": 3,
+    "via": "fallback",
+    "retryAt": "2026-10-28T13:42:38.908Z",
+    "inMs": -199,
+    "verdict": "refused"
+   },
+   {
+    "at": "2026-10-28T13:42:39.316Z",
+    "status": "capturing",
+    "attempt": 3,
+    "via": "fallback"
+   },
+   {
+    "at": "2026-10-28T13:42:43.231Z",
+    "status": "captured",
+    "attempt": 3,
+    "via": "fallback"
+   }
+  ],
+  "next": {
+   "url": "/de-de/p/2",
+   "states": [
+    {
+     "at": "2026-10-28T13:42:43.270Z",
+     "status": "capturing"
+    },
+    {
+     "at": "2026-10-28T13:42:43.478Z",
+     "status": "capturing",
+     "attempt": 1,
+     "via": "fallback"
+    },
+    {
+     "at": "2026-10-28T13:42:47.153Z",
+     "status": "captured",
+     "attempt": 1,
+     "via": "fallback"
+    }
+   ]
+  },
+  "fallbackProxyAt": "2026-10-28T13:42:43.109Z",
+  "country": "de",
+  "waitingAnswer": {
+   "url": "http://127.0.0.11:59215/de-de/p/1",
+   "status": "waiting",
+   "error": "127.0.0.11 refused the browser (HTTP 403). We can't read this website from here yet.",
+   "verdict": {
+    "kind": "refused",
+    "status": 403,
+    "vendor": "unknown"
+   },
+   "startedAt": "2026-10-28T13:42:11.744Z",
+   "retryAt": "2026-10-28T13:42:28.670Z",
+   "attempt": 2,
+   "of": 4,
+   "via": "direct",
+   "firstStartedAt": "2026-10-28T13:42:11.744Z",
+   "tiles": [],
+   "boxes": [],
+   "pageHeight": 0,
+   "capturedHeight": 0,
+   "contentHeight": 0
+  }
+ },
+ "b": {
+  "url": "/p/1",
+  "states": [
+   {
+    "at": "2026-10-28T13:42:47.218Z",
+    "status": "capturing"
+   },
+   {
+    "at": "2026-10-28T13:42:47.662Z",
+    "status": "capturing",
+    "attempt": 1,
+    "via": "direct"
+   },
+   {
+    "at": "2026-10-28T13:42:58.013Z",
+    "status": "waiting",
+    "attempt": 2,
+    "via": "direct",
+    "retryAt": "2026-10-28T13:43:03.946Z",
+    "inMs": 5933,
+    "verdict": "refused"
+   },
+   {
+    "at": "2026-10-28T13:43:04.600Z",
+    "status": "capturing",
+    "attempt": 2,
+    "via": "direct"
+   },
+   {
+    "at": "2026-10-28T13:43:28.672Z",
+    "status": "waiting",
+    "attempt": 3,
+    "via": "direct",
+    "retryAt": "2026-10-28T13:43:40.418Z",
+    "inMs": 11746,
+    "verdict": "refused"
+   },
+   {
+    "at": "2026-10-28T13:43:41.137Z",
+    "status": "capturing",
+    "attempt": 3,
+    "via": "direct"
+   },
+   {
+    "at": "2026-10-28T13:43:59.034Z",
+    "status": "waiting",
+    "attempt": 4,
+    "via": "direct",
+    "retryAt": "2026-10-28T13:44:22.782Z",
+    "inMs": 23748,
+    "verdict": "refused"
+   },
+   {
+    "at": "2026-10-28T13:44:23.033Z",
+    "status": "capturing",
+    "attempt": 4,
+    "via": "direct"
+   },
+   {
+    "at": "2026-10-28T13:44:33.058Z",
+    "status": "failed",
+    "via": "direct",
+    "attempts": 4,
+    "gaveUp": true,
+    "verdict": "refused"
+   }
+  ]
+ },
+ "c": {
+  "spacingMs": 1500,
+  "minGapMs": 1500,
+  "pollsBothWaiting": 185,
+  "products": [
+   {
+    "url": "/p/1",
+    "states": [
+     {
+      "at": "2026-10-28T13:42:47.218Z",
+      "status": "capturing"
+     },
+     {
+      "at": "2026-10-28T13:42:47.662Z",
+      "status": "capturing",
+      "attempt": 1,
+      "via": "direct"
+     },
+     {
+      "at": "2026-10-28T13:43:18.552Z",
+      "status": "waiting",
+      "attempt": 2,
+      "via": "direct",
+      "retryAt": "2026-10-28T13:43:24.416Z",
+      "inMs": 5864,
+      "verdict": "refused"
+     },
+     {
+      "at": "2026-10-28T13:43:24.561Z",
+      "status": "capturing",
+      "attempt": 2,
+      "via": "direct"
+     },
+     {
+      "at": "2026-10-28T13:43:48.788Z",
+      "status": "waiting",
+      "attempt": 3,
+      "via": "direct",
+      "retryAt": "2026-10-28T13:44:00.665Z",
+      "inMs": 11877,
+      "verdict": "refused"
+     },
+     {
+      "at": "2026-10-28T13:44:01.227Z",
+      "status": "capturing",
+      "attempt": 3,
+      "via": "direct"
+     },
+     {
+      "at": "2026-10-28T13:44:19.287Z",
+      "status": "waiting",
+      "attempt": 4,
+      "via": "direct",
+      "retryAt": "2026-10-28T13:44:51.088Z",
+      "inMs": 31801,
+      "verdict": "refused"
+     },
+     {
+      "at": "2026-10-28T13:44:51.338Z",
+      "status": "capturing",
+      "attempt": 4,
+      "via": "direct"
+     },
+     {
+      "at": "2026-10-28T13:45:01.511Z",
+      "status": "failed",
+      "via": "direct",
+      "attempts": 4,
+      "gaveUp": true,
+      "verdict": "refused"
+     }
+    ]
+   },
+   {
+    "url": "/p/2",
+    "states": [
+     {
+      "at": "2026-10-28T13:42:47.218Z",
+      "status": "capturing"
+     },
+     {
+      "at": "2026-10-28T13:42:47.662Z",
+      "status": "capturing",
+      "attempt": 1,
+      "via": "direct"
+     },
+     {
+      "at": "2026-10-28T13:43:08.258Z",
+      "status": "waiting",
+      "attempt": 2,
+      "via": "direct",
+      "retryAt": "2026-10-28T13:43:14.125Z",
+      "inMs": 5867,
+      "verdict": "refused"
+     },
+     {
+      "at": "2026-10-28T13:43:14.891Z",
+      "status": "capturing",
+      "attempt": 2,
+      "via": "direct"
+     },
+     {
+      "at": "2026-10-28T13:43:38.738Z",
+      "status": "waiting",
+      "attempt": 3,
+      "via": "direct",
+      "retryAt": "2026-10-28T13:43:50.530Z",
+      "inMs": 11792,
+      "verdict": "refused"
+     },
+     {
+      "at": "2026-10-28T13:43:50.947Z",
+      "status": "waiting",
+      "attempt": 3,
+      "via": "direct",
+      "retryAt": "2026-10-28T13:43:56.664Z",
+      "inMs": 5717,
+      "verdict": "refused"
+     },
+     {
+      "at": "2026-10-28T13:43:57.093Z",
+      "status": "capturing",
+      "attempt": 3,
+      "via": "direct"
+     },
+     {
+      "at": "2026-10-28T13:44:08.945Z",
+      "status": "waiting",
+      "attempt": 4,
+      "via": "direct",
+      "retryAt": "2026-10-28T13:44:32.854Z",
+      "inMs": 23909,
+      "verdict": "refused"
+     },
+     {
+      "at": "2026-10-28T13:44:33.486Z",
+      "status": "waiting",
+      "attempt": 4,
+      "via": "direct",
+      "retryAt": "2026-10-28T13:44:52.588Z",
+      "inMs": 19102,
+      "verdict": "refused"
+     },
+     {
+      "at": "2026-10-28T13:44:53.095Z",
+      "status": "capturing",
+      "attempt": 4,
+      "via": "direct"
+     },
+     {
+      "at": "2026-10-28T13:45:11.624Z",
+      "status": "failed",
+      "via": "direct",
+      "attempts": 4,
+      "gaveUp": true,
+      "verdict": "refused"
+     }
+    ]
+   }
+  ]
+ },
+ "ops": {
+  "a": "2026-10-28T13:42:43.109Z",
+  "b": {
+   "since": "2026-10-28T13:42:47.512Z",
+   "gaveUp": true,
+   "viaFallback": false
+  },
+  "c": {
+   "since": "2026-10-28T13:42:47.520Z",
+   "gaveUp": true,
+   "viaFallback": false
+  },
+  "fallbackConfigured": false
+ },
+ "shop": {
+  "requests": 28,
+  "walled": 14,
+  "forwarded": 14
+ },
+ "proxy": {
+  "requests": 14,
+  "authenticated": 7,
+  "refused": 0,
+  "user": "fb-country-de"
+ },
+ "checks": [
+  {
+   "name": "(a) try 1 walled direct: waiting for try 2 by the direct route",
+   "ok": true,
+   "detail": "{\"at\":\"2026-10-28T13:42:22.808Z\",\"status\":\"waiting\",\"attempt\":2,\"via\":\"direct\",\"retryAt\":\"2026-10-28T13:42:28.670Z\",\"inMs\":5862,\"verdict\":\"refused\"}"
+  },
+  {
+   "name": "(a) try 2 walled direct: waiting for try 3 by the fallback",
+   "ok": true,
+   "detail": "{\"at\":\"2026-10-28T13:42:39.107Z\",\"status\":\"waiting\",\"attempt\":3,\"via\":\"fallback\",\"retryAt\":\"2026-10-28T13:42:38.908Z\",\"inMs\":-199,\"verdict\":\"refused\"}"
+  },
+  {
+   "name": "(a) try 2 waits the scaled 2 minutes (or the backoff, whichever is longer)",
+   "ok": true,
+   "detail": "5862 ms after the wall was seen"
+  },
+  {
+   "name": "(a) try 3 by the fallback was captured",
+   "ok": true,
+   "detail": "{\"status\":\"captured\",\"attempt\":3,\"via\":\"fallback\"}"
+  },
+  {
+   "name": "(a) the shop walled exactly two direct loads of the product",
+   "ok": true,
+   "detail": "2 direct load(s)"
+  },
+  {
+   "name": "(a) the fallback try went through the proxy",
+   "ok": true
+  },
+  {
+   "name": "(a) a waiting answer names the route, never the proxy’s address",
+   "ok": true,
+   "detail": "{\"url\":\"http://127.0.0.11:59215/de-de/p/1\",\"status\":\"waiting\",\"error\":\"127.0.0.11 refused the browser (HTTP 403). We can't read this website from here yet.\",\"verdict\":{\"kind\":\"refused\",\"status\":403,\"vendor\":\"unknown\"},\"startedAt\":\"2026-10-28T13:42:11.744Z\",\"retryAt\":\"2026-10-28T13:42:28.670Z\",\"attempt\":2,\"of\":4,\"via\":\"direct\",\"firstStartedAt\":\"2026-10-28T13:42:11.744Z\",\"tiles\":[],\"boxes\":[],\"pageHeight\":0,\"capturedHeight\":0,\"contentHeight\":0}"
+  },
+  {
+   "name": "(a) sources.fallback_proxy_at is set",
+   "ok": true,
+   "detail": "2026-10-28T13:42:43.109Z"
+  },
+  {
+   "name": "(a) the country guessed from /de-de/ was written",
+   "ok": true,
+   "detail": "de"
+  },
+  {
+   "name": "(a) the proxy got the user with {country} filled in as de",
+   "ok": true,
+   "detail": "7 authenticated request(s), 0 refused"
+  },
+  {
+   "name": "(a) the next product was captured on its first try by the fallback",
+   "ok": true,
+   "detail": "{\"status\":\"captured\",\"attempt\":1,\"via\":\"fallback\"}"
+  },
+  {
+   "name": "(a) …through the proxy, and never direct",
+   "ok": true,
+   "detail": "1 load(s) at the shop"
+  },
+  {
+   "name": "(a) …reading de-DE / Europe/Berlin (the kept country)",
+   "ok": true,
+   "detail": "{\"lang\":\"de-DE\",\"langs\":[\"de-DE\",\"de\"],\"tz\":\"Europe/Berlin\"}"
+  },
+  {
+   "name": "(b) tries 2, 3 and 4 each waited, all by the direct route",
+   "ok": true,
+   "detail": "try 2 in 5933 ms, try 3 in 11746 ms, try 4 in 23748 ms"
+  },
+  {
+   "name": "(b) the waits grow (2, 4, 8 minutes, scaled)",
+   "ok": true,
+   "detail": "5933 < 11746 < 23748 ms"
+  },
+  {
+   "name": "(b) four walls end failed, gaveUp, attempts 4",
+   "ok": true,
+   "detail": "{\"status\":\"failed\",\"gaveUp\":true,\"attempts\":4,\"verdict\":\"refused\"}"
+  },
+  {
+   "name": "(b) the shop saw four direct loads, all walled",
+   "ok": true,
+   "detail": "4 load(s)"
+  },
+  {
+   "name": "(b, c) with no fallback configured nothing went through the proxy",
+   "ok": true,
+   "detail": "0 new proxy request(s)"
+  },
+  {
+   "name": "(c) two products walled together come back at least 1500 ms (30 s × 0.05) apart",
+   "ok": true,
+   "detail": "min gap 1500 ms over 185 poll(s) with both waiting"
+  },
+  {
+   "name": "(c) both gave up after their own four tries",
+   "ok": true,
+   "detail": "failed/4, failed/4"
+  },
+  {
+   "name": "ops: website (a) carries fallbackProxyAt (the \"Proxy (automatic)\" badge)",
+   "ok": true,
+   "detail": "2026-10-28T13:42:43.109Z"
+  },
+  {
+   "name": "ops: website (b) is turned away, gave up, not through the proxy (\"may need a proxy\")",
+   "ok": true,
+   "detail": "{\"since\":\"2026-10-28T13:42:47.512Z\",\"gaveUp\":true,\"viaFallback\":false}"
+  },
+  {
+   "name": "ops: no fallback configured now",
+   "ok": true
+  },
+  {
+   "name": "the worker closed its browsers",
+   "ok": true,
+   "detail": "0 open"
+  },
+  {
+   "name": "no Chromium of this check is left",
+   "ok": true,
+   "detail": "none"
+  }
+ ],
+ "pass": true
+}

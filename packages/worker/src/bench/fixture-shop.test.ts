@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser } from '@robot/browser';
 import { runVerifiedExtraction, type VerifiedField } from '@robot/scraper';
-import { startFixtureShop, INSTANT, FIXTURE_FIELDS, product, renderedTruth, type FixtureShop } from './fixture-shop.js';
+import { startFixtureShop, INSTANT, FIXTURE_FIELDS, product, renderedTruth, WALL_HTML, type FixtureShop } from './fixture-shop.js';
 
 const fields: VerifiedField[] = FIXTURE_FIELDS.map((f) => ({ key: f.name, type: f.type, concept: f.name, paths: f.paths }));
 let shop: FixtureShop;
@@ -61,6 +61,23 @@ describe('the shop for the proxy live check (spec 2026-10-24 proxy §4)', () => 
       expect(html).toContain("document.documentElement.setAttribute('data-env'");
       const plain = await startFixtureShop({ sites: 1, latency: INSTANT });
       try { expect(await (await fetch(plain.sites[0]!.productUrl(1))).text()).not.toContain('data-env'); } finally { await plain.close(); }
+    } finally {
+      await s.close();
+    }
+  });
+});
+
+describe('the shop for the turned-away live check (spec 2026-10-28 turned away §5)', () => {
+  it('walls what `wall` names with a 403 denial page, serves the rest, and reads a product under a locale prefix', async () => {
+    const s = await startFixtureShop({ sites: 1, latency: INSTANT, wall: (r) => r.headers['x-test-proxy-forwarded'] !== '1' });
+    try {
+      const url = `${s.sites[0]!.origin}/de-de/p/1`;
+      const walled = await fetch(url);
+      expect(walled.status).toBe(403);
+      expect(await walled.text()).toBe(WALL_HTML);
+      const through = await fetch(url, { headers: { 'x-test-proxy-forwarded': '1' } });
+      expect(through.status).toBe(200);
+      expect(await through.text()).toContain(product(0, 1).title);
     } finally {
       await s.close();
     }
