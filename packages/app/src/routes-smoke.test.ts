@@ -53,6 +53,10 @@
 // `packages/scraper/src/domain-lock.ts`) for this smoke: the step asserts
 // "Waiting 2 min", and a 1-second backoff has expired by the second click, so
 // `/captcha` would really be captured and the step would read the human check.
+// One step runs after the wall test, and needs the backoff too (turned away, 2026-10-28): it drops product 3,
+// pastes `/p/12` (a 403 "Access denied") in its place, and reads the waiting card — "turned us away.", the
+// countdown, "Try n of 4", Swap product — and the one bar above the table, then swaps the card away. The
+// host's backoff (or the real wall, once it has run out) keeps that card waiting minutes for its next try.
 //
 // The listing also links a fourth product, `/p/9`, listed last so the finder's
 // first three cards stay `/p/1..3`: a second shape, a `ProductGroup` whose
@@ -176,6 +180,11 @@ const VARIANT_PRODUCT = {
   ],
 } as const;
 
+/** A product page the website turns away (spec 2026-10-28 turned away §5): a 403 "Access denied", a wall of kind
+ *  `refused`. NOT linked from `/l`; the last test makes it product 3 by URL, after the wall test has put the host on
+ *  backoff — so its first try is usually answered from the backoff, and either way the card waits for its next try. */
+const TURNED_AWAY_PRODUCT = '/p/12';
+
 /** A 1×1 transparent PNG: every image the shop serves. */
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 
@@ -206,6 +215,13 @@ function shopPage(pathname: string, search = ''): { type: string; body: string |
       status: 403,
       headers: { server: 'cloudflare', 'cf-ray': 'smoke' },
       body: '<html><head><title>Just a moment...</title></head><body>Checking your browser before accessing. Ray ID: smoke</body></html>',
+    };
+  }
+  if (pathname === TURNED_AWAY_PRODUCT) {
+    return {
+      type: 'text/html',
+      status: 403,
+      body: '<html><head><title>Access denied</title></head><body><h1>Access denied</h1><p>You do not have permission to view this page.</p></body></html>',
     };
   }
   if (pathname === '/captcha') {
@@ -2136,9 +2152,9 @@ describe.skipIf(!ENABLED)('app shell', () => {
   }, 120_000);
 
   // Honest page verdicts (2026-10-09): a wall is named as a wall, never as "no
-  // products found". LAST on purpose: each wall puts the shop's host on
+  // products found". Late on purpose: each wall puts the shop's host on
   // backoff, so anything after this that touched the shop would wait for it
-  // (see the header).
+  // (see the header) — only the turned-away step below, which wants exactly that.
   it('a wall is reported as a wall, in the same words everywhere', async () => {
     expect(websiteSlug, 'there is no website to paste a wall into').not.toBeNull();
     problems.length = 0;
@@ -2177,4 +2193,60 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await shoot(page, 'app-site-verification-wall-backoff.png', false);
     expect(problems, `the Verification tab logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 240_000);
+
+  // Turned away (spec 2026-10-28): a proof page the website turns away waits and tries again on its own. AFTER the
+  // wall test on purpose: the host is backing off, so product 3's first try is answered from the backoff (or, if the
+  // backoff has run out, really loaded and walled) — either way the card waits for its next try, minutes away, which
+  // is the state read here. The card is then swapped away; its queued try is stopped when afterAll deletes the project.
+  it('a proof page the website turns away waits, counts down, and can be swapped', async () => {
+    expect(websiteSlug, 'there is no website to add a product to').not.toBeNull();
+    problems.length = 0;
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    const host = new URL(SHOP).host;
+    // Products 1–3 as the silent-failures step left them; product 3 is dropped (the queue is empty after a fresh load,
+    // so a blank card takes its place) and the turned-away page is pasted into it.
+    await expect.poll(() => page.getByRole('button', { name: /^Drop product \d+$/ }).count(), { timeout: 20_000 }).toBe(3);
+    await page.getByRole('button', { name: 'Drop product 3', exact: true }).click();
+    const blank = page.getByRole('textbox', { name: 'Product 3', exact: true });
+    await blank.fill(`${SHOP}${TURNED_AWAY_PRODUCT}`);
+    await blank.press('Enter');
+
+    // The card: the website turned us away, the countdown to the next try, which try of four.
+    const card = page.getByRole('status').filter({ hasText: 'turned us away.' });
+    await expect.poll(() => card.count(), { timeout: 60_000, message: 'product 3 never read as turned away' }).toBe(1);
+    const COUNTDOWN = /Trying again in \d+:\d\d|Trying now…/;
+    await expect.poll(() => card.innerText(), { timeout: 10_000 }).toMatch(COUNTDOWN);
+    const cardText = await card.innerText();
+    expect(cardText, 'the card does not say which try is next').toMatch(/Try [1-4] of 4/);
+    // Swap product sits under the card's lines (beside them, not inside the status).
+    const swap = page.getByRole('button', { name: 'Swap product', exact: true });
+    expect(await swap.count(), 'the waiting card offers no Swap product').toBe(1);
+    for (const staffWords of [host, 'HTTP', 'proxy', 'Cloudflare']) {
+      expect(cardText, `the card says "${staffWords}"`).not.toContain(staffWords);
+    }
+    // The countdown ticks on the client (one shared 1 s ticker), unless the next try is already due.
+    const before = COUNTDOWN.exec(cardText)?.[0];
+    await page.waitForTimeout(2500);
+    const after = COUNTDOWN.exec(await card.innerText())?.[0];
+    expect(after === 'Trying now…' || after !== before, `the countdown did not move (${before} → ${after})`).toBe(true);
+
+    // One bar above the table names the product and says we are trying again on our own.
+    const bar = page.getByRole('status').filter({ hasText: 'turned us away on product 3.' });
+    await expect.poll(() => bar.count(), { timeout: 10_000, message: 'no turned-away bar above the table' }).toBe(1);
+    const barText = await bar.innerText();
+    expect(barText).toMatch(/We're trying again on our own(, next in \d+:\d\d| now)\./);
+    expect(barText, 'the bar does not say which products can be worked on').toContain('You can keep working on products 1 and 2.');
+    const barBox = await bar.boundingBox();
+    const tableBox = await page.getByRole('table').first().boundingBox();
+    expect(barBox && tableBox && barBox.y + barBox.height <= tableBox.y + 1, 'the bar is not above the table').toBe(true);
+    await expectNoMoney(page);
+    await shootViewportBothThemes(page, 'app-turned-away');
+
+    // Swap product: the card goes (a blank product 3 in its place) and the bar with it.
+    await swap.click();
+    await expect.poll(() => page.getByRole('textbox', { name: 'Product 3', exact: true }).count(), { timeout: 10_000 }).toBe(1);
+    await expect.poll(() => page.getByRole('status').filter({ hasText: /turned us away/ }).count(), { timeout: 10_000 }).toBe(0);
+    expect(problems, `the turned-away walk logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 120_000);
 });
