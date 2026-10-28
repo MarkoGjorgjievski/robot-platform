@@ -38,6 +38,17 @@ export type FallbackAvailability =
   | { available: true; country: string | null }
   | { available: false; reason: 'none' | 'own' | 'default' | 'already' | 'no-country' | 'unusable' };
 
+/**
+ * The country a fallback try uses (ruling 2026-10-28): the stored one, except the default `us` every website is given —
+ * that one yields to the country the address names (`guessCountry`), and stays `us` when the address names none. No
+ * stored country: the guess, or null.
+ */
+export function fallbackCountry(stored: string | null, url: string): string | null {
+  const code = known(stored);
+  if (code && code !== 'us') return code;
+  return guessCountry(url) ?? code;
+}
+
 /** Whether a try of `url` for this website may go by the fallback route, and the country it uses (spec §3.3 "Available"). */
 export function fallbackFor(site: FallbackSite, url: string, env: NodeJS.ProcessEnv = process.env): FallbackAvailability {
   const fallback = fallbackProxyUrl(env);
@@ -46,20 +57,24 @@ export function fallbackFor(site: FallbackSite, url: string, env: NodeJS.Process
   if (env.DEFAULT_PROXY_URL?.trim()) return { available: false, reason: 'default' };
   if (site.fallbackProxyAt) return { available: false, reason: 'already' };
   if (!checkProxyUrl(fallback).ok) return { available: false, reason: 'unusable' };
-  const country = known(site.country) ?? guessCountry(url);
+  const country = fallbackCountry(site.country, url);
   if (fallback.includes(COUNTRY_TOKEN) && !country) return { available: false, reason: 'no-country' };
   return { available: true, country };
 }
 
 /**
  * A fallback try read the page (spec §3.3 "Kept when it works"): the website keeps the fallback route from now on,
- * and the country the try used if it had none. Fenced on no fallback kept yet and no own address, so it happens once
+ * and the country the try used if it had none or the default us. Fenced on no fallback kept yet and no own address, so it happens once
  * and never over an address staff set meanwhile. True when this call kept it.
  */
 export async function markFallbackKept(sourceId: string, country: string | null, database: Database = db): Promise<boolean> {
   const code = known(country);
   const updated = await database.update(sources)
-    .set({ fallbackProxyAt: sql`now()`, country: code ? sql`COALESCE(${sources.country}, ${code})` : sql`${sources.country}` })
+    .set({
+      fallbackProxyAt: sql`now()`,
+      // The country the try used replaces none or the default us, never another stored country (ruling 2026-10-28).
+      country: code ? sql`CASE WHEN ${sources.country} IS NULL OR lower(${sources.country}) = 'us' THEN ${code} ELSE ${sources.country} END` : sql`${sources.country}`,
+    })
     .where(and(eq(sources.id, sourceId), isNull(sources.fallbackProxyAt), isNull(sources.proxyUrl)))
     .returning({ id: sources.id });
   return updated.length > 0;
