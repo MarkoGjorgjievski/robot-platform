@@ -2,7 +2,33 @@
 
 **Status:** approved by Marko 2026-10-28 in chat ("yes to your recommendations, go ahead, but I won't be choosing a
 proxy provider for now"). Branch `feat/turned-away` from `main` @ `126af9cd`, worktree
-`C:\Users\Marko\Documents\projects\robot-platform-turnedaway`.
+`C:\Users\Marko\Documents\projects\robot-platform-turnedaway`. Implemented on `feat/turned-away` (Tasks 1–5 of plan
+`docs/superpowers/plans/2026-10-28-turned-away.md`), 2026-10-28; merge pending the gate.
+
+**Proven:** per-task unit, router and app tests (task reports in `.superpowers/sdd/2026-10-28-turned-away/`); the free
+live check `packages/worker/src/live-turned-away.ts` passed 25 of 25 checks
+(`docs/testing/results/2026-10-28-turned-away/live-turned-away.json`, `ROBOT_BACKOFF_FIRST_MS=1000`,
+`PROOF_LADDER_WAIT_SCALE=0.05`, one browser): (a) two direct walls → `waiting` for try 2 (direct, 5.9 s ≈ 2 min × 0.05)
+and try 3 (fallback, due at once) → try 3 captured through the recording proxy with `{country}` filled in as `de` →
+`fallback_proxy_at` set and the country `de` (guessed from `/de-de/`, over the default `us`) written → the next product
+captured on its first try through the proxy, reading de-DE / Europe/Berlin; the waiting answer named the route, never
+the proxy's address; (b) no fallback: waits 5.9 / 11.7 / 23.7 s, four walled direct loads, `failed` with `gaveUp`,
+`attempts: 4`, nothing through the proxy, ops "turned away, gave up, not via the fallback"; (c) two products walled
+together: their queued retries never closer than 1,500 ms (30 s × 0.05) over 185 polls, both given up after four
+tries; the worker closed its browsers and the throwaway database was dropped. Route smoke (the new turned-away step,
+screens `docs/testing/screens/app-turned-away-*.png`): pending the controller's run on the isolated pair.
+
+**Deviations:** (from the task reports) `waiting.attempt` can be 1 (try 1 answered from the backoff); `capturing` and
+`captured` rows carry `via`, failed rows of more than one try carry `via` too (ops' "even through the proxy"); one
+website's retries on one host and route are spaced 30 s apart and a row still deferred 30 min after its first try gives
+up (review rulings, beyond §3.2); the fallback takes the address's country over the default `us` (ruling); a
+fallback-route try with `FALLBACK_PROXY_URL` unset throws rather than going direct; `ops.websites` answers
+`{ rows, fallbackConfigured }` and `turnedAway` carries `viaFallback`; a capturing retry also offers Swap product and
+keeps the amber tone; Swap product always opens the listing bar and never presses Find products; swapped-away products
+are kept out of later Find products results for the session; the given-up minutes run from the first try to the last
+try's start and are left out when either is unknown; the live check uses its own `PROOF_LADDER_WAIT_SCALE` and the shop
+tells a proxied request by the recording proxy's `x-test-proxy-forwarded` header. Not done: removing or swapping a card
+does not cancel its waiting capture job (up to 3 more loads; queue follow-up).
 
 ## 1. Why
 

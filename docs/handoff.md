@@ -35,9 +35,11 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [A fresh customer's first run (2026-10-26)](#a-fresh-customers-first-run-2026-10-26).** A script walks a new customer from sign-in to downloaded rows on IKEA, Gymshark and Skullcandy, free and keyless; it found 13 product defects, all fixed. Merged 2026-10-26.
+**Newest: [When a website turns us away (2026-10-28)](#when-a-website-turns-us-away-2026-10-28).** A turned-away proof-page screenshot now waits and tries again on its own (four tries; a fallback proxy at try 3 when one is configured, kept when it works); the customer watches a countdown and can swap the product; staff see the websites that keep turning us away in ops. Branch `feat/turned-away`.
 
-**Before it: [Monitoring basics (2026-10-25)](#monitoring-basics-2026-10-25).** Workers beat into the database and answer a health port; the api-server answers /readyz; logs can be JSON and are redacted; a watchdog warns about stuck work; errors can be POSTed to a receiver; staff see it all in ops → Queue. Merged 2026-10-25.
+**Before it: [A fresh customer's first run (2026-10-26)](#a-fresh-customers-first-run-2026-10-26).** A script walks a new customer from sign-in to downloaded rows on IKEA, Gymshark and Skullcandy, free and keyless; it found 13 product defects, all fixed. Merged 2026-10-26.
+
+**Before that: [Monitoring basics (2026-10-25)](#monitoring-basics-2026-10-25).** Workers beat into the database and answer a health port; the api-server answers /readyz; logs can be JSON and are redacted; a watchdog warns about stuck work; errors can be POSTed to a receiver; staff see it all in ops → Queue. Merged 2026-10-25.
 
 
 **Before that: [Metering and monthly AI limits (2026-10-24)](#metering-and-monthly-ai-limits-2026-10-24).** Pages, runs and AI spend are counted per organisation and month; AI work stops at each organisation's monthly limit ($25 by default); staff see and set it in ops and Settings. Merged 2026-10-24.
@@ -129,6 +131,45 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## When a website turns us away (2026-10-28)
+
+Spec `docs/superpowers/specs/2026-10-28-turned-away-design.md`, plan `docs/superpowers/plans/2026-10-28-turned-away.md`.
+Approved by Marko 2026-10-28; no proxy provider chosen.
+
+**What changed.**
+- *The ladder* (`packages/api/src/verify/proof-page-capture.ts`): a proof-page capture that the website walls
+  (`refused` / `challenge`) becomes a `waiting` row (`retryAt`, `attempt`, `via`) with its next try queued as a job
+  (`enqueue` takes `runAfter`). Direct waits 2, 4 and 8 min; with a fallback available, try 3 goes through it at once and
+  try 4 four minutes later; after try 4, `failed` with `gaveUp`, `attempts: 4`. Never before the route's backoff ends
+  (the backoff is per route now: `host` and `host via fallback`); a start answered from the backoff does not count; one
+  website's retries on one host and route are spaced 30 s apart (an advisory lock per website); a row still deferred
+  30 min after its first try gives up. Only the worker's proof-page job climbs the ladder (`{ ladder: true }`).
+- *The fallback route* (`packages/api/src/proxy/fallback.ts`): `FALLBACK_PROXY_URL`, available only with no own proxy and
+  no `DEFAULT_PROXY_URL`; its `{country}` is the website's country, or the one its address names over the default `us`.
+  A fallback try that captures sets `sources.fallback_proxy_at` (migration 0026) and the country; from then on every page
+  load of that website goes through it. Staff undo it on Settings → Network ("Go direct again").
+- *Ops*: badges "Turned away · retrying", "· may need a proxy", "even through the proxy", "Proxy (automatic)".
+- *The Verification tab*: the card's clock, countdown and "Try n of 4", Swap product, the given-up sentence with Try
+  again, one bar above the table, rows "waiting for product N" / "turned away on product N"; no "proxy" in customer copy.
+
+**How proven.** Unit and router tests per task (see the task reports in `.superpowers/sdd/2026-10-28-turned-away/`); the
+free live check `packages/worker/src/live-turned-away.ts` passed 25 of 25 checks
+(`docs/testing/results/2026-10-28-turned-away/live-turned-away.json`); the route smoke's new turned-away step (screens
+`docs/testing/screens/app-turned-away-*.png`) is run by the merge gate on the isolated pair.
+
+**After pulling.** `pnpm db:migrate` (0026, one nullable column), restart `pnpm dev:all`.
+
+**What NOT to redo.** Do not shorten `ROBOT_BACKOFF_FIRST_MS` for the route smoke (its wall and turned-away steps need
+the 2-minute backoff). `PROOF_LADDER_WAIT_SCALE` is for the live check only.
+
+**Open.**
+- *Needs Marko:* choose a proxy provider (`FALLBACK_PROXY_URL`). Until then the ladder is all direct and ops says
+  "may need a proxy".
+- *Follow-up:* removing or swapping a card does not cancel its waiting capture job (up to 3 more page loads, harmless:
+  the screen reads the newest row per URL). Deleting the website or project does cancel it.
+- The host backoff lives in the worker's memory: after a restart a waiting row's job still fires at `retryAt`, without
+  the backoff floor.
 
 ## A fresh customer's first run (2026-10-26)
 
