@@ -5,11 +5,11 @@ import { db } from '@robot/db';
 import { JOB_POLICIES, type JobPayloads, type JobType } from './types.js';
 import { awaitJob, enqueueJob, type DbOrTx } from './queue.js';
 
-export async function enqueue<T extends JobType>(dbOrTx: DbOrTx, type: T, payload: JobPayloads[T], opts: { key?: string | null; priority?: number } = {}): Promise<string> {
+export async function enqueue<T extends JobType>(dbOrTx: DbOrTx, type: T, payload: JobPayloads[T], opts: { key?: string | null; priority?: number; runAfter?: Date } = {}): Promise<string> {
   const p = JOB_POLICIES[type];
   const { id } = await enqueueJob(dbOrTx, {
     type, payload, key: opts.key ?? null, priority: opts.priority ?? p.priority, maxAttempts: p.maxAttempts,
-    startWithinMs: p.startWithinMs,
+    startWithinMs: p.startWithinMs, runAfter: opts.runAfter,
   });
   return id;
 }

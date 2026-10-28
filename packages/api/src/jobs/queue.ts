@@ -51,6 +51,8 @@ export type EnqueueSpec = {
   type: string; payload: unknown; key?: string | null; priority?: number; maxAttempts?: number; queue?: string;
   /** Due this long after it is written (default: at once). */
   delayMs?: number;
+  /** Due at this moment instead (spec 2026-10-28 §3.2: a capture's next try); its start window then starts here. Wins over `delayMs`. */
+  runAfter?: Date;
   /** Failed 'expired' when not started this long after it is due; null or absent: no window. Both on the database clock. */
   startWithinMs?: number | null;
 };
@@ -71,7 +73,8 @@ export async function enqueueJob(dbOrTx: DbOrTx, spec: EnqueueSpec): Promise<{ i
   }
   for (let tries = 0; tries < 3; tries++) {
     const id = randomUUID();
-    const due = sql`now() + make_interval(secs => ${(spec.delayMs ?? 0) / 1000})`;
+    const due = spec.runAfter ? sql`${spec.runAfter.toISOString()}::timestamptz`
+      : sql`now() + make_interval(secs => ${(spec.delayMs ?? 0) / 1000})`;
     const window = spec.startWithinMs === undefined || spec.startWithinMs === null ? sql`NULL::timestamptz`
       : sql`${due} + make_interval(secs => ${spec.startWithinMs / 1000})`;
     const inserted = rows<{ id: string }>(await dbOrTx.execute(sql`
