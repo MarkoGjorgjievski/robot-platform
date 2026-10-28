@@ -20,7 +20,8 @@ export function jobRegistry(opts: { testJobs?: boolean } = {}): Registry {
     'proof-page-capture': {
       policy: JOB_POLICIES['proof-page-capture'],
       subject: (p: JobPayloads['proof-page-capture']) => ({ table: 'captures', id: p.captureId }),
-      run: (p: JobPayloads['proof-page-capture']) => runProofPageCapture(p.captureId),
+      // A wall is tried again later (spec 2026-10-28 §3.2): the job queues the row's next try.
+      run: (p: JobPayloads['proof-page-capture']) => runProofPageCapture(p.captureId, undefined, { ladder: true }),
     },
     // The procedures that answered from a browser while the request waited: it waits for these (spec §4.4).
     reachability: { policy: JOB_POLICIES.reachability, run: (p: JobPayloads['reachability']) => reachabilityNow(p.url, p.sourceId) },

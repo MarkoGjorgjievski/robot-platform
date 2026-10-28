@@ -29,7 +29,7 @@ import { customerDriftResults, forCustomer, latestRefreshes, needsAttention, web
 import { variantsRequired } from '../verify/variant-check.js';
 import { isJobLive } from '../jobs/queue.js';
 import { cancelWebsiteJobs } from '../jobs/cancel.js';
-import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
+import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, proofPageStateOf, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification, startVerificationRow } from '../verify/in-flight.js';
 import { runFailure } from '../verify/run-failure.js';
@@ -845,16 +845,16 @@ export const sourcesRouter = router({
       const stored = row?.metadata as ProofPageMeta | undefined;
       if (!row || !stored || stored.kind !== 'proof-page') throw new TRPCError({ code: 'NOT_FOUND', message: `Proof-page capture ${input.captureId} not found` });
       // A capture whose work died is reported as the failure it is, never as still running; one waiting in the queue is still capturing.
+      // A wall waiting for its next try reads waiting: when, which try of how many, and the route by name, never an address (spec 2026-10-28 §3.1).
       const meta = await resolveStalledProofPage(row.id, stored, row.jobId);
       return {
-        url: meta.url, status: meta.status,
+        url: meta.url, ...proofPageStateOf(meta),
         tiles: meta.status === 'captured' ? meta.tiles : [],
         boxes: meta.status === 'captured' ? meta.boxes : [],
         pageHeight: meta.status === 'captured' ? meta.pageHeight : 0,
         capturedHeight: meta.status === 'captured' ? meta.capturedHeight : 0,
         contentHeight: meta.status === 'captured' ? meta.contentHeight : 0,
-        ...(meta.status === 'failed' ? { error: meta.error, ...(meta.verdict ? { verdict: meta.verdict } : {}) } : {}),
-        ...(meta.status === 'captured' ? { capturedAt: meta.capturedAt, ...(meta.title ? { title: meta.title } : {}) } : {}),
+        ...(meta.status === 'captured' ? { capturedAt: meta.capturedAt } : {}),
       };
     }),
 
