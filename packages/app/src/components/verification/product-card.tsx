@@ -3,6 +3,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { shortUrl, type Card } from '../../lib/site/verification-model';
 import type { ProofCapture } from '../../lib/site/use-proof-captures';
+import { CaptureStateWords } from './capture-words-view';
 
 /**
  * One product in the grid (spec §2.2): the listing's photo and title, the
@@ -21,9 +22,11 @@ export function ProductCard({
   onDrop,
   onReplace,
   onRetry,
+  onSwap,
   hostProblem,
   compact,
   notChecked,
+  websiteName,
 }: {
   card: Card;
   index: number;
@@ -34,18 +37,22 @@ export function ProductCard({
   onDrop: () => void;
   onReplace: (url: string) => void;
   onRetry: () => void;
+  /** Swap product (spec 2026-10-28 §3.6): drop this card and open Find products. */
+  onSwap: () => void;
   hostProblem: (url: string) => string | null;
   /** As a verification table's column head (spec 2026-09-28 A1): a shorter photo, one-line title. */
   compact?: boolean;
   /** Why the last Verify could not check this product (spec 2026-10-20 §3.5.2); null when it did. */
   notChecked?: string | null;
+  /** The website's name, as the breadcrumb shows it: a turned-away card names it. */
+  websiteName?: string | null;
 }) {
   if (card.url.trim() === '') {
     return <BlankProductCard index={index} disabled={disabled} onCommit={onReplace} onDrop={onDrop} hostProblem={hostProblem} />;
   }
 
   const status = capture?.status ?? 'starting';
-  const rail = status === 'captured' ? 'bg-pass' : status === 'failed' ? 'bg-warn' : 'bg-text';
+  const rail = status === 'captured' ? 'bg-pass' : status === 'failed' || status === 'waiting' ? 'bg-warn' : 'bg-text';
 
   return (
     <div className={`relative flex flex-col overflow-hidden rounded-[6px] border ${selected ? 'border-text' : 'border-line hover:border-line-hover'}`}>
@@ -65,22 +72,13 @@ export function ProductCard({
         </div>
       </button>
 
-      <div className="mt-auto flex items-center justify-between gap-2 px-2 py-1.5">
-        {status === 'failed' ? (
-          <>
-            <span className="min-w-0 line-clamp-2 text-sm text-warn" title={capture?.error}>
-              {capture?.error ?? 'The screenshot could not be taken'}
-            </span>
-            <Button variant="outline" size="xs" disabled={disabled} onClick={onRetry} className="shrink-0">
-              Try again
-            </Button>
-          </>
-        ) : notChecked ? (
-          <span className="min-w-0 line-clamp-2 text-sm text-warn" title={notChecked}>
+      <div className="mt-auto px-2 py-1.5">
+        {notChecked && status !== 'failed' && status !== 'waiting' ? (
+          <span className="block min-w-0 line-clamp-2 text-sm text-warn" title={notChecked}>
             {notChecked}
           </span>
         ) : (
-          <span className="text-sm text-muted-foreground">{status === 'captured' ? 'ready' : 'taking screenshot…'}</span>
+          <CaptureStateWords capture={capture} name={websiteName} disabled={disabled} onRetry={onRetry} onSwap={onSwap} />
         )}
       </div>
 

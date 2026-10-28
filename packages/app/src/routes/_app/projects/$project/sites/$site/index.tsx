@@ -6,6 +6,8 @@ import { Skeleton } from '../../../../../../components/ui/skeleton';
 import { ListingBar } from '../../../../../../components/verification/listing-bar';
 import { AddProductCard } from '../../../../../../components/verification/product-grid';
 import { ProductCard } from '../../../../../../components/verification/product-card';
+import { CaptureStateWords, TurnedAwayBar } from '../../../../../../components/verification/capture-words-view';
+import { captureKind } from '../../../../../../lib/site/turned-away';
 import { PageViewer, type Overlay } from '../../../../../../components/verification/page-viewer';
 import { MarkPopover } from '../../../../../../components/verification/mark-popover';
 import { VerificationTable, type TableRow, type DriftLine } from '../../../../../../components/verification/verification-table';
@@ -265,6 +267,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const [arrival, setArrival] = useState<{ url: string; field?: string; note?: string } | null>(null);
   /** Why the last listing was refused, shown under the listing input. */
   const [listingNote, setListingNote] = useState<string | null>(null);
+  /** Swap product (spec 2026-10-28 §3.6): bumped to open Find products; the pages swapped away never come back from a listing. */
+  const [listingOpen, setListingOpen] = useState(0);
+  const swappedAway = useRef<Set<string>>(new Set());
   /** A product's screenshot in mark mode for its variant buttons ("Mark the colour buttons on the screenshot"), and the element clicked. */
   const [variantMark, setVariantMark] = useState<{ url: string; xpath?: string } | null>(null);
 
@@ -783,7 +788,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     if (refused) return;
     const b = boardRef.current;
     const onBoard = new Set(b.cards.map((c) => c.url));
-    const fresh = products.filter((p) => !onBoard.has(p.url));
+    const fresh = products.filter((p) => !onBoard.has(p.url) && !swappedAway.current.has(p.url));
     // Cards already there keep their answers; blank ones are filled; the grid
     // is topped up to three; everything else waits in the queue.
     const cards = b.cards.map((c) => (c.url.trim() === '' && fresh.length > 0 ? fresh.shift()! : c));
@@ -820,6 +825,14 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     }
     setBoard(setCards(b, cards));
     setPopover(null);
+  }
+
+  /** Swap product (spec 2026-10-28 §3.6): today's × on this card, then Find products, with the listing filled in when known. */
+  function onSwap(i: number) {
+    const url = boardRef.current.cards[i]?.url.trim();
+    if (url) swappedAway.current.add(url);
+    onDrop(i);
+    setListingOpen((n) => n + 1);
   }
 
   function onAdd(url?: string) {
@@ -1187,8 +1200,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 
   // A screenshot that failed says so on its row, not "not ready" (final review M6).
   const failedUrls = new Set(urls.filter((u) => captures.byUrl[u]?.status === 'failed'));
-  // ...and a refusal or a human check says which (spec 2026-10-09 §A2).
-  const failedKinds = new Map(urls.flatMap((u) => { const k = captures.byUrl[u]?.verdict?.kind; return k ? [[u, k] as const] : []; }));
+  // ...and a page waiting for its next try, or turned away, says so (spec 2026-10-28 §3.6).
+  const failedKinds = new Map(urls.flatMap((u) => { const k = captureKind(captures.byUrl[u]); return k ? [[u, k] as const] : []; }));
   const statuses = fields.map((f) => rowStatus(f, board, live, boxesByUrl, failedUrls, failedKinds, pageFacts));
   // Only rows that read agreed: Accept all never takes part of a "different place" row (first run 2026-10-25).
   const agreedCount = statuses.filter((s) => s.kind === 'agreed').length;
@@ -1462,7 +1475,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       ? (() => {
           const url = detailCard.url;
           const state = segment(board, live, detailField.key, url, { failed: url !== '' && failedCell(detailField.key, url) });
-          const status = !url || !detailCapture || detailCapture.status === 'starting' || detailCapture.status === 'capturing' ? 'pending' : detailCapture.status === 'failed' ? 'failed' : 'ready';
+          const status = !url || !detailCapture || detailCapture.status === 'starting' || detailCapture.status === 'capturing' || detailCapture.status === 'waiting' ? 'pending' : detailCapture.status === 'failed' ? 'failed' : 'ready';
           return {
             fieldName: detailField.name,
             productLabel: detailCard.title || (url ? shortUrl(url) : `Product ${selection.product + 1}`),
@@ -1513,6 +1526,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       onDrop={() => onDrop(i)}
       onReplace={(url) => onReplace(i, url)}
       onRetry={() => captures.retry(card.url)}
+      onSwap={() => onSwap(i)}
+      websiteName={source.name}
       hostProblem={hostProblem}
       notChecked={!active && blocked[card.url] !== undefined ? notCheckedText(i + 1, blocked[card.url]) : null}
     />
@@ -1538,6 +1553,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           onNoListing={onNoListing}
           extractOwnsInput={typeof (source.parameters as { inputMode?: unknown }).inputMode === 'string'}
           problem={listingNote}
+          openSignal={listingOpen}
         />
         {newWebsite && reachability.data ? (
           reachability.data.verdict.kind === 'ok' ? (
@@ -1596,6 +1612,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 
       {board.cards.length > 0 ? (
         <div className="space-y-2">
+          <TurnedAwayBar captures={board.cards.map((c) => (c.url.trim() ? captures.byUrl[c.url] : undefined))} name={source.name} />
           <CellDetailBar selection={detailBar} locked={locked} />
           <VerificationTable
             heads={heads}
@@ -1657,7 +1674,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               </Button>
             </div>
           ) : null}
-          <ProductView url={selectedUrl} capture={capture} onRetry={() => captures.retry(selectedUrl)} locked={locked}>
+          <ProductView url={selectedUrl} capture={capture} websiteName={source.name} onRetry={() => captures.retry(selectedUrl)} onSwap={() => onSwap(selected)} locked={locked}>
             <PageViewer
               tiles={tiles}
               boxes={boxes}
@@ -1704,13 +1721,17 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 function ProductView({
   url,
   capture,
+  websiteName,
   onRetry,
+  onSwap,
   locked,
   children,
 }: {
   url: string;
   capture: ReturnType<typeof useProofCaptures>['byUrl'][string];
+  websiteName: string | null | undefined;
   onRetry: () => void;
+  onSwap: () => void;
   locked: boolean;
   children: ReactNode;
 }) {
@@ -1718,23 +1739,18 @@ function ProductView({
   if (!url) {
     return <div className={`${panel} text-base text-muted-foreground`}>Paste this product&apos;s page in its column above.</div>;
   }
+  // Spec 2026-10-28 §3.6: the card's own words here too — the clock, the countdown, the whole sentence and its actions.
+  const words = <CaptureStateWords capture={capture} name={websiteName} disabled={locked} onRetry={onRetry} onSwap={onSwap} size="sm" />;
   if (!capture || capture.status === 'starting' || capture.status === 'capturing') {
     return (
       <div className={panel}>
-        <p className="text-sm text-muted-foreground">Taking screenshot…</p>
+        {words}
         <Skeleton className="mt-3 h-[320px] w-full bg-raised" />
       </div>
     );
   }
-  if (capture.status === 'failed') {
-    return (
-      <div className={`${panel} flex flex-wrap items-center justify-between gap-3`}>
-        <p className="text-sm text-warn">{capture.error ?? 'The screenshot could not be taken'}</p>
-        <Button variant="outline" size="sm" disabled={locked} onClick={onRetry}>
-          Try again
-        </Button>
-      </div>
-    );
+  if (capture.status === 'failed' || capture.status === 'waiting') {
+    return <div className={panel}>{words}</div>;
   }
   return <>{children}</>;
 }
