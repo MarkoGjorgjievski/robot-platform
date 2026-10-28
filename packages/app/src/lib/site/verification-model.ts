@@ -582,8 +582,9 @@ const sameHeading = (a: string, b: string): boolean => sameShownText(a, b);
  * path is the customer's own, spec A2); otherwise the row asks for a look.
  * An answer that is not valid for the type is never accepted (M4).
  * `failedUrls`: products whose screenshot failed rather than is still coming (M6).
- * `failedKinds`: a failed product's capture verdict kind by url — a refusal or
- * a human check reads as itself on the row (spec 2026-10-09 §A2).
+ * `failedKinds`: what a product's capture says on the row, by url (`captureKind`,
+ * spec 2026-10-28 §3.6): `waiting` while it waits for a try or tries again, and
+ * `turned-away` (or a bare `refused` / `challenge` verdict) for a wall.
  */
 export function rowStatus(
   field: Field,
@@ -613,7 +614,9 @@ export function rowStatus(
     if (!boxes) {
       if (required) {
         const kind = failedKinds?.get(card.url);
-        const why = kind === 'refused' ? 'screenshot refused' : kind === 'challenge' ? 'human check' : failedUrls?.has(card.url) ? 'screenshot failed' : 'screenshot not ready';
+        if (kind === 'waiting') return { kind: 'needs-you', reason: `waiting for product ${n}`, product: n };
+        const wall = kind === 'turned-away' || kind === 'refused' || kind === 'challenge';
+        const why = wall ? 'turned away' : failedUrls?.has(card.url) ? 'screenshot failed' : 'screenshot not ready';
         return { kind: 'needs-you', reason: `${why} on product ${n}`, product: n };
       }
       continue;
