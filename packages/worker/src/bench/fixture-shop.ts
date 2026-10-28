@@ -89,7 +89,15 @@ export type ShopOptions = {
   onRequest?: (r: { site: number; method: string; path: string; headers: IncomingHttpHeaders }) => void;
   /** Product pages write ENV_SCRIPT's answer onto <html>. Off: the benchmark's pages are unchanged. */
   envProbe?: boolean;
+  /**
+   * A request this answers true for gets WALL_HTML with a 403 (the turned-away live check walls direct loads and lets
+   * the recording proxy's through). Unset: nothing is walled.
+   */
+  wall?: (r: { site: number; method: string; path: string; headers: IncomingHttpHeaders }) => boolean;
 };
+
+/** A flat denial as `detectWall` reads one: a thin page with "Access denied" in its title and text (kind `refused`). */
+export const WALL_HTML = '<!doctype html><html><head><title>Access denied</title></head><body><h1>Access denied</h1><p>You do not have permission to view this page.</p></body></html>';
 
 function productHtml(site: FixtureSite, id: number, t: ProductTruth, envProbe = false): string {
   const shown = t.readMore ? `${t.description.slice(0, 24)}…` : t.description;
@@ -148,7 +156,8 @@ function handler(site: FixtureSite, lat: FixtureLatency, gone: Set<string>, envP
     const path = new URL(req.url ?? '/', site.origin).pathname;
     if (gone.has(path)) { res.writeHead(404, { 'content-type': 'text/plain' }); return res.end('not found'); }
     let m: RegExpMatchArray | null;
-    if ((m = path.match(/^\/p\/(\d+)$/))) {
+    // A product, optionally under a locale prefix (`/de-de/p/1`: the turned-away live check guesses its country).
+    if ((m = path.match(/^(?:\/[a-z]{2}(?:-[a-z]{2})?)?\/p\/(\d+)$/))) {
       const id = Number(m[1]);
       const slow = unit(site.index, id, 'slow') < lat.slowShare;
       await sleep(between(lat.htmlMs, unit(site.index, id, 'html')) + (slow ? lat.slowExtraMs : 0));
@@ -186,7 +195,9 @@ export async function startFixtureShop(opts: ShopOptions): Promise<FixtureShop> 
     const host = `127.0.0.${11 + i}`;
     const site: FixtureSite = { index: i, host, origin: '', consentGated: opts.sites >= 4 && i === opts.sites - 1, productUrl: (id) => `${site.origin}/p/${id}` };
     const server = createServer((req, res) => {
-      opts.onRequest?.({ site: i, method: req.method ?? 'GET', path: new URL(req.url ?? '/', site.origin).pathname, headers: req.headers });
+      const seen = { site: i, method: req.method ?? 'GET', path: new URL(req.url ?? '/', site.origin).pathname, headers: req.headers };
+      opts.onRequest?.(seen);
+      if (opts.wall?.(seen)) { res.writeHead(403, { 'content-type': 'text/html; charset=utf-8' }); res.end(WALL_HTML); return; }
       void handler(site, lat, gone, opts.envProbe ?? false)(req, res);
     });
     await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, host, () => resolve()); });
