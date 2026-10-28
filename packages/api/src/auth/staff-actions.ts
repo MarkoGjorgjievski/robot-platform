@@ -81,7 +81,8 @@ export const CUSTOMER_SUMMARIES: Record<string, string> = {
 
 /** Spec 2026-10-24 proxy §2.3: what a customer reads for a proxy or country change — never the word, the address or the country. */
 export const NETWORK_CUSTOMER_SUMMARY = 'Changed a setting of this website';
-const NETWORK_SENTENCE = /^Set the website's (?:proxy|country)\b/;
+// Spec 2026-10-28 §3.3: undoing the automatic switch to the fallback proxy reads the same to a customer.
+const NETWORK_SENTENCE = /^Set the website(?:'s (?:proxy|country)\b| to load directly\b)/;
 
 /** The staff log as a customer reads it: a staff-only sentence reworded, every other one as stored. */
 export function customerSummary(action: string, summary: string): string {
@@ -91,9 +92,11 @@ export function customerSummary(action: string, summary: string): string {
   return summary;
 }
 
-/** "Set the website's proxy" / "…to the default"; "Set the website's country to Germany" / "…to no preference". */
-function networkWords(input: { proxyUrl?: string | null; country?: string | null }): string | null {
+/** "Set the website's proxy" / "…to the default"; "Set the website's country to Germany" / "…to no preference";
+ *  "Set the website to load directly" (the automatic fallback undone, spec 2026-10-28 §3.3). */
+function networkWords(input: { proxyUrl?: string | null; country?: string | null; fallbackProxy?: false }): string | null {
   const parts: string[] = [];
+  if (input.fallbackProxy === false) parts.push('Set the website to load directly');
   if (input.proxyUrl !== undefined) parts.push(input.proxyUrl === null ? "Set the website's proxy to the default" : "Set the website's proxy");
   if (input.country !== undefined) {
     parts.push(`Set the website's country to ${input.country === null ? 'no preference' : countryByCode(input.country)?.name ?? input.country}`);

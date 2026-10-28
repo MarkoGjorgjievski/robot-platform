@@ -413,7 +413,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       const lastJob = (await metaOf(captureId)).jobId;
       await ladderTry(captureId, walled);
       const row = await metaOf(captureId);
-      expect(row.metadata).toMatchObject({ status: 'failed', gaveUp: true, attempts: 4, firstStartedAt, verdict: refused });
+      expect(row.metadata).toMatchObject({ status: 'failed', gaveUp: true, attempts: 4, firstStartedAt, verdict: refused, via: 'direct' });
       expect(row.jobId).toBe(lastJob); // no fifth try
       expect(await jobsOfCapture(captureId)).toHaveLength(4);
       const state = (await latestProofPageCaptures(f.sourceId, [url]))[url];
@@ -680,7 +680,7 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
       if (meta.status === 'waiting') expect(Date.parse(meta.retryAt)).toBeGreaterThanOrEqual(before + 4 * MIN - 1000);
       _resetBackoffForTests();
       await ladderTry(captureId, walled);
-      expect((await metaOf(captureId)).metadata).toMatchObject({ status: 'failed', gaveUp: true, attempts: 4 });
+      expect((await metaOf(captureId)).metadata).toMatchObject({ status: 'failed', gaveUp: true, attempts: 4, via: 'fallback' });
       expect((await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) }))!.fallbackProxyAt).toBeNull();
     } finally { await f.cleanup(); }
   });

@@ -161,3 +161,62 @@ describe('ops.website (spec §2.3 "Ops")', () => {
     expect(JSON.stringify(await op.caller.ops.website({ sourceId: site.sourceId }))).not.toMatch(/s3cret/);
   });
 });
+
+// Spec 2026-10-28 §3.3 "Undo": the automatic switch to FALLBACK_PROXY_URL, read by staff and undone by them only.
+describe('the automatic fallback (spec 2026-10-28 §3.3)', () => {
+  const FALLBACK = 'http://fb-user:fb-secret@fallback.proxy.test:9000';
+  const savedFallback = process.env.FALLBACK_PROXY_URL;
+  const keptAt = new Date('2026-10-27T09:30:00Z');
+  const fallbackOf = async () => (await db.query.sources.findFirst({ where: eq(sources.id, site.sourceId), columns: { fallbackProxyAt: true } }))!.fallbackProxyAt;
+  afterEach(async () => {
+    await db.update(sources).set({ fallbackProxyAt: null }).where(eq(sources.id, site.sourceId));
+    if (savedFallback === undefined) delete process.env.FALLBACK_PROXY_URL; else process.env.FALLBACK_PROXY_URL = savedFallback;
+  });
+
+  it('staff read when the website switched and the masked fallback address; a customer reads neither', async () => {
+    process.env.FALLBACK_PROXY_URL = FALLBACK;
+    await db.update(sources).set({ fallbackProxyAt: keptAt }).where(eq(sources.id, site.sourceId));
+    const s = await get(staff);
+    expect(s).toMatchObject({ fallbackProxyAt: keptAt, proxyFromFallback: true, proxyFromDefault: false, proxyUrl: 'http://fb-user:•••@fallback.proxy.test:9000' });
+    expect(JSON.stringify(s)).not.toMatch(/fb-secret/);
+    const c = await get(customer);
+    for (const k of ['fallbackProxyAt', 'proxyFromFallback']) expect(c).not.toHaveProperty(k);
+    expect(JSON.stringify(c)).not.toMatch(/fallback|fb-user/);
+  });
+
+  it('ops.website says the website loads by the fallback', async () => {
+    process.env.FALLBACK_PROXY_URL = FALLBACK;
+    await db.update(sources).set({ fallbackProxyAt: keptAt }).where(eq(sources.id, site.sourceId));
+    const w = await op.caller.ops.website({ sourceId: site.sourceId });
+    expect(w.network).toEqual({ proxy: 'fallback', country: null });
+    expect(JSON.stringify(w)).not.toMatch(/fb-secret|fb-user/);
+  });
+
+  it('a website that never switched reads fallbackProxyAt null', async () => {
+    expect(await get(staff)).toMatchObject({ fallbackProxyAt: null, proxyFromFallback: false });
+  });
+
+  it('a customer cannot undo it: refused, nothing written', async () => {
+    await db.update(sources).set({ fallbackProxyAt: keptAt }).where(eq(sources.id, site.sourceId));
+    await expect(customer.caller.sources.update({ id: site.sourceId, fallbackProxy: false })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(await fallbackOf()).toEqual(keptAt);
+  });
+
+  it('staff "Go direct again" clears it, logged in staff words; the customer reads that a setting changed', async () => {
+    await db.update(sources).set({ fallbackProxyAt: keptAt }).where(eq(sources.id, site.sourceId));
+    const settingChanges = async () => (await customer.caller.orgs.staffActivity({ page: 0 })).entries.filter((e) => e.summary === 'Changed a setting of this website').length;
+    const before = await settingChanges();
+    const answer = await staff.caller.sources.update({ id: site.sourceId, fallbackProxy: false });
+    expect(answer).not.toHaveProperty('fallbackProxyAt');
+    expect(await fallbackOf()).toBeNull();
+    expect((await logOf()).at(-1)).toBe('Set the website to load directly');
+    expect(await settingChanges()).toBe(before + 1);
+    expect(JSON.stringify(await customer.caller.orgs.staffActivity({ page: 0 }))).not.toMatch(/load directly/);
+  });
+
+  it('a customer’s own update answers without the switch date', async () => {
+    await db.update(sources).set({ fallbackProxyAt: keptAt }).where(eq(sources.id, site.sourceId));
+    const answer = await customer.caller.sources.update({ id: site.sourceId, isActive: true });
+    expect(answer).not.toHaveProperty('fallbackProxyAt');
+  });
+});

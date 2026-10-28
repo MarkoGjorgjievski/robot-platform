@@ -6,7 +6,7 @@ import { COUNTRIES } from '@robot/browser';
 import { db, sources } from '@robot/db';
 import { signedInCaller } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
-import { fallbackFor, fallbackProxyUrl, guessCountry, markFallbackKept } from './fallback.js';
+import { fallbackConfigured, fallbackFor, fallbackProxyUrl, guessCountry, markFallbackKept } from './fallback.js';
 
 const FALLBACK = 'http://f-{country}:fsecret@fallback.proxy.test:9000';
 const PLAIN = 'http://fallback.proxy.test:9000';
@@ -18,6 +18,16 @@ describe('fallbackProxyUrl', () => {
     expect(fallbackProxyUrl(env({ FALLBACK_PROXY_URL: `  ${PLAIN} ` }))).toBe(PLAIN);
     expect(fallbackProxyUrl(env({ FALLBACK_PROXY_URL: '   ' }))).toBeNull();
     expect(fallbackProxyUrl(env({}))).toBeNull();
+  });
+});
+
+describe('fallbackConfigured (spec §3.5)', () => {
+  it('is true only for a set, usable address', () => {
+    expect(fallbackConfigured(env({ FALLBACK_PROXY_URL: FALLBACK }))).toBe(true);
+    expect(fallbackConfigured(env({ FALLBACK_PROXY_URL: PLAIN }))).toBe(true);
+    expect(fallbackConfigured(env({}))).toBe(false);
+    expect(fallbackConfigured(env({ FALLBACK_PROXY_URL: '  ' }))).toBe(false);
+    expect(fallbackConfigured(env({ FALLBACK_PROXY_URL: 'ftp://gate.provider.com:21' }))).toBe(false);
   });
 });
 
