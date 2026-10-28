@@ -26,6 +26,12 @@ describe('proofCaptureState (spec 2026-10-20 §3.5.5)', () => {
   it('a poll error after the capture landed keeps the capture', () => {
     expect(proofCaptureState({ captureId: 'c', poll: { data: landed, isError: true } })).toMatchObject({ status: 'captured', tiles: landed.tiles, title: 'Widget A' });
   });
+  it('a capture waiting for its next try reads as still capturing, with no error (spec 2026-10-28 §3.1)', () => {
+    const waiting: ProofPoll = { status: 'waiting', error: 'shop.example refused the browser (HTTP 403).', verdict: { kind: 'refused' }, tiles: [], boxes: [], pageHeight: 0, capturedHeight: 0 };
+    const s = proofCaptureState({ captureId: 'c', poll: { data: waiting, isError: false } });
+    expect(s).toMatchObject({ captureId: 'c', status: 'capturing' });
+    expect(s).not.toHaveProperty('error');
+  });
   it('no id yet, or no answer yet, is starting', () => {
     expect(proofCaptureState({ captureId: null })).toMatchObject({ status: 'starting' });
     expect(proofCaptureState({ captureId: 'c', poll: { isError: false } })).toMatchObject({ status: 'starting' });

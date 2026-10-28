@@ -21,7 +21,8 @@ export type ProofCapture = {
 
 /** The part of `sources.proofPageCapture`'s answer this reads. */
 export type ProofPoll = {
-  status: 'capturing' | 'captured' | 'failed';
+  /** `waiting`: turned away, its next try queued (spec 2026-10-28 §3.1). Until the card has its own words for it, it reads as still capturing. */
+  status: 'capturing' | 'captured' | 'failed' | 'waiting';
   error?: string;
   verdict?: { kind: string };
   title?: string;
@@ -43,6 +44,8 @@ export function proofCaptureState(args: { startError?: string; captureId: string
       ? { captureId: args.captureId, status: 'failed', error: SCREENSHOT_COULD_NOT_START, ...EMPTY_CAPTURE }
       : { captureId: args.captureId, status: 'starting', ...EMPTY_CAPTURE };
   }
+  // A capture waiting for its next try is still on its way: no failure, no error sentence yet.
+  if (data.status === 'waiting') return { captureId: args.captureId, status: 'capturing', ...EMPTY_CAPTURE };
   const error = captureErrorText(data.error === undefined ? undefined : captureWords(data.error, args.staff));
   return {
     captureId: args.captureId,
