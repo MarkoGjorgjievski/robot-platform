@@ -28,7 +28,8 @@ export type Card = { url: string; title: string; image?: string };
  */
 export type Answer = { value: string; mark: Mark | null; via?: Via; absent?: true };
 /** `defaults`: the website's default per field key (spec 2026-10-13 §3), as typed — `defaultOf` trims. */
-export type Board = { listingUrl: string; cards: Card[]; descriptions: Record<string, string>; answers: Record<string, Record<string, Answer>>; defaults: Record<string, string> };
+/** `otherListingUrls`: the website's further listings, found together with `listingUrl` (2026-11-13); absent means none. */
+export type Board = { listingUrl: string; otherListingUrls?: string[]; cards: Card[]; descriptions: Record<string, string>; answers: Record<string, Record<string, Answer>>; defaults: Record<string, string> };
 export type Box = { xpaths: string[]; text: string; rect: Mark['rect']; tag: string; kind: 'text' | 'image' | 'link'; src?: string; href?: string };
 export type Via = { source: string; path: string };
 export type Suggestion = { captureId: string; value: string; boxes: number[]; origin: 'page-data' | 'from-product'; via?: Via };
@@ -59,6 +60,7 @@ type StoredVerificationSet = {
   urls: string[];
   expected: Record<string, Record<string, string>>;
   listing_url?: string;
+  other_listing_urls?: string[];
   marks?: Record<string, Record<string, Mark>>;
   cards?: Card[];
   paths?: Record<string, Record<string, Via>>;
@@ -101,14 +103,14 @@ export function boardFrom(source: { schemaDefinition: unknown; verificationSet: 
     if (Object.keys(kept).length > 0) answers[key] = kept;
   }
 
-  return { listingUrl: set.listing_url ?? '', cards, descriptions, answers, defaults: { ...(set.defaults ?? {}) } };
+  return { listingUrl: set.listing_url ?? '', ...(set.other_listing_urls?.length ? { otherListingUrls: set.other_listing_urls } : {}), cards, descriptions, answers, defaults: { ...(set.defaults ?? {}) } };
 }
 
 export function toBindingInput(
   board: Board,
   fields: Field[],
 ): {
-  urls: string[]; listingUrl?: string; descriptions: Record<string, string>; expected: Record<string, Record<string, string>>;
+  urls: string[]; listingUrl?: string; otherListingUrls?: string[]; descriptions: Record<string, string>; expected: Record<string, Record<string, string>>;
   marks?: Record<string, Record<string, Mark>>; paths?: Record<string, Record<string, StructuredVia>>; absent?: Record<string, Record<string, true>>;
   defaults?: Record<string, string>; cards: Card[]; draft: true;
 } {
@@ -145,6 +147,7 @@ export function toBindingInput(
   return {
     urls,
     ...(board.listingUrl.trim() ? { listingUrl: board.listingUrl.trim() } : {}),
+    ...(board.listingUrl.trim() && board.otherListingUrls?.length ? { otherListingUrls: board.otherListingUrls } : {}),
     descriptions,
     expected,
     ...(Object.keys(marks).length > 0 ? { marks } : {}),

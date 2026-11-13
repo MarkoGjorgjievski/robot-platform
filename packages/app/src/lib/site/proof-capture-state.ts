@@ -38,6 +38,8 @@ export type ProofCapture = LadderFields & {
   capturedHeight: number;
   /** The captured page's `<title>`, when it reported one and this capture landed. */
   title?: string;
+  /** When the screenshot was taken (a landed capture). */
+  capturedAt?: string;
 };
 
 /** The part of `sources.proofPageCapture`'s answer this reads. */
@@ -46,6 +48,7 @@ export type ProofPoll = LadderFields & {
   error?: string;
   verdict?: { kind: string };
   title?: string;
+  capturedAt?: string;
   tiles: string[];
   boxes: Box[];
   pageHeight: number;
@@ -78,6 +81,7 @@ export function proofCaptureState(args: { startError?: string; captureId: string
     ...(error ? { error } : {}),
     ...(data.verdict ? { verdict: { kind: data.verdict.kind } } : {}),
     ...(data.title ? { title: data.title } : {}),
+    ...(data.capturedAt ? { capturedAt: data.capturedAt } : {}),
     ...ladderOf(data),
     tiles: data.tiles,
     boxes: data.boxes,

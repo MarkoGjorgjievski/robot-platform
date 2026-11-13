@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Download, Loader2 } from 'lucide-react';
 import { Link, createFileRoute, useNavigate, useRouteContext } from '@tanstack/react-router';
 import { Button } from '../../../../../../components/ui/button';
 import { Skeleton } from '../../../../../../components/ui/skeleton';
-import { ListingBar } from '../../../../../../components/verification/listing-bar';
+import { ListingBar, listingLabel } from '../../../../../../components/verification/listing-bar';
 import { AddProductCard } from '../../../../../../components/verification/product-grid';
-import { ProductCard } from '../../../../../../components/verification/product-card';
+import { BlankProductCard, ProductImageButton, ProductPageCell, ProductTitleButton } from '../../../../../../components/verification/product-card';
 import { CaptureStateWords, TurnedAwayBar } from '../../../../../../components/verification/capture-words-view';
 import { captureKind, isWaiting } from '../../../../../../lib/site/turned-away';
 import { PageViewer, type Overlay } from '../../../../../../components/verification/page-viewer';
 import { MarkPopover } from '../../../../../../components/verification/mark-popover';
-import { VerificationTable, type TableRow, type DriftLine } from '../../../../../../components/verification/verification-table';
-import { CellDetailBar, type DetailBarSelection } from '../../../../../../components/verification/cell-detail-bar';
-import { ScreenshotCrop } from '../../../../../../components/verification/screenshot-crop';
+import { VerificationTable, type ProductColumn, type TableRow, type DriftLine } from '../../../../../../components/verification/verification-table';
 import { clampSelection, headerCount, type CellSelection } from '../../../../../../lib/site/table-selection';
 import { VerifyBar } from '../../../../../../components/verification/verify-bar';
+import { useWide } from '../../../../../../lib/use-wide';
+import { dateTime, utcDateTime } from '../../../../../../lib/when';
+import { downloadStamped, stampText, stampedFilename } from '../../../../../../lib/site/screenshot-stamp';
 import { DriftBanner } from '../../../../../../components/verification/drift-banner';
 import { VariantsStep, detectVariantsQuery } from '../../../../../../components/verification/variants-step';
 import { useVariantAnswers, type VariantsRowProps } from '../../../../../../components/verification/variants-row';
@@ -89,7 +92,7 @@ import { notCheckedText, refusalFromError, stageText, verifyMessage } from '../.
 import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, markAgainProduct, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { coverageLine, coverageStage, EVERY_PRODUCT_DEFAULT, type ProofCoverageView } from '../../../../../../lib/site/proof-coverage-view';
-import { jevNote, jevPollMs, jevTextFor, readsVariantList, type JevReadingLike } from '../../../../../../lib/site/jev-view';
+import { jevNote, jevPollMs, readsVariantList, type JevReadingLike } from '../../../../../../lib/site/jev-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
@@ -269,7 +272,11 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const [listingNote, setListingNote] = useState<string | null>(null);
   /** Swap product (spec 2026-10-28 §3.6): bumped to open Find products; the pages swapped away never come back from a listing. */
   const [listingOpen, setListingOpen] = useState(0);
+  // Find products in flight: the product area shows its skeleton meanwhile.
+  const [finding, setFinding] = useState(false);
   const swappedAway = useRef<Set<string>>(new Set());
+  /** Which listing a product was found on, when several were read at once — for this visit only (nothing is saved). */
+  const cameFrom = useRef<Map<string, string>>(new Map());
   /** A product's screenshot in mark mode for its variant buttons ("Mark the colour buttons on the screenshot"), and the element clicked. */
   const [variantMark, setVariantMark] = useState<{ url: string; xpath?: string } | null>(null);
 
@@ -378,6 +385,20 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const strip = stripState({ verification: verificationState(status, { stallMs }), results });
   const active = strip === 'active';
   const locked = active || verifying;
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
+  // The moment a Verify ends: the table's cells settle one after another as the verdicts land.
+  const [settling, setSettling] = useState(false);
+  const wasLocked = useRef(false);
+  useEffect(() => {
+    if (wasLocked.current && !locked) {
+      setSettling(true);
+      const id = setTimeout(() => setSettling(false), 2500);
+      wasLocked.current = locked;
+      return () => clearTimeout(id);
+    }
+    wasLocked.current = locked;
+  }, [locked]);
   const currentKeys = useMemo(() => status?.currentKeys ?? [], [status?.currentKeys]);
   // A failure is shown only while the field still reads as it did when it failed.
   const unchangedKeys = useMemo(() => status?.unchangedKeys ?? [], [status?.unchangedKeys]);
@@ -691,14 +712,25 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           return out;
         },
         replace: true,
+        // The address only records what is selected: the page stays where it is.
+        resetScroll: false,
       }),
     [navigate, projectSlug, siteSlug],
   );
 
-  /** The screenshot panel is open exactly while `?product` is set. */
-  const panelOpen = search.product !== undefined && board.cards.length > 0;
+  /**
+   * The screenshot panel is open while `?product` is set — and, on a wide screen, from the start
+   * (Marko 2026-11-13): it sits beside the table as the evidence for the selected cell, on product 1
+   * until a cell or a column head names another. Closing it there keeps it closed for this visit.
+   */
+  const wide = useWide();
+  const [panelDismissed, setPanelDismissed] = useState(false);
+  const panelOpen = board.cards.length > 0 && (search.product !== undefined || (wide && !panelDismissed));
+  /** Beside the table rather than under it. */
+  const panelBeside = wide && panelOpen;
   const closePanel = useCallback(() => {
     setPopover(null);
+    setPanelDismissed(true);
     void navigate({
       to: '/projects/$project/sites/$site',
       params: { project: projectSlug, site: siteSlug },
@@ -707,6 +739,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         return rest;
       },
       replace: true,
+      resetScroll: false,
     });
   }, [navigate, projectSlug, siteSlug]);
 
@@ -727,7 +760,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   }, [panelOpen, closePanel]);
 
   // --- The board's edits.
-  function hostProblem(url: string): string | null {
+  /** `cards`: the products to check against — the board's, or a batch being built (`onAddMany`). */
+  function hostProblem(url: string, cards: Card[] = boardRef.current.cards): string | null {
     let parsed: URL;
     try {
       parsed = new URL(url.trim());
@@ -735,7 +769,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       return 'Paste the full address, starting with https://';
     }
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'Paste the full address, starting with https://';
-    const others = boardRef.current.cards.map((c) => c.url.trim()).filter(Boolean);
+    const others = cards.map((c) => c.url.trim()).filter(Boolean);
     if (others.includes(url.trim())) return 'This product is already on the list';
     // The listing counts too: the server saves one website, listing included.
     const listing = boardRef.current.listingUrl.trim();
@@ -793,8 +827,69 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     // is topped up to three; everything else waits in the queue.
     const cards = b.cards.map((c) => (c.url.trim() === '' && fresh.length > 0 ? fresh.shift()! : c));
     while (cards.length < PRODUCTS_MIN && fresh.length > 0) cards.push(fresh.shift()!);
-    setBoard({ ...setCards(b, cards), listingUrl });
+    // One listing found on its own is the website's only one again.
+    const { otherListingUrls: _others, ...rest } = setCards(b, cards);
+    setBoard({ ...rest, listingUrl });
     setQueue(fresh);
+  }
+
+  /**
+   * Several listings read at once (Marko 2026-11-13): one product from each listing before a second
+   * from any, so the proof products come from different parts of the website — three neighbours from
+   * one category are usually one page layout and prove the least. Blank slots are filled first, the
+   * board is topped up to three (or one per listing, up to six), and the rest wait in the queue in the
+   * same alternating order. Every listing is kept with the website; the first stays its main one.
+   */
+  function onFoundMany(found: { url: string; products: Card[] }[]): { taken: number; note?: string }[] {
+    const first = found[0];
+    if (!first) return [];
+    const refused = listingRefusal(first.url);
+    setListingNote(refused);
+    if (refused) return found.map(() => ({ taken: 0, note: refused }));
+    const host = (u: string) => {
+      try {
+        return new URL(u).hostname.toLowerCase();
+      } catch {
+        return '';
+      }
+    };
+    const b = boardRef.current;
+    const seen = new Set(b.cards.map((c) => c.url));
+    const elsewhere = found.map((f) => host(f.url) !== host(first.url));
+    const pools = found.map((f, li) =>
+      elsewhere[li]
+        ? []
+        : f.products.filter((p) => {
+            if (seen.has(p.url) || swappedAway.current.has(p.url)) return false;
+            seen.add(p.url);
+            return true;
+          }),
+    );
+    const order: { card: Card; li: number }[] = [];
+    for (let round = 0; pools.some((p) => p.length > round); round++) {
+      pools.forEach((p, li) => {
+        const card = p[round];
+        if (card) order.push({ card, li });
+      });
+    }
+    const taken = found.map(() => 0);
+    const take = (): Card => {
+      const next = order.shift()!;
+      taken[next.li]! += 1;
+      cameFrom.current.set(next.card.url, found[next.li]!.url);
+      return next.card;
+    };
+    const cards = b.cards.map((c) => (c.url.trim() === '' && order.length > 0 ? take() : c));
+    const target = Math.min(PRODUCTS_MAX, Math.max(PRODUCTS_MIN, pools.filter((p) => p.length > 0).length));
+    while (cards.length < target && order.length > 0) cards.push(take());
+    for (const o of order) cameFrom.current.set(o.card.url, found[o.li]!.url);
+    // Every listing read on this website is kept (at most five after the first): a run walks them all
+    // until the Extract tab sets its own pages, and the check after Verify samples across them.
+    const others = found.filter((f, li) => li > 0 && !elsewhere[li]).map((f) => f.url).filter((u, k, all) => u !== first.url && all.indexOf(u) === k).slice(0, 5);
+    const { otherListingUrls: _prior, ...rest } = setCards(b, cards);
+    setBoard({ ...rest, listingUrl: first.url, ...(others.length > 0 ? { otherListingUrls: others } : {}) });
+    setQueue(order.map((o) => o.card));
+    return found.map((_, li) => (elsewhere[li] ? { taken: 0, note: 'not on the same website as the first listing — left out' } : { taken: taken[li]! }));
   }
 
   function onNoListing(listingUrl: string) {
@@ -804,7 +899,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     const refused = listingRefusal(listingUrl);
     setListingNote(refused);
     const keep = !refused && listingUrl && listingUrl !== b.listingUrl;
-    const withListing = keep ? { ...b, listingUrl } : b;
+    // A new listing typed here is the website's only one: the further ones belonged to the old one.
+    const { otherListingUrls: _others, ...alone } = b;
+    const withListing = keep ? { ...alone, listingUrl } : b;
     if (b.cards.length >= PRODUCTS_MIN) {
       if (withListing !== b) setBoard(withListing);
       return;
@@ -815,6 +912,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 
   function onDrop(i: number) {
     const b = boardRef.current;
+    const dropped = b.cards[i];
     const [next, ...rest] = queue;
     let cards = dropCard(b, i).cards;
     if (next) {
@@ -825,6 +923,40 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     }
     setBoard(setCards(b, cards));
     setPopover(null);
+    if (dropped && dropped.url.trim() !== '') offerUndo(b, i, dropped, next);
+  }
+
+  /**
+   * × takes a product's answers with it, so it is never final at once (Marko 2026-11-13): ten seconds
+   * of Undo put the product back in its column with every answer it had, and send whatever stood in
+   * for it back to the front of the queue. Edits made meanwhile on the other products are kept.
+   */
+  function offerUndo(before: Board, i: number, dropped: Card, standIn: Card | undefined) {
+    toast(`Removed ${dropped.title || shortUrl(dropped.url)}`, {
+      duration: 10_000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const now = boardRef.current;
+          if (lockedRef.current || now.cards.some((c) => c.url === dropped.url)) return;
+          const at = Math.min(i, now.cards.length);
+          const there = now.cards[at];
+          // What took its column: the blank slot, or the listing's next product — if it is still there.
+          const queued = !!there && !!standIn && there.url === standIn.url;
+          const replaces = !!there && (there.url.trim() === '' || queued);
+          const cards = [...now.cards.slice(0, at), dropped, ...now.cards.slice(replaces ? at + 1 : at)];
+          if (cards.length > PRODUCTS_MAX) return;
+          let restored = setCards(now, cards);
+          for (const [key, byUrl] of Object.entries(before.answers)) {
+            const a = byUrl[dropped.url];
+            if (a) restored = answer(restored, key, dropped.url, a);
+          }
+          if (queued && standIn) setQueue((q) => [standIn, ...q]);
+          swappedAway.current.delete(dropped.url);
+          setBoard(restored);
+        },
+      },
+    });
   }
 
   /** Swap product (spec 2026-10-28 §3.6): today's × on this card, then Find products, with the listing filled in when known. */
@@ -847,6 +979,35 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     if (!card) return;
     setBoard(setCards(b, [...b.cards, card]));
     select({ product: b.cards.length + 1 });
+  }
+
+  /**
+   * Several product pages pasted into the listing bar at once: each fills a blank slot or joins the
+   * board, up to six. Answers with one sentence when any was left out — the first one's reason — else null.
+   */
+  function onAddMany(urls: string[]): string | null {
+    const b = boardRef.current;
+    const cards = [...b.cards];
+    let added = 0;
+    let firstProblem: string | null = null;
+    let left = 0;
+    for (const raw of urls) {
+      const url = raw.trim();
+      const p = hostProblem(url, cards);
+      const blank = cards.findIndex((c) => c.url.trim() === '');
+      if (p || (blank < 0 && cards.length >= PRODUCTS_MAX)) {
+        left += 1;
+        firstProblem ??= p ?? 'Six products is the most a website is checked on';
+        continue;
+      }
+      const card = { url, title: shortUrl(url) };
+      if (blank >= 0) cards[blank] = card;
+      else cards.push(card);
+      added += 1;
+    }
+    if (added > 0) setBoard(setCards(b, cards));
+    if (left === 0) return null;
+    return `${added} added, ${left} left out: ${firstProblem}`;
   }
 
   function onReplace(i: number, url: string) {
@@ -1340,26 +1501,12 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     setTypeFocus((t) => ({ key, n: t.n + 1 }));
   }
 
-  /** "Not on this product" (spec 2026-10-10 §B3): the cell detail bar and the cell context menu. */
+  /** "Not on this product" (spec 2026-10-10 §B3): the cell context menu. */
   function markAbsentCell(sel: CellSelection) {
     const f = fields.find((x) => x.key === sel.key);
     const url = board.cards[sel.product]?.url;
     if (!f || !url) return;
     setBoard((b) => markAbsent(b, f.key, url));
-  }
-
-  /** The field's element on a product, for the crop: its answer's mark, else its suggestion's first clickable place. */
-  function elementFor(key: string, url: string): Box['rect'] | null {
-    const urlBoxes = boxesByUrl[url] ?? NO_BOXES;
-    const a = board.answers[key]?.[url];
-    if (a) {
-      const i = boxOfMark(urlBoxes, a.mark);
-      return i === null ? null : (urlBoxes[i]?.rect ?? null);
-    }
-    const s = live[key]?.[url];
-    if (!s) return null;
-    const i = pointable(urlBoxes, s.boxes)[0];
-    return i === undefined ? null : (urlBoxes[i]?.rect ?? null);
   }
 
   /** Each proof page's variant from its capture (spec 2026-10-14 §6), for the row's address warning. */
@@ -1464,74 +1611,37 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       }
     : null;
 
-  // --- The detail bar (spec 2026-10-07 §2, §4).
-  const detailField = selection ? fields.find((f) => f.key === selection.key) : undefined;
-  const detailCard = selection ? board.cards[selection.product] : undefined;
-  const detailCapture = detailCard?.url ? captures.byUrl[detailCard.url] : undefined;
-  const detailRawTiles = detailCapture?.tiles;
-  const detailTiles = useMemo(() => (detailRawTiles ?? NO_TILES).map((t) => tileHref(t)).filter((t): t is string => !!t), [detailRawTiles]);
-  const detailBar: DetailBarSelection | null =
-    selection && detailField && detailCard
-      ? (() => {
-          const url = detailCard.url;
-          const state = segment(board, live, detailField.key, url, { failed: url !== '' && failedCell(detailField.key, url) });
-          const status = !url || !detailCapture || detailCapture.status === 'starting' || detailCapture.status === 'capturing' || detailCapture.status === 'waiting' ? 'pending' : detailCapture.status === 'failed' ? 'failed' : 'ready';
-          return {
-            fieldName: detailField.name,
-            productLabel: detailCard.title || (url ? shortUrl(url) : `Product ${selection.product + 1}`),
-            productNumber: selection.product + 1,
-            value: url ? cellValue(detailField, url) : '',
-            state,
-            onCopy: () => copyCell(selection),
-            onFix: () => fixCell(selection),
-            onTypeIt: () => typeIt(detailField.key),
-            onAbsent: url && !isAbsent(board, detailField.key, url) && defaultOf(board, detailField.key) === undefined ? () => markAbsentCell(selection) : null,
-            absent: url !== '' && isAbsent(board, detailField.key, url),
-            // Only for a finished reading (spec §10.5): Jev off, running or failed shows nothing; "Jev: not read" is a done reading that did not ask about this field.
-            jevText: jevTextFor(url ? jevByUrl[url] : undefined, detailField.key),
-            // Spec 2026-10-20 §3.5.1: the hint where the customer looks, not only in the expanded row.
-            hint: url ? cellHint({ results, key: detailField.key, url, unchanged: unchangedKeys.includes(detailField.key), fieldType: detailField.type, fieldName: detailField.name, product: selection.product + 1, blockedReason: blocked[url] }) : undefined,
-            // A card with no URL has no screenshot to take.
-            preview: panelOpen || !url ? null : (
-              <ScreenshotCrop
-                tiles={detailTiles}
-                capturedHeight={detailCapture?.capturedHeight ?? 0}
-                status={status}
-                error={detailCapture?.status === 'failed' ? detailCapture.error : undefined}
-                box={url ? elementFor(detailField.key, url) : null}
-                tone={state}
-                fieldName={detailField.name}
-                disabled={locked}
-                onOpen={() => fixCell(selection)}
-              />
-            ),
-          };
-        })()
-      : null;
-
-  const heads = board.cards.map((card, i) => (
-    <ProductCard
-      key={i}
-      compact
-      card={card}
-      index={i}
-      selected={panelOpen && selected === i}
-      disabled={locked}
-      capture={captures.byUrl[card.url]}
-      onSelect={() => {
-        setPopover(null);
-        select({ product: i + 1 });
-        setReveal((r) => ({ n: r.n + 1, product: i + 1, field: fieldKey }));
-      }}
-      onDrop={() => onDrop(i)}
-      onReplace={(url) => onReplace(i, url)}
-      onRetry={() => captures.retry(card.url)}
-      onSwap={() => onSwap(i)}
-      websiteName={source.name}
-      hostProblem={hostProblem}
-      notChecked={!active && blocked[card.url] !== undefined ? notCheckedText(i + 1, blocked[card.url]) : null}
-    />
-  ));
+  // Each product's three rows above the fields: its photo, its title, and its link with the screenshot state and ×.
+  // A slot with no page yet is one address input instead.
+  const columns: ProductColumn[] = board.cards.map((card, i) => {
+    if (card.url.trim() === '') {
+      return { blank: <BlankProductCard index={i} disabled={locked} onCommit={(url) => onReplace(i, url)} onDrop={() => onDrop(i)} hostProblem={hostProblem} /> };
+    }
+    const showing = panelOpen && selected === i;
+    const onSelect = () => {
+      setPopover(null);
+      select({ product: i + 1 });
+      setReveal((r) => ({ n: r.n + 1, product: i + 1, field: fieldKey }));
+    };
+    return {
+      image: <ProductImageButton card={card} index={i} selected={showing} disabled={locked} onSelect={onSelect} taken={dateTime(captures.byUrl[card.url]?.capturedAt)} />,
+      title: <ProductTitleButton card={card} selected={showing} disabled={locked} onSelect={onSelect} />,
+      page: (
+        <ProductPageCell
+          card={card}
+          index={i}
+          disabled={locked}
+          capture={captures.byUrl[card.url]}
+          onDrop={() => onDrop(i)}
+          onRetry={() => captures.retry(card.url)}
+          onSwap={() => onSwap(i)}
+          websiteName={source.name}
+          notChecked={!active && blocked[card.url] !== undefined ? notCheckedText(i + 1, blocked[card.url]) : null}
+          from={cameFrom.current.has(card.url) ? listingLabel(cameFrom.current.get(card.url)!) : undefined}
+        />
+      ),
+    };
+  });
 
   // Non-null locks the tab: from the click, not only once the server says the run is active. In customer words (spec 2026-10-20 §5.4).
   const stage = stageText(active ? (status?.stage ?? 'starting') : verifying ? 'starting' : null, fieldNames);
@@ -1541,130 +1651,47 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const panel = 'rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]';
   const selectedCard = board.cards[selected];
 
-  return (
-    <div className="min-w-0 space-y-4">
-      <div className={`${panel} space-y-3 p-4`}>
-        <ListingBar
-          sourceId={source.id}
-          listingUrl={board.listingUrl}
-          startUrl={listingBarStart(board.listingUrl, source.url)}
-          disabled={locked}
-          onFound={(listingUrl, products) => onFound(listingUrl, products)}
-          onNoListing={onNoListing}
-          extractOwnsInput={typeof (source.parameters as { inputMode?: unknown }).inputMode === 'string'}
-          problem={listingNote}
-          openSignal={listingOpen}
-        />
-        {newWebsite && reachability.data ? (
-          reachability.data.verdict.kind === 'ok' ? (
-            <p className="text-sm text-muted-foreground">{captureWords(reachability.data.message, staff)}</p>
-          ) : (
-            <p role="alert" className="text-sm text-warn">{captureWords(reachability.data.message, staff)}</p>
-          )
-        ) : null}
-        {unsaved ? <p className="text-sm text-muted-foreground">{problem ? `Not saved: ${problem}` : 'Not saved until every product has a page, all on this website'}</p> : null}
-        {locked && active ? <p className="text-sm text-muted-foreground">Products and answers are locked while this verification runs</p> : null}
-      </div>
-
-      <VerifyBar
-        acceptAll={{
-          count: agreedCount,
-          disabled: locked || agreedCount === 0,
-          locked,
-          onClick: () => setBoard((b) => acceptAllAgreed(b, fields, live, boxesByUrl, pageFacts).board),
-        }}
-        verify={{
-          label: button.label,
-          disabled: button.disabled || locked,
-          reason: verifyReason(gate, fields, statuses, button.reason),
-          busy: verifying || verifyMutation.isPending,
-          onClick: () => void handleVerify(),
-          message,
-        }}
-        saveState={saveState}
-        saveError={saveError}
-        extract={{
-          enabled: !!status && extractEnabled({ runnable: !!status.runnable, variants: variantsStatus }),
-          project: projectSlug,
-          site: siteSlug,
-          variants: !!variantsStatus,
-        }}
-        stage={coverageStage(stage, coverage)}
-      />
-
-      <DriftBanner
-        driftedFields={source.driftedFields}
-        fieldNames={fieldNames}
-        check={driftCheck}
-        attention={
-          attention
-            ? attentionBanner({
-                driftedFields: source.driftedFields,
-                fields: attention.fields,
-                fieldNames,
-                goneProducts: attention.goneProducts,
-                heldSince: attention.heldSince,
-                runnable: attention.runnable,
-              })
-            : null
-        }
-      />
-
-      {board.cards.length > 0 ? (
-        <div className="space-y-2">
-          <TurnedAwayBar captures={board.cards.map((c) => (c.url.trim() ? captures.byUrl[c.url] : undefined))} name={source.name} />
-          <CellDetailBar selection={detailBar} locked={locked} />
-          <VerificationTable
-            heads={heads}
-            addHead={
-              board.cards.length < PRODUCTS_MAX ? (
-                <AddProductCard compact disabled={locked} canAddFromQueue={queue.length > 0} onAdd={onAdd} hostProblem={hostProblem} />
-              ) : undefined
-            }
-            rows={rows}
-            locked={locked}
-            variants={variantsRow}
-            selection={selection}
-            keyboard={!popover && !variantMark}
-            onSelect={setRawSelection}
-            onFix={fixCell}
-            onCopy={(sel) => void copyCell(sel).catch(() => undefined)}
-            onTypeIt={typeIt}
-            onAbsent={markAbsentCell}
-            onEscape={() => {
-              if (panelOpen) closePanel();
-              else setRawSelection(null);
-            }}
-            showMoney={showMoney}
-          />
-          <p className="px-1 text-sm text-muted-foreground">
-            Field names and types come from the project.{' '}
-            <Link to="/projects/$project/fields" params={{ project: projectSlug }} className="text-link underline-offset-4 hover:underline">
-              Edit fields
-            </Link>
-          </p>
-        </div>
-      ) : (
-        <div className={`${panel} px-4 py-5 text-base text-muted-foreground`}>Find products from a listing page, or paste product pages, to start.</div>
-      )}
-
-      {/* Only while the project wants variants; never holds Verify or Extract back (plan 2 gates on it). */}
-      <VariantsStep sourceId={sourceId} datasetId={source.datasetId} setup={source.variantSetup} cards={urls.length} failedCards={urls.filter((u) => captures.byUrl[u]?.status === 'failed').length} capturedKey={variantsKey} />
-
-      {arrival?.note ? <p className="text-sm text-muted-foreground">{arrival.note}</p> : null}
-      {transferNote ? <p className="text-sm text-warn">{transferNote}</p> : null}
-      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
-      {arrivalPrompt ? <p className="text-base">{arrivalPrompt}</p> : null}
-
-      {panelOpen ? (
-        <section aria-label="Screenshot" className="space-y-2">
+  const [downloading, setDownloading] = useState(false);
+  const screenshotPanel = panelOpen ? (
+        <section aria-label="Screenshot" className={panelBeside ? 'min-w-0 space-y-2 xl:sticky xl:top-4' : 'space-y-2'}>
           <div className="flex items-center justify-between gap-3">
-            <h2 className="min-w-0 truncate text-base">
-              {selectedCard?.title || (selectedCard?.url ? shortUrl(selectedCard.url) : `Product ${selected + 1}`)} — screenshot
-            </h2>
-            <Button variant="ghost" size="icon-xs" aria-label="Close screenshot" onClick={closePanel} className="shrink-0 text-muted-foreground hover:text-text">
-              ×
-            </Button>
+            <div className="min-w-0">
+              <h2 className="truncate text-base">
+                {selectedCard?.title || (selectedCard?.url ? shortUrl(selectedCard.url) : `Product ${selected + 1}`)} — screenshot
+              </h2>
+              {/* When this picture of the page was taken (Marko 2026-11-13): local time, UTC on hover. */}
+              {capture?.capturedAt ? (
+                <time dateTime={capture.capturedAt} title={utcDateTime(capture.capturedAt) ?? undefined} className="block text-sm text-muted-foreground">
+                  Taken {dateTime(capture.capturedAt)}
+                </time>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {/* The whole page as one picture with the stamp drawn into it, so the date stays with the file. */}
+              {capture?.capturedAt && tiles.length > 0 ? (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  disabled={downloading}
+                  title="Download this screenshot with its date stamped on it"
+                  className="text-muted-foreground hover:text-text"
+                  onClick={() => {
+                    const stamp = stampText(capture.capturedAt);
+                    if (!stamp || !capture.capturedAt) return;
+                    setDownloading(true);
+                    downloadStamped({ tiles, stamp, url: selectedUrl, filename: stampedFilename(selected + 1, capture.capturedAt) })
+                      .catch(() => toast.error('The screenshot could not be downloaded. Try again.'))
+                      .finally(() => setDownloading(false));
+                  }}
+                >
+                  {downloading ? <Loader2 className="animate-spin" /> : <Download />}
+                  Download
+                </Button>
+              ) : null}
+              <Button variant="ghost" size="icon-xs" aria-label="Close screenshot" onClick={closePanel} className="text-muted-foreground hover:text-text">
+                ×
+              </Button>
+            </div>
           </div>
           {variantMark && variantMark.url === selectedUrl ? (
             <div className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-warn pl-3">
@@ -1684,6 +1711,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               highlight={highlight}
               reveal={reveal.product === selected + 1 && reveal.field === fieldKey ? reveal.n : 0}
               locked={locked}
+              tall={panelBeside}
+              stamp={stampText(capture?.capturedAt)}
               onPick={(box, at) => {
                 // In variant mark mode a click names the variant buttons, not a field.
                 if (variantMark && variantMark.url === selectedUrl) {
@@ -1709,7 +1738,163 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           </ProductView>
           {locked ? null : popoverView}
         </section>
+  ) : null;
+
+  return (
+    // On a wide screen the screenshot is a column of its own from the top of the tab (Marko 2026-11-13),
+    // beside the listing bar, the steps and the table; otherwise it follows them.
+    <div className={panelBeside ? 'grid grid-cols-[minmax(0,1fr)_minmax(380px,38%)] items-start gap-4' : undefined}>
+    <div className="min-w-0 space-y-4">
+      <div className={`${panel} relative space-y-3 overflow-hidden ${board.cards.length > 0 ? 'p-3' : 'p-4'}`}>
+        {/* A soft light from the top edge: the first step reads as the page's input, not one more panel. Only while it is the question. */}
+        {board.cards.length === 0 ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-full"
+            style={{ background: 'radial-gradient(60% 70% at 50% 0%, color-mix(in oklab, var(--text) 7%, transparent), transparent 70%)' }}
+          />
+        ) : null}
+        <ListingBar
+          sourceId={source.id}
+          listingUrl={board.listingUrl}
+          startUrl={listingBarStart(board.listingUrl, source.url)}
+          disabled={locked}
+          onFound={(listingUrl, products) => onFound(listingUrl, products)}
+          onNoListing={onNoListing}
+          extractOwnsInput={typeof (source.parameters as { inputMode?: unknown }).inputMode === 'string'}
+          problem={listingNote}
+          openSignal={listingOpen}
+          onPendingChange={setFinding}
+          compact={board.cards.length > 0}
+          onAddProducts={onAddMany}
+          onFoundMany={onFoundMany}
+        />
+        {newWebsite && reachability.data ? (
+          reachability.data.verdict.kind === 'ok' ? (
+            <p className="relative text-sm text-muted-foreground">{captureWords(reachability.data.message, staff)}</p>
+          ) : (
+            <p role="alert" className="relative text-sm text-warn">{captureWords(reachability.data.message, staff)}</p>
+          )
+        ) : null}
+        {unsaved ? <p className="relative text-sm text-muted-foreground">{problem ? `Not saved: ${problem}` : 'Not saved until every product has a page, all on this website'}</p> : null}
+        {locked && active ? <p className="relative text-sm text-muted-foreground">Products and answers are locked while this verification runs</p> : null}
+      </div>
+
+      <DriftBanner
+        driftedFields={source.driftedFields}
+        fieldNames={fieldNames}
+        check={driftCheck}
+        attention={
+          attention
+            ? attentionBanner({
+                driftedFields: source.driftedFields,
+                fields: attention.fields,
+                fieldNames,
+                goneProducts: attention.goneProducts,
+                heldSince: attention.heldSince,
+                runnable: attention.runnable,
+              })
+            : null
+        }
+      />
+
+      {/* Above the products (Marko 2026-11-13): where you are and the one next step, once there is something to act on. */}
+      {board.cards.length > 0 ? (
+        <VerifyBar
+          acceptAll={{
+            count: agreedCount,
+            disabled: locked || agreedCount === 0,
+            locked,
+            onClick: () => setBoard((b) => acceptAllAgreed(b, fields, live, boxesByUrl, pageFacts).board),
+          }}
+          verify={{
+            label: button.label,
+            disabled: button.disabled || locked,
+            reason: verifyReason(gate, fields, statuses, button.reason),
+            busy: verifying || verifyMutation.isPending,
+            onClick: () => void handleVerify(),
+            message,
+          }}
+          saveState={saveState}
+          saveError={saveError}
+          extract={{
+            enabled: !!status && extractEnabled({ runnable: !!status.runnable, variants: variantsStatus }),
+            project: projectSlug,
+            site: siteSlug,
+            variants: !!variantsStatus,
+          }}
+          stage={coverageStage(stage, coverage)}
+          verifiedAt={status && status.failedRun?.id !== status.id ? status.completedAt : null}
+          progress={{
+            products: board.cards.filter((c) => c.url.trim() !== '').length,
+            accepted: statuses.filter((st) => st.kind === 'accepted').length,
+            total: fields.length,
+          }}
+        />
       ) : null}
+
+      {board.cards.length > 0 ? (
+        <div>
+          <div className="min-w-0 space-y-2">
+            <TurnedAwayBar captures={board.cards.map((c) => (c.url.trim() ? captures.byUrl[c.url] : undefined))} name={source.name} />
+            <VerificationTable
+              columns={columns}
+              addHead={
+                board.cards.length < PRODUCTS_MAX ? (
+                  <AddProductCard compact disabled={locked} canAddFromQueue={queue.length > 0} onAdd={onAdd} hostProblem={hostProblem} />
+                ) : undefined
+              }
+              rows={rows}
+              locked={locked}
+              variants={variantsRow}
+              selection={selection}
+              keyboard={!popover && !variantMark}
+              onSelect={(sel) => {
+                setRawSelection(sel);
+                // Beside the table the screenshot follows the selected cell: its product, its field outlined.
+                if (sel && panelBeside && board.cards[sel.product]?.url.trim()) {
+                  setPopover(null);
+                  select({ product: sel.product + 1, field: sel.key });
+                  setReveal((r) => ({ n: r.n + 1, product: sel.product + 1, field: sel.key }));
+                }
+              }}
+              onFix={fixCell}
+              onCopy={(sel) => void copyCell(sel).catch(() => undefined)}
+              onTypeIt={typeIt}
+              onAbsent={markAbsentCell}
+              onEscape={() => {
+                if (panelOpen) closePanel();
+                else setRawSelection(null);
+              }}
+              showMoney={showMoney}
+              liveStage={active ? (status?.stage ?? 'starting') : verifying ? 'starting' : null}
+              settling={settling}
+            />
+            <p className="px-1 text-sm text-muted-foreground">
+              Field names and types come from the project.{' '}
+              <Link to="/projects/$project/fields" params={{ project: projectSlug }} className="text-link underline-offset-4 hover:underline">
+                Edit fields
+              </Link>
+            </p>
+          </div>
+        </div>
+      ) : finding ? (
+        <ProductsSkeleton fields={fields.map((f) => f.name)} />
+      ) : (
+        <div className={`${panel} px-4 py-5 text-base text-muted-foreground`}>Find products from a listing page, or paste product pages, to start.</div>
+      )}
+
+      {/* Only while the project wants variants; never holds Verify or Extract back (plan 2 gates on it). */}
+      <VariantsStep sourceId={sourceId} datasetId={source.datasetId} setup={source.variantSetup} cards={urls.length} failedCards={urls.filter((u) => captures.byUrl[u]?.status === 'failed').length} capturedKey={variantsKey} />
+
+      {arrival?.note ? <p className="text-sm text-muted-foreground">{arrival.note}</p> : null}
+      {transferNote ? <p className="text-sm text-warn">{transferNote}</p> : null}
+      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+      {arrivalPrompt ? <p className="text-base">{arrivalPrompt}</p> : null}
+
+      {panelBeside ? null : screenshotPanel}
+    </div>
+    {panelBeside ? screenshotPanel : null}
     </div>
   );
 }
@@ -1754,4 +1939,42 @@ function ProductView({
     return <div className={panel}>{words}</div>;
   }
   return <>{children}</>;
+}
+
+/**
+ * The product area while Find products reads the listing (Marko 2026-11-11): the
+ * table's shape — three product columns, a row per field — so the products land
+ * where the customer is already looking. The listing check answers once, so this
+ * stands until it does.
+ */
+function ProductsSkeleton({ fields }: { fields: string[] }) {
+  const rows = fields.length > 0 ? fields : [''];
+  return (
+    <div aria-hidden className="overflow-hidden rounded-[6px] border border-line bg-panel">
+      <div className="grid grid-cols-[180px_repeat(3,minmax(0,1fr))_200px] gap-3 p-3">
+        <div className="flex items-end pb-1">
+          <Skeleton className="h-3 w-12 bg-raised" />
+        </div>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="space-y-2 rounded-[6px] border border-line p-2" style={{ animationDelay: `${i * 120}ms` }}>
+            <Skeleton className="aspect-[4/3] w-full bg-raised" />
+            <Skeleton className="h-3 w-4/5 bg-raised" />
+            <Skeleton className="h-3 w-2/5 bg-raised" />
+          </div>
+        ))}
+        <div className="flex items-end pb-1">
+          <Skeleton className="h-3 w-14 bg-raised" />
+        </div>
+      </div>
+      {rows.map((name, r) => (
+        <div key={r} className="grid grid-cols-[180px_repeat(3,minmax(0,1fr))_200px] items-center gap-3 border-t border-line px-3 py-2.5">
+          {name ? <span className="truncate text-base text-muted-foreground">{name}</span> : <Skeleton className="h-3 w-20 bg-raised" />}
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-3.5 bg-raised" style={{ width: `${70 - ((r + i) % 3) * 15}%` }} />
+          ))}
+          <Skeleton className="h-3 w-24 bg-raised" />
+        </div>
+      ))}
+    </div>
+  );
 }

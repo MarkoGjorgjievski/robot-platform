@@ -162,7 +162,7 @@ const SPOT_BORDER: Record<SpotRow['state'], string> = {
   'needs-you': 'border-line',
 };
 
-const td = 'w-[190px] border-t border-line p-0 align-top';
+const td = 'w-[190px] border-t border-l border-line p-0 align-top';
 const th = 'sticky left-0 z-10 w-[180px] border-t border-line bg-panel px-2 py-2 text-left align-top font-normal';
 
 function LabelList({ labels, count, checked, onCheck, locked, product }: { labels: string[]; count: number; checked?: number; onCheck?: (i: number) => void; locked: boolean; product: number }) {

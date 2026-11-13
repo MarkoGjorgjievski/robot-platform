@@ -26,6 +26,10 @@ describe('proofCaptureState (spec 2026-10-20 §3.5.5)', () => {
   it('a poll error after the capture landed keeps the capture', () => {
     expect(proofCaptureState({ captureId: 'c', poll: { data: landed, isError: true } })).toMatchObject({ status: 'captured', tiles: landed.tiles, title: 'Widget A' });
   });
+  it('a landed capture says when its screenshot was taken', () => {
+    expect(proofCaptureState({ captureId: 'c', poll: { data: { ...landed, capturedAt: '2026-11-13T19:32:00.000Z' }, isError: false } }).capturedAt).toBe('2026-11-13T19:32:00.000Z');
+    expect(proofCaptureState({ captureId: 'c', poll: { data: landed, isError: false } })).not.toHaveProperty('capturedAt');
+  });
   it('polls every 2 s while capturing, every 5 s while waiting, and not once settled (spec 2026-10-28 §3.6)', () => {
     expect(capturePollMs('capturing')).toBe(2000);
     expect(capturePollMs('waiting')).toBe(5000);

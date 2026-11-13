@@ -352,7 +352,8 @@ async function runSite(s: Site): Promise<SiteLog> {
       }
       log.facts.rowAccepted = rowAccepted;
       const acceptAll = page.getByRole('button', { name: /^Accept all agreed \(\d+\)$/ });
-      if (await acceptAll.isEnabled()) await acceptAll.click();
+      // Offered only while a row is agreed (the bar shows one next step, 2026-11-13).
+      if ((await acceptAll.count()) === 1 && (await acceptAll.isEnabled())) await acceptAll.click();
       const missing: string[] = [];
       for (const f of ['Title', 'Price']) {
         for (let i = 1; i <= 3; i++) {

@@ -1007,9 +1007,9 @@ describe.skipIf(!ENABLED)('app shell', () => {
       }
     }
     for (let i = 1; i <= 3; i++) expect(await cellState('Rating', i), `Accept all agreed touched Rating on product ${i}`).toBe('empty');
-    expect(await acceptAll.innerText()).toBe('Accept all agreed (0)');
-    expect(await acceptAll.isDisabled(), 'Accept all agreed is live with nothing agreed').toBe(true);
-    expect(await page.locator('main').innerText(), 'the disabled Accept all agreed does not say why').toContain('Nothing agreed to accept');
+    // With nothing agreed the button is gone (the bar shows one next step, 2026-11-13), and the rail counts the accepted fields.
+    await expect.poll(() => acceptAll.count(), { timeout: 10_000, message: 'Accept all agreed is still offered with nothing agreed' }).toBe(0);
+    expect(await page.locator('main').innerText(), 'the rail does not count the accepted fields').toContain('2 of 3 accepted');
 
     // 4b. Spreadsheet behaviour (spec 2026-10-07). A click on a cell selects
     // it and nothing else: the bar above the table shows the value, no

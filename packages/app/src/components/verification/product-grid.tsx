@@ -74,7 +74,7 @@ export function ProductGrid({
  *
  * Exported for the verification table's own `addHead` column (spec
  * 2026-09-28 A1) — `compact` shortens the slot to match `ProductCard`'s
- * compact height there.
+ * compact height there: a small tile at the foot of a narrow column.
  */
 export function AddProductCard({
   disabled,
@@ -92,7 +92,7 @@ export function AddProductCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-  const minHeight = compact ? 'min-h-[136px]' : 'min-h-[120px]';
+  const minHeight = compact ? 'min-h-[84px]' : 'min-h-[120px]';
 
   function commit() {
     const value = draft.trim();
@@ -114,7 +114,7 @@ export function AddProductCard({
         type="button"
         disabled={disabled}
         onClick={() => (canAddFromQueue ? onAdd() : setEditing(true))}
-        className={`flex ${minHeight} w-full flex-col items-center justify-center gap-1 rounded-[6px] border border-dashed border-line text-sm text-muted-foreground hover:border-line-hover hover:text-text`}
+        className={`flex ${minHeight} w-full flex-col items-center justify-center gap-1.5 rounded-[6px] border border-dashed border-line text-sm text-muted-foreground hover:border-line-hover hover:text-text`}
       >
         + Add product
       </button>
@@ -138,7 +138,7 @@ export function AddProductCard({
         placeholder="https://shop.example/p/…"
         className="h-8 font-mono text-[16px] md:text-sm"
       />
-      <div className="flex gap-1.5">
+      <div className={compact ? 'flex flex-col gap-1.5' : 'flex gap-1.5'}>
         <Button size="sm" disabled={disabled || draft.trim() === ''} onClick={commit}>
           Use this page
         </Button>

@@ -32,6 +32,8 @@ export function PageViewer({
   onPick,
   onOverlay,
   reveal = 0,
+  tall = false,
+  stamp = null,
 }: {
   tiles: string[];
   boxes: Box[];
@@ -51,6 +53,10 @@ export function PageViewer({
    * open popover is never scrolled away from.
    */
   reveal?: number;
+  /** Beside the table, as a column from the top of the tab: the frame takes the window's height. */
+  tall?: boolean;
+  /** When the screenshot was taken, shown as a band under the page (the download draws the same band into the picture). */
+  stamp?: string | null;
 }) {
   const stackRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -104,15 +110,22 @@ export function PageViewer({
 
   const scale = naturalWidth > 0 && renderedWidth > 0 ? renderedWidth / naturalWidth : 0;
 
-  // The screenshot opens under the table, often below the fold, and the
+  // The screenshot opens under the table (beside it on a wide screen), often below the fold, and the
   // field's element can be far down a long page: without this a cell click
   // outlines something nobody can see.
   useEffect(() => {
     if (reveal === 0 || reveal === revealed.current || scale <= 0 || measuredFor.current !== tiles) return;
     revealed.current = reveal;
+    // The highlighted element is centred inside the frame by scrolling the frame only, then the frame is
+    // brought into view: beside the table (sticky) the page must not jump at every selected cell.
     const el = highlightRef.current;
-    if (el) el.scrollIntoView({ block: 'center' });
-    else frameRef.current?.scrollIntoView({ block: 'nearest' });
+    const frame = frameRef.current;
+    if (el && frame) {
+      const f = frame.getBoundingClientRect();
+      const e = el.getBoundingClientRect();
+      frame.scrollTop += e.top - f.top - (frame.clientHeight - e.height) / 2;
+    }
+    frame?.scrollIntoView({ block: 'nearest' });
   }, [reveal, scale, highlight, tiles]);
 
   function resolveIndex(e: ReactMouseEvent<HTMLDivElement>): number | null {
@@ -148,7 +161,7 @@ export function PageViewer({
 
   return (
     <div>
-      <div ref={frameRef} className="max-h-[calc(100vh-260px)] overflow-auto rounded-[6px] border border-line bg-raised">
+      <div ref={frameRef} className={`${tall ? 'max-h-[calc(100vh-80px)]' : 'max-h-[calc(100vh-260px)]'} overflow-auto rounded-[6px] border border-line bg-raised`}>
         <div ref={stackRef} className="relative">
           {tiles.map((src, i) => (
             <img
@@ -202,6 +215,11 @@ export function PageViewer({
             </div>
           ) : null}
         </div>
+        {stamp && scale > 0 ? (
+          <p data-testid="screenshot-stamp" className="border-t border-line bg-panel px-3 py-2 font-mono text-xs text-muted-foreground" suppressHydrationWarning>
+            {stamp}
+          </p>
+        ) : null}
       </div>
 
       {pageHeight > capturedHeight && pageHeight > 0 ? (

@@ -5,6 +5,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { cn } from '../../lib/utils';
 import { TYPE_LABELS } from '../../lib/fields-view';
 import { BadgeView, FieldDetails } from './field-details';
+import { liveCell, type LiveCell } from '../../lib/site/live-cells';
 import { LOCKED_REASON } from './verify-bar';
 import { VariantsRow, type VariantsRowProps } from './variants-row';
 import { cellLabel, DEFAULT_CELL_TITLE, REVERIFY_FIELD, REVERIFY_FIELD_FREE, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
@@ -283,18 +284,23 @@ function inTextField(t: EventTarget | null): boolean {
 
 /**
  * The verification table (spec 2026-09-28 A1): a row per field, a column per
- * product — the product cards become the column heads. Replaces the fields
+ * product — each product's photo, title and link are rows of their own above the fields. Replaces the fields
  * sidebar and battery: each cell is the battery's own segment, spread out
  * with its value, and the last column says what the row needs and holds its
  * one action.
  *
- * Pure presentation — `heads` and `addHead` are drawn by the route (a
- * `ProductCard`/`AddProductCard` in `compact` mode), and every cell and
+ * Pure presentation — `columns` and `addHead` are drawn by the route (the
+ * product-card pieces and `AddProductCard` in `compact` mode), and every cell and
  * status action is a callback the route resolves against the model
  * (`rowStatus`, `acceptRow`, `acceptAllAgreed` in `lib/site/verification-model.ts`).
  */
+/** A product column's three head rows — or, for a slot with no page yet, the one input that spans them. */
+export type ProductColumn = { image: ReactNode; title: ReactNode; page: ReactNode } | { blank: ReactNode };
+
+const LIVE_CLASS: Record<LiveCell, string> = { scan: 'cell-scan', wait: 'opacity-45', still: '' };
+
 export function VerificationTable({
-  heads,
+  columns,
   addHead,
   rows,
   locked,
@@ -308,9 +314,11 @@ export function VerificationTable({
   onAbsent,
   onEscape,
   showMoney,
+  liveStage = null,
+  settling = false,
 }: {
-  /** One per product column, rendered by the route (`ProductCard` compact, or a blank slot). */
-  heads: ReactNode[];
+  /** One per product column, rendered by the route: its photo, title and link rows, or a blank slot's address input. */
+  columns: ProductColumn[];
   /** `AddProductCard` compact, while there are fewer than six products. */
   addHead?: ReactNode;
   rows: TableRow[];
@@ -335,10 +343,15 @@ export function VerificationTable({
   onEscape: () => void;
   /** `showsMoney(session)` (spec 2026-10-17 §8a): the re-verify button says "free" to staff only. */
   showMoney: boolean;
+  /** A running Verify's stage as the server reports it (`starting`, `capturing 2/3`, `searching`…): the cells show where it is (`liveCell`). */
+  liveStage?: string | null;
+  /** True for a moment after a Verify ends: the cells settle one after another as the verdicts land. */
+  settling?: boolean;
 }) {
-  const totalCols = 1 + heads.length + (addHead ? 1 : 0) + 1;
+  const totalCols = 1 + columns.length + (addHead ? 1 : 0) + 1;
+  const labelTh = 'sticky left-0 z-10 bg-panel px-2 py-1 text-left align-top text-sm font-normal text-muted-foreground';
   const fieldKeys = rows.map((r) => r.field.key);
-  const products = heads.length;
+  const products = columns.length;
 
   // Roving tabindex: after a key moved the selection, focus follows it — but
   // only then. A click already focused its own cell, and a selection made by
@@ -397,31 +410,80 @@ export function VerificationTable({
 
   return (
     <div ref={wrapRef} onKeyDown={onKeyDown} className="overflow-x-auto rounded-[6px] border border-line bg-panel">
-      <table className="w-full table-fixed border-collapse">
+      {/* Products share whatever width the page has (Marko 2026-11-11), never under 190 px each: past that the table scrolls. */}
+      <table className="w-full table-fixed border-collapse" style={{ minWidth: 180 + columns.length * 190 + (addHead ? 160 : 0) + 220 }}>
         <colgroup>
           <col style={{ width: 180 }} />
-          {heads.map((_, i) => (
-            <col key={i} style={{ width: 190 }} />
+          {columns.map((_, i) => (
+            <col key={i} />
           ))}
-          {addHead ? <col style={{ width: 190 }} /> : null}
+          {addHead ? <col style={{ width: 160 }} /> : null}
           <col style={{ width: 220 }} />
         </colgroup>
+        {/* The products, a row each for the photo, the title and the link (Marko 2026-11-13: rows, not a card),
+            then a gap and the Fields label: the interactive table starts under it. */}
         <thead>
           <tr>
-            <th scope="col" className="sticky left-0 z-10 bg-panel px-2 py-2 text-left align-bottom text-sm font-normal text-muted-foreground">
-              Field
-            </th>
-            {heads.map((head, i) => (
-              <th key={i} scope="col" className="px-2 py-2 align-bottom font-normal">
-                {head}
-              </th>
-            ))}
+            <th className={`${labelTh} pt-3`}>Image</th>
+            {columns.map((c, i) =>
+              'blank' in c ? (
+                <th key={i} rowSpan={3} className="border-l border-line px-2 pt-3 pb-2 align-top font-normal">
+                  {c.blank}
+                </th>
+              ) : (
+                <th key={i} className="border-l border-line px-2 pt-3 pb-1 align-top font-normal">
+                  {/* One after another as the products land, left to right. */}
+                  <div className="fade-in" style={{ animationDelay: `${i * 90}ms` }}>
+                    {c.image}
+                  </div>
+                </th>
+              ),
+            )}
             {addHead ? (
-              <th scope="col" className="px-2 py-2 align-bottom font-normal">
+              <th rowSpan={3} className="border-l border-line px-2 pt-3 pb-2 align-top font-normal">
                 {addHead}
               </th>
             ) : null}
-            <th scope="col" className="sticky right-0 z-10 border-l border-line bg-panel px-2 py-2 text-left align-bottom text-sm font-normal text-muted-foreground">
+            <th rowSpan={3} className="sticky right-0 z-10 border-l border-line bg-panel" />
+          </tr>
+          <tr>
+            <th className={labelTh}>Title</th>
+            {columns.map((c, i) =>
+              'blank' in c ? null : (
+                <th key={i} className="border-l border-line px-2 py-1 text-left align-top font-normal">
+                  {c.title}
+                </th>
+              ),
+            )}
+          </tr>
+          <tr>
+            <th className={labelTh}>Link</th>
+            {columns.map((c, i) =>
+              'blank' in c ? null : (
+                <th key={i} className="border-l border-line px-2 pt-1 pb-2 text-left align-top font-normal">
+                  {c.page}
+                </th>
+              ),
+            )}
+          </tr>
+          {/* The gap and the Fields label keep a cell per column, so the lines between products run unbroken. */}
+          <tr aria-hidden>
+            <th className="sticky left-0 z-10 h-5 bg-panel" />
+            {columns.map((_, i) => (
+              <th key={i} className="border-l border-line" />
+            ))}
+            {addHead ? <th className="border-l border-line" /> : null}
+            <th className="sticky right-0 z-10 border-l border-line bg-panel" />
+          </tr>
+          <tr>
+            <th scope="col" className={`${labelTh} pb-2`}>
+              Fields
+            </th>
+            {columns.map((_, i) => (
+              <th key={i} className="border-l border-line" />
+            ))}
+            {addHead ? <th className="border-l border-line" /> : null}
+            <th scope="col" className="sticky right-0 z-10 border-l border-line bg-panel px-2 pb-2 text-left align-bottom text-sm font-normal text-muted-foreground">
               Status
             </th>
           </tr>
@@ -454,7 +516,7 @@ export function VerificationTable({
                   const label = fixLabel(cell.state);
                   const value = cell.value.trim();
                   return (
-                    <td key={i} className="group relative w-[190px] border-t border-line p-0 align-top">
+                    <td key={i} className="group relative border-t border-l border-line p-0 align-top">
                       <ContextMenu onOpenChange={(open) => { if (open) skipReturnFocus.current = false; }}>
                         <ContextMenuTrigger asChild>
                           <button
@@ -465,9 +527,12 @@ export function VerificationTable({
                             aria-label={cellLabel(row.field.name, i + 1, cell.state, cell.value)}
                             onClick={() => onSelect(sel)}
                             onContextMenu={() => onSelect(sel)}
+                            style={settling ? { animationDelay: `${(fi * products + i) * 45}ms` } : undefined}
                             className={cn(
-                              'flex h-full w-full items-center border-l-2 px-2 py-2 text-left',
+                              'flex h-full w-full items-center border-l-2 px-2 py-2 text-left transition-[opacity,border-color] duration-300',
                               CELL_BORDER[cell.state],
+                              LIVE_CLASS[liveCell(liveStage, row.field.key, i)],
+                              settling && 'cell-settle',
                               isSelected && 'outline outline-1 outline-text',
                               cell.onAccept ? 'pr-14' : 'pr-9',
                             )}
@@ -549,7 +614,7 @@ export function VerificationTable({
                   );
                 })}
 
-                {addHead ? <td className="w-[190px] border-t border-line" /> : null}
+                {addHead ? <td className="w-[160px] border-t border-l border-line" /> : null}
 
                 <td className="sticky right-0 z-10 w-[220px] border-t border-l border-line bg-panel px-2 py-2 align-top">
                   <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} fix={row.fix} onFix={onFix} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} heldWord={row.heldWord} onReverifyField={row.onReverifyField} showMoney={showMoney} />

@@ -199,6 +199,27 @@
   animation: rise 200ms ease-out both;
 }
 
+/* Product columns arriving one by one (verification-table.tsx): opacity only, so
+   no transform is left behind to trap a fixed-position popover inside a head. */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fade-in 260ms ease-out both;
+}
+
+/* Find products' indeterminate bar (listing-bar.tsx): a third-width sweep. */
+@keyframes find-progress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+.find-progress {
+  animation: find-progress 1.4s ease-in-out infinite;
+}
+
 .rise:nth-child(1) { animation-delay: 0ms; }
 .rise:nth-child(2) { animation-delay: 60ms; }
 .rise:nth-child(3) { animation-delay: 120ms; }
@@ -236,6 +257,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .rise,
+  .fade-in,
+  .find-progress,
   .dot-running {
     animation: none;
   }
@@ -253,5 +276,50 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* A step of the Verification rail turning done (verify-bar.tsx): one small pop. */
+@keyframes step-pop {
+  from { transform: scale(0.6); }
+  to { transform: none; }
+}
+
+.step-pop {
+  animation: step-pop 320ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-pop {
+    animation: none;
+  }
+}
+
+/* Live cells while a Verify runs (verification-table.tsx): a soft sweep over what is being read now,
+   and one brief flash per cell, left to right and top to bottom, as the verdicts land. */
+@keyframes cell-scan {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.cell-scan {
+  background-image: linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--text) 11%, transparent) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: cell-scan 1.2s linear infinite;
+}
+
+@keyframes cell-settle {
+  from { background-color: color-mix(in oklab, var(--text) 14%, transparent); }
+  to { background-color: transparent; }
+}
+
+.cell-settle {
+  animation: cell-settle 500ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell-scan,
+  .cell-settle {
+    animation: none;
   }
 }
