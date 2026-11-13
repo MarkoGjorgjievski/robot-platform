@@ -12,6 +12,7 @@ import { signedInCaller } from '../test-helpers/identity.js';
 import { jobsOf, jobContext } from '../test-helpers/jobs.js';
 import { runInJob } from '../jobs/context.js';
 import { enqueueJob } from '../jobs/queue.js';
+import { interleave } from './run-coverage-check.js';
 import { COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_PROOF_PAGES, ALL_ANSWERED, type CoverageResults } from './coverage-summary.js';
 
 // No agent, ever: constructing one fails the file.
@@ -555,5 +556,14 @@ describe('coverage checks through the queue (spec 2026-10-23)', () => {
       expect(list).not.toHaveBeenCalled();
       expect(await checkRow(row!.id)).toMatchObject({ status: 'failed', error: 'stalled' });
     } finally { await f.cleanup(); }
+  });
+});
+
+describe('interleave (several listings, 2026-11-13)', () => {
+  it('takes one from each listing in turn, each address once', () => {
+    expect(interleave([['a1', 'a2', 'a3'], ['b1'], ['a2', 'c2']])).toEqual(['a1', 'b1', 'a2', 'c2', 'a3']);
+  });
+  it('is the one listing itself when there is only one', () => {
+    expect(interleave([['a1', 'a2']])).toEqual(['a1', 'a2']);
   });
 });

@@ -18,7 +18,7 @@ import { runAndWait, urlKey } from '../jobs/enqueue.js';
 import { JobUnavailableError } from '../jobs/errors.js';
 import type { transferMarksNow, detectVariantsNow, variantLinksNearNow } from '../jobs/handlers/interactive.js';
 import { httpUrl } from '../verify/http-url.js';
-import { bindingInput, prepareBinding, bindingProblemList, host, markInput, confirmedPathInput } from '../verify/binding-input.js';
+import { bindingInput, prepareBinding, bindingProblemList, host, markInput, confirmedPathInput, otherListings } from '../verify/binding-input.js';
 import { refuseVerify, refusalProblems } from '../verify/verify-refusal.js';
 import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../contract.js';
 import { entryFieldsFor } from '../verify/variant-fields.js';
@@ -67,10 +67,10 @@ async function unavailableAsError<T>(p: Promise<T>): Promise<T> {
 /** The transaction handle `ctx.db.transaction` hands its callback — named so `setInputPages` can take one as a parameter. */
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
-/** The planner's input rows for a schema: the listing page when given, else the proof pages as detail rows. */
-function inputRowsFor(urls: string[], listingUrl: string | undefined): { rows: Array<{ url: string }>; listingMode: 'listing_to_detail' | 'detail' } {
+/** The planner's input rows for a schema: the listing pages when given (the first, then the further ones), else the proof pages as detail rows. */
+function inputRowsFor(urls: string[], listingUrl: string | undefined, others: string[] = []): { rows: Array<{ url: string }>; listingMode: 'listing_to_detail' | 'detail' } {
   return listingUrl
-    ? { rows: [{ url: listingUrl }], listingMode: 'listing_to_detail' }
+    ? { rows: [listingUrl, ...others.filter((u) => u !== listingUrl)].map((url) => ({ url })), listingMode: 'listing_to_detail' }
     : { rows: urls.map((url) => ({ url })), listingMode: 'detail' };
 }
 
@@ -709,7 +709,7 @@ export const sourcesRouter = router({
       // entirely for this Source.
       const inputMode = (source.parameters as { inputMode?: string } | null)?.inputMode;
       const extractOwnsInput = inputMode === 'listing' || inputMode === 'detail';
-      const { rows, listingMode } = inputRowsFor(binding.urls, binding.listingUrl);
+      const { rows, listingMode } = inputRowsFor(binding.urls, binding.listingUrl, otherListings(binding.listingUrl, binding.otherListingUrls));
       if (!extractOwnsInput && source.confirmedAt && source.listingMode && source.listingMode !== listingMode) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${sourceId} is confirmed; its listing mode is locked` });
       }
@@ -751,7 +751,7 @@ export const sourcesRouter = router({
         // three proof pages.
         if (source.inputSetId && source.inputSet) {
           const previousVerificationSet = source.verificationSet as VerificationSet | null;
-          const authoredRows = inputRowsFor(previousVerificationSet?.urls ?? [], previousVerificationSet?.listing_url).rows;
+          const authoredRows = inputRowsFor(previousVerificationSet?.urls ?? [], previousVerificationSet?.listing_url, previousVerificationSet?.other_listing_urls).rows;
           const flowOwnsInputSet = JSON.stringify(source.inputSet.rows) === JSON.stringify(authoredRows);
 
           if (flowOwnsInputSet) {
@@ -1159,7 +1159,7 @@ export const sourcesRouter = router({
       const defs = (source.schemaDefinition ?? []) as SchemaDefinitionField[];
       if (set) {
         const problems = bindingProblemList({
-          urls: set.urls, ...(set.listing_url ? { listingUrl: set.listing_url } : {}),
+          urls: set.urls, ...(set.listing_url ? { listingUrl: set.listing_url } : {}), ...(set.other_listing_urls ? { otherListingUrls: set.other_listing_urls } : {}),
           descriptions: Object.fromEntries(defs.map((d) => [d.key, d.description])),
           expected: set.expected, ...(set.marks ? { marks: set.marks } : {}),
           ...(set.absent ? { absent: set.absent } : {}), ...(set.defaults ? { defaults: set.defaults } : {}),

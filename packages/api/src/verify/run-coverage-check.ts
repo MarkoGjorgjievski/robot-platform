@@ -155,6 +155,19 @@ type Open = <T>(fn: (browser: IBrowser) => Promise<T>) => Promise<T>;
 
 const isEmpty = (v: unknown) => v === null || v === undefined || v === '';
 
+/** One from each list in turn, each address once: the sample then spans every listing. */
+export function interleave(lists: string[][]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (let round = 0; lists.some((l) => l.length > round); round++) {
+    for (const l of lists) {
+      const u = l[round];
+      if (u !== undefined && !seen.has(u)) { seen.add(u); out.push(u); }
+    }
+  }
+  return out;
+}
+
 /** Never rejects: a throw anywhere leaves the row `failed` with its error. */
 export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {}): Promise<void> {
   const proofShapes = deps.proofShapes ?? defaultProofShapes;
@@ -180,8 +193,18 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
     const listingUrl = set.listing_url;
     if (!listingUrl || !cert) { await done({ listingUrl: listingUrl ?? '', sampled: [], proofShapes: {} }); return; }
 
-    const { productUrls, verdictMessage } = await listing(listingUrl);
-    if (verdictMessage) throw new Error(verdictMessage);
+    const first = await listing(listingUrl);
+    if (first.verdictMessage) throw new Error(first.verdictMessage);
+    // The website's further listings (2026-11-13) are sampled too, one product from each in turn, so the
+    // twenty come from every part of the website the customer named. One that cannot be read is left out:
+    // the first listing's answer still stands.
+    const perListing = [first.productUrls];
+    for (const other of set.other_listing_urls ?? []) {
+      if (jobStopped()) return;
+      const read = await listing(other).catch(() => null);
+      if (read && !read.verdictMessage) perListing.push(read.productUrls);
+    }
+    const productUrls = interleave(perListing);
     // Spec 2026-10-20 §3.6: a listing with no products is an answer — nothing is sampled, and the tab says so.
     if (productUrls.length === 0) { await done({ listingUrl, sampled: [], proofShapes: {}, planned: 0, noProducts: true }); return; }
     const urls = sampleListing(productUrls, set.urls);

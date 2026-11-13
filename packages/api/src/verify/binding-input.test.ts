@@ -201,3 +201,27 @@ describe('bindingProblemList (spec 2026-10-20 §3.2)', () => {
     expect(bindingProblems(input, contract)).toEqual(bindingProblemList(input, contract).map((p) => p.text));
   });
 });
+
+describe('further listing pages (2026-11-13)', () => {
+  const listed = { ...ok, listingUrl: 'https://shop.example/c/one' };
+
+  it('are stored after the first, each once, never the first again', () => {
+    const { verificationSet } = prepareBinding({ ...listed, otherListingUrls: ['https://shop.example/c/two', 'https://shop.example/c/one', 'https://shop.example/c/two'] }, contract);
+    expect(verificationSet.listing_url).toBe('https://shop.example/c/one');
+    expect(verificationSet.other_listing_urls).toEqual(['https://shop.example/c/two']);
+  });
+
+  it('are not stored without a first listing, or when there are none', () => {
+    expect(prepareBinding({ ...ok, otherListingUrls: ['https://shop.example/c/two'] }, contract).verificationSet.other_listing_urls).toBeUndefined();
+    expect(prepareBinding(listed, contract).verificationSet.other_listing_urls).toBeUndefined();
+  });
+
+  it('count in the one-website rule', () => {
+    expect(bindingProblems({ ...listed, otherListingUrls: ['https://other.example/c/two'] }, contract)).toContain('All URLs must be on the same website');
+  });
+
+  it('are at most five', () => {
+    const six = Array.from({ length: 6 }, (_, i) => `https://shop.example/c/${i}`);
+    expect(bindingInput.safeParse({ sourceId: '00000000-0000-4000-8000-000000000000', ...listed, otherListingUrls: six }).success).toBe(false);
+  });
+});

@@ -12,10 +12,21 @@ export const markInput = z.object({ xpaths: z.array(z.string().max(2000)).min(1)
 export const confirmedPathInput = z.object({ source: z.enum(['api', 'json-ld', 'meta']), path: z.string().max(2000) });
 const card = z.object({ url: httpUrl, title: z.string().max(300), image: httpUrl.optional() });
 
+/** A website keeps its listing and up to this many more: six are read at once on the Verification tab. */
+export const OTHER_LISTINGS_MAX = 5;
+
+/** The further listings as stored: only with a first listing, each once, never the first again. */
+export function otherListings(listingUrl: string | undefined, others: string[] | undefined): string[] {
+  if (!listingUrl || !others) return [];
+  return [...new Set(others)].filter((u) => u !== listingUrl);
+}
+
 export const bindingInput = z.object({
   sourceId: z.string().uuid(),
   urls: z.array(httpUrl).min(VERIFY_URL_MIN).max(VERIFY_URL_MAX),
   listingUrl: httpUrl.optional(),
+  /** Further listing pages of the same website, after `listingUrl` (2026-11-13); ignored without one. */
+  otherListingUrls: z.array(httpUrl).max(OTHER_LISTINGS_MAX).optional(),
   descriptions: z.record(z.string(), z.string().trim().max(1000)),
   expected: z.record(z.string(), z.record(z.string(), z.string())),
   /** fieldKey → url → the element the customer clicked (spec 2026-09-18 §3.5). */
@@ -48,6 +59,7 @@ export function bindingProblemList(input: Omit<BindingInput, 'sourceId'> & { sou
   const other = (text: string): void => { problems.push({ text, reason: 'other' }); };
   const hosts = new Set(input.urls.map(host));
   if (input.listingUrl) hosts.add(host(input.listingUrl));
+  for (const u of otherListings(input.listingUrl, input.otherListingUrls)) hosts.add(host(u));
   if (hosts.size > 1) other('All URLs must be on the same website');
   if (new Set(input.urls.map((u) => normalize('url', u))).size !== input.urls.length) other('URLs must be different pages');
   for (const f of contract) {
@@ -150,6 +162,7 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
       urls: input.urls,
       expected,
       ...(input.listingUrl ? { listing_url: input.listingUrl } : {}),
+      ...(otherListings(input.listingUrl, input.otherListingUrls).length ? { other_listing_urls: otherListings(input.listingUrl, input.otherListingUrls) } : {}),
       ...(Object.keys(marks).length ? { marks } : {}),
       ...(Object.keys(paths).length ? { paths } : {}),
       ...(cards?.length ? { cards } : {}),

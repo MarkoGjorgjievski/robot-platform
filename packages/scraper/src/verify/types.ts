@@ -36,6 +36,12 @@ export type VerificationSet = {
   urls: string[];                                   // VERIFY_URL_MIN to VERIFY_URL_MAX proof pages
   expected: Record<string, Record<string, string>>; // fieldKey → url → as typed
   listing_url?: string;
+  /**
+   * The website's further listing pages (2026-11-13), after `listing_url`: found together with it on the
+   * Verification tab. A run walks them too (until the Extract tab sets its own pages) and the coverage
+   * check samples across them. Never part of the definition hash: adding one does not ask for a re-verify.
+   */
+  other_listing_urls?: string[];
   /** fieldKey → url → the element the customer clicked for that cell (spec 2026-09-18 §3.5). Absent on sets written before marks existed. */
   marks?: Record<string, Record<string, Mark>>;
   /** fieldKey → url → the structured path the customer accepted that cell's answer from (spec 2026-09-29 C1). Certified first when it is correct or empty on every checked page; absent on sets written before it existed. */
