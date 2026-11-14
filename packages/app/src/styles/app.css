@@ -1,3 +1,4 @@
+@layer ui-sdk;
 @import "tailwindcss";
 @import "./tokens.css";
 
@@ -323,3 +324,25 @@
     animation: none;
   }
 }
+
+/* The divider between the verification table and the screenshot: a 16 px gap that shows a line when it can be dragged. */
+.split-handle {
+  position: relative;
+  width: 16px;
+  outline: none;
+}
+.split-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color 120ms;
+}
+.split-handle[data-hovering]::after { background: var(--border-hover); }
+.split-handle[data-dragging]::after,
+.split-handle:focus-visible::after { background: var(--text); }

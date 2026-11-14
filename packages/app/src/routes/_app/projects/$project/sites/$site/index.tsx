@@ -16,6 +16,7 @@ import { VerificationTable, type ProductColumn, type TableRow, type DriftLine } 
 import { clampSelection, headerCount, type CellSelection } from '../../../../../../lib/site/table-selection';
 import { VerifyBar } from '../../../../../../components/verification/verify-bar';
 import { useWide } from '../../../../../../lib/use-wide';
+import { Resizable, ResizableHandle, ResizablePanel } from '@ui-sdk/react/resizable';
 import { dateTime, utcDateTime } from '../../../../../../lib/when';
 import { downloadStamped, stampText, stampedFilename } from '../../../../../../lib/site/screenshot-stamp';
 import { DriftBanner } from '../../../../../../components/verification/drift-banner';
@@ -1742,9 +1743,10 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 
   return (
     // On a wide screen the screenshot is a column of its own from the top of the tab (Marko 2026-11-13),
-    // beside the listing bar, the steps and the table; otherwise it follows them.
-    <div className={panelBeside ? 'grid grid-cols-[minmax(0,1fr)_minmax(380px,38%)] items-start gap-4' : undefined}>
-    <div className="min-w-0 space-y-4">
+    // beside the listing bar, the steps and the table; otherwise it follows them. The divider between them
+    // drags (and takes arrow keys); the widths are remembered in this browser.
+    <Resizable autoSaveId="verification-split">
+    <ResizablePanel id="verification-main" minSize="420px" className="min-w-0 space-y-4">
       <div className={`${panel} relative space-y-3 overflow-hidden ${board.cards.length > 0 ? 'p-3' : 'p-4'}`}>
         {/* A soft light from the top edge: the first step reads as the page's input, not one more panel. Only while it is the question. */}
         {board.cards.length === 0 ? (
@@ -1893,9 +1895,17 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       {arrivalPrompt ? <p className="text-base">{arrivalPrompt}</p> : null}
 
       {panelBeside ? null : screenshotPanel}
-    </div>
-    {panelBeside ? screenshotPanel : null}
-    </div>
+    </ResizablePanel>
+    {panelBeside ? (
+      <>
+        <ResizableHandle aria-label="Resize the screenshot" className="split-handle" />
+        {/* `overflow-visible`: the screenshot stays pinned while the left side scrolls. */}
+        <ResizablePanel id="verification-screenshot" defaultSize={38} minSize="320px" maxSize={62} className="min-w-0 overflow-visible">
+          {screenshotPanel}
+        </ResizablePanel>
+      </>
+    ) : null}
+    </Resizable>
   );
 }
 
