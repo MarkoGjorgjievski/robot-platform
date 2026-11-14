@@ -8,7 +8,7 @@
 // nothing to keep back). Runs hold at most `max − 2` when `max ≥ 3`, so a background job (a customer's
 // Verify) is never queued behind hours of runs (spec 2026-10-23 run speed §3.8). A job waiting here — for
 // a browser or for memory — is making progress: the wait never counts toward its stuck limit.
-import os from 'node:os';
+import { availableMemoryMb } from './free-memory.js';
 import type { IBrowser } from '@robot/browser';
 import type { BrowserGate } from '../browser-session.js';
 import { currentJob } from './context.js';
@@ -29,7 +29,7 @@ export function createBrowserGate(opts: { max: number; minFreeMb?: number; freeM
   let seq = 0;
   const waiters: Array<{ rank: number; seq: number; wake: () => void }> = [];
   const open = new Map<IBrowser, string | null>();
-  const freeMb = opts.freeMb ?? (() => os.freemem() / 1_048_576);
+  const freeMb = opts.freeMb ?? availableMemoryMb;
   const pollMs = opts.pollMs ?? 1000;
   const pump = () => {
     waiters.sort((a, b) => a.rank - b.rank || a.seq - b.seq);

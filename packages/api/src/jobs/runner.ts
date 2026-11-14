@@ -3,6 +3,7 @@
 // every held job's lease is renewed each quarter lease; lapsed leases (a crashed worker) are reaped
 // every 15 s; a job with no progress past its limit is stopped; shutdown gives running jobs back.
 import os from 'node:os';
+import { availableMemoryMb } from './free-memory.js';
 import { randomUUID } from 'node:crypto';
 import { db } from '@robot/db';
 import type { JobPolicy, Lane } from './types.js';
@@ -80,7 +81,7 @@ export function startJobRunner(opts: RunnerOptions): JobRunner {
       void Promise.resolve(report(err, { ...context, queue: opts.queue, workerId })).catch(() => {});
     } catch { /* reporting never changes an outcome */ }
   };
-  const freeMb = opts.freeMb ?? (() => os.freemem() / 1_048_576);
+  const freeMb = opts.freeMb ?? availableMemoryMb;
   const backoff = (attempt: number) => retryBase * 2 ** Math.max(attempt - 1, 0);
   /** The jobs held here, by claim (a job reaped from this worker and claimed by it again is a second hold). */
   const active = new Map<string, Active>();
