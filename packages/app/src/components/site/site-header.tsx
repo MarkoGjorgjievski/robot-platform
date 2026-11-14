@@ -30,6 +30,8 @@ export function SiteHeader({
   const badge = website ? websiteBadge(website.driftedFields, website.needsAttention) : null;
   return (
     <Page
+      // Every tab of a website uses the full width (Marko 2026-11-11), so switching tabs never moves the page.
+      wide
       // The title is the thing being loaded, so it waits as a bar rather than
       // as a blank line that reflows the page under it when the name arrives.
       title={

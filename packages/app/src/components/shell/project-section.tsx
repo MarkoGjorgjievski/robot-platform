@@ -1,4 +1,6 @@
 import { Link, useParams } from '@tanstack/react-router';
+import { Columns3, FileOutput, Globe, SlidersHorizontal, type LucideIcon } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { RunDot } from '../run-dot';
 import { runDotState } from '../../lib/run-dot-view';
 import { PROJECT_NAV } from '../../lib/project-nav-view';
@@ -10,15 +12,47 @@ export function useProjectSlug(): string | undefined {
   return params.project;
 }
 
+const PROJECT_ICONS: Record<string, LucideIcon> = { Websites: Globe, Fields: Columns3, Output: FileOutput, Settings: SlidersHorizontal };
+
 /**
  * The sidebar's project section (spec §3): under the org-wide nav, the project
  * the customer is in — its websites, then Fields and Output. Rendered only
  * inside a project; the query is the same one the screen runs.
  */
-export function ProjectSection({ onNavigate }: { onNavigate?: () => void }) {
+export function ProjectSection({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
   const slug = useProjectSlug();
   const project = trpc.projects.get.useQuery({ projectSlug: slug! }, { enabled: !!slug });
   if (!slug || !project.data) return null;
+
+  // The icon rail: the project's four screens as icons, named on hover; its websites are one click away on Websites.
+  if (collapsed) {
+    return (
+      <nav aria-label="Project" className="flex flex-col items-center gap-px border-t border-line p-2">
+        {PROJECT_NAV.map((item) => {
+          const Icon = PROJECT_ICONS[item.label] ?? Globe;
+          return (
+            <Tooltip key={item.to}>
+              <TooltipTrigger asChild>
+                <Link
+                  to={item.to}
+                  params={{ project: slug }}
+                  activeOptions={{ exact: item.exact }}
+                  aria-label={`${project.data.name}: ${item.label}`}
+                  className="flex size-9 items-center justify-center rounded-[6px] text-muted-foreground hover:text-text"
+                  activeProps={{ className: 'bg-raised text-text!' }}
+                >
+                  <Icon className="size-4" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {project.data.name} · {item.label}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </nav>
+    );
+  }
 
   return (
     <div className="border-t border-line p-2">

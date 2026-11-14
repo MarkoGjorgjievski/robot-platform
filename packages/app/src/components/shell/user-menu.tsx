@@ -27,7 +27,8 @@ const THEME_ITEMS: Array<{ value: Theme; label: string }> = [
   { value: 'system', label: 'System' },
 ];
 
-export function UserMenu({ session }: { session: Session }) {
+/** `collapsed`: the icon rail's version — the avatar alone, the menu opening to the right. */
+export function UserMenu({ session, collapsed = false }: { session: Session; collapsed?: boolean }) {
   const router = useRouter();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -56,6 +57,15 @@ export function UserMenu({ session }: { session: Session }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
+        {collapsed ? (
+          <button
+            type="button"
+            aria-label={`Account: ${session.user.name}`}
+            className="flex size-9 items-center justify-center rounded-[6px] hover:bg-raised"
+          >
+            <AvatarSquare initial={session.user.name} colour={session.user.avatarColour} />
+          </button>
+        ) : (
         <button
           type="button"
           className="flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left hover:bg-raised"
@@ -67,9 +77,10 @@ export function UserMenu({ session }: { session: Session }) {
           </span>
           <MoreHorizontal className="size-3.5 shrink-0 text-muted-foreground" />
         </button>
+        )}
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start" side="top" sideOffset={6} className="w-[232px]">
+      <DropdownMenuContent align={collapsed ? 'end' : 'start'} side={collapsed ? 'right' : 'top'} sideOffset={6} className="w-[232px]">
         <DropdownMenuSub>
           {/* The icon is here so the three labels start on one line: Account and
               Sign out carry one, and a bare "Theme" sat 18 px to their left. */}

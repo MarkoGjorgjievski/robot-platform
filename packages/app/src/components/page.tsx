@@ -13,6 +13,7 @@ export function Page({
   title,
   subtitle,
   actions,
+  wide = false,
   children,
 }: {
   /**
@@ -26,10 +27,12 @@ export function Page({
   /** A line under the title, in secondary text (the ops overview's "Every customer's websites…"). Most screens leave this off. */
   subtitle?: ReactNode;
   actions?: ReactNode;
+  /** Every bit of the width the shell leaves (the Verification tab's table, Marko 2026-11-11) instead of the 1200 px column. */
+  wide?: boolean;
   children?: ReactNode;
 }) {
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-5 pb-16 md:px-8">
+    <main className={`mx-auto w-full px-5 pb-16 md:px-8 ${wide ? '' : 'max-w-[1200px]'}`}>
       <div className="rise flex min-h-[72px] flex-wrap items-center justify-between gap-3 py-5">
         {/* `min-w-0`: a flex item's minimum is its content, so a title that is
             a long unbroken name would set this row's width and push the page

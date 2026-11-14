@@ -30,7 +30,8 @@ const ROLE_LABEL: Record<SessionOrg['role'], string> = {
   member: 'Member',
 };
 
-export function OrgSwitcher({ session }: { session: Session }) {
+/** `collapsed`: the icon rail's version — the organisation's tile alone, the menu opening to the right. */
+export function OrgSwitcher({ session, collapsed = false }: { session: Session; collapsed?: boolean }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -72,6 +73,15 @@ export function OrgSwitcher({ session }: { session: Session }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
+          {collapsed ? (
+            <button
+              type="button"
+              aria-label={`Organisation: ${current.name}`}
+              className="flex size-9 items-center justify-center rounded-[6px] hover:bg-raised"
+            >
+              <AvatarSquare initial={current.name} colour={session.user.avatarColour} />
+            </button>
+          ) : (
           <button
             type="button"
             className="flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-left text-base text-text hover:bg-raised"
@@ -85,9 +95,10 @@ export function OrgSwitcher({ session }: { session: Session }) {
             ) : null}
             <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
           </button>
+          )}
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="start" sideOffset={6} className="w-[232px]">
+        <DropdownMenuContent align="start" side={collapsed ? 'right' : 'bottom'} sideOffset={6} className="w-[232px]">
           {session.orgs.map((org) => (
             <DropdownMenuItem
               key={org.id}

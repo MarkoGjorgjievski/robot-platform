@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Activity, ArrowLeftRight, FolderKanban, Gauge, Menu, Search, Settings } from 'lucide-react';
+import { Activity, ArrowLeftRight, FolderKanban, Gauge, Menu, PanelLeftClose, PanelLeftOpen, Search, Settings } from 'lucide-react';
 import type { Session } from '../../lib/session';
 import { AvatarSquare } from './avatar';
 import { OrgSwitcher } from './org-switcher';
 import { ProjectSection } from './project-section';
 import { UserMenu } from './user-menu';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '../ui/sheet';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 const NAV = [
   { to: '/projects', label: 'Projects', Icon: FolderKanban },
@@ -27,7 +28,7 @@ type SidebarProps = {
  * right edge: who you are working as at the top, where you can go in the
  * middle, how you search and who you are at the bottom.
  */
-export function SidebarBody({ session, onSearch, onNavigate }: SidebarProps) {
+export function SidebarBody({ session, onSearch, onNavigate, onCollapse }: SidebarProps & { onCollapse?: () => void }) {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="border-b border-line p-2">
@@ -92,18 +93,124 @@ export function SidebarBody({ session, onSearch, onNavigate }: SidebarProps) {
           <kbd className="shrink-0 font-mono text-sm">⌘K</kbd>
         </button>
 
+        {/* Only on the desktop rail; the phone sheet closes itself. */}
+        {onCollapse ? (
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="flex items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-base text-muted-foreground hover:text-text"
+          >
+            <PanelLeftClose className="size-4 shrink-0" />
+            <span className="flex-1 text-left">Collapse sidebar</span>
+          </button>
+        ) : null}
+
         <UserMenu session={session} />
       </div>
     </div>
   );
 }
 
-/** The rail proper, from `md` up. Sticky, so it never scrolls with a long table. */
+/** Where the rail's open/closed choice is kept, per browser. */
+const COLLAPSED_KEY = 'robot.sidebar.collapsed';
+
+/**
+ * The rail proper, from `md` up. Sticky, so it never scrolls with a long table.
+ * Collapsed to icons by default (Marko 2026-11-11) so the screens get the width;
+ * the toggle opens it to 240 px and the choice is remembered in this browser.
+ */
 export function Sidebar(props: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(true);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(COLLAPSED_KEY) === '0') setCollapsed(false);
+    } catch {
+      // No storage (private window, blocked site data): the default stands.
+    }
+  }, []);
+  function toggle() {
+    setCollapsed((c) => {
+      try {
+        window.localStorage.setItem(COLLAPSED_KEY, c ? '0' : '1');
+      } catch {
+        // Not remembered; it still toggles.
+      }
+      return !c;
+    });
+  }
+
   return (
-    <aside className="sticky top-0 hidden h-screen w-[240px] shrink-0 border-r border-line bg-panel md:block">
-      <SidebarBody {...props} />
+    <aside
+      className={`sticky top-0 hidden h-screen shrink-0 border-r border-line bg-panel transition-[width] duration-150 md:block ${collapsed ? 'w-[56px]' : 'w-[240px]'}`}
+    >
+      {collapsed ? <SidebarRail {...props} onExpand={toggle} /> : <SidebarBody {...props} onCollapse={toggle} />}
     </aside>
+  );
+}
+
+/** One icon in the collapsed rail, named on hover. */
+function RailItem({ label, children }: { label: string; children: ReactElement }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+const RAIL_ICON = 'flex size-9 items-center justify-center rounded-[6px] text-muted-foreground hover:text-text';
+
+/** The collapsed rail: the same places as `SidebarBody`, as icons. */
+function SidebarRail({ session, onSearch, onExpand }: SidebarProps & { onExpand: () => void }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center">
+      <div className="flex w-full flex-col items-center gap-1 border-b border-line p-2">
+        {session.staff ? (
+          <RailItem label={session.currentOrg.name}>
+            <span className="flex size-9 items-center justify-center">
+              <AvatarSquare initial={session.currentOrg.name} colour={session.user.avatarColour} />
+            </span>
+          </RailItem>
+        ) : (
+          <OrgSwitcher session={session} collapsed />
+        )}
+      </div>
+
+      <div className="flex w-full flex-1 flex-col overflow-y-auto">
+        <nav className="flex flex-col items-center gap-px p-2">
+          {NAV.map(({ to, label, Icon }) => (
+            <RailItem key={to} label={label}>
+              <Link to={to} aria-label={label} className={RAIL_ICON} activeProps={{ className: 'bg-raised text-text!' }}>
+                <Icon className="size-4" />
+              </Link>
+            </RailItem>
+          ))}
+        </nav>
+
+        <ProjectSection collapsed />
+      </div>
+
+      <div className="flex w-full flex-col items-center gap-1 border-t border-line p-2">
+        {session.isOperator && !session.staff ? (
+          <RailItem label="Back to ops">
+            <Link to="/ops" aria-label="Back to ops" className={RAIL_ICON}>
+              <ArrowLeftRight className="size-4" />
+            </Link>
+          </RailItem>
+        ) : null}
+        <RailItem label="Search (⌘K)">
+          <button type="button" aria-label="Search" onClick={onSearch} className={RAIL_ICON}>
+            <Search className="size-4" />
+          </button>
+        </RailItem>
+        <RailItem label="Open sidebar">
+          <button type="button" aria-label="Open sidebar" onClick={onExpand} className={RAIL_ICON}>
+            <PanelLeftOpen className="size-4" />
+          </button>
+        </RailItem>
+        <UserMenu session={session} collapsed />
+      </div>
+    </div>
   );
 }
 
