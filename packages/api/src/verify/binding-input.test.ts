@@ -222,6 +222,6 @@ describe('further listing pages (2026-11-13)', () => {
 
   it('are at most five', () => {
     const six = Array.from({ length: 6 }, (_, i) => `https://shop.example/c/${i}`);
-    expect(bindingInput.safeParse({ sourceId: '00000000-0000-4000-8000-000000000000', ...listed, otherListingUrls: six }).success).toBe(false);
+    expect(bindingInput.safeParse({ ...listed, otherListingUrls: six }).success).toBe(false);
   });
 });
