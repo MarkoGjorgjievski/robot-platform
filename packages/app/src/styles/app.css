@@ -346,3 +346,40 @@
 .split-handle[data-hovering]::after { background: var(--border-hover); }
 .split-handle[data-dragging]::after,
 .split-handle:focus-visible::after { background: var(--text); }
+
+/* The verification table's scroll edges (UI SDK Scroll Area): a soft edge beside the pinned field and
+   status columns while more products sit off that side. The width follows how far the content reaches. */
+.table-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 20;
+  pointer-events: none;
+  --scroll-area-overflow-x-start: inherit;
+  --scroll-area-overflow-x-end: inherit;
+}
+.table-fade-start {
+  left: 180px;
+  width: min(20px, var(--scroll-area-overflow-x-start, 0px));
+  background: linear-gradient(to right, color-mix(in srgb, var(--bg) 75%, transparent), transparent);
+}
+.table-fade-end {
+  right: 220px;
+  width: min(20px, var(--scroll-area-overflow-x-end, 0px));
+  background: linear-gradient(to left, color-mix(in srgb, var(--bg) 75%, transparent), transparent);
+}
+
+/* A key in a shortcut hint. */
+.kbd {
+  display: inline-block;
+  min-width: 18px;
+  margin-right: 2px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--raised);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}

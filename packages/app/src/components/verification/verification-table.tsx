@@ -9,6 +9,7 @@ import { liveCell, type LiveCell } from '../../lib/site/live-cells';
 import { LOCKED_REASON } from './verify-bar';
 import { VariantsRow, type VariantsRowProps } from './variants-row';
 import { cellLabel, DEFAULT_CELL_TITLE, REVERIFY_FIELD, REVERIFY_FIELD_FREE, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
+import { ScrollArea, ScrollAreaContent, ScrollAreaViewport } from '@ui-sdk/react/scroll-area';
 import { fixLabel, moveSelection, type CellSelection, type MoveKey } from '../../lib/site/table-selection';
 
 /**
@@ -97,6 +98,9 @@ function productsText(ns: number[]): string {
   if (ns.length === 1) return `product ${ns[0]}`;
   return `products ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
 }
+
+/** Rows whose status column offers a plain Accept: the A key takes the same one. */
+const ACCEPTABLE = new Set<string>(['agreed', 'majority']);
 
 type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; fix: TableRow['fix']; onFix: (sel: CellSelection) => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null; heldWord: string | null; onReverifyField?: () => void; showMoney: boolean };
 
@@ -399,6 +403,15 @@ export function VerificationTable({
       onFix(selection);
       return;
     }
+    if ((e.key === 'a' || e.key === 'A') && !mod) {
+      // The same Accept the cell's tick or the row's button gives; nothing when neither is offered.
+      const row = rows.find((r) => r.field.key === selection.key);
+      const accept = row?.cells[selection.product]?.onAccept ?? (row && ACCEPTABLE.has(row.status.kind) ? row.onAccept : undefined);
+      if (locked || !accept) return;
+      e.preventDefault();
+      accept();
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
       // Always the cell's value: a cell is a button, so no text inside it can be
       // selected, and a page selection made elsewhere earlier (Chromium keeps it
@@ -409,7 +422,10 @@ export function VerificationTable({
   }
 
   return (
-    <div ref={wrapRef} onKeyDown={onKeyDown} className="overflow-x-auto rounded-[6px] border border-line bg-panel">
+    <div className="space-y-1.5">
+    <ScrollArea className="table-scroll relative overflow-hidden rounded-[6px] border border-line bg-panel">
+    <ScrollAreaViewport ref={wrapRef} onKeyDown={onKeyDown} className="w-full">
+    <ScrollAreaContent>
       {/* Products share whatever width the page has (Marko 2026-11-11), never under 190 px each: past that the table scrolls. */}
       <table className="w-full table-fixed border-collapse" style={{ minWidth: 180 + columns.length * 190 + (addHead ? 160 : 0) + 220 }}>
         <colgroup>
@@ -658,6 +674,20 @@ export function VerificationTable({
           ) : null}
         </tbody>
       </table>
+    </ScrollAreaContent>
+    </ScrollAreaViewport>
+      {/* More products off either side: a soft edge beside the pinned columns, gone at the end of the scroll. */}
+      <div aria-hidden className="table-fade table-fade-start" />
+      <div aria-hidden className="table-fade table-fade-end" />
+    </ScrollArea>
+      {keyboard && selection ? (
+        <p className="hidden items-center gap-x-3 text-xs text-muted-foreground md:flex" data-testid="table-keys">
+          <span><kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd><kbd className="kbd">←</kbd><kbd className="kbd">→</kbd> move</span>
+          <span><kbd className="kbd">Enter</kbd> fix on the screenshot</span>
+          <span><kbd className="kbd">A</kbd> accept</span>
+          <span><kbd className="kbd">Esc</kbd> close</span>
+        </p>
+      ) : null}
     </div>
   );
 }
