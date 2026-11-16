@@ -131,6 +131,8 @@ describe('cardWords', () => {
   it('starting: a spinner and "Taking screenshot…" with no clock', () => {
     expect(cardWords(starting, 'Zara', T0)).toEqual({ tone: 'muted', icon: 'spinner', lines: ['Taking screenshot…'], actions: [] });
     expect(cardWords(undefined, 'Zara', T0)).toEqual({ tone: 'muted', icon: 'spinner', lines: ['Taking screenshot…'], actions: [] });
+    // A stored screenshot on its way is loading, not being taken.
+    expect(cardWords({ ...starting, loading: true }, 'Zara', T0).lines).toEqual(['Loading screenshot…']);
   });
   it('try 1 capturing counts up from startedAt', () => {
     expect(cardWords(capturing(), 'Zara', T0 + 12_400)).toEqual({ tone: 'muted', icon: 'spinner', lines: ['Taking screenshot… 12 s'], actions: [] });

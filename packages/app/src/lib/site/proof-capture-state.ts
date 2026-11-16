@@ -40,6 +40,8 @@ export type ProofCapture = LadderFields & {
   title?: string;
   /** When the screenshot was taken (a landed capture). */
   capturedAt?: string;
+  /** `starting` only: nothing is being taken — a stored screenshot (or the answer whether there is one) is still loading. */
+  loading?: true;
 };
 
 /** The part of `sources.proofPageCapture`'s answer this reads. */
@@ -65,14 +67,15 @@ export function capturePollMs(status: string | undefined): number | false {
 export const EMPTY_CAPTURE:Pick<ProofCapture, 'tiles' | 'boxes' | 'pageHeight' | 'capturedHeight'> = { tiles: [], boxes: [], pageHeight: 0, capturedHeight: 0 };
 
 /** `staff` (`showsMoney`, spec 2026-10-21): staff read a failed capture's stored sentence; a customer reads it through `captureWords`. */
-export function proofCaptureState(args: { startError?: string; captureId: string | null; poll?: { data?: ProofPoll; isError: boolean }; staff?: boolean }): ProofCapture {
+export function proofCaptureState(args: { startError?: string; captureId: string | null; poll?: { data?: ProofPoll; isError: boolean }; staff?: boolean; /** The lookup has not answered, or it named a stored screenshot whose details are on their way. */ loading?: boolean }): ProofCapture {
+  const loading = args.loading ? { loading: true as const } : {};
   if (args.startError !== undefined) return { captureId: '', status: 'failed', error: SCREENSHOT_COULD_NOT_START, ...EMPTY_CAPTURE };
-  if (!args.captureId) return { captureId: '', status: 'starting', ...EMPTY_CAPTURE };
+  if (!args.captureId) return { captureId: '', status: 'starting', ...loading, ...EMPTY_CAPTURE };
   const data = args.poll?.data;
   if (!data) {
     return args.poll?.isError
       ? { captureId: args.captureId, status: 'failed', error: SCREENSHOT_COULD_NOT_START, ...EMPTY_CAPTURE }
-      : { captureId: args.captureId, status: 'starting', ...EMPTY_CAPTURE };
+      : { captureId: args.captureId, status: 'starting', ...loading, ...EMPTY_CAPTURE };
   }
   const error = captureErrorText(data.error === undefined ? undefined : captureWords(data.error, args.staff));
   return {

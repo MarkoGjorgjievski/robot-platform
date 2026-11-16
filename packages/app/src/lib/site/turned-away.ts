@@ -94,6 +94,7 @@ const elapsed = (startedAt: string | undefined, nowMs: number): string => {
 /** One product card's state (spec §3.6): its icon, tone, lines (each wraps; none is clamped) and actions. */
 export function cardWords(c: ProofCapture | undefined, name: string | null | undefined, nowMs: number, opts: { staff?: boolean } = {}): CardWords {
   const route = opts.staff && c?.via === 'fallback' ? VIA_FALLBACK : '';
+  if (c?.status === 'starting' && c.loading) return { tone: 'muted', icon: 'spinner', lines: ['Loading screenshot…'], actions: [] };
   if (!c || c.status === 'starting') return { tone: 'muted', icon: 'spinner', lines: ['Taking screenshot…'], actions: [] };
 
   if (c.status === 'capturing') {

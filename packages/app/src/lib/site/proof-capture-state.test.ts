@@ -26,6 +26,12 @@ describe('proofCaptureState (spec 2026-10-20 §3.5.5)', () => {
   it('a poll error after the capture landed keeps the capture', () => {
     expect(proofCaptureState({ captureId: 'c', poll: { data: landed, isError: true } })).toMatchObject({ status: 'captured', tiles: landed.tiles, title: 'Widget A' });
   });
+  it('a stored screenshot on its way reads loading; one started here does not', () => {
+    expect(proofCaptureState({ captureId: 'c', poll: { isError: false }, loading: true })).toMatchObject({ status: 'starting', loading: true });
+    expect(proofCaptureState({ captureId: null, loading: true })).toMatchObject({ status: 'starting', loading: true });
+    expect(proofCaptureState({ captureId: 'c', poll: { isError: false } })).not.toHaveProperty('loading');
+    expect(proofCaptureState({ captureId: 'c', poll: { data: landed, isError: false }, loading: true })).not.toHaveProperty('loading');
+  });
   it('a landed capture says when its screenshot was taken', () => {
     expect(proofCaptureState({ captureId: 'c', poll: { data: { ...landed, capturedAt: '2026-11-13T19:32:00.000Z' }, isError: false } }).capturedAt).toBe('2026-11-13T19:32:00.000Z');
     expect(proofCaptureState({ captureId: 'c', poll: { data: landed, isError: false } })).not.toHaveProperty('capturedAt');

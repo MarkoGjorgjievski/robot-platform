@@ -138,6 +138,8 @@ export function useProofCaptures(
       captureId: id,
       ...(poll ? { poll: { data: poll.data, isError: poll.isError } } : {}),
       staff,
+      // Opening the tab reads what is stored; only a capture started here, or one still running, is "taking".
+      loading: !started[url] && !startingRef.current.has(url) && (lookup.data === undefined || lookup.data[url]?.status === 'captured'),
     });
   }
 
