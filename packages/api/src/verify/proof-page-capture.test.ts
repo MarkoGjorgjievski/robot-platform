@@ -513,6 +513,17 @@ describe('the ladder in the capture job (spec 2026-10-28 §3.2)', () => {
     } finally { await f.cleanup(); }
   });
 
+  it('the screen is told of a captured page however old; Verify still wants a fresh one', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-old-capture', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const url = f.urls[0]!;
+      const old = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+      const [row] = await db.insert(captures).values({ sourceId: f.sourceId, url, html: '<html></html>', metadata: { kind: 'proof-page', status: 'captured', url, startedAt: old, capturedAt: old, tiles: ['/captures/x.png'], boxes: [], pageHeight: 900, capturedHeight: 900, contentHeight: 900 } }).returning({ id: captures.id });
+      expect((await latestProofPageCaptures(f.sourceId, [url]))[url]).toMatchObject({ captureId: row!.id, status: 'captured' });
+      expect(await loadProofPageCaptures(f.sourceId, [url])).toEqual({});
+    } finally { await f.cleanup(); }
+  });
+
   it('only a wall climbs the ladder: a timeout fails at once', async () => {
     noFallback();
     const f = await createProjectWithSource(caller, { tag: 'ppc-ladder-timeout', fields: [{ name: 'Title', type: 'text' }] });

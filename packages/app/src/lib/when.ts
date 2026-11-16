@@ -29,3 +29,12 @@ export function zoneOffset(at: Date, offsetMin: number = -at.getTimezoneOffset()
   const m = abs % 60;
   return `UTC${offsetMin > 0 ? '+' : '-'}${Math.floor(abs / 60)}${m ? `:${two(m)}` : ''}`;
 }
+
+/** "3 d ago" once a moment is a day old or more; null before that (a fresh time needs no age beside it). */
+export function ageIfOld(at: Date | string | null | undefined, now: Date = new Date()): string | null {
+  if (!at) return null;
+  const ms = now.getTime() - new Date(at).getTime();
+  if (!(ms >= 86_400_000)) return null;
+  const days = Math.floor(ms / 86_400_000);
+  return days >= 365 ? `${Math.floor(days / 365)} y ago` : `${days} d ago`;
+}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, RefreshCw } from 'lucide-react';
 import { Link, createFileRoute, useNavigate, useRouteContext } from '@tanstack/react-router';
 import { Button } from '../../../../../../components/ui/button';
 import { Skeleton } from '../../../../../../components/ui/skeleton';
@@ -17,7 +17,7 @@ import { clampSelection, headerCount, type CellSelection } from '../../../../../
 import { VerifyBar } from '../../../../../../components/verification/verify-bar';
 import { useWide } from '../../../../../../lib/use-wide';
 import { Resizable, ResizableHandle, ResizablePanel } from '@ui-sdk/react/resizable';
-import { dateTime, utcDateTime } from '../../../../../../lib/when';
+import { ageIfOld, dateTime, utcDateTime } from '../../../../../../lib/when';
 import { downloadStamped, stampText, stampedFilename } from '../../../../../../lib/site/screenshot-stamp';
 import { DriftBanner } from '../../../../../../components/verification/drift-banner';
 import { VariantsStep, detectVariantsQuery } from '../../../../../../components/verification/variants-step';
@@ -1655,19 +1655,35 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const [downloading, setDownloading] = useState(false);
   const screenshotPanel = panelOpen ? (
         <section aria-label="Screenshot" className={panelBeside ? 'min-w-0 space-y-2 xl:sticky xl:top-4' : 'space-y-2'}>
-          <div className="flex items-center justify-between gap-3">
+          {/* The same box as the bars on the left, so the two columns start on one line. */}
+          <div className="flex items-center justify-between gap-3 rounded-[6px] border border-line bg-panel px-3 py-2.5 [box-shadow:var(--shadow)]">
             <div className="min-w-0">
-              <h2 className="truncate text-base">
+              <h2 className="truncate text-base font-medium">
                 {selectedCard?.title || (selectedCard?.url ? shortUrl(selectedCard.url) : `Product ${selected + 1}`)} — screenshot
               </h2>
               {/* When this picture of the page was taken (Marko 2026-11-13): local time, UTC on hover. */}
               {capture?.capturedAt ? (
                 <time dateTime={capture.capturedAt} title={utcDateTime(capture.capturedAt) ?? undefined} className="block text-sm text-muted-foreground">
                   Taken {dateTime(capture.capturedAt)}
+                  {/* An old picture is shown as it is, never retaken on open; Verify takes its own. */}
+                  {ageIfOld(capture.capturedAt) ? ` · ${ageIfOld(capture.capturedAt)}` : ''}
                 </time>
               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              {capture?.status === 'captured' ? (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  disabled={locked}
+                  title="Take a new screenshot of this page"
+                  className="text-muted-foreground hover:text-text"
+                  onClick={() => captures.retry(selectedUrl)}
+                >
+                  <RefreshCw />
+                  Retake
+                </Button>
+              ) : null}
               {/* The whole page as one picture with the stamp drawn into it, so the date stays with the file. */}
               {capture?.capturedAt && tiles.length > 0 ? (
                 <Button

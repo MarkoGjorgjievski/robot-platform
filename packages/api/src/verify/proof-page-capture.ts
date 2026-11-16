@@ -488,7 +488,7 @@ export function proofPageStateOf(meta: ProofPageMeta): Omit<ProofPageCaptureStat
   }
 }
 
-/** The newest proof-page capture per URL in whatever state — what a reloaded screen resumes from. Stalled rows are closed on the way; a captured one past the reuse window reads as missing, so the screen re-captures. */
+/** The newest proof-page capture per URL in whatever state — what a reloaded screen resumes from. Stalled rows are closed on the way. A captured one is answered however old it is (Marko 2026-11-16): the screen shows it with its date and offers a new one, instead of re-capturing every page each time the tab opens. Verify keeps its own freshness rule (`loadProofPageCaptures`). */
 export async function latestProofPageCaptures(sourceId: string, urls: string[]): Promise<Record<string, ProofPageCaptureState | null>> {
   const out: Record<string, ProofPageCaptureState | null> = Object.fromEntries(urls.map((u) => [u, null]));
   const rows = await db.query.captures.findMany({
@@ -502,7 +502,6 @@ export async function latestProofPageCaptures(sourceId: string, urls: string[]):
     if (!m || m.kind !== 'proof-page' || seen.has(r.url)) continue;
     seen.add(r.url);
     const meta = await resolveStalledProofPage(r.id, m, r.jobId);
-    if (meta.status === 'captured' && Date.now() - Date.parse(meta.capturedAt) > CAPTURE_REUSE_MAX_AGE_MS) continue;
     out[r.url] = { captureId: r.id, ...proofPageStateOf(meta) };
   }
   return out;

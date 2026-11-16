@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dateTime, utcDateTime } from './when';
+import { ageIfOld, dateTime, utcDateTime } from './when';
 
 // Built from local parts, so the test reads the same in any time zone.
 const at = new Date(2026, 10, 13, 20, 5);
@@ -17,6 +17,12 @@ describe('dateTime', () => {
     expect(dateTime(null)).toBeNull();
     expect(dateTime('nope')).toBeNull();
     expect(utcDateTime(undefined)).toBeNull();
+  });
+  it('an age only from a day old', () => {
+    const now = new Date(2026, 10, 16, 12, 0);
+    expect(ageIfOld(new Date(2026, 10, 16, 9, 0), now)).toBeNull();
+    expect(ageIfOld(new Date(2026, 10, 13, 9, 0), now)).toBe('3 d ago');
+    expect(ageIfOld(null, now)).toBeNull();
   });
   it('the tooltip is UTC', () => {
     expect(utcDateTime('2026-11-13T19:32:10.000Z')).toBe('2026-11-13 19:32 UTC');
