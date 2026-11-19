@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { Button } from '../../../../../../components/ui/button';
 import { Skeleton } from '../../../../../../components/ui/skeleton';
-import { Section } from '../../../../../../components/extract/section';
-import { ExtractLockedStrip, ExtractStrip } from '../../../../../../components/extract/extract-strip';
+import { OverviewCard, ProductsCard } from '../../../../../../components/runs/run-overview';
+import { ExtractLockedStrip } from '../../../../../../components/extract/extract-strip';
 import { ExtractPages, type ListingCheck } from '../../../../../../components/extract/extract-pages';
 import { ExtractSample } from '../../../../../../components/extract/extract-sample';
 import { ExtractRun } from '../../../../../../components/extract/extract-run';
 import { parseCsv } from '../../../../../../lib/site/csv';
 import { parseUrlLines } from '../../../../../../lib/site/parse-url-lines';
-import { isRunActive } from '../../../../../../lib/site/run-progress';
+import { isRunActive, progressWord } from '../../../../../../lib/site/run-progress';
 import {
   budgetFromForm,
   budgetNeedsSave,
@@ -30,11 +30,9 @@ import {
   hostOf,
   isProbeMoving,
   pagesAreSaved,
-  runProgressLine,
   sampleGate,
   saveNote,
   storedMode,
-  stripCells,
   tooManyMessage,
   withEditing,
 } from '../../../../../../lib/site/extract-screen-view';
@@ -67,10 +65,26 @@ export const Route = createFileRoute('/_app/projects/$project/sites/$site/extrac
 });
 
 const HINTS = [
-  'where the products come from',
-  'proof that the walk works before anything runs at scale',
-  'how much, then go',
+  'the listing pages to collect products from, or your own list of product addresses',
+  'found on your first listing and extracted before anything else runs: check them, then extract the rest',
+  'how much of each listing to extract',
 ] as const;
+
+/** One box of the tab: a title, a line saying what it is for, an optional action, and its content. */
+function Panel({ title, hint, action, children }: { title: string; hint: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line px-4 py-2.5">
+        <div className="min-w-0">
+          <h3 className="text-base font-medium">{title}</h3>
+          <p className="text-sm text-muted-foreground">{hint}</p>
+        </div>
+        {action}
+      </div>
+      <div className="px-4 py-3">{children}</div>
+    </section>
+  );
+}
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -238,7 +252,9 @@ function ExtractTab() {
   const pagesSaved = pagesAreSaved({ savedCount: savedUrls.length, savedMode: stored, mode, editing });
   const states = withEditing(stepStates({ schemaGreen: green, mode, pagesSaved, sampleRun, running }), editing);
 
-  const verificationSet = (source?.verificationSet ?? null) as { urls?: string[] } | null;
+  const verificationSet = (source?.verificationSet ?? null) as { urls?: string[]; listing_url?: string; other_listing_urls?: string[] } | null;
+  // The listings Find products already read on the Verification tab: saved as this tab's pages at that moment, and said so here.
+  const verifiedListings = [verificationSet?.listing_url, ...(verificationSet?.other_listing_urls ?? [])].filter((u): u is string => !!u);
   // Stable identity: this array is a prop of `ExtractPages` and a dependency of
   // the memo below, and `?? []` would hand both a fresh one per render.
   const proofUrlsRaw = verificationSet?.urls;
@@ -407,15 +423,31 @@ function ExtractTab() {
   }
   if (!source) return null; // the layout has already said what went wrong
 
-  const progress = startedRunId ? runProgressLine(runStatusQuery.data) : null;
   const pageCount = mode === 'detail' ? productCounts.total : listing.length;
-  const cells = stripCells({
-    states,
-    mode,
-    pageCount,
-    sampleRows: sampleDone ? (sampleRun?.rows ?? 0) : null,
-    runLabel: progress?.label ?? null,
-  });
+  // Marko 2026-11-18, "automatic": one button. A listing nobody has confirmed yet extracts its first 3 products
+  // and stops; they are shown here, and the same button then extracts the rest. A confirmed listing, or a list of
+  // product addresses, starts at once.
+  const needsCheck = mode === 'listing' && !source.confirmedAt;
+  const checkMoving = !!latestProbe && latestProbe.completedAt === null && isProbeMoving(latestProbe.status);
+  const checked = needsCheck && sampleDone && !sampleStale && !checkMoving;
+  const startsCheck = needsCheck && !checked;
+  const startLabel = startsCheck ? 'Start extraction' : needsCheck ? 'These look right, extract the rest' : 'Start extraction';
+  const startReason = running
+    ? 'This website is extracting now'
+    : checkMoving
+      ? 'Extracting the first 3 products…'
+      : startsCheck
+        ? sampleGate({ green, pagesSaved })
+        : extractGate({ green, pagesSaved, mode, sampleDone: true });
+  // The latest run for the side card: live counts while one runs from here, else what the runs list knows.
+  const live = startedRunId ? runStatusQuery.data : undefined;
+  const latestCounts = live
+    ? live.counts
+    : latestFullRun?.pages && latestFullRun.pages.total > 0
+      ? { done: latestFullRun.pages.done, failed: latestFullRun.pages.failed, detail: latestFullRun.pages.total, pending: Math.max(0, latestFullRun.pages.total - latestFullRun.pages.done - latestFullRun.pages.failed), running: 0, listing: 0 }
+      : null;
+  const latestRunId = startedRunId ?? latestFullRun?.id ?? null;
+  const latestStatus = live?.status ?? latestFullRun?.status ?? '';
   const pagesReadOnly = !green || states[0] !== 'current';
   const extractReason = extractGate({ green, pagesSaved, mode, sampleDone });
   const columns = contract.map((f) => ({ key: f.key, name: f.name }));
@@ -432,7 +464,6 @@ function ExtractTab() {
         <ExtractLockedStrip text={lockedText} project={projectSlug} site={siteSlug} />
       )}
 
-      <ExtractStrip cells={cells} />
 
       {error ? (
         <p role="alert" className="rise mb-3 border-l-2 border-fail pl-3 text-base whitespace-pre-line text-fail">
@@ -440,82 +471,124 @@ function ExtractTab() {
         </p>
       ) : null}
 
-      {/* Dimmed, and genuinely out of reach: `pointer-events-none` alone still
-          leaves every control in the tab order, so `inert` is what stops a
-          keyboard walking into a section the strip has just said is locked. */}
-      <div className={`space-y-3 ${green ? '' : 'pointer-events-none opacity-60'}`} inert={green ? undefined : true}>
-        <Section
-          n={1}
-          title="Pages"
-          hint={HINTS[0]}
-          action={
-            green && pagesReadOnly ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setNote(null);
-                  setEditing(1);
-                }}
-              >
-                Edit pages
-              </Button>
-            ) : null
-          }
-        >
-          <ExtractPages
-            mode={mode}
-            onMode={setMode}
-            listing={listing}
-            onListing={(urls) => {
-              setListing(urls);
-              // A removed page takes its check with it, so re-adding it later
-              // starts from "checking…" rather than showing the result of a
-              // check on a page that has since been taken off the list.
-              const kept = new Set(urls);
-              setChecks((prev) => Object.fromEntries(Object.entries(prev).filter(([url]) => kept.has(url))));
-            }}
-            checks={checks}
-            onCheck={(url) => void runCheck(url)}
-            productText={productText}
-            onProductText={setProductText}
-            counts={productCounts}
-            onImportCsv={(file) => void handleImportCsv(file)}
-            onSave={() => void handleSave()}
-            saving={savingPages}
-            readOnly={pagesReadOnly}
-          />
-          {note ? <p className="mt-3 text-base text-muted-foreground">{note}</p> : null}
-        </Section>
+      {/* One screen (Marko 2026-11-18): what to extract, the first three products when a new listing is checked,
+          how much, and one button; the latest run sits beside them. Dimmed and `inert` until every field is
+          verified, so a keyboard cannot walk into what the strip above has just said is locked. */}
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <div className={`min-w-0 space-y-3 ${green ? '' : 'pointer-events-none opacity-60'}`} inert={green ? undefined : true}>
+          <Panel
+            title="What to extract"
+            hint={HINTS[0]}
+            action={
+              green && pagesReadOnly ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setNote(null);
+                    setEditing(1);
+                  }}
+                >
+                  Edit pages
+                </Button>
+              ) : null
+            }
+          >
+            <ExtractPages
+              mode={mode}
+              onMode={setMode}
+              listing={listing}
+              onListing={(urls) => {
+                setListing(urls);
+                // A removed page takes its check with it, so re-adding it later
+                // starts from "checking…" rather than showing the result of a
+                // check on a page that has since been taken off the list.
+                const kept = new Set(urls);
+                setChecks((prev) => Object.fromEntries(Object.entries(prev).filter(([url]) => kept.has(url))));
+              }}
+              checks={checks}
+              onCheck={(url) => void runCheck(url)}
+              productText={productText}
+              onProductText={setProductText}
+              counts={productCounts}
+              onImportCsv={(file) => void handleImportCsv(file)}
+              onSave={() => void handleSave()}
+              saving={savingPages}
+              readOnly={pagesReadOnly}
+              fromVerification={verifiedListings}
+            />
+            {note ? <p className="mt-3 text-base text-muted-foreground">{note}</p> : null}
+          </Panel>
 
-        <Section n={2} title="Sample" hint={HINTS[1]}>
-          <ExtractSample
-            mode={mode ?? 'listing'}
-            runId={mode === 'listing' ? (latestProbe?.id ?? null) : null}
-            sampling={probeMutation.isPending}
-            onSample={() => void handleSample()}
-            columns={columns}
-            notOnWebsite={status?.notOnWebsiteKeys}
-            stale={sampleStale}
-            disabledReason={sampleGate({ green, pagesSaved })}
-          />
-        </Section>
+          {mode === 'listing' && latestProbe ? (
+            <Panel title="First 3 products" hint={HINTS[1]}>
+              <ExtractSample
+                mode="listing"
+                runId={latestProbe.id}
+                sampling={probeMutation.isPending}
+                onSample={() => void handleSample()}
+                columns={columns}
+                notOnWebsite={status?.notOnWebsiteKeys}
+                stale={sampleStale}
+                disabledReason={sampleGate({ green, pagesSaved })}
+              />
+            </Panel>
+          ) : null}
 
-        <Section n={3} title="Run" hint={HINTS[2]}>
-          <ExtractRun
-            mode={mode ?? 'listing'}
-            items={budget.items}
-            pages={budget.pages}
-            onChange={setBudget}
-            sentence={runSentence(budget, pageCount, mode ?? 'listing')}
-            onExtract={() => void handleExtract()}
-            extracting={extracting}
-            reason={extractReason}
-            activeRun={startedRunId && progress ? { id: startedRunId, ...progress } : null}
-            project={projectSlug}
-            site={siteSlug}
-          />
-        </Section>
+          <Panel title="How much" hint={HINTS[2]}>
+            <ExtractRun
+              mode={mode ?? 'listing'}
+              items={budget.items}
+              pages={budget.pages}
+              onChange={setBudget}
+              sentence={runSentence(budget, pageCount, mode ?? 'listing')}
+              onExtract={() => void (startsCheck ? handleSample() : handleExtract())}
+              extracting={extracting || probeMutation.isPending}
+              reason={startReason}
+              activeRun={null}
+              project={projectSlug}
+              site={siteSlug}
+              label={startLabel}
+            />
+            {startsCheck && !checkMoving ? (
+              <p className="mt-2 max-w-[640px] text-sm text-muted-foreground">
+                This listing is new to us, so the first 3 products are extracted and shown here first. Nothing else runs until you say they look right.
+              </p>
+            ) : null}
+            {needsCheck && checked ? (
+              <p className="mt-2 max-w-[640px] text-sm text-muted-foreground">
+                If a value above looks wrong, fix its field on the{' '}
+                <Link to="/projects/$project/sites/$site" params={{ project: projectSlug, site: siteSlug }} className="text-link underline-offset-4 hover:underline">
+                  Verification tab
+                </Link>{' '}
+                before extracting the rest.
+              </p>
+            ) : null}
+          </Panel>
+        </div>
+
+        <aside className="min-w-0">
+          {latestCounts && latestRunId ? (
+            <ProductsCard
+              counts={latestCounts}
+              label={progressWord(latestStatus)}
+              title={running ? 'This run' : 'Latest run'}
+              foot={
+                <Link
+                  to="/projects/$project/sites/$site/runs/$run"
+                  params={{ project: projectSlug, site: siteSlug, run: latestRunId }}
+                  className="text-base text-link underline-offset-4 hover:underline"
+                >
+                  Open the run
+                </Link>
+              }
+            />
+          ) : (
+            <OverviewCard title="Latest run">
+              <p className="pt-1 text-base text-muted-foreground">Nothing has been extracted from this website yet.</p>
+            </OverviewCard>
+          )}
+        </aside>
       </div>
     </>
   );

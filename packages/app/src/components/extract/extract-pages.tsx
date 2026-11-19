@@ -59,7 +59,10 @@ export function ExtractPages({
   onSave,
   saving,
   readOnly,
+  fromVerification = [],
 }: {
+  /** The listings already read on the Verification tab (Marko 2026-11-18): said beside each, so nobody adds them a second time. */
+  fromVerification?: readonly string[];
   mode: ExtractMode | null;
   onMode: (m: ExtractMode) => void;
   listing: string[];
@@ -187,6 +190,9 @@ export function ExtractPages({
                           <span className="block truncate font-mono text-muted-foreground" title={url}>
                             {url}
                           </span>
+                          {fromVerification.includes(url) ? (
+                            <span className="mt-0.5 block text-sm text-muted-foreground">From the Verification tab: the listing your products were found on.</span>
+                          ) : null}
                         </td>
                         <td className="px-3 py-2">
                           <span className="flex min-w-0 items-center gap-2">

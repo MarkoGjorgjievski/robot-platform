@@ -38,7 +38,9 @@ import {
  * The one line the sample's own button promises, from spec §5.7. "No AI. Free." is staff-only
  * (spec 2026-10-17 §8a): a customer never reads a price word or the mechanism.
  */
-const SAMPLE_SENTENCE = 'walks the first listing for up to 3 pages, extracts 3 products with the verified paths.';
+const SAMPLE_SENTENCE = 'Opens your first listing, follows it for up to 3 of its pages to find product links, and extracts 3 of those products.';
+/** Why a sample after Verify (Marko 2026-11-17: "which we just did previously?"): Verify proved the fields, this proves the finding. */
+const SAMPLE_WHY = 'Verification checked the fields on 3 products you chose. This checks the other half: that we can find the products on your listing and move through its pages.';
 const SAMPLE_SENTENCE_STAFF = `${SAMPLE_SENTENCE} No AI. Free.`;
 
 const EMPTY_COUNTS = { listing: 0, detail: 0, pending: 0, running: 0, done: 0, failed: 0 };
@@ -110,12 +112,15 @@ export function ExtractSample({
 
   if (!runId) {
     return (
-      <div className="flex flex-wrap items-center gap-3">
-        <Button size="sm" disabled={sampling || disabledReason !== null} onClick={onSample}>
-          {sampling ? <Loader2 className="animate-spin" /> : null}
-          Sample 3 products
-        </Button>
-        <span className="text-base text-muted-foreground">{disabledReason ?? (showMoney ? SAMPLE_SENTENCE_STAFF : SAMPLE_SENTENCE)}</span>
+      <div className="space-y-2">
+        <p className="max-w-[720px] text-base text-muted-foreground">{SAMPLE_WHY}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button size="sm" disabled={sampling || disabledReason !== null} onClick={onSample}>
+            {sampling ? <Loader2 className="animate-spin" /> : null}
+            Sample 3 products
+          </Button>
+          <span className="text-base text-muted-foreground">{disabledReason ?? (showMoney ? SAMPLE_SENTENCE_STAFF : SAMPLE_SENTENCE)}</span>
+        </div>
       </div>
     );
   }

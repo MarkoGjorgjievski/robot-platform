@@ -36,7 +36,10 @@ export function ExtractRun({
   activeRun,
   project,
   site,
+  label = 'Extract',
 }: {
+  /** The button's words: the tab names the step it starts (Marko 2026-11-18). */
+  label?: string;
   /** A fixed list of product URLs has nothing to page through, so detail mode has no pages control. */
   mode: ExtractMode;
   items: number | 'all';
@@ -64,7 +67,7 @@ export function ExtractRun({
           budget, read left to right, and a form stacked over a restatement of
           itself would be the same decision written twice. */}
       <div className="flex flex-wrap items-center gap-2 text-base">
-        <span>Run</span>
+        <span>Extract</span>
         <Select
           value={items === 'all' ? 'all' : 'custom'}
           onValueChange={(v) => onChange({ items: v === 'all' ? 'all' : DEFAULT_ITEMS, pages })}
@@ -81,10 +84,10 @@ export function ExtractRun({
           <NumberBox value={items} label="How many products" onValue={(n) => onChange({ items: n, pages })} />
         ) : null}
         {mode === 'detail' ? (
-          <span>products.</span>
+          <span>of your product addresses.</span>
         ) : (
           <>
-            <span>products across</span>
+            <span>products found on</span>
             <Select
               value={pages === 'all' ? 'all' : 'custom'}
               onValueChange={(v) => onChange({ items, pages: v === 'all' ? 'all' : DEFAULT_PAGES })}
@@ -100,7 +103,7 @@ export function ExtractRun({
             {pages !== 'all' ? (
               <NumberBox value={pages} label="How many pages" onValue={(n) => onChange({ items, pages: n })} />
             ) : null}
-            <span>pages.</span>
+            <span>pages of each listing.</span>
           </>
         )}
       </div>
@@ -127,7 +130,7 @@ export function ExtractRun({
         <div className="flex flex-wrap items-center gap-3">
           <Button size="sm" disabled={extracting || reason !== null} onClick={onExtract}>
             {extracting ? <Loader2 className="animate-spin" /> : null}
-            Extract
+            {label}
           </Button>
           {/* Every disabled control says why, within a line of it. */}
           {reason ? <span className="text-base text-muted-foreground">{reason}</span> : null}
