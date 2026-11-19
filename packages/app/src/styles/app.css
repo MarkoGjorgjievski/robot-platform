@@ -383,3 +383,19 @@
   line-height: 16px;
   text-align: center;
 }
+
+/* The screenshot popover (Marko 2026-11-19): it grows out of the cell it opens from and shrinks back into it. */
+.shot-popover {
+  transform-origin: var(--transform-origin);
+  transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1), scale 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.shot-popover[data-starting-style],
+.shot-popover[data-ending-style] {
+  opacity: 0;
+  scale: 0.94;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shot-popover {
+    transition: none;
+  }
+}

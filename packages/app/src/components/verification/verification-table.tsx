@@ -28,6 +28,8 @@ export type TableCell = {
   value: string; state: Segment; url: string; onAccept?: () => void; absent?: boolean; notOnPage?: boolean;
   /** A blank cell on a field with a default (spec 2026-10-13 §6): shows the default, muted, under `DEFAULT_CELL_TITLE`. */
   isDefault?: boolean;
+  /** The cell the row's "changed since verified" is about (Marko 2026-11-18): its product was not part of the field's last verification. */
+  changed?: boolean;
 };
 
 const NOT_ON_PAGE_TITLE = 'The page does not show this value; a path that produces it will be certified anyway. Mark it on the screenshot if it is there, or use "Not on this product".';
@@ -83,6 +85,8 @@ export type TableRow = {
   heldWord: string | null;
   /** A needs-you row's one action (`rowFix`, first run 2026-10-25): the named product's Fix / Mark on the screenshot. Null hides it. */
   fix: { product: number; label: 'Fix' | 'Mark' } | null;
+  /** A needs-you row's way out beside the screenshot (`rowOffer`): accept the page data's values, or mark the field not on this website. Null hides it. */
+  offer: { kind: 'page-data' | 'not-on-website'; onTake: () => void } | null;
 };
 
 /** The 2 px rail a value cell carries in its state colour (spec §4: never a background wash). */
@@ -102,7 +106,7 @@ function productsText(ns: number[]): string {
 /** Rows whose status column offers a plain Accept: the A key takes the same one. */
 const ACCEPTABLE = new Set<string>(['agreed', 'majority']);
 
-type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; fix: TableRow['fix']; onFix: (sel: CellSelection) => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null; heldWord: string | null; onReverifyField?: () => void; showMoney: boolean };
+type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; fix: TableRow['fix']; offer: TableRow['offer']; onFix: (sel: CellSelection) => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null; heldWord: string | null; onReverifyField?: () => void; showMoney: boolean };
 
 /** The status column: the row's status, and under it the address warning (spec 2026-10-14 §6)
  * when the row is accepted or agreed, or whenever the badge reads verified; then Jev's note
@@ -129,7 +133,7 @@ function StatusCell({ addressWarning, jevNote, heldWord, onReverifyField, showMo
   );
 }
 
-function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefault, fix, onFix, defaultOnlyWord }: Omit<StatusCellProps, 'addressWarning' | 'jevNote' | 'heldWord' | 'onReverifyField' | 'showMoney'>) {
+function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefault, fix, offer, onFix, defaultOnlyWord }: Omit<StatusCellProps, 'addressWarning' | 'jevNote' | 'heldWord' | 'onReverifyField' | 'showMoney'>) {
   switch (status.kind) {
     case 'agreed':
       return (
@@ -169,20 +173,34 @@ function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefau
         </div>
       );
     case 'needs-you':
-      if (!fix) return <span className="text-sm text-muted-foreground">{status.reason}</span>;
+      if (!fix && !offer) return <span className="text-sm text-muted-foreground">{status.reason}</span>;
+      // A value the page does not show has nothing to fix on the screenshot: its button reads Mark.
+      const fixWord = offer?.kind === 'page-data' ? 'Mark' : fix?.label;
       return (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">{status.reason}</span>
-          <Button
-            variant="outline"
-            size="xs"
-            disabled={locked}
-            aria-label={`${fix.label} ${field.name} on the screenshot of product ${fix.product}`}
-            title={locked ? LOCKED_REASON : undefined}
-            onClick={() => onFix({ product: fix.product - 1, key: field.key })}
-          >
-            {fix.label} on screenshot
-          </Button>
+          <span className="text-sm text-muted-foreground">{offer?.kind === 'not-on-website' ? 'not found on any product' : status.reason}</span>
+          {offer?.kind === 'page-data' ? (
+            <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name} from the page data`} title={locked ? LOCKED_REASON : 'The page carries this value in its data without showing it as text'} onClick={offer.onTake}>
+              Accept page data
+            </Button>
+          ) : null}
+          {offer?.kind === 'not-on-website' ? (
+            <Button variant="outline" size="xs" disabled={locked} aria-label={`${field.name} is not on this website`} title={locked ? LOCKED_REASON : 'Leave this field empty for this website'} onClick={offer.onTake}>
+              Not on this website
+            </Button>
+          ) : null}
+          {fix ? (
+            <Button
+              variant="outline"
+              size="xs"
+              disabled={locked}
+              aria-label={`${fixWord} ${field.name} on the screenshot of product ${fix.product}`}
+              title={locked ? LOCKED_REASON : undefined}
+              onClick={() => onFix({ product: fix.product - 1, key: field.key })}
+            >
+              {fixWord} on screenshot
+            </Button>
+          ) : null}
         </div>
       );
     case 'accepted':
@@ -287,11 +305,10 @@ function inTextField(t: EventTarget | null): boolean {
 }
 
 /**
- * The verification table (spec 2026-09-28 A1): a row per field, a column per
- * product — each product's photo, title and link are rows of their own above the fields. Replaces the fields
- * sidebar and battery: each cell is the battery's own segment, spread out
- * with its value, and the last column says what the row needs and holds its
- * one action.
+ * The verification table: a row per product and a column per field, the Output's own way round (Marko
+ * 2026-11-19; it was a row per field until then). Each product's photo, title and link are columns of their
+ * own before the fields; each cell is the field's value on that product with its state; and a last row holds
+ * each field's status and its one action.
  *
  * Pure presentation — `columns` and `addHead` are drawn by the route (the
  * product-card pieces and `AddProductCard` in `compact` mode), and every cell and
@@ -299,7 +316,11 @@ function inTextField(t: EventTarget | null): boolean {
  * (`rowStatus`, `acceptRow`, `acceptAllAgreed` in `lib/site/verification-model.ts`).
  */
 /** A product column's three head rows — or, for a slot with no page yet, the one input that spans them. */
-export type ProductColumn = { image: ReactNode; title: ReactNode; page: ReactNode } | { blank: ReactNode };
+/** `end`: the row's action, in the pinned last column (the same width as the checked-products table's, so the two line up). */
+export type ProductColumn = { image: ReactNode; title: ReactNode; page: ReactNode; end?: ReactNode } | { blank: ReactNode };
+
+/** The pinned last column's width, shared with `SampledProducts`. */
+export const END_COLUMN = 150;
 
 const LIVE_CLASS: Record<LiveCell, string> = { scan: 'cell-scan', wait: 'opacity-45', still: '' };
 
@@ -352,8 +373,6 @@ export function VerificationTable({
   /** True for a moment after a Verify ends: the cells settle one after another as the verdicts land. */
   settling?: boolean;
 }) {
-  const totalCols = 1 + columns.length + (addHead ? 1 : 0) + 1;
-  const labelTh = 'sticky left-0 z-10 bg-panel px-2 py-1 text-left align-top text-sm font-normal text-muted-foreground';
   const fieldKeys = rows.map((r) => r.field.key);
   const products = columns.length;
 
@@ -390,7 +409,10 @@ export function VerificationTable({
     // Ctrl+Home/End, etc. Shift alone carries no browser shortcut here, so it still moves.
     const mod = e.ctrlKey || e.metaKey || e.altKey;
     if (MOVE_KEYS.has(e.key) && !mod) {
-      const next = moveSelection(selection, e.key as MoveKey, fieldKeys, products);
+      // A row per product: left/right walk the fields and up/down the products (the model's own axes are the other way).
+      const TURNED: Partial<Record<MoveKey, MoveKey>> = { ArrowLeft: 'ArrowUp', ArrowRight: 'ArrowDown', ArrowUp: 'ArrowLeft', ArrowDown: 'ArrowRight' };
+      const key = TURNED[e.key as MoveKey] ?? (e.key as MoveKey);
+      const next = moveSelection(selection, key, fieldKeys, products);
       e.preventDefault();
       if (next.product === selection.product && next.key === selection.key) return;
       focusNext.current = true;
@@ -421,110 +443,9 @@ export function VerificationTable({
     }
   }
 
-  return (
-    <div className="space-y-1.5">
-    <ScrollArea className="table-scroll relative overflow-hidden rounded-[6px] border border-line bg-panel">
-    <ScrollAreaViewport ref={wrapRef} onKeyDown={onKeyDown} className="w-full">
-    <ScrollAreaContent>
-      {/* Products share whatever width the page has (Marko 2026-11-11), never under 190 px each: past that the table scrolls. */}
-      <table className="w-full table-fixed border-collapse" style={{ minWidth: 180 + columns.length * 190 + (addHead ? 160 : 0) + 220 }}>
-        <colgroup>
-          <col style={{ width: 180 }} />
-          {columns.map((_, i) => (
-            <col key={i} />
-          ))}
-          {addHead ? <col style={{ width: 160 }} /> : null}
-          <col style={{ width: 220 }} />
-        </colgroup>
-        {/* The products, a row each for the photo, the title and the link (Marko 2026-11-13: rows, not a card),
-            then a gap and the Fields label: the interactive table starts under it. */}
-        <thead>
-          <tr>
-            <th className={`${labelTh} pt-3`}>Image</th>
-            {columns.map((c, i) =>
-              'blank' in c ? (
-                <th key={i} rowSpan={3} className="border-l border-line px-2 pt-3 pb-2 align-top font-normal">
-                  {c.blank}
-                </th>
-              ) : (
-                <th key={i} className="border-l border-line px-2 pt-3 pb-1 align-top font-normal">
-                  {/* One after another as the products land, left to right. */}
-                  <div className="fade-in" style={{ animationDelay: `${i * 90}ms` }}>
-                    {c.image}
-                  </div>
-                </th>
-              ),
-            )}
-            {addHead ? (
-              <th rowSpan={3} className="border-l border-line px-2 pt-3 pb-2 align-top font-normal">
-                {addHead}
-              </th>
-            ) : null}
-            <th rowSpan={3} className="sticky right-0 z-10 border-l border-line bg-panel" />
-          </tr>
-          <tr>
-            <th className={labelTh}>Title</th>
-            {columns.map((c, i) =>
-              'blank' in c ? null : (
-                <th key={i} className="border-l border-line px-2 py-1 text-left align-top font-normal">
-                  {c.title}
-                </th>
-              ),
-            )}
-          </tr>
-          <tr>
-            <th className={labelTh}>Link</th>
-            {columns.map((c, i) =>
-              'blank' in c ? null : (
-                <th key={i} className="border-l border-line px-2 pt-1 pb-2 text-left align-top font-normal">
-                  {c.page}
-                </th>
-              ),
-            )}
-          </tr>
-          {/* The gap and the Fields label keep a cell per column, so the lines between products run unbroken. */}
-          <tr aria-hidden>
-            <th className="sticky left-0 z-10 h-5 bg-panel" />
-            {columns.map((_, i) => (
-              <th key={i} className="border-l border-line" />
-            ))}
-            {addHead ? <th className="border-l border-line" /> : null}
-            <th className="sticky right-0 z-10 border-l border-line bg-panel" />
-          </tr>
-          <tr>
-            <th scope="col" className={`${labelTh} pb-2`}>
-              Fields
-            </th>
-            {columns.map((_, i) => (
-              <th key={i} className="border-l border-line" />
-            ))}
-            {addHead ? <th className="border-l border-line" /> : null}
-            <th scope="col" className="sticky right-0 z-10 border-l border-line bg-panel px-2 pb-2 text-left align-bottom text-sm font-normal text-muted-foreground">
-              Status
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, fi) => (
-            <Fragment key={row.field.key}>
-              <tr>
-                <th scope="row" className="sticky left-0 z-10 w-[180px] border-t border-line bg-panel px-2 py-2 text-left align-top font-normal">
-                  <button
-                    type="button"
-                    aria-expanded={row.expanded}
-                    onClick={row.onToggle}
-                    className="flex min-w-0 items-center gap-1.5 text-left"
-                  >
-                    <ChevronRight
-                      aria-hidden
-                      className={cn('size-3 shrink-0 text-muted-foreground transition-transform', row.expanded && 'rotate-90')}
-                    />
-                    <span className="min-w-0 truncate text-base">{row.field.name}</span>
-                  </button>
-                  <span className="block pl-[18px] text-sm text-muted-foreground">{TYPE_LABELS[row.field.type]}</span>
-                </th>
-
-                {row.cells.map((cell, i) => {
+  /** One value cell. */
+  function renderCell(row: TableRow, fi: number, i: number) {
+    const cell = row.cells[i]!;
                   const sel: CellSelection = { product: i, key: row.field.key };
                   const isSelected = selection?.product === i && selection.key === row.field.key;
                   // Tab enters the table once: at the selected cell, else the first cell.
@@ -532,7 +453,7 @@ export function VerificationTable({
                   const label = fixLabel(cell.state);
                   const value = cell.value.trim();
                   return (
-                    <td key={i} className="group relative border-t border-l border-line p-0 align-top">
+                    <td key={`${row.field.key}:${i}`} className="group relative border-t border-l border-line p-0 align-top">
                       <ContextMenu onOpenChange={(open) => { if (open) skipReturnFocus.current = false; }}>
                         <ContextMenuTrigger asChild>
                           <button
@@ -540,7 +461,7 @@ export function VerificationTable({
                             data-cell={`${i}:${row.field.key}`}
                             data-selected={isSelected ? 'true' : undefined}
                             tabIndex={tabbable ? 0 : -1}
-                            aria-label={cellLabel(row.field.name, i + 1, cell.state, cell.value)}
+                            aria-label={cellLabel(row.field.name, i + 1, cell.state, cell.value) + (cell.changed ? ', changed since verified' : '')}
                             onClick={() => onSelect(sel)}
                             onContextMenu={() => onSelect(sel)}
                             style={settling ? { animationDelay: `${(fi * products + i) * 45}ms` } : undefined}
@@ -557,6 +478,7 @@ export function VerificationTable({
                               className={cn('min-w-0 truncate font-mono text-base', (cell.absent || cell.isDefault) && 'text-muted-foreground', cell.notOnPage && 'text-warn')}
                               title={cell.notOnPage ? NOT_ON_PAGE_TITLE : cell.isDefault ? DEFAULT_CELL_TITLE : cell.value || undefined}
                             >
+                              {cell.changed ? <span aria-hidden title="Changed since verified" className="mr-1.5 inline-block size-1.5 rounded-full bg-warn align-middle" /> : null}
                               {cell.value || '—'}
                               {cell.notOnPage ? <span className="ml-1 font-sans text-xs text-muted-foreground">not on this page</span> : null}
                             </span>
@@ -628,58 +550,122 @@ export function VerificationTable({
                       ) : null}
                     </td>
                   );
-                })}
+  }
 
-                {addHead ? <td className="w-[160px] border-t border-l border-line" /> : null}
+  const showVariants = !!variants && variants.need.kind !== 'none' && (variants.method === 'list' || variants.method === 'links');
+  const fieldNotes = rows.filter((r) => (r.drift && r.drift.length > 0) || r.coverage || r.expanded);
 
-                <td className="sticky right-0 z-10 w-[220px] border-t border-l border-line bg-panel px-2 py-2 align-top">
-                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} fix={row.fix} onFix={onFix} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} heldWord={row.heldWord} onReverifyField={row.onReverifyField} showMoney={showMoney} />
-                </td>
-              </tr>
-
-              {row.drift && row.drift.length > 0 ? (
-                <tr>
-                  <td colSpan={totalCols} className="border-t border-line bg-panel px-3 py-2">
-                    <DriftLines field={row.field} lines={row.drift} locked={locked} />
-                  </td>
-                </tr>
-              ) : null}
-
-              {row.coverage ? (
-                <tr>
-                  <td colSpan={totalCols} className="border-t border-line bg-panel px-3 py-2">
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground" data-coverage={row.field.key}>
-                      <span>{row.coverage.text}</span>
-                      {row.coverage.onUseAsProofPage ? (
-                        <Button variant="outline" size="xs" disabled={locked} aria-label={`Use a sampled product as proof page for ${row.field.name}`} onClick={row.coverage.onUseAsProofPage}>
-                          Use as proof page
-                        </Button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ) : null}
-
-              {row.expanded ? (
-                <tr>
-                  <td colSpan={totalCols} className="border-t border-line bg-panel px-3 py-3">
-                    <FieldDetails field={row.field} locked={locked} {...row.details} />
-                  </td>
-                </tr>
-              ) : null}
-            </Fragment>
+  return (
+    <div className="space-y-1.5">
+    <ScrollArea className="table-scroll relative overflow-hidden rounded-[6px] border border-line bg-panel">
+    <ScrollAreaViewport ref={wrapRef} onKeyDown={onKeyDown} data-sync-x="" className="w-full">
+    <ScrollAreaContent>
+      {/* A plain table (Marko 2026-11-18): a row per product at one line's height; the photo, the title and the link
+          each in a column of their own, then a column per field. The photo and title stay put while the fields scroll. */}
+      <table className="w-full table-fixed border-collapse" data-testid="verification-grid" style={{ minWidth: 48 + 220 + 240 + rows.length * 190 + END_COLUMN }}>
+        <colgroup>
+          <col style={{ width: 48 }} />
+          <col style={{ width: 220 }} />
+          <col style={{ width: 240 }} />
+          {rows.map((row) => (
+            <col key={row.field.key} />
           ))}
-          {variants && variants.need.kind !== 'none' && (variants.method === 'list' || variants.method === 'links') ? (
-            <VariantsRow props={variants} locked={locked} hasAddHead={!!addHead} />
-          ) : null}
+          <col style={{ width: END_COLUMN }} />
+        </colgroup>
+        <thead>
+          <tr className="[&>th]:border-b [&>th]:border-line">
+            <th scope="col" className="sticky left-0 z-10 bg-panel px-2 py-2 text-left text-sm font-normal text-muted-foreground" aria-label="Image" />
+            <th scope="col" className="sticky left-[48px] z-10 bg-panel px-2 py-2 text-left text-sm font-normal text-muted-foreground">Title</th>
+            <th scope="col" className="border-l border-line px-2 py-2 text-left text-sm font-normal text-muted-foreground">Link</th>
+            {rows.map((row) => (
+              <th key={row.field.key} scope="col" className="border-l border-line px-2 py-2 text-left align-top font-normal">
+                <button type="button" aria-expanded={row.expanded} onClick={row.onToggle} className="flex w-full min-w-0 items-baseline gap-1.5 text-left">
+                  <ChevronRight aria-hidden className={cn('size-3 shrink-0 self-center text-muted-foreground transition-transform', row.expanded && 'rotate-90')} />
+                  <span className="min-w-0 truncate text-base">{row.field.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{TYPE_LABELS[row.field.type]}</span>
+                </button>
+              </th>
+            ))}
+            <th scope="col" className="sticky right-0 z-10 [box-shadow:inset_1px_0_0_var(--border),inset_0_-1px_0_var(--border)] bg-panel" aria-label="Actions" />
+          </tr>
+        </thead>
+        <tbody>
+          {columns.map((c, i) => (
+            <tr key={i} className="[&>*]:border-b [&>*]:border-line">
+              {'blank' in c ? (
+                <th scope="row" colSpan={3} className="sticky left-0 z-10 bg-panel px-2 py-1.5 text-left font-normal">{c.blank}</th>
+              ) : (
+                <>
+                  <td className="sticky left-0 z-10 bg-panel px-2 py-1">{c.image}</td>
+                  <th scope="row" className="sticky left-[48px] z-10 bg-panel px-2 py-1 text-left font-normal">{c.title}</th>
+                  <td className="border-l border-line px-2 py-1">{c.page}</td>
+                </>
+              )}
+              {rows.map((row, fi) => renderCell(row, fi, i))}
+              <td className="sticky right-0 z-10 [box-shadow:inset_1px_0_0_var(--border),inset_0_-1px_0_var(--border)] bg-panel px-2 py-1 text-right">{'blank' in c ? null : c.end}</td>
+            </tr>
+          ))}
+          {/* Each field's status and its one action, under its own column. */}
+          <tr>
+            {/* Pinned over the photo and title columns only, like the rows above: spanning the link column too, it
+                covered a field column once the table scrolled sideways (Marko 2026-11-19). */}
+            <th scope="row" colSpan={2} className="sticky left-0 z-10 bg-panel px-2 py-2 text-left align-top text-sm font-normal text-muted-foreground">
+              Status
+            </th>
+            <td className="border-l border-line" />
+            {rows.map((row) => (
+              <td key={row.field.key} className="border-l border-line px-2 py-2 align-top">
+                <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} fix={row.fix} offer={row.offer} onFix={onFix} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} heldWord={row.heldWord} onReverifyField={row.onReverifyField} showMoney={showMoney} />
+              </td>
+            ))}
+            <td className="sticky right-0 z-10 [box-shadow:inset_1px_0_0_var(--border)] bg-panel" />
+          </tr>
         </tbody>
       </table>
     </ScrollAreaContent>
     </ScrollAreaViewport>
-      {/* More products off either side: a soft edge beside the pinned columns, gone at the end of the scroll. */}
-      <div aria-hidden className="table-fade table-fade-start" />
-      <div aria-hidden className="table-fade table-fade-end" />
     </ScrollArea>
+      {/* Under the plain table, not inside it: adding a product is an action on the table, not a row of it. */}
+      {addHead ? <div>{addHead}</div> : null}
+      {fieldNotes.length > 0 ? (
+        <div className="rounded-[6px] border border-line bg-panel" data-testid="verification-grid-notes">
+          {fieldNotes.map((row) => (
+            <div key={row.field.key} className="space-y-2 border-b border-line px-3 py-2.5 last:border-0">
+              <p className="text-sm font-medium">{row.field.name}</p>
+              {row.drift && row.drift.length > 0 ? <DriftLines field={row.field} lines={row.drift} locked={locked} /> : null}
+              {row.coverage ? (
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground" data-coverage={row.field.key}>
+                  <span>{row.coverage.text}</span>
+                  {row.coverage.onUseAsProofPage ? (
+                    <Button variant="outline" size="xs" disabled={locked} aria-label={`Use a sampled product as proof page for ${row.field.name}`} onClick={row.coverage.onUseAsProofPage}>
+                      Use as proof page
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+              {row.expanded ? <FieldDetails field={row.field} locked={locked} {...row.details} /> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {/* The Variants row keeps its own shape (a column per product) under the table. */}
+      {showVariants ? (
+        <div className="overflow-x-auto rounded-[6px] border border-line bg-panel">
+          <table className="w-full table-fixed border-collapse" style={{ minWidth: 180 + columns.length * 190 + (addHead ? 160 : 0) + 220 }}>
+            <colgroup>
+              <col style={{ width: 180 }} />
+              {columns.map((_, i) => (
+                <col key={i} />
+              ))}
+              {addHead ? <col style={{ width: 160 }} /> : null}
+              <col style={{ width: 220 }} />
+            </colgroup>
+            <tbody>
+              <VariantsRow props={variants!} locked={locked} hasAddHead={!!addHead} />
+            </tbody>
+          </table>
+        </div>
+      ) : null}
       {keyboard && selection ? (
         <p className="hidden items-center gap-x-3 text-xs text-muted-foreground md:flex" data-testid="table-keys">
           <span><kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd><kbd className="kbd">←</kbd><kbd className="kbd">→</kbd> move</span>
@@ -688,6 +674,7 @@ export function VerificationTable({
           <span><kbd className="kbd">Esc</kbd> close</span>
         </p>
       ) : null}
+      <p className="hidden text-xs text-muted-foreground md:block" data-testid="table-click-hint">Click any cell to open its screenshot on that value.</p>
     </div>
   );
 }

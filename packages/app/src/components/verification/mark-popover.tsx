@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button } from '../ui/button';
-import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Popover, PopoverContent } from '@ui-sdk/react/popover';
 import { fieldsFor, valueFromBox, validateValue, type Box } from '../../lib/site/verification-model';
 
 /**
@@ -75,30 +74,38 @@ export function MarkPopover({
       : null;
 
   return (
-    <Popover open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <PopoverAnchor asChild>
-        <span style={{ position: 'fixed', left: at.x, top: at.y, width: 0, height: 0 }} />
-      </PopoverAnchor>
-      <PopoverContent className="w-72 space-y-3">
+    // On UI SDK's popover (Marko 2026-11-19): the screenshot is itself a popover in the browser's top layer, and
+    // only a popup of the same kind opens above it. Anchored to the point that was clicked.
+    <Popover open={open} modal={false} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <PopoverContent
+        anchor={{ x: at.x, y: at.y }}
+        side="bottom"
+        align="start"
+        sideOffset={8}
+        collisionPadding={12}
+        aria-label="Mark this value"
+        className="shot-popover m-0 w-72 space-y-3 rounded-md border border-line bg-popover p-4 text-popover-foreground [box-shadow:var(--shadow)]"
+      >
         {'error' in shown ? (
           <p className="text-sm text-fail">{shown.error}</p>
         ) : (
           <p className="line-clamp-2 font-mono text-base">{shown.value}</p>
         )}
 
-        <Select value={selectedKey} onValueChange={setSelectedKey}>
-          <SelectTrigger size="sm" className="w-full">
-            <SelectValue placeholder="Choose a field" />
-          </SelectTrigger>
-          <SelectContent>
-            {fields.map((f) => (
-              <SelectItem key={f.field.key} value={f.field.key}>
-                {f.field.name}
-                {f.answered ? <span className="text-muted-foreground"> · already on this product</span> : null}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* The browser's own list: it opens above everything, the top layer included. */}
+        <select
+          aria-label="Field"
+          value={selectedKey}
+          onChange={(e) => setSelectedKey(e.target.value)}
+          className="h-8 w-full rounded-md border border-line bg-transparent px-2 text-base outline-none focus-visible:border-line-hover"
+        >
+          {selectedKey ? null : <option value="">Choose a field</option>}
+          {fields.map((f) => (
+            <option key={f.field.key} value={f.field.key}>
+              {f.field.name}{f.answered ? ' · already on this product' : ''}
+            </option>
+          ))}
+        </select>
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">

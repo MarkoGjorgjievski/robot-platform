@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { shortUrl, type Card } from '../../lib/site/verification-model';
 import type { ProofCapture } from '../../lib/site/use-proof-captures';
 import { CaptureStateWords } from './capture-words-view';
@@ -162,6 +163,28 @@ export function BlankProductCard({
  * word when it is ready, the whole sentence with Try again / Swap product when the website turned us
  * away. The same for every field, so it is a row of its own rather than part of the column head.
  */
+/**
+ * A product address that uses the width it has: the start is cut by the column (an ellipsis where it runs out) and
+ * the last characters, where the product's id usually is, always show. `shortUrl`'s fixed length left a gap at the
+ * end of a wide column (Marko 2026-11-19).
+ */
+export function FittedPath({ url }: { url: string }) {
+  let p: string;
+  try {
+    const u = new URL(url);
+    p = u.pathname + (u.search ? '?…' : '');
+  } catch {
+    p = url;
+  }
+  const cut = Math.max(0, p.length - 14);
+  return (
+    <span className="flex min-w-0" title={p}>
+      <span className="min-w-0 truncate">{p.slice(0, cut)}</span>
+      <span className="shrink-0">{p.slice(cut)}</span>
+    </span>
+  );
+}
+
 export function ProductPageCell({
   card,
   index,
@@ -173,7 +196,10 @@ export function ProductPageCell({
   notChecked,
   websiteName,
   from,
+  compact = false,
 }: {
+  /** One line, for a table row: the page's state sits beside the link, and where it came from is left to the tooltip. */
+  compact?: boolean;
   card: Card;
   index: number;
   disabled: boolean;
@@ -188,19 +214,20 @@ export function ProductPageCell({
 }) {
   const status = capture?.status ?? 'starting';
   return (
-    <div className="min-w-0 space-y-1">
-      <div className="flex min-w-0 items-center gap-1">
+    <div className={compact ? 'flex min-w-0 items-center gap-2 [&>*]:min-w-0 [&>span]:shrink-0' : 'min-w-0 space-y-1'}>
+      <div className={`flex min-w-0 items-center gap-1 ${compact ? 'flex-1' : ''}`}>
         <a
           href={card.url}
           target="_blank"
           rel="noreferrer"
           title={card.url}
           aria-label={`Open product ${index + 1}'s page in a new tab`}
-          className="inline-flex min-w-0 flex-1 items-center gap-1 font-mono text-xs text-muted-foreground underline decoration-line-hover underline-offset-2 hover:text-text"
+          className="inline-flex min-w-0 flex-1 items-center gap-0 font-mono text-xs text-muted-foreground underline decoration-line-hover underline-offset-2 hover:text-text"
         >
-          <span className="truncate">{shortUrl(card.url)}</span>
+          {compact ? <FittedPath url={card.url} /> : <span className="truncate">{shortUrl(card.url)}</span>}
           <ExternalLink aria-hidden className="size-3 shrink-0" />
         </a>
+        {compact ? null : (
         <Button
           variant="ghost"
           size="icon-xs"
@@ -212,8 +239,9 @@ export function ProductPageCell({
         >
           ×
         </Button>
+        )}
       </div>
-      {from ? (
+      {from && !compact ? (
         <p className="truncate text-xs font-normal text-muted-foreground" title={from}>
           from {from}
         </p>
@@ -222,7 +250,8 @@ export function ProductPageCell({
         <span className="block min-w-0 line-clamp-2 text-sm text-warn" title={notChecked}>
           {notChecked}
         </span>
-      ) : (
+      ) : compact && status === 'captured' ? null : (
+        // In a table row a page that is fine says nothing (Marko 2026-11-19); only a problem, or a screenshot on its way, shows.
         <CaptureStateWords capture={capture} name={websiteName} disabled={disabled} onRetry={onRetry} onSwap={onSwap} />
       )}
     </div>
@@ -234,24 +263,34 @@ export function ProductPageCell({
  * shop photos are cut out on white. A click shows this product's screenshot; the border says which one
  * is showing. A page pasted by hand has no photo, so the tile names the product instead.
  */
-export function ProductImageButton({ card, index, selected, disabled, onSelect, taken }: { card: Card; index: number; selected: boolean; disabled: boolean; onSelect: () => void; /** When its screenshot was taken, as shown. */ taken?: string | null }) {
-  return (
+export function ProductImageButton({ card, index, selected, disabled, onSelect, taken, compact = false }: { card: Card; index: number; selected: boolean; disabled: boolean; onSelect: () => void; /** When its screenshot was taken, as shown. */ taken?: string | null; /** A thumbnail for a table row, not a tile. */ compact?: boolean }) {
+  const button = (
     <button
       type="button"
       disabled={disabled}
       onClick={onSelect}
       aria-pressed={selected}
       aria-label={`Show product ${index + 1}'s screenshot`}
-      title={taken ? `Screenshot taken ${taken}` : undefined}
-      className={`flex h-[112px] w-full items-center justify-center overflow-hidden rounded-[6px] border disabled:cursor-not-allowed ${selected ? 'border-text' : 'border-line hover:border-line-hover'} ${card.image ? 'bg-white p-2' : 'bg-raised'}`}
+      title={taken && !(compact && card.image) ? `Screenshot taken ${taken}` : undefined}
+      className={`flex ${compact ? 'size-8' : 'h-[112px] w-full'} items-center justify-center overflow-hidden rounded-[6px] border disabled:cursor-not-allowed ${selected ? 'border-text' : 'border-line hover:border-line-hover'} ${card.image ? 'bg-white p-2' : 'bg-raised'}`}
     >
-      {card.image ? <img src={card.image} alt="" className="h-full w-full object-contain" /> : <span className="text-sm font-normal text-muted-foreground">Product {index + 1}</span>}
+      {card.image ? <img src={card.image} alt="" className="h-full w-full object-contain" /> : <span className="text-sm font-normal text-muted-foreground">{compact ? index + 1 : `Product ${index + 1}`}</span>}
     </button>
+  );
+  // In a table row the photo is a thumbnail; hovering it shows the photo at a size that can be told apart (Marko 2026-11-18).
+  if (!compact || !card.image) return button;
+  return (
+    <Tooltip delayDuration={150}>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8} className="rounded-[6px] border border-line bg-white p-1 [&>span]:hidden [&>svg]:hidden">
+        <img src={card.image} alt="" className="block size-[220px] object-contain" />
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
 /** A product's title as its own table row: two lines at most, the whole of it on hover. A click shows its screenshot, like the photo. */
-export function ProductTitleButton({ card, selected, disabled, onSelect }: { card: Card; selected: boolean; disabled: boolean; onSelect: () => void }) {
+export function ProductTitleButton({ card, selected, disabled, onSelect, compact = false }: { card: Card; selected: boolean; disabled: boolean; onSelect: () => void; /** One line, for a table row. */ compact?: boolean }) {
   return (
     <button
       type="button"
@@ -259,7 +298,7 @@ export function ProductTitleButton({ card, selected, disabled, onSelect }: { car
       onClick={onSelect}
       aria-pressed={selected}
       title={card.title}
-      className="line-clamp-2 w-full text-left text-base leading-snug font-medium underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:no-underline"
+      className={`${compact ? 'block truncate' : 'line-clamp-2'} w-full text-left text-base leading-snug font-medium underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:no-underline`}
     >
       {card.title}
     </button>

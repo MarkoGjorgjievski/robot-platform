@@ -7,7 +7,7 @@ import {
   failsText, displayValue, pickAnswer, cellAcceptable, carryFrom, type Suggestion,
   markAbsent, isAbsent, titleFromCapture,
   setDefault, defaultOf, isDefaultCell, rowValue, defaultOnlyWord, DEFAULT_ONLY_WORD, cellText, type Suggestions,
-  typedAnswer, type Answer, notOnWebsiteWord, REVERIFY_FIELD, REVERIFY_FIELD_FREE, rowFix, type Segment,
+  typedAnswer, type Answer, notOnWebsiteWord, REVERIFY_FIELD, REVERIFY_FIELD_FREE, rowFix, rowOffer, markRowAbsent, type Segment,
 } from './verification-model';
 import { AI_UNAVAILABLE_BADGE, NOT_VERIFIED_BADGE } from './verify-messages';
 import { shownTextFromHtml } from '@robot/scraper/shown-text';
@@ -797,9 +797,9 @@ describe('the table-first rules, revised', () => {
     expect(failsText([1, 2, 3])).toBe('fails on products 1, 2 and 3');
   });
   it('shows yes/no answers in one form', () => {
-    expect(displayValue(stock, 'https://schema.org/InStock')).toBe('In stock');
-    expect(displayValue(stock, 'Available')).toBe('In stock');
-    expect(displayValue(stock, 'out of stock')).toBe('Out of stock');
+    expect(displayValue(stock, 'https://schema.org/InStock')).toBe('Yes');
+    expect(displayValue(stock, 'Available')).toBe('Yes');
+    expect(displayValue(stock, 'out of stock')).toBe('No');
     expect(displayValue({ ...stock, concept: 'remote' }, 'yes')).toBe('Yes');
     expect(displayValue(sku, 'A1')).toBe('A1');
   });
@@ -1083,5 +1083,41 @@ describe('rowFix: what a row that needs you offers', () => {
     expect(rowFix({ kind: 'needs-you', reason: 'screenshot not ready on product 1', product: 1 }, [{ state: 'empty', ready: false }])).toBeNull();
     expect(rowFix({ kind: 'needs-you', reason: 'comes from different places' }, ready(['suggested']))).toBeNull();
     expect(rowFix({ kind: 'agreed' }, ready(['suggested']))).toBeNull();
+  });
+});
+
+// Marko 2026-11-16: a row offered only the screenshot where the screenshot cannot settle it.
+describe('rowOffer: a needs-you row\'s way out beside the screenshot', () => {
+  it('page data by one path that a page does not show: the row may be accepted from the page data', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [], JL), sug('219.99', [1], JL), sug('149.00', [], JL)]);
+    const st = rowStatus(price, b, live, maps());
+    expect(rowOffer(price, st, b, live, maps())).toBe('page-data');
+    const taken = acceptRow(b, price, live, maps());
+    expect(rowStatus(price, taken, liveSuggestions(live, taken, Object.fromEntries(U.map((u) => [u, 'c']))), maps())).toEqual<RowStatus>({ kind: 'accepted' });
+  });
+  it('not when the paths differ, a value was carried from another product, or a screenshot is not in', () => {
+    const b = board();
+    const mixed = liveFor(b, 'price', [sug('129.99', [], JL), sug('219.99', [], API), sug('149.00', [], JL)]);
+    expect(rowOffer(price, rowStatus(price, b, mixed, maps()), b, mixed, maps())).toBeNull();
+    const carried = liveFor(b, 'price', [sug('129.99', [1], JL), { ...sug('219.99', [], JL), origin: 'from-product' as const }, sug('149.00', [1], JL)]);
+    expect(rowOffer(price, rowStatus(price, b, carried, maps()), b, carried, maps())).toBeNull();
+    const live = liveFor(b, 'price', [sug('129.99', [], JL), sug('219.99', [], JL), sug('149.00', [], JL)]);
+    const two = { ...maps() }; delete two[U[2]!];
+    expect(rowOffer(price, rowStatus(price, b, live, two), b, live, two)).toBeNull();
+  });
+  it('nothing found on any product: the row may be marked not on this website, and then reads accepted', () => {
+    const b = board();
+    const st = rowStatus(price, b, {}, maps());
+    expect(st).toEqual<RowStatus>({ kind: 'needs-you', reason: 'missing on product 1', product: 1 });
+    expect(rowOffer(price, st, b, {}, maps())).toBe('not-on-website');
+    const marked = markRowAbsent(b, 'price');
+    expect(U.every((u) => marked.answers.price![u]!.absent)).toBe(true);
+    expect(rowStatus(price, marked, {}, maps())).toEqual<RowStatus>({ kind: 'accepted' });
+  });
+  it('not offered once one product has a value, and never overwrites it', () => {
+    const b = answer(board(), 'price', U[1]!, { value: '219.99', mark: null });
+    expect(rowOffer(price, rowStatus(price, b, {}, maps()), b, {}, maps())).toBeNull();
+    expect(markRowAbsent(b, 'price').answers.price![U[1]!]!.value).toBe('219.99');
   });
 });

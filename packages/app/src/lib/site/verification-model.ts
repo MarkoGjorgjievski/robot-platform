@@ -480,13 +480,15 @@ export function placesOf(boxes: Box[], s: Suggestion, field: Field, url: string)
   return at.length;
 }
 
-/** Yes/no answers in one form (spec A6); the saved value is never rewritten. Other types unchanged. */
+/**
+ * Yes/no answers in one form (spec A6); the saved value is never rewritten. Other types unchanged. Every yes/no field
+ * reads Yes or No, In stock included (Marko 2026-11-20): one field type, one way of writing it.
+ */
 export function displayValue(field: Field, value: string): string {
   if (field.type !== 'boolean') return value;
   const n = normalize('boolean', value);
-  const stock = field.concept === 'availability';
-  if (n === 'true') return stock ? 'In stock' : 'Yes';
-  if (n === 'false') return stock ? 'Out of stock' : 'No';
+  if (n === 'true') return 'Yes';
+  if (n === 'false') return 'No';
   return value;
 }
 
@@ -802,6 +804,50 @@ export function rowFix(status: RowStatus, cells: Array<{ state: Segment; ready: 
   const cell = cells[status.product - 1];
   if (!cell?.ready) return null;
   return { product: status.product, label: fixLabel(cell.state) };
+}
+
+/**
+ * A needs-you row's second way out, beside the screenshot (Marko 2026-11-16: "Fix on screenshot" was all a row
+ * offered where the screenshot cannot settle it):
+ * - `page-data`: every open product has a valid value from the page's data by one and the same path, and at least
+ *   one page does not show it (In stock from the page's offer data). Clicking the row's Accept is the person's
+ *   look (spec 2026-10-09 §B1 asked for one); each cell keeps its path, so Verify certifies as for any accepted row.
+ *   Never a Title (the heading rule decides it) and never a value carried from another product.
+ * - `not-on-website`: no product has a value, a suggestion or a default (Discount on a shop with no sale on):
+ *   one click marks every open product "not on this product", which Verify passes as not on this website.
+ * Only once every product's screenshot is in: before that "nothing found" may only mean "not read yet".
+ */
+export type RowOffer = 'page-data' | 'not-on-website';
+export function rowOffer(field: Field, status: RowStatus, board: Board, live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>): RowOffer | null {
+  if (status.kind !== 'needs-you' || status.product === undefined) return null;
+  const cards = board.cards.filter((c) => c.url.trim());
+  if (cards.length === 0 || cards.some((c) => !boxesByUrl[c.url])) return null;
+  const open = cards.filter((c) => !board.answers[field.key]?.[c.url]);
+  if (open.length === 0) return null;
+  const sugs = open.map((c) => live[field.key]?.[c.url]);
+  if (sugs.every((s) => !s)) {
+    if (defaultOf(board, field.key) !== undefined) return null;
+    return cards.some((c) => { const a = board.answers[field.key]?.[c.url]; return !!a && !a.absent; }) ? null : 'not-on-website';
+  }
+  if (field.concept === 'product_name') return null;
+  let unseen = 0;
+  for (const [i, c] of open.entries()) {
+    const s = sugs[i];
+    if (!s || s.origin !== 'page-data' || !sameVia(s.via, sugs[0]!.via) || validateValue(field.type, s.value)) return null;
+    const places = placesOf(boxesByUrl[c.url]!, s, field, c.url);
+    if (places > 1) return null;
+    if (places === 0) unseen++;
+  }
+  return unseen > 0 ? 'page-data' : null;
+}
+
+/** `rowOffer`'s "not on this website": every open product marked "not on this product". Never overwrites an answer. */
+export function markRowAbsent(board: Board, key: string): Board {
+  let next = board;
+  for (const c of board.cards) {
+    if (c.url.trim() && !next.answers[key]?.[c.url]) next = markAbsent(next, key, c.url);
+  }
+  return next;
 }
 
 /** The value cell's state word — distinct from the battery's own ("confirmed"): the table calls an answered cell "accepted". */

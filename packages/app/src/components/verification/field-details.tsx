@@ -34,7 +34,13 @@ export function BadgeView({ badge }: { badge: Badge }) {
     case 'unverified':
       return <span className="shrink-0 text-sm text-fail">{badge.text}</span>;
     case 'changed':
-      return <span className="shrink-0 text-sm text-muted-foreground">changed since verified</span>;
+      // The same dot marks the cells this is about (Marko 2026-11-18).
+      return (
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
+          <span aria-hidden className="size-1.5 rounded-full bg-warn" />
+          changed since verified
+        </span>
+      );
     case 'checking':
       return (
         <span className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">

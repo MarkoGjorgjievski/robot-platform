@@ -6,17 +6,18 @@ import { Link, createFileRoute, useNavigate, useRouteContext } from '@tanstack/r
 import { Button } from '../../../../../../components/ui/button';
 import { Skeleton } from '../../../../../../components/ui/skeleton';
 import { ListingBar, listingLabel } from '../../../../../../components/verification/listing-bar';
-import { AddProductCard } from '../../../../../../components/verification/product-grid';
 import { BlankProductCard, ProductImageButton, ProductPageCell, ProductTitleButton } from '../../../../../../components/verification/product-card';
 import { CaptureStateWords, TurnedAwayBar } from '../../../../../../components/verification/capture-words-view';
 import { captureKind, isWaiting } from '../../../../../../lib/site/turned-away';
 import { PageViewer, type Overlay } from '../../../../../../components/verification/page-viewer';
 import { MarkPopover } from '../../../../../../components/verification/mark-popover';
+import { SampledProducts } from '../../../../../../components/verification/sampled-products';
+import { ScreenshotPopover } from '../../../../../../components/verification/screenshot-popover';
+import { SectionTitle } from '../../../../../../components/verification/section-title';
 import { VerificationTable, type ProductColumn, type TableRow, type DriftLine } from '../../../../../../components/verification/verification-table';
 import { clampSelection, headerCount, type CellSelection } from '../../../../../../lib/site/table-selection';
 import { VerifyBar } from '../../../../../../components/verification/verify-bar';
 import { useWide } from '../../../../../../lib/use-wide';
-import { Resizable, ResizableHandle, ResizablePanel } from '@ui-sdk/react/resizable';
 import { ageIfOld, dateTime, utcDateTime } from '../../../../../../lib/when';
 import { downloadStamped, stampText, stampedFilename } from '../../../../../../lib/site/screenshot-stamp';
 import { DriftBanner } from '../../../../../../components/verification/drift-banner';
@@ -54,6 +55,9 @@ import {
   reverifyScope,
   rowStatus,
   rowFix,
+  acceptRow,
+  rowOffer,
+  markRowAbsent,
   rowValue,
   segment,
   setCards,
@@ -447,6 +451,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     { sourceId },
     { refetchInterval: (query) => (query.state.data?.status === 'running' ? 3000 : false) },
   );
+  // The last finished check stays on screen while a new one runs (after a Verify), so the block never empties.
+  const lastSampled = useRef<{ results: NonNullable<NonNullable<typeof coverageQuery.data>['results']>; createdAt: Date } | null>(null);
+  if (coverageQuery.data?.status === 'done' && coverageQuery.data.results) lastSampled.current = { results: coverageQuery.data.results, createdAt: coverageQuery.data.createdAt };
   const coverage: ProofCoverageView | null = coverageQuery.data
     ? { status: coverageQuery.data.status, stage: coverageQuery.data.stage, fields: coverageQuery.data.fields }
     : null;
@@ -726,9 +733,13 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
    */
   const wide = useWide();
   const [panelDismissed, setPanelDismissed] = useState(false);
-  const panelOpen = board.cards.length > 0 && (search.product !== undefined || (wide && !panelDismissed));
-  /** Beside the table rather than under it. */
-  const panelBeside = wide && panelOpen;
+  // On a wide screen the screenshot is a popover beside the cell it is about (Marko 2026-11-19): closed until a
+  // cell or a product asks for it. On a narrow one it stays under the table.
+  const panelOpen = board.cards.length > 0 && search.product !== undefined;
+  /** Beside the table as its own column: retired with the popover, kept as a name the screenshot's markup reads. */
+  const panelBeside = false as boolean;
+  /** As the popover. */
+  const panelFloats = wide && panelOpen;
   const closePanel = useCallback(() => {
     setPopover(null);
     setPanelDismissed(true);
@@ -1062,6 +1073,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     return s ? (pointable(boxes, s.boxes)[0] ?? null) : null;
   })();
 
+  /** The selected cell has a value (an answer or a suggestion) — with no element to outline, the popover says why. */
+  const shownValue = !!fieldKey && !!selectedUrl && (!!board.answers[fieldKey]?.[selectedUrl]?.value || !!live[fieldKey]?.[selectedUrl]);
+
   // --- Marking.
   function tick(key: string) {
     const pop = popover;
@@ -1206,7 +1220,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const arrivalField = arrival?.field ? fields.find((f) => f.key === arrival.field || f.name === arrival.field) : undefined;
   const arrivalPrompt =
     arrival && !arrival.note && arrivalField && selectedUrl === arrival.url && !board.answers[arrivalField.key]?.[selectedUrl]
-      ? `Mark ${arrivalField.name} on this product`
+      ? `Click ${arrivalField.name} on this screenshot to mark it`
       : null;
 
   // --- Verify.
@@ -1532,6 +1546,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         // yet) is inert.
         notOnPage: typedNotShown(f, board.answers[f.key]?.[c.url], pageFacts[c.url]?.pageText ?? ''),
         isDefault: isDefaultCell(board, f, live, c.url),
+        // The row reads "changed since verified" and this product was not part of that verification: the cell that changed.
+        changed: !!results?.[f.key] && !unchangedKeys.includes(f.key) && c.url.trim() !== '' && !results[f.key]!.cells[c.url] && !!board.answers[f.key]?.[c.url],
       })),
       hasDefault: defaultOf(board, f.key) !== undefined,
       defaultOnlyWord: defaultOnlyWord(results, f.key, unchangedKeys) ?? notOnWebsiteWord(results, f.key, unchangedKeys),
@@ -1539,6 +1555,11 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       heldWord: heldWord(status?.held?.[f.key]?.verifiedAt),
       // First run 2026-10-25: a row that needs you on one product offers that cell's Fix / Mark on the screenshot.
       fix: rowFix(statuses[fi]!, board.cards.map((c) => ({ state: segment(board, live, f.key, c.url, { failed: c.url !== '' && failedCell(f.key, c.url) }), ready: !!boxesByUrl[c.url] }))),
+      // Marko 2026-11-16: where the screenshot cannot settle a row, it offers the page data's values or "Not on this website".
+      offer: ((kind) => (kind === null ? null : {
+        kind,
+        onTake: () => setBoard((b) => (kind === 'page-data' ? acceptRow(b, f, live, boxesByUrl) : markRowAbsent(b, f.key))),
+      }))(rowOffer(f, statuses[fi]!, board, live, boxesByUrl)),
       addressWarning: addressWarning(f.key, results, board.cards, pageVariants),
       onReverifyField: () => void reverifyField(f.key),
       // Spec 2026-10-16 §6: a variant note only under a field whose certified or suggested path reads a variant list.
@@ -1614,6 +1635,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 
   // Each product's three rows above the fields: its photo, its title, and its link with the screenshot state and ×.
   // A slot with no page yet is one address input instead.
+
   const columns: ProductColumn[] = board.cards.map((card, i) => {
     if (card.url.trim() === '') {
       return { blank: <BlankProductCard index={i} disabled={locked} onCommit={(url) => onReplace(i, url)} onDrop={() => onDrop(i)} hostProblem={hostProblem} /> };
@@ -1625,8 +1647,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       setReveal((r) => ({ n: r.n + 1, product: i + 1, field: fieldKey }));
     };
     return {
-      image: <ProductImageButton card={card} index={i} selected={showing} disabled={locked} onSelect={onSelect} taken={dateTime(captures.byUrl[card.url]?.capturedAt)} />,
-      title: <ProductTitleButton card={card} selected={showing} disabled={locked} onSelect={onSelect} />,
+      image: <ProductImageButton card={card} index={i} selected={showing} disabled={locked} onSelect={onSelect} taken={dateTime(captures.byUrl[card.url]?.capturedAt)} compact />,
+      title: <ProductTitleButton card={card} selected={showing} disabled={locked} onSelect={onSelect} compact />,
       page: (
         <ProductPageCell
           card={card}
@@ -1639,7 +1661,13 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           websiteName={source.name}
           notChecked={!active && blocked[card.url] !== undefined ? notCheckedText(i + 1, blocked[card.url]) : null}
           from={cameFrom.current.has(card.url) ? listingLabel(cameFrom.current.get(card.url)!) : undefined}
+          compact
         />
+      ),
+      end: (
+        <Button variant="ghost" size="xs" disabled={locked} aria-label={`Remove product ${i + 1}`} onClick={() => onDrop(i)}>
+          Remove
+        </Button>
       ),
     };
   });
@@ -1655,6 +1683,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const [downloading, setDownloading] = useState(false);
   const screenshotPanel = panelOpen ? (
         <section aria-label="Screenshot" className={panelBeside ? 'min-w-0 space-y-2 xl:sticky xl:top-4' : 'space-y-2'}>
+          {panelFloats ? null : (
+            <>
           {/* The same box as the bars on the left, so the two columns start on one line. */}
           <div className="flex items-center justify-between gap-3 rounded-[6px] border border-line bg-panel px-3 py-2.5 [box-shadow:var(--shadow)]">
             <div className="min-w-0">
@@ -1710,6 +1740,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               </Button>
             </div>
           </div>
+            </>
+          )}
           {variantMark && variantMark.url === selectedUrl ? (
             <div className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-warn pl-3">
               <p className="text-sm">Click one of the {noun.replace(/s$/, '')} buttons on this screenshot</p>
@@ -1728,7 +1760,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               highlight={highlight}
               reveal={reveal.product === selected + 1 && reveal.field === fieldKey ? reveal.n : 0}
               locked={locked}
-              tall={panelBeside}
+              tall={panelBeside || panelFloats}
               stamp={stampText(capture?.capturedAt)}
               onPick={(box, at) => {
                 // In variant mark mode a click names the variant buttons, not a field.
@@ -1753,16 +1785,57 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               }}
             />
           </ProductView>
+          {/* In the popover there is no header (Marko 2026-11-19): why nothing is outlined, and the picture's two actions, sit under it. */}
+          {panelFloats && fieldKey && highlight === null && shownValue ? (
+            <p className="px-1 text-sm text-muted-foreground" data-testid="not-on-screenshot">
+              {fields.find((f) => f.key === fieldKey)?.name ?? 'This value'} comes from the page&apos;s data: the page does not show it as text, so there is nothing to outline.
+            </p>
+          ) : null}
+          {panelFloats ? (
+            <div className="flex items-center justify-end gap-1">
+              {capture?.status === 'captured' ? (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  disabled={locked}
+                  title="Take a new screenshot of this page"
+                  className="text-muted-foreground hover:text-text"
+                  onClick={() => captures.retry(selectedUrl)}
+                >
+                  <RefreshCw />
+                  Retake
+                </Button>
+              ) : null}
+              {/* The whole page as one picture with the stamp drawn into it, so the date stays with the file. */}
+              {capture?.capturedAt && tiles.length > 0 ? (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  disabled={downloading}
+                  title="Download this screenshot with its date stamped on it"
+                  className="text-muted-foreground hover:text-text"
+                  onClick={() => {
+                    const stamp = stampText(capture.capturedAt);
+                    if (!stamp || !capture.capturedAt) return;
+                    setDownloading(true);
+                    downloadStamped({ tiles, stamp, url: selectedUrl, filename: stampedFilename(selected + 1, capture.capturedAt) })
+                      .catch(() => toast.error('The screenshot could not be downloaded. Try again.'))
+                      .finally(() => setDownloading(false));
+                  }}
+                >
+                  {downloading ? <Loader2 className="animate-spin" /> : <Download />}
+                  Download
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           {locked ? null : popoverView}
         </section>
   ) : null;
 
   return (
-    // On a wide screen the screenshot is a column of its own from the top of the tab (Marko 2026-11-13),
-    // beside the listing bar, the steps and the table; otherwise it follows them. The divider between them
-    // drags (and takes arrow keys); the widths are remembered in this browser.
-    <Resizable autoSaveId="verification-split">
-    <ResizablePanel id="verification-main" minSize="420px" className="min-w-0 space-y-4">
+    // The listing bar, the steps and the table; the screenshot opens over them as a popover (under them on a narrow screen).
+    <div className="min-w-0 space-y-4">
       <div className={`${panel} relative space-y-3 overflow-hidden ${board.cards.length > 0 ? 'p-3' : 'p-4'}`}>
         {/* A soft light from the top edge: the first step reads as the page's input, not one more panel. Only while it is the question. */}
         {board.cards.length === 0 ? (
@@ -1855,13 +1928,32 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         <div>
           <div className="min-w-0 space-y-2">
             <TurnedAwayBar captures={board.cards.map((c) => (c.url.trim() ? captures.byUrl[c.url] : undefined))} name={source.name} />
+            {/* What this step is, said once above the table (Marko 2026-11-19): it is not obvious that three products stand for the whole website. */}
+            <div className="px-1">
+              <SectionTitle
+                title="Proof products"
+                info={
+                  <>
+                    <p>
+                      <strong>These products teach us how to read the whole website.</strong> Each value in the table should match what its product&apos;s page shows.
+                    </p>
+                    <ul className="list-disc pl-5">
+                      <li>
+                        <strong>Right:</strong> accept it.
+                      </li>
+                      <li>
+                        <strong>Wrong or missing:</strong> click the cell and mark the right value on the screenshot.
+                      </li>
+                    </ul>
+                    <p>
+                      When every column is accepted, press <strong>Verify</strong>. We then read every other product the same way.
+                    </p>
+                  </>
+                }
+              />
+            </div>
             <VerificationTable
               columns={columns}
-              addHead={
-                board.cards.length < PRODUCTS_MAX ? (
-                  <AddProductCard compact disabled={locked} canAddFromQueue={queue.length > 0} onAdd={onAdd} hostProblem={hostProblem} />
-                ) : undefined
-              }
               rows={rows}
               locked={locked}
               variants={variantsRow}
@@ -1870,7 +1962,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               onSelect={(sel) => {
                 setRawSelection(sel);
                 // Beside the table the screenshot follows the selected cell: its product, its field outlined.
-                if (sel && panelBeside && board.cards[sel.product]?.url.trim()) {
+                // A click on a cell opens the screenshot on it, wherever the screenshot shows (Marko 2026-11-19).
+                if (sel && board.cards[sel.product]?.url.trim()) {
                   setPopover(null);
                   select({ product: sel.product + 1, field: sel.key });
                   setReveal((r) => ({ n: r.n + 1, product: sel.product + 1, field: sel.key }));
@@ -1888,6 +1981,27 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               liveStage={active ? (status?.stage ?? 'starting') : verifying ? 'starting' : null}
               settling={settling}
             />
+            {/* The products the check read after Verify, shown and not only counted; read-only, with "Use as proof page". */}
+            {lastSampled.current && lastSampled.current.results.sampled.length > 0 ? (
+              <SampledProducts
+                sourceId={sourceId}
+                websiteName={source.name}
+                sampled={lastSampled.current.results.sampled.filter((p) => !board.cards.some((c) => c.url === p.url))}
+                fields={fields}
+                checkedAt={lastSampled.current.createdAt}
+                onUseAsProofPage={
+                  locked || atLimit
+                    ? null
+                    : (url) =>
+                        void navigate({
+                          to: '/projects/$project/sites/$site',
+                          params: { project: projectSlug, site: siteSlug },
+                          search: (prev) => ({ ...prev, addPage: url }),
+                          resetScroll: false,
+                        })
+                }
+              />
+            ) : null}
             <p className="px-1 text-sm text-muted-foreground">
               Field names and types come from the project.{' '}
               <Link to="/projects/$project/fields" params={{ project: projectSlug }} className="text-link underline-offset-4 hover:underline">
@@ -1910,18 +2024,15 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
       {arrivalPrompt ? <p className="text-base">{arrivalPrompt}</p> : null}
 
-      {panelBeside ? null : screenshotPanel}
-    </ResizablePanel>
-    {panelBeside ? (
-      <>
-        <ResizableHandle aria-label="Resize the screenshot" className="split-handle" />
-        {/* `overflow-visible`: the screenshot stays pinned while the left side scrolls. */}
-        <ResizablePanel id="verification-screenshot" defaultSize={38} minSize="320px" maxSize={62} className="min-w-0 overflow-visible">
-          {screenshotPanel}
-        </ResizablePanel>
-      </>
-    ) : null}
-    </Resizable>
+      {panelFloats ? null : screenshotPanel}
+      <ScreenshotPopover
+        open={panelFloats}
+        anchor={fieldKey ? `button[data-cell="${selected}:${fieldKey}"]` : `button[data-cell^="${selected}:"]`}
+        onClose={closePanel}
+      >
+        {screenshotPanel}
+      </ScreenshotPopover>
+    </div>
   );
 }
 
