@@ -5,7 +5,19 @@
 // next proof page. Pure: the row in, strings out.
 import { urlShape, type Shape } from '@robot/scraper';
 
-export type SampledPage = { url: string; empty: string[]; shape: Shape } | { url: string; unread: string };
+/**
+ * `values` (Marko 2026-11-19): what each field read on this page, as text, so the Verification tab can show the
+ * sampled products and not only count them. Absent on a check from before that date; a field that read nothing
+ * (or only its default) has no entry.
+ */
+export type SampledPage = { url: string; empty: string[]; shape: Shape; values?: Record<string, string> } | { url: string; unread: string };
+
+/** A sampled value as the tab shows it: text, lists joined, anything else as JSON; cut at 300 characters. */
+export function sampledText(value: unknown): string {
+  const text = value == null ? '' : typeof value === 'string' ? value : Array.isArray(value) ? value.map((v) => (typeof v === 'string' ? v : JSON.stringify(v))).join(', ') : typeof value === 'object' ? JSON.stringify(value) : String(value);
+  const t = text.trim();
+  return t.length > 300 ? `${t.slice(0, 299)}…` : t;
+}
 /**
  * `noProducts`: the listing had no products at all (spec 2026-10-20 §3.6), so nothing was sampled.
  * `allProofPages`: it had products, every one of them already a proof page (final review M5), so nothing was sampled.

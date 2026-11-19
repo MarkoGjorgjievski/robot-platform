@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { eq, desc, asc, sql } from 'drizzle-orm';
-import { runs, captures, extractions, datasets, projects, sources } from '@robot/db';
+import { and, eq, desc, asc, inArray, sql } from 'drizzle-orm';
+import { runs, runItems, captures, extractions, datasets, projects, sources } from '@robot/db';
 import { router, protectedProcedure } from '../trpc';
 import { runInOrg, sourceInOrg } from '../auth/scope.js';
 import { contractAxes, type VariantMode } from '../contract.js';
@@ -189,7 +189,22 @@ export const runsRouter = router({
         orderBy: [desc(runs.createdAt)],
         limit: 50,
       });
-      return results;
+      // Marko 2026-11-18: each run's product pages by outcome, for the list's bar — one grouped read for all fifty.
+      const tallies = results.length === 0 ? [] : await ctx.db
+        .select({ runId: runItems.runId, status: runItems.status, n: sql<number>`count(*)::int` })
+        .from(runItems)
+        .where(and(inArray(runItems.runId, results.map((r) => r.id)), eq(runItems.kind, 'detail')))
+        .groupBy(runItems.runId, runItems.status);
+      const byRun = new Map<string, { done: number; failed: number; total: number }>();
+      for (const t of tallies) {
+        const c = byRun.get(t.runId) ?? { done: 0, failed: 0, total: 0 };
+        const n = Number(t.n);
+        c.total += n;
+        if (t.status === 'done') c.done += n;
+        if (t.status === 'failed') c.failed += n;
+        byRun.set(t.runId, c);
+      }
+      return results.map((r) => ({ ...r, pages: byRun.get(r.id) ?? { done: 0, failed: 0, total: 0 } }));
     }),
 
   /**

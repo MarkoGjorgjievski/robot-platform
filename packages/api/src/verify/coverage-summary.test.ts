@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Shape } from '@robot/scraper';
-import { summariseCoverage, stageLine, COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_PROOF_PAGES, ALL_ANSWERED, type CoverageResults } from './coverage-summary.js';
+import { summariseCoverage, stageLine, COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_PROOF_PAGES, ALL_ANSWERED, type CoverageResults, sampledText } from './coverage-summary.js';
 
 const single: Shape = { jsonLdTypes: ['Product'], offers: 'top-level', rating: true, address: '/p/n' };
 const multi: Shape = { jsonLdTypes: ['ProductGroup'], offers: 'in-variants', rating: true, address: '/p/n' };
@@ -108,5 +108,18 @@ describe('COVERAGE_STALLED (spec 2026-10-20 §3.5.5)', () => {
   it('names no internal word', () => {
     expect(COVERAGE_STALLED).toBe('The check took too long and stopped. It runs again after your next Verify.');
     expect(COVERAGE_STALLED).not.toMatch(/stalled|superseded/i);
+  });
+});
+
+describe('sampledText: a sampled value as the tab shows it', () => {
+  it('keeps text, joins lists, writes numbers and objects, and reads nothing as empty', () => {
+    expect(sampledText('  Blue jacket ')).toBe('Blue jacket');
+    expect(sampledText(['S', 'M'])).toBe('S, M');
+    expect(sampledText(49.5)).toBe('49.5');
+    expect(sampledText({ a: 1 })).toBe('{"a":1}');
+    expect(sampledText(null)).toBe('');
+  });
+  it('cuts a long value at 300 characters', () => {
+    expect(sampledText('x'.repeat(500))).toHaveLength(300);
   });
 });

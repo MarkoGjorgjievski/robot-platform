@@ -24,7 +24,7 @@ import { lockSource } from './in-flight.js';
 import { enqueue } from '../jobs/enqueue.js';
 import { currentJobId, jobStopped } from '../jobs/context.js';
 import { isJobLive } from '../jobs/queue.js';
-import { summariseCoverage, stageLine, COVERAGE_STALLED, type CoverageResults, type SampledPage, type FieldCoverage } from './coverage-summary.js';
+import { summariseCoverage, stageLine, COVERAGE_STALLED, sampledText, type CoverageResults, type SampledPage, type FieldCoverage } from './coverage-summary.js';
 
 /** A check is twenty page loads, three at a time at most — well inside ten minutes; an older `running` row is a crash leftover (the drift check's rule). */
 export const COVERAGE_CHECK_STALL_MS = 10 * 60 * 1000;
@@ -254,7 +254,10 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
         continue;
       }
       walls = 0;
-      sampled.push({ url, empty: fields.filter((f) => isEmpty(r.data[f.key]) || (r.defaulted ?? []).includes(f.key)).map((f) => f.key), shape: r.shape });
+      const empty = fields.filter((f) => isEmpty(r.data[f.key]) || (r.defaulted ?? []).includes(f.key)).map((f) => f.key);
+      // What each field read, kept so the tab can show these products (Marko 2026-11-19).
+      const values = Object.fromEntries(fields.filter((f) => !empty.includes(f.key)).map((f) => [f.key, sampledText(r.data[f.key])] as const).filter(([, v]) => v !== ''));
+      sampled.push({ url, empty, shape: r.shape, values });
     }
     await done({ listingUrl, sampled, proofShapes: await proofShapes(check.sourceId, set.urls), planned: urls.length });
   } catch (err) {
