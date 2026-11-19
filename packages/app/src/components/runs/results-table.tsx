@@ -1,8 +1,20 @@
+import { ExternalLink } from 'lucide-react';
 import { cellText } from '../../lib/output-view';
+import { dateTime } from '../../lib/when';
 import { defaultBadge, notShownBadge, type FieldCoverage } from '../../lib/site/coverage-view';
 
 /** The project's contract, as the sheet reads it: `key` keys a row, `name` is the heading. */
 export type ResultColumn = { key: string; name: string };
+
+/** A page's address without its host: the rows of one run share it, and the path is what tells them apart. */
+function pagePath(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.pathname}${u.search}` || url;
+  } catch {
+    return url;
+  }
+}
 
 const NO_ABSENT_FIELDS: ReadonlySet<string> = new Set<string>();
 const NO_UNSHOWN_FIELDS: ReadonlySet<string> = new Set<string>();
@@ -32,7 +44,13 @@ export function ResultsTable({
   coverage,
   summary,
   note,
+  embedded = false,
+  extractedAtByUrl,
 }: {
+  /** When each row's page was extracted, by the row's `_url` (`crawl.items`): the last column, after the page's address (Marko 2026-11-18). */
+  extractedAtByUrl?: Map<string, Date>;
+  /** Inside the run's tabbed card: the tab strip already says "Rows" and the summary, so the head is left out. */
+  embedded?: boolean;
   columns: readonly ResultColumn[];
   rows: readonly Record<string, unknown>[];
   /** Per-row confirmed-absent field keys, keyed by the row's `_url` (`crawl.items`). */
@@ -53,10 +71,12 @@ export function ResultsTable({
     <section className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
       {/* What is on the screen, said once above the sheet rather than in a
           caption under row 500 nobody scrolls to. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line px-4 py-2.5">
-        <h3 className="text-base font-medium">Rows</h3>
-        <p className="text-sm text-muted-foreground">{summary}</p>
-      </div>
+      {embedded ? null : (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line px-4 py-2.5">
+          <h3 className="text-base font-medium">Rows</h3>
+          <p className="text-sm text-muted-foreground">{summary}</p>
+        </div>
+      )}
 
       {rows.length === 0 || columns.length === 0 ? (
         <p className="px-4 py-5 text-base text-muted-foreground">
@@ -103,6 +123,9 @@ export function ResultsTable({
                       </th>
                     );
                   })}
+                  {/* Where each row came from and when: after the customer's fields on every run, set apart by a line. */}
+                  <th className="border-l border-line">Product page</th>
+                  <th>Extracted</th>
                 </tr>
               </thead>
 
@@ -156,6 +179,19 @@ export function ResultsTable({
                           </td>
                         );
                       })}
+                      <td className="border-l border-line px-4 py-2.5 align-top">
+                        {url ? (
+                          <a href={url} target="_blank" rel="noopener noreferrer" title={url} className="inline-flex max-w-[280px] items-center gap-1 font-mono text-sm text-muted-foreground underline-offset-4 hover:text-text hover:underline">
+                            <span className="truncate">{pagePath(url)}</span>
+                            <ExternalLink aria-hidden className="size-3 shrink-0" />
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 align-top font-mono text-sm whitespace-nowrap text-muted-foreground" suppressHydrationWarning>
+                        {dateTime(extractedAtByUrl?.get(url), { short: true }) ?? '—'}
+                      </td>
                     </tr>
                   );
                 })}

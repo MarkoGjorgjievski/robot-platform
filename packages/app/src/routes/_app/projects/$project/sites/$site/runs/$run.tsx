@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '../../../../../../../components/ui/button';
@@ -8,7 +8,9 @@ import { CoverageBar } from '../../../../../../../components/runs/coverage-bar';
 import { ExecuteControls } from '../../../../../../../components/runs/execute-controls';
 import { ProbeGate } from '../../../../../../../components/runs/probe-gate';
 import { ResultsTable } from '../../../../../../../components/runs/results-table';
-import { RunFacts } from '../../../../../../../components/runs/run-facts';
+import { FieldsCard, RunTabs, TimingCard } from '../../../../../../../components/runs/run-overview';
+import { fieldFill } from '../../../../../../../lib/site/run-overview-view';
+import { summariseWorkList } from '../../../../../../../lib/site/work-list';
 import { RunHeader } from '../../../../../../../components/runs/run-header';
 import { RunMisses } from '../../../../../../../components/runs/run-misses';
 import { UnshownPanel } from '../../../../../../../components/runs/unshown-panel';
@@ -145,7 +147,11 @@ function RunScreen() {
   const runIsTerminal = detail.data ? !isRunActive(detail.data.run.status) : false;
   // The one gate the repair surfaces share. Read the screen's doc comment for
   // why each clause is here.
-  const repairable = runIsTerminal && !probeUnconfirmed && !isBackfill;
+  // A run the customer stopped is unfinished, not broken (Marko 2026-11-17): it is resumed from the controls
+  // above, and the repair surfaces wait until it has run to its end.
+  const [tab, setTab] = useState('rows');
+  const stopped = detail.data?.run.status === 'cancelled';
+  const repairable = runIsTerminal && !probeUnconfirmed && !isBackfill && !stopped;
 
   const coverage = trpc.crawl.coverage.useQuery(
     { runId },
@@ -238,6 +244,10 @@ function RunScreen() {
 
   const { run, source, address, extraction, backfillRuns, delivery } = detail.data;
   const rowCount = extraction?.rowCount ?? 0;
+  const extractedAtByUrl = new Map((items.data?.items ?? []).flatMap((i) => (i.kind === 'detail' && i.completedAt ? [[i.url, new Date(i.completedAt)] as const] : [])));
+  const listingPages = items.data?.counts.listing ?? 0;
+  // What the Repair tab has to offer: fields with a gap or a value its page did not show.
+  const problemCount = (coverage.data?.fields ?? []).filter((f) => f.missing > 0 || (f.notShown ?? 0) > 0).length;
   const variantLines = variantCountLines(run.variantSummary as VariantSummary | null);
 
   // The screen's ONE results sheet. The sample gate owns it while it is showing
@@ -271,6 +281,8 @@ function RunScreen() {
       defaultedByUrl={defaultedByUrl}
       coverage={coverage.data?.fields}
       summary={resultsSummary(rowCount, extraction?.confidence ?? null, notShownCount, defaultedCount)}
+      embedded={!probeUnconfirmed}
+      extractedAtByUrl={extractedAtByUrl}
       note={resultsNote(rows.length, rowCount)}
     />
   );
@@ -288,7 +300,14 @@ function RunScreen() {
         staff={staff}
       />
 
-      <RunFacts facts={runFacts(run)} />
+      {/* Marko 2026-11-18: three small cards say how the run went — how far it got, how full its columns are,
+          when it ran — and the rest of the page is one card whose first tab is the rows. */}
+      <div className="rise mb-3 flex flex-col gap-3 lg:flex-row lg:items-stretch">
+        <ExecuteControls runId={runId} probeUnconfirmed={probeUnconfirmed} backfill={isBackfill} />
+        <FieldsCard fill={fieldFill(rows, sheetColumns)} />
+        <TimingCard facts={[...runFacts(run), ...(listingPages > 0 ? [{ label: 'Listing pages', value: listingPages.toLocaleString('en-US') }] : [])]} />
+      </div>
+
 
       {/* The variant counts (spec §5.3), shown only on a run that produced
           variant rows — `variantCountLines` is already empty for every
@@ -332,52 +351,6 @@ function RunScreen() {
         </p>
       ) : null}
 
-      <ExecuteControls runId={runId} probeUnconfirmed={probeUnconfirmed} backfill={isBackfill} />
-
-      {/* Each panel is keyed by its own name AND the run: the route component is
-          reused when only the run param changes, so a panel's own state — a
-          picked field, a tick, an open repair preview — would otherwise survive a
-          navigation to a different extraction and act on it. The name is not
-          decoration: these four are siblings, and `key={runId}` alone would be
-          the same key four times over. */}
-      {repairable && coverage.data ? (
-        <CoverageBar
-          key={`bar-${runId}`}
-          runId={runId}
-          project={projectSlug}
-          site={siteSlug}
-          rows={rows}
-          coverage={coverage.data.fields}
-          gapByUrl={gapByUrl}
-          columns={columns}
-        />
-      ) : null}
-
-      {repairable && coverage.data ? (
-        <UnshownPanel
-          key={`unshown-${runId}`}
-          project={projectSlug}
-          site={siteSlug}
-          coverage={coverage.data.fields}
-          unshownItems={coverage.data.unshownItems}
-          columns={columns}
-        />
-      ) : null}
-
-      {repairable ? (
-        <RunMisses key={`misses-${runId}`} runId={runId} project={projectSlug} site={siteSlug} columns={columns} />
-      ) : null}
-
-      {repairable && coverage.data ? (
-        <BackfillPanel
-          key={`repair-${runId}`}
-          runId={runId}
-          project={projectSlug}
-          site={siteSlug}
-          gappyFieldNames={coverage.data.fields.filter((f) => f.missing > 0).map((f) => f.name)}
-          columns={columns}
-        />
-      ) : null}
 
       {probeUnconfirmed ? (
         <ProbeGate
@@ -395,12 +368,79 @@ function RunScreen() {
         />
       ) : null}
 
-      <WorkList items={items.data?.items ?? []} counts={items.data?.counts ?? EMPTY_COUNTS} />
-
-      {probeUnconfirmed ? null : resultsSheet}
+      {probeUnconfirmed ? (
+        <WorkList key={`pages-${runId}`} items={items.data?.items ?? []} counts={items.data?.counts ?? EMPTY_COUNTS} />
+      ) : (
+        // One card, three tabs (Marko 2026-11-18): the rows first, the pages they came from, and what can be
+        // repaired. Every panel stays mounted so a picked field or an open preview survives a look at another tab;
+        // each is keyed by its own name AND the run, because the route is reused when only the run changes.
+        <section className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
+          <RunTabs
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { key: 'rows', label: 'Rows', count: rowCount },
+              { key: 'pages', label: 'Pages', count: items.data?.counts.detail ?? null },
+              ...(repairable ? [{ key: 'repair', label: 'Repair', count: problemCount, tone: 'warn' as const }] : []),
+            ]}
+            aside={tab === 'rows' ? resultsSummary(rowCount, extraction?.confidence ?? null, notShownCount, defaultedCount) : tab === 'pages' ? summariseWorkList(items.data?.counts ?? EMPTY_COUNTS) : null}
+          />
+          {/* The panels bring their own boxes; inside this card they lose them and sit flush. */}
+          <div hidden={tab !== 'rows'} className={EMBED}>
+            {resultsSheet}
+          </div>
+          <div hidden={tab !== 'pages'} className={EMBED}>
+            <WorkList key={`pages-${runId}`} items={items.data?.items ?? []} counts={items.data?.counts ?? EMPTY_COUNTS} embedded />
+            {(items.data?.items.length ?? 0) === 0 ? <p className="px-4 py-6 text-base text-muted-foreground">This run has no page list.</p> : null}
+          </div>
+          {repairable ? (
+            <div hidden={tab !== 'repair'} className={`${EMBED} [&>*]:border-b [&>*]:border-line [&>*:last-child]:border-b-0`}>
+              {problemCount === 0 ? <p className="px-4 py-3 text-base text-muted-foreground">Every field has a value in every row of this run.</p> : null}
+              {repairable && coverage.data ? (
+                <CoverageBar
+                  key={`bar-${runId}`}
+                  runId={runId}
+                  project={projectSlug}
+                  site={siteSlug}
+                  rows={rows}
+                  coverage={coverage.data.fields}
+                  gapByUrl={gapByUrl}
+                  columns={columns}
+                />
+              ) : null}
+              {repairable && coverage.data ? (
+                <UnshownPanel
+                  key={`unshown-${runId}`}
+                  project={projectSlug}
+                  site={siteSlug}
+                  coverage={coverage.data.fields}
+                  unshownItems={coverage.data.unshownItems}
+                  columns={columns}
+                />
+              ) : null}
+              {repairable ? (
+                <RunMisses key={`misses-${runId}`} runId={runId} project={projectSlug} site={siteSlug} columns={columns} />
+              ) : null}
+              {repairable && coverage.data ? (
+                <BackfillPanel
+                  key={`repair-${runId}`}
+                  runId={runId}
+                  project={projectSlug}
+                  site={siteSlug}
+                  gappyFieldNames={coverage.data.fields.filter((f) => f.missing > 0).map((f) => f.name)}
+                  columns={columns}
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+      )}
     </>
   );
 }
+
+/** Inside the run's card a panel loses its own box: no border, corner, shadow or margin of its own. */
+const EMBED = '[&>*]:mb-0 [&>*]:rounded-none [&>*]:border-0 [&>*]:shadow-none [&>*]:[box-shadow:none] [&>*]:[animation:none]';
 
 /** What `crawl.items` reports before it has answered — the work list draws nothing on these. */
 const EMPTY_COUNTS = { listing: 0, detail: 0, pending: 0, running: 0, done: 0, failed: 0 };

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  progressLabel, isRunActive, runControls, extractButtonLabel, extractButtonTitle,
+  runBar, progressLabel, isRunActive, runControls, extractButtonLabel, extractButtonTitle,
   requeueNotice, STALE_RECLAIM_MINUTES, type RunCounts,
 } from './run-progress';
 
@@ -22,7 +22,16 @@ describe('progressLabel', () => {
 
   it('reports a cancelled run as stopped rather than finished', () => {
     expect(progressLabel({ pending: 4, running: 0, done: 6, failed: 0, listing: 1, detail: 10 }, 'cancelled'))
-      .toBe('Stopped after 6 of 10');
+      .toBe('Stopped after 6 of 10 · 4 not extracted yet');
+    expect(progressLabel({ pending: 0, running: 0, done: 10, failed: 0, listing: 1, detail: 10 }, 'cancelled'))
+      .toBe('Stopped after 10 of 10');
+  });
+  it('says a stop was heard while the product in progress finishes', () => {
+    expect(progressLabel({ pending: 4, running: 1, done: 5, failed: 0, listing: 1, detail: 10 }, 'cancelling'))
+      .toBe('Stopping… 5 of 10 extracted');
+  });
+  it('a stopped run is resumed, in that word', () => {
+    expect(extractButtonLabel({ pending: 4, running: 0, done: 6, failed: 0, listing: 1, detail: 10 }, 'cancelled')).toBe('Resume · 4 left');
   });
 });
 
@@ -264,5 +273,17 @@ describe('requeueNotice', () => {
   it('stays quiet on an ordinary extract, where there was nothing to reclaim', () => {
     expect(requeueNotice(0, counts({ pending: 5 }))).toBeNull();
     expect(requeueNotice(0, counts({ done: 8 }))).toBeNull();
+  });
+});
+
+describe('runBar', () => {
+  it('one part per outcome that has pages, adding up to the whole', () => {
+    const bar = runBar({ pending: 185, running: 1, done: 16, failed: 1, listing: 4, detail: 203 });
+    expect(bar.map((p) => p.label)).toEqual(['16 extracted', '1 failed', '1 in progress', '185 not extracted yet']);
+    expect(Math.round(bar.reduce((n, p) => n + p.percent, 0))).toBe(100);
+  });
+  it('a finished run is one green part; a run with no product pages has no bar', () => {
+    expect(runBar({ pending: 0, running: 0, done: 10, failed: 0, listing: 1, detail: 10 }).map((p) => p.key)).toEqual(['done']);
+    expect(runBar({ pending: 0, running: 0, done: 0, failed: 0, listing: 1, detail: 0 })).toEqual([]);
   });
 });

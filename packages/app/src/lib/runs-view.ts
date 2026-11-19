@@ -11,6 +11,8 @@ export type RunRow = {
   resultCount: number | null;
   errorMessage: string | null;
   createdAt: Date;
+  /** The run's product pages by outcome (`runs.listBySource`); absent on the organisation's list. */
+  pages?: { done: number; failed: number; total: number };
 };
 
 export type RunView = {
@@ -24,7 +26,15 @@ export type RunView = {
   durationLabel: string | null;
   /** "N row(s)", or null when the run produced no count. */
   rowsLabel: string | null;
+  /** The row count alone, for a column already headed "Rows". */
+  rows: string | null;
   error: string | null;
+  /** The first block of the run's id: what tells two runs of one day apart, and what a colleague can be told. */
+  shortId: string;
+  /** "13 Nov 2026, 20:32" — the tooltip behind "1 d ago". */
+  startedAt: Date;
+  /** Extracted, failed and not extracted product pages as shares of the run's pages; null when it planned none. */
+  bar: { done: number; failed: number; rest: number; label: string } | null;
 };
 
 /**
@@ -56,6 +66,15 @@ function statusLabel(state: RunDotStatus, inputLabel: string | null): string {
 }
 
 /** Sorted newest first and formatted for the table. Pure: the rows handed in are never touched. */
+/** A run's product pages as a three-part bar; "187 of 203 extracted · 2 failed" beside it. */
+export function outcomeBar(pages: RunRow['pages']): RunView['bar'] {
+  if (!pages || pages.total <= 0) return null;
+  const rest = Math.max(0, pages.total - pages.done - pages.failed);
+  const pct = (n: number) => (n / pages.total) * 100;
+  const label = `${pages.done} of ${pages.total} extracted${pages.failed > 0 ? ` · ${pages.failed} failed` : ''}`;
+  return { done: pct(pages.done), failed: pct(pages.failed), rest: pct(rest), label };
+}
+
 export function runsView(rows: readonly RunRow[], now: Date = new Date()): RunView[] {
   return [...rows]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -72,7 +91,11 @@ export function runsView(rows: readonly RunRow[], now: Date = new Date()): RunVi
         // read `1240` on the project home and would otherwise read `1,240`
         // here, on the two tables a customer moves between.
         rowsLabel: count == null ? null : `${count} ${count === 1 ? 'row' : 'rows'}`,
+        rows: count == null ? null : count.toLocaleString('en-US'),
         error: row.errorMessage,
+        shortId: row.id.slice(0, 8),
+        startedAt: row.startedAt ?? row.createdAt,
+        bar: outcomeBar(row.pages),
       };
     });
 }

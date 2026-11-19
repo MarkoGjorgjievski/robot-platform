@@ -10,7 +10,13 @@ export function isRunActive(status: string): boolean {
 
 export function progressLabel(counts: RunCounts, status: string): string {
   const total = counts.detail;
-  if (status === 'cancelled') return `Stopped after ${counts.done} of ${total}`;
+  // A stopped run says what is left: the rest was never tried, it did not fail (Marko 2026-11-17).
+  if (status === 'cancelled') {
+    const left = counts.pending + counts.running;
+    return left > 0 ? `Stopped after ${counts.done} of ${total} · ${left} not extracted yet` : `Stopped after ${counts.done} of ${total}`;
+  }
+  // The stop is asked for between products: the one in progress finishes first, and until then the screen must say the click was heard.
+  if (status === 'cancelling') return `Stopping… ${counts.done} of ${total} extracted`;
   if (counts.done === 0 && counts.failed === 0) return `${total} URLs planned, not yet extracted`;
   const base = `${counts.done} of ${total} extracted`;
   return counts.failed > 0 ? `${base} · ${counts.failed} failed` : base;
@@ -114,8 +120,10 @@ export function runControls(
  * no stalled work to resume — so it says what the click actually does: roll the
  * run up to its terminal status.
  */
-export function extractButtonLabel(counts: RunCounts): string {
+export function extractButtonLabel(counts: RunCounts, status?: string): string {
   if (counts.pending === 0 && counts.running === 0) return 'Finish run';
+  // A run the customer stopped is resumed, in those words: the same action, named for what they want.
+  if (status === 'cancelled' && counts.pending > 0) return `Resume · ${counts.pending} left`;
   if (counts.pending === 0 && counts.running > 0) {
     return `Resume ${counts.running} stalled`;
   }
@@ -173,4 +181,30 @@ export function requeueNotice(requeued: number, counts: RunCounts): string | nul
     return `Nothing reclaimed yet — an item is only given back after ${STALE_RECLAIM_MINUTES} minutes at "running", so a more recent one is left to the loop that claimed it.`;
   }
   return null;
+}
+
+export type RunBarPart = { key: 'done' | 'failed' | 'running' | 'pending'; count: number; percent: number; label: string };
+
+/**
+ * The run's product pages as one bar (Marko 2026-11-18: a picture reads faster than the sentence): extracted,
+ * failed, in progress, not extracted yet — in that order, parts with nothing in them left out. Percentages are
+ * of the planned product pages and always add up to 100.
+ */
+export function runBar(counts: RunCounts): RunBarPart[] {
+  const total = counts.detail;
+  if (total <= 0) return [];
+  const rest = Math.max(0, total - counts.done - counts.failed - counts.running);
+  const parts: Array<Omit<RunBarPart, 'percent'>> = [
+    { key: 'done', count: counts.done, label: `${counts.done} extracted` },
+    { key: 'failed', count: counts.failed, label: `${counts.failed} failed` },
+    { key: 'running', count: counts.running, label: `${counts.running} in progress` },
+    { key: 'pending', count: rest, label: `${rest} not extracted yet` },
+  ];
+  const sum = parts.reduce((n, x) => n + x.count, 0) || 1;
+  return parts.filter((x) => x.count > 0).map((x) => ({ ...x, percent: (x.count / sum) * 100 }));
+}
+
+/** The run's state in one word, beside the Products figure: the bar and its legend carry the counts. */
+export function progressWord(status: string): string {
+  return ({ extracting: 'Extracting', cancelling: 'Stopping…', cancelled: 'Stopped', completed: 'Finished', partial: 'Finished with failures', failed: 'Failed', planned: 'Not started', planning: 'Finding products' } as Record<string, string>)[status] ?? '';
 }

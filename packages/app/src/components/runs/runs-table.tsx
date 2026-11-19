@@ -4,6 +4,7 @@ import { Skeleton } from '../ui/skeleton';
 import type { RunView } from '../../lib/runs-view';
 import { captureWords } from '../../lib/capture-words';
 import { useStaffDetail } from '../../lib/use-staff-detail';
+import { dateTime } from '../../lib/when';
 
 /**
  * A website's extraction history: one row per run, newest first. The Extract
@@ -30,10 +31,12 @@ export function RunsTable({
       {/* Below `md` the table keeps its real width and the container scrolls
           (spec §3). */}
       <div className="overflow-x-auto rounded-[6px] md:overflow-x-visible">
-        <table className="w-full min-w-[560px] border-collapse text-base md:min-w-0">
+        <table className="w-full min-w-[760px] border-collapse text-base md:min-w-0">
           <colgroup>
+            <col className="w-[120px]" />
+            <col className="w-[130px]" />
+            <col className="w-[190px]" />
             <col />
-            <col className="w-[176px]" />
             <col className="w-[104px]" />
             <col className="w-[116px]" />
           </colgroup>
@@ -42,8 +45,10 @@ export function RunsTable({
                 scroll container, which is also a vertical scrollport, and a
                 sticky head there is pushed down over the first row. */}
             <tr className="[&>th]:z-10 [&>th]:border-b [&>th]:border-line [&>th]:bg-panel [&>th]:py-2 [&>th]:font-normal [&>th]:whitespace-nowrap [&>th]:text-muted-foreground md:[&>th]:sticky md:[&>th]:top-12">
-              <th className="px-4 text-left text-sm">Started</th>
+              <th className="px-4 text-left text-sm">Run</th>
+              <th className="px-3 text-left text-sm">Started</th>
               <th className="px-3 text-left text-sm">Status</th>
+              <th className="px-3 text-left text-sm">Progress</th>
               <th className="px-3 text-right text-sm">Rows</th>
               <th className="px-4 text-right text-sm">Duration</th>
             </tr>
@@ -61,8 +66,11 @@ export function RunsTable({
                       params={{ project: projectSlug, site: siteSlug, run: run.id }}
                       className="font-mono text-text underline-offset-4 hover:underline"
                     >
-                      {run.startedLabel}
+                      {run.shortId}
                     </Link>
+                  </td>
+                  <td className="px-3 py-2.5 text-muted-foreground" title={dateTime(run.startedAt) ?? undefined}>
+                    <span className="whitespace-nowrap">{run.startedLabel}</span>
                     {run.error ? <div className="mt-0.5 text-sm text-fail">{captureWords(run.error, staff)}</div> : null}
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
@@ -71,8 +79,22 @@ export function RunsTable({
                       {run.statusLabel}
                     </span>
                   </td>
+                  <td className="px-3 py-2.5">
+                    {run.bar ? (
+                      <span className="flex items-center gap-3">
+                        <span className="flex h-1.5 w-[120px] shrink-0 gap-0.5" role="img" aria-label={run.bar.label}>
+                          {run.bar.done > 0 ? <span className="min-w-[3px] rounded-full bg-pass" style={{ width: `${run.bar.done}%` }} /> : null}
+                          {run.bar.failed > 0 ? <span className="min-w-[3px] rounded-full bg-fail" style={{ width: `${run.bar.failed}%` }} /> : null}
+                          {run.bar.rest > 0 ? <span className="min-w-[3px] rounded-full bg-line" style={{ width: `${run.bar.rest}%` }} /> : null}
+                        </span>
+                        <span className="truncate text-sm text-muted-foreground">{run.bar.label}</span>
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2.5 text-right font-mono tabular-nums whitespace-nowrap text-muted-foreground">
-                    {run.rowsLabel ?? '—'}
+                    {run.rows ?? '—'}
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono tabular-nums whitespace-nowrap text-muted-foreground">
                     {run.durationLabel ?? '—'}
@@ -95,7 +117,7 @@ function LoadingRows() {
           <td className="px-4 py-2.5">
             <Skeleton className="h-3.5 w-28 bg-raised" />
           </td>
-          <td colSpan={3} />
+          <td colSpan={5} />
         </tr>
       ))}
     </>

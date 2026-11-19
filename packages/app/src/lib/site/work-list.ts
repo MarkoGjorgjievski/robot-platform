@@ -70,3 +70,57 @@ export function listingValuesLabel(values: unknown): string {
   if (entries.length === 0) return '—';
   return entries.map(([k, v]) => `${k}: ${formatValue(v)}`).join(' · ');
 }
+
+export type WorkListRow = { id: string; kind: string; url: string; status: string; pageNumber: number | null; inputIndex?: number | null };
+export type WorkListGroup<T extends WorkListRow> = {
+  /** The listing page these products were found on; null for products given as their own addresses. */
+  listing: T | null;
+  products: T[];
+  /** "Listing 2 · page 3"; "Products" with no listing. The listing number only when the run has several. */
+  title: string;
+  /** "24 products · 16 extracted · 2 failed" — only the parts that are not zero. */
+  summary: string;
+};
+
+/**
+ * The work list as the customer thinks of it (Marko 2026-11-17): each listing page, and under it the products
+ * found on it. A product row carries the listing it came from (`inputIndex`) and that listing's page number.
+ * Listing order, then page order; a product with no listing row of its own (product addresses, a repair) goes
+ * under one "Products" group at the end of its listing's pages.
+ */
+export function groupWorkList<T extends WorkListRow>(items: readonly T[]): WorkListGroup<T>[] {
+  const key = (i: T) => `${i.inputIndex ?? 0}\u0000${i.pageNumber ?? 0}`;
+  const listings = items.filter((i) => i.kind === 'listing');
+  const walked = new Set(listings.map((i) => i.inputIndex ?? 0));
+  const several = walked.size > 1;
+  const groups = new Map<string, { listing: T | null; products: T[] }>();
+  for (const l of listings) if (!groups.has(key(l))) groups.set(key(l), { listing: l, products: [] });
+  for (const i of items) {
+    if (i.kind === 'listing') continue;
+    // No listing row at all for this input (product addresses, a repair): one group for all such products.
+    const k = groups.has(key(i)) ? key(i) : walked.has(i.inputIndex ?? 0) ? `${i.inputIndex ?? 0}\u0000none` : 'none';
+    if (!groups.has(k)) groups.set(k, { listing: null, products: [] });
+    groups.get(k)!.products.push(i);
+  }
+  const order = (g: { listing: T | null; products: T[] }) => {
+    const any = g.listing ?? g.products[0]!;
+    return [g.listing || walked.has(any.inputIndex ?? 0) ? (any.inputIndex ?? 0) : Number.MAX_SAFE_INTEGER, g.listing ? (g.listing.pageNumber ?? 0) : Number.MAX_SAFE_INTEGER] as const;
+  };
+  return [...groups.values()]
+    .sort((a, b) => order(a)[0] - order(b)[0] || order(a)[1] - order(b)[1])
+    .map((g) => {
+      const n = (status: string) => g.products.filter((p) => p.status === status).length;
+      const parts = [plural(g.products.length, 'product', 'products')];
+      if (n('done') > 0) parts.push(`${n('done')} extracted`);
+      if (n('failed') > 0) parts.push(`${n('failed')} failed`);
+      const title = g.listing
+        ? `${several ? `Listing ${(g.listing.inputIndex ?? 0) + 1} · ` : 'Listing · '}page ${g.listing.pageNumber ?? 1}`
+        : 'Products';
+      return { ...g, title, summary: parts.join(' · ') };
+    });
+}
+
+/** A page's status in the customer's words: "pending" read as a fault on a stopped run; it only means not tried yet. */
+export function pageStatusWord(status: string): string {
+  return ({ pending: 'not extracted yet', running: 'extracting', done: 'extracted', failed: 'failed' } as Record<string, string>)[status] ?? status;
+}

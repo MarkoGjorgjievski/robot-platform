@@ -1,14 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { trpc } from '../../lib/trpc';
 import { mutationErrorText } from '../../lib/mutation-error';
 import { useStaffDetail } from '../../lib/use-staff-detail';
+import { ProductsCard } from './run-overview';
 import {
   extractButtonLabel,
   extractButtonTitle,
   isRunActive,
-  progressLabel,
+  progressWord,
   requeueNotice,
   runControls,
 } from '../../lib/site/run-progress';
@@ -56,8 +58,10 @@ export function ExecuteControls({
       void utils.projects.get.invalidate();
     },
   });
+  const [confirmStop, setConfirmStop] = useState(false);
   const cancel = trpc.crawl.cancel.useMutation({
     onSuccess: () => {
+      setConfirmStop(false);
       void utils.crawl.invalidate();
       // `projects.get` too: the project page's websites table has a last-run
       // cell and a run dot per website, and this is the moment both change.
@@ -96,64 +100,81 @@ export function ExecuteControls({
   // nothing, and saying so beats leaving the operator to click again.
   const notice = execute.data && !execute.isPending ? requeueNotice(execute.data.requeued, data.counts) : null;
 
+  const stopping = cancel.isPending || data.status === 'cancelling';
   return (
-    <div className="rise mb-3 rounded-[6px] border border-line bg-panel px-4 py-3 [box-shadow:var(--shadow)]">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="font-mono text-base">{progressLabel(data.counts, data.status)}</p>
+    <>
+      <ProductsCard
+        counts={data.counts}
+        label={progressWord(data.status)}
+        note={
+          <>
+            {data.status === 'cancelling' ? (
+              <p className="mt-2 text-sm text-muted-foreground">The product being extracted now finishes first, then the run stops.</p>
+            ) : null}
+            {notice ? <p className="mt-2 text-sm text-muted-foreground">{notice}</p> : null}
+            {execute.isError ? (
+              <p role="alert" className="mt-2 text-sm text-fail">
+                {mutationErrorText(execute.error, staff)}
+              </p>
+            ) : null}
+            {cancel.isError ? (
+              <p role="alert" className="mt-2 text-sm text-fail">
+                {mutationErrorText(cancel.error, staff)}
+              </p>
+            ) : null}
+          </>
+        }
+        foot={
+          controls.showExtract || controls.showRetry || controls.showStop ? (
+            <>
+              {controls.showExtract ? (
+                <Button size="sm" disabled={execute.isPending} title={extractButtonTitle(data.status, data.counts)} onClick={() => execute.mutate({ runId })}>
+                  {execute.isPending ? <Loader2 className="animate-spin" /> : null}
+                  {extractButtonLabel(data.counts, data.status)}
+                </Button>
+              ) : null}
+              {controls.showRetry ? (
+                <Button variant="outline" size="sm" disabled={execute.isPending} title="Re-queue the failed pages and extract them again" onClick={() => execute.mutate({ runId, retryFailed: true })}>
+                  Retry {data.counts.failed} failed
+                </Button>
+              ) : null}
+              {controls.showStop ? (
+                // Stopping is the one destructive thing on this page: red, and asked twice (Marko 2026-11-17).
+                // Once asked, the button says so until the product in progress finishes and the run settles.
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={stopping}
+                  className="ml-auto border-fail/50 text-fail hover:border-fail hover:bg-transparent hover:text-fail"
+                  onClick={() => setConfirmStop(true)}
+                >
+                  {stopping ? <Loader2 className="animate-spin" /> : null}
+                  {stopping ? 'Stopping…' : 'Stop'}
+                </Button>
+              ) : null}
+            </>
+          ) : undefined
+        }
+      />
 
-        <div className="flex flex-wrap items-center gap-2">
-          {controls.showExtract ? (
-            <Button
-              size="sm"
-              disabled={execute.isPending}
-              title={extractButtonTitle(data.status, data.counts)}
-              onClick={() => execute.mutate({ runId })}
-            >
-              {execute.isPending ? <Loader2 className="animate-spin" /> : null}
-              {extractButtonLabel(data.counts)}
+      <Dialog open={confirmStop} onOpenChange={setConfirmStop}>
+        <DialogContent showCloseButton={false} className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Stop this run?</DialogTitle>
+            <DialogDescription>
+              {data.counts.done} of {data.counts.detail} products are extracted and are kept. The product being extracted now finishes first. You can resume the rest later from this page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setConfirmStop(false)}>
+              Keep running
             </Button>
-          ) : null}
-
-          {controls.showRetry ? (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={execute.isPending}
-              title="Re-queue the failed pages and extract them again"
-              onClick={() => execute.mutate({ runId, retryFailed: true })}
-            >
-              Retry {data.counts.failed} failed
+            <Button type="button" variant="destructive" disabled={cancel.isPending} onClick={() => cancel.mutate({ runId })}>
+              {cancel.isPending ? 'Stopping…' : 'Stop run'}
             </Button>
-          ) : null}
-
-          {controls.showStop ? (
-            // The red is on the text on hover, not a fill behind it: stopping is
-            // the one destructive thing on this page, and this system says that
-            // with the state colour rather than with a wash (spec §4).
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={cancel.isPending}
-              className="hover:border-fail hover:text-fail"
-              onClick={() => cancel.mutate({ runId })}
-            >
-              {cancel.isPending ? 'Stopping…' : 'Stop'}
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
-      {notice ? <p className="mt-2 text-base text-muted-foreground">{notice}</p> : null}
-      {execute.isError ? (
-        <p role="alert" className="mt-2 text-base text-fail">
-          {mutationErrorText(execute.error, staff)}
-        </p>
-      ) : null}
-      {cancel.isError ? (
-        <p role="alert" className="mt-2 text-base text-fail">
-          {mutationErrorText(cancel.error, staff)}
-        </p>
-      ) : null}
-    </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
