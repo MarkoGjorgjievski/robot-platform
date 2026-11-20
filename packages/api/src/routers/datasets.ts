@@ -214,6 +214,41 @@ export const datasetsRouter = router({
       return { key: input.key, type: input.type, affectedSourceIds };
     }),
 
+  /**
+   * The order the project's fields are listed in (Marko 2026-11-20): the Fields list, every website's Verification
+   * table and the output's columns follow it. `keys` is every field's key in the new order — all of them, each once —
+   * so a list that changed meanwhile (a field added or deleted in another tab) is refused rather than half applied.
+   * Axes keep their places. Nothing about a field changes, so no certification moves.
+   */
+  reorderFields: protectedProcedure
+    .input(z.object({ datasetId: z.string().uuid(), keys: z.array(z.string().min(1)).min(1).max(500) }))
+    .mutation(async ({ ctx, input }) => {
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
+      await ctx.db.transaction(async (tx) => {
+        const schema = await lockDatasetSchema(tx, ds.id);
+        const fieldKeys = contractFields(schema).map((f) => f.key);
+        const wanted = new Set(input.keys);
+        if (wanted.size !== input.keys.length || wanted.size !== fieldKeys.length || fieldKeys.some((k) => !wanted.has(k))) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'The field list changed meanwhile. Reload the page and try again.' });
+        }
+        const isField = new Set(fieldKeys);
+        const byKey = new Map(schema.map((f) => [f.key as string, f]));
+        let next = 0;
+        // Each field slot takes the next field in the new order; an axis stays where it is.
+        const reordered = schema.map((f) => (isField.has(f.key as string) ? byKey.get(input.keys[next++]!)! : f));
+        await tx.update(datasets).set({ schema: reordered, updatedAt: new Date() }).where(eq(datasets.id, ds.id));
+        const rank = new Map(input.keys.map((k, i) => [k, i]));
+        for (const s of await lockSources(tx, ds.id)) {
+          const def = (Array.isArray(s.schemaDefinition) ? s.schemaDefinition : []) as SchemaDefinitionField[];
+          // A website's own copy follows the project's order; anything it has that the contract lacks keeps its place at the end.
+          const sorted = [...def].sort((a, b) => (rank.get(a.key) ?? Infinity) - (rank.get(b.key) ?? Infinity));
+          if (sorted.every((f, i) => f === def[i])) continue;
+          await tx.update(sources).set({ schemaDefinition: sorted, updatedAt: new Date() }).where(eq(sources.id, s.id));
+        }
+      });
+      return { keys: input.keys };
+    }),
+
   deleteField: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {

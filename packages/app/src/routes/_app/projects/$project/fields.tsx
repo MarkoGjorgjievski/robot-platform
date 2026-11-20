@@ -109,9 +109,10 @@ function FieldsScreen() {
         // and nothing to add to, so the screen says only that.
         <p className="rise text-base text-muted-foreground">This project has no field list yet.</p>
       ) : (
+        // Two thirds for the field list, so a field's name has room beside its type and variants (Marko 2026-11-20).
         // `items-start` so the shorter panel keeps its own height: a catalogue
         // stretched to match a long field list would be a box of empty panel.
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
           {/* `min-w-0`: a grid item's minimum is its content, and the
               field list's own scroll container needs the column not to grow. */}
           <div className="min-w-0 space-y-4">

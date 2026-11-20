@@ -165,6 +165,7 @@ export const STAFF_ACTIONS: Record<string, StaffAction | null> = {
     before: (db, i) => fieldName(db, i.datasetId, i.key).then((name) => ({ name })),
     describe: ({ input, before }) => `Changed field ${before?.name ?? input.key} to ${input.type}`,
   },
+  'datasets.reorderFields': { describe: ({ target }) => `Changed the order of the fields of ${proj(target)}` },
   'datasets.setVariantMode': { describe: ({ input, target }) => `Set variants on ${proj(target)} to ${VARIANT_MODES[input.mode] ?? input.mode}` },
   'datasets.setFieldLevel': {
     before: (db, i) => fieldName(db, i.datasetId, i.key).then((name) => ({ name })),

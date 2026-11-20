@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { useRouteContext } from '@tanstack/react-router';
-import { Trash2 } from 'lucide-react';
+import { GripVertical, Trash2 } from 'lucide-react';
 import { BlockedTooltip } from '../shell/staff-banner';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -10,6 +10,7 @@ import { DeleteFieldDialog } from './delete-field-dialog';
 import { FIELD_TYPES, LEVEL_LABELS, TYPE_LABELS, levelToSend, nameRefusal, sharedNote, type FieldLevel, type FieldType, type FieldView } from '../../lib/fields-view';
 import { staffBlockedNote } from '../../lib/staff-view';
 import { trpc } from '../../lib/trpc';
+import { moveKey, orderedFields } from '../../lib/field-order';
 
 /**
  * The contract editor: one row per field, edited in place.
@@ -73,7 +74,73 @@ export function FieldsTable({
     ]);
   }
 
-  const columns = levels ? 5 : 4;
+  // Reordering (Marko 2026-11-20). `order` is the list as the customer is arranging it, shown at once and kept
+  // until the server's list catches up, so a row never jumps back while the save is on its way.
+  const reorder = trpc.datasets.reorderFields.useMutation();
+  const [order, setOrder] = useState<string[] | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const rows = useRef(new Map<string, HTMLTableRowElement>());
+  const serverKeys = fields.map((f) => f.key).join('\n');
+  useEffect(() => {
+    setOrder((o) => (o && o.join('\n') === serverKeys ? null : o));
+  }, [serverKeys]);
+  const shown = orderedFields(fields, order);
+  const canReorder = !loading && fields.length > 1 && !!datasetId;
+
+  async function commitOrder(keys: string[]) {
+    if (keys.join('\n') === serverKeys) {
+      setOrder(null);
+      return;
+    }
+    setError(null);
+    try {
+      await reorder.mutateAsync({ datasetId, keys });
+      await refresh();
+    } catch (err) {
+      setOrder(null);
+      const e = err as { data?: { code?: string }; message?: string };
+      setError(e?.data?.code === 'CONFLICT' && e.message ? e.message : GENERIC);
+    }
+  }
+
+  /** Pointer drag on a row's handle: the row follows the pointer one place at a time, and the order is saved on release. */
+  function startDrag(key: string, e: PointerEvent<HTMLButtonElement>) {
+    if (!canReorder || e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(key);
+    setOrder(shown.map((f) => f.key));
+  }
+  function moveDrag(e: PointerEvent<HTMLButtonElement>) {
+    if (!dragging || !order) return;
+    // The dragged row's place is the number of other rows whose middle the pointer has passed.
+    let target = 0;
+    for (const k of order) {
+      if (k === dragging) continue;
+      const r = rows.current.get(k)?.getBoundingClientRect();
+      if (r && e.clientY > r.top + r.height / 2) target++;
+    }
+    if (target !== order.indexOf(dragging)) setOrder(moveKey(order, dragging, target));
+  }
+  function endDrag() {
+    if (!dragging) return;
+    setDragging(null);
+    if (order) void commitOrder(order);
+  }
+  /** The keyboard's way: arrow keys on a focused handle move the field one place and save. */
+  function keyMove(key: string, e: KeyboardEvent<HTMLButtonElement>) {
+    if (!canReorder || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    const keys = shown.map((f) => f.key);
+    const from = keys.indexOf(key);
+    const to = e.key === 'ArrowUp' ? from - 1 : from + 1;
+    if (to < 0 || to >= keys.length) return;
+    const next = moveKey(keys, key, to);
+    setOrder(next);
+    void commitOrder(next);
+  }
+
+  const columns = levels ? 6 : 5;
 
   const note = sharedNote(websiteCount);
 
@@ -92,10 +159,12 @@ export function FieldsTable({
         <div className="overflow-x-auto rounded-[6px] md:overflow-x-visible">
           <table className={`w-full border-collapse text-base md:min-w-0 ${levels ? 'min-w-[760px]' : 'min-w-[560px]'}`}>
             <colgroup>
+              <col className="w-[32px]" />
               <col />
-              <col className="w-[150px]" />
-              {levels ? <col className="w-[214px]" /> : null}
-              <col className="w-[148px]" />
+              {/* Type and Verified on hold a word or two; the room goes to the name and the Variants choice (Marko 2026-11-20). */}
+              <col className="w-[108px]" />
+              {levels ? <col className="w-[224px]" /> : null}
+              <col className="w-[124px]" />
               <col className="w-[52px]" />
             </colgroup>
             <thead>
@@ -103,7 +172,8 @@ export function FieldsTable({
                   below it the head sits in a scroll container and would ride
                   down over the first row. */}
               <tr className="[&>th]:z-10 [&>th]:border-b [&>th]:border-line [&>th]:bg-panel [&>th]:py-2 [&>th]:font-normal [&>th]:whitespace-nowrap [&>th]:text-muted-foreground md:[&>th]:sticky md:[&>th]:top-12">
-                <th className="px-4 text-left text-sm">Name</th>
+                <th aria-label="Order" />
+                <th className="pr-4 pl-1 text-left text-sm">Name</th>
                 <th className="px-3 text-left text-sm">Type</th>
                 {levels ? <th className="px-3 text-left text-sm">Variants</th> : null}
                 <th className="px-3 text-left text-sm">Verified on</th>
@@ -127,9 +197,30 @@ export function FieldsTable({
               {loading ? <LoadingRows columns={columns} /> : null}
 
               {!loading &&
-                fields.map((field) => (
+                shown.map((field) => (
                   <FieldRow
                     key={field.key}
+                    rowRef={(el) => {
+                      if (el) rows.current.set(field.key, el);
+                      else rows.current.delete(field.key);
+                    }}
+                    handle={
+                      canReorder ? (
+                        <button
+                          type="button"
+                          aria-label={`Move ${field.name}. Drag, or use the up and down arrow keys.`}
+                          onPointerDown={(e) => startDrag(field.key, e)}
+                          onPointerMove={moveDrag}
+                          onPointerUp={endDrag}
+                          onPointerCancel={endDrag}
+                          onKeyDown={(e) => keyMove(field.key, e)}
+                          className={`flex h-7 w-6 touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-raised hover:text-text ${dragging === field.key ? 'cursor-grabbing text-text' : 'cursor-grab'}`}
+                        >
+                          <GripVertical aria-hidden className="size-4" />
+                        </button>
+                      ) : null
+                    }
+                    dragging={dragging === field.key}
                     datasetId={datasetId}
                     field={field}
                     // `null` when there is no Variants column; `undefined` for a field
@@ -144,6 +235,12 @@ export function FieldsTable({
           </table>
         </div>
       </div>
+
+      {canReorder ? (
+        <p className="mt-2 text-sm text-muted-foreground" data-testid="fields-order-hint">
+          Drag <GripVertical aria-hidden className="inline size-3.5 align-[-2px]" /> to change the order. Each website&apos;s Verification table and your output list the fields in this order.
+        </p>
+      ) : null}
 
       {error ? (
         <p role="alert" className="mt-2 text-sm text-fail">
@@ -164,6 +261,9 @@ export function FieldsTable({
 }
 
 function FieldRow({
+  rowRef,
+  handle,
+  dragging,
   datasetId,
   field,
   level,
@@ -171,6 +271,11 @@ function FieldRow({
   onError,
   onSettled,
 }: {
+  rowRef: (el: HTMLTableRowElement | null) => void;
+  /** The drag handle, or null while the list cannot be reordered (loading, a single field). */
+  handle: ReactNode;
+  /** This row is the one being dragged: lifted off the list. */
+  dragging: boolean;
   datasetId: string;
   field: FieldView;
   level: { level: FieldLevel; isDefault: boolean; defaultLevel: FieldLevel } | undefined | null;
@@ -272,8 +377,13 @@ function FieldRow({
   );
 
   return (
-    <tr className="group/row border-b border-line transition-colors last:border-0 hover:bg-raised">
-      <td className="px-4 py-2">
+    <tr
+      ref={rowRef}
+      data-dragging={dragging || undefined}
+      className="group/row border-b border-line transition-colors last:border-0 hover:bg-raised data-[dragging]:relative data-[dragging]:z-[1] data-[dragging]:bg-raised data-[dragging]:[box-shadow:var(--shadow)]"
+    >
+      <td className="py-2 pl-2">{handle}</td>
+      <td className="py-2 pr-4 pl-1">
         {/* An input, not a text node that swaps for one on click: a customer who
             clicks a name expects the caret where they clicked, and a swap loses
             it. Borderless and inheriting the row's type, so at rest the column
@@ -418,13 +528,14 @@ function LoadingRows({ columns }: { columns: number }) {
     <>
       {[0, 1, 2].map((i) => (
         <tr key={i} className="border-b border-line last:border-0">
-          <td className="px-4 py-2">
+          <td />
+          <td className="py-2 pr-4 pl-1">
             <Skeleton className="h-[22px] w-40 bg-raised" />
           </td>
           <td className="px-3 py-2">
             <Skeleton className="h-[22px] w-20 bg-raised" />
           </td>
-          <td colSpan={columns - 2} />
+          <td colSpan={columns - 3} />
         </tr>
       ))}
     </>

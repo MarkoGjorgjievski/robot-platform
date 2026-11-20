@@ -62,6 +62,7 @@ export const PROCEDURE_CLASSES: Record<string, ProcedureEntry> = {
   'datasets.renameField': { class: 'scoped', input: (f) => ({ ...ds(f), key: f.keys.title, name: 'Stray' }) },
   'datasets.retypeField': { class: 'scoped', input: (f) => ({ ...ds(f), key: f.keys.title, type: 'number' }) },
   'datasets.deleteField': { class: 'scoped', input: (f) => ({ ...ds(f), key: f.keys.title }) },
+  'datasets.reorderFields': { class: 'scoped', input: (f) => ({ ...ds(f), keys: [f.keys.price, f.keys.title] }) },
   'datasets.fieldStatus': { class: 'scoped', input: ds },
   'datasets.variants': { class: 'scoped', input: ds },
   'datasets.setVariantMode': { class: 'scoped', input: (f) => ({ ...ds(f), mode: 'row_per_variant' }) },

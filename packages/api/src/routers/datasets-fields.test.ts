@@ -256,3 +256,37 @@ describe('datasets.addField with a catalogue description and concept', () => {
     } finally { await f.cleanup(); }
   });
 });
+
+describe('datasets.reorderFields (Marko 2026-11-20)', () => {
+  const keysOf = (rows: unknown) => (rows as Array<{ key: string }>).map((f) => f.key);
+
+  it('puts the contract and every website in the new order, keeps an axis in its place, and moves no certification', async () => {
+    const p = await project();
+    const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'A', url: 'https://a.example/' });
+    await caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text' });
+    await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
+    await caller.datasets.addAxis({ datasetId: p.datasetId, name: 'Size' });
+    await caller.datasets.addField({ datasetId: p.datasetId, name: 'Brand', type: 'text' });
+    const before = await loadFieldCurrency(db, a.sourceId);
+
+    await caller.datasets.reorderFields({ datasetId: p.datasetId, keys: ['brand', 'title', 'price'] });
+
+    const ds = await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) });
+    // The axis (third) stays third; the fields take the other places in the new order.
+    expect(keysOf(ds!.schema)).toEqual(['brand', 'title', 'size', 'price']);
+    const s = await db.query.sources.findFirst({ where: eq(sources.id, a.sourceId) });
+    expect(keysOf(s!.schemaDefinition)).toEqual(['brand', 'title', 'price']);
+    expect(await loadFieldCurrency(db, a.sourceId)).toEqual(before);
+  });
+
+  it('refuses a list that is not every field exactly once, and changes nothing', async () => {
+    const p = await project();
+    await caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text' });
+    await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
+    for (const keys of [['price'], ['price', 'title', 'brand'], ['price', 'price'], ['price', 'brand']]) {
+      await expect(caller.datasets.reorderFields({ datasetId: p.datasetId, keys })).rejects.toThrow(/changed meanwhile/);
+    }
+    const ds = await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) });
+    expect(keysOf(ds!.schema)).toEqual(['title', 'price']);
+  });
+});
