@@ -262,6 +262,29 @@ describe('runVariantCheck — links', () => {
     } finally { await f.cleanup(); }
   });
 
+  it('links: a value confirmed on the variant page must be the one read there, not only present (Marko 2026-11-20)', async () => {
+    const f = await linksWebsite('variant-check-spotvalue');
+    try {
+      await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p1');
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      const priceKey = f.keys.Price!;
+      const withPrice = (value: string) => (set: VerificationSet) => {
+        const a = set.variants![URLS[0]!]!;
+        a.spot = { ...a.spot!, expected: { [priceKey]: value } };
+      };
+      const wrong = await check(f, { edit: withPrice('999.99') });
+      const page = wrong.pages[URLS[0]!];
+      expect(page?.status).toBe('fail');
+      const m = /^Price on the Red page of product 1 reads (.+), not 999\.99$/.exec(page?.status === 'fail' ? page.message : '');
+      expect(m).not.toBeNull();
+      expect(wrong.passed).toBe(false);
+      // The value the page does read passes; nothing confirmed keeps the presence check alone.
+      const right = await check(f, { edit: withPrice(m![1]!) });
+      expect(right.pages[URLS[0]!]).toEqual({ status: 'pass', count: 2 });
+      expect(right.passed).toBe(true);
+    } finally { await f.cleanup(); }
+  });
+
   it('links: a field blank on the product is not required on its variant page', async () => {
     const f = await linksWebsite('variant-check-spotblank');
     try {

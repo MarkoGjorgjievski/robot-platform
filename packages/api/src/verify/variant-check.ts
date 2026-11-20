@@ -11,6 +11,7 @@ import {
   variantHash,
   runVerifiedExtraction,
   normalize,
+  valuesEqual,
   normalizeVariantLink,
   isLikelyVariantHref,
   type FieldVerification,
@@ -124,7 +125,18 @@ export async function runVariantCheck(
     // Only the fields this product is checked on: one left blank here is not required on its variant page either.
     const checked = fields.filter((f) => !noPath(f.key) && (set.expected[f.key]?.[url] ?? '').trim() !== '');
     const missing = checked.find((f) => normalize(f.type, data[f.key], { pageUrl: spotUrl }) === null);
-    if (missing) pages[url] = { status: 'fail', message: `${missing.name} missing on the ${label} page of product ${i + 1}` };
+    if (missing) { pages[url] = { status: 'fail', message: `${missing.name} missing on the ${label} page of product ${i + 1}` }; continue; }
+    // The variant row (Marko 2026-11-20): a value the customer confirmed on this variant's page must be the one read
+    // there, like a proof page's — not only present. A field with nothing confirmed keeps the presence check above.
+    const expected = answer.spot?.expected ?? {};
+    const wrong = checked.find((f) => {
+      const want = (expected[f.key] ?? '').trim();
+      return want !== '' && !valuesEqual(f.type, data[f.key], want, { pageUrl: spotUrl });
+    });
+    if (wrong) {
+      const read = normalize(wrong.type, data[wrong.key], { pageUrl: spotUrl }) ?? '';
+      pages[url] = { status: 'fail', message: `${wrong.name} on the ${label} page of product ${i + 1} reads ${read}, not ${expected[wrong.key]!.trim()}` };
+    }
   }
 
   const passed = !r.problem && Object.values(pages).every((p) => p.status !== 'fail' && p.status !== 'not_captured');
