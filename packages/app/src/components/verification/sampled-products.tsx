@@ -4,9 +4,8 @@ import { ExternalLink } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { TYPE_LABELS } from '../../lib/fields-view';
+import { sampledView, type SampledProduct } from '../../lib/site/sampled-view';
 import { displayValue, type Field } from '../../lib/site/verification-model';
-import { captureWords } from '../../lib/capture-words';
-import { useStaffDetail } from '../../lib/use-staff-detail';
 import { dateTime } from '../../lib/when';
 import { tileHref, useProofCaptures } from '../../lib/site/use-proof-captures';
 import { CaptureStateWords } from './capture-words-view';
@@ -16,8 +15,7 @@ import { SectionTitle } from './section-title';
 import { ScreenshotPopover } from './screenshot-popover';
 import { END_COLUMN } from './verification-table';
 
-/** One product the coverage check read (`sources.coverage`'s `results.sampled`). */
-export type SampledProduct = { url: string; empty?: string[]; values?: Record<string, string>; unread?: string };
+export type { SampledProduct } from '../../lib/site/sampled-view';
 
 /**
  * The products the check read after Verify, shown and not only counted (Marko 2026-11-19): "every field was found
@@ -33,22 +31,27 @@ export type SampledProduct = { url: string; empty?: string[]; values?: Record<st
 export function SampledProducts({
   sourceId,
   websiteName,
-  sampled,
+  sampled: allSampled,
+  proofUrls,
   fields,
   checkedAt,
   onUseAsProofPage,
 }: {
   sourceId: string;
   websiteName: string | null | undefined;
+  /** Everything the check sampled; the proof table's products and pages that could not be read are left out here. */
   sampled: readonly SampledProduct[];
+  /** The proof table's product addresses. */
+  proofUrls: readonly string[];
   /** The proof table's fields, in its order: the columns line up with it. */
   fields: readonly Field[];
   checkedAt: Date | string | null;
   /** Null when the table above is full, or while the tab is locked. */
   onUseAsProofPage: ((url: string) => void) | null;
 }) {
-  const staff = useStaffDetail();
-  const problems = useMemo(() => sampled.filter((p) => p.unread !== undefined || (p.empty?.length ?? 0) > 0).length, [sampled]);
+  const view = useMemo(() => sampledView(allSampled, proofUrls), [allSampled, proofUrls]);
+  const sampled = view.rows;
+  const problems = sampled.filter((p) => (p.empty?.length ?? 0) > 0).length;
   const [shot, setShot] = useState<number | null>(null);
   // A check from before the values were kept knows only which fields were empty.
   const hasValues = sampled.some((p) => p.values !== undefined);
@@ -61,7 +64,7 @@ export function SampledProducts({
     <section className="space-y-3 pt-4" data-testid="sampled-products">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
         <SectionTitle
-          title={`${sampled.length} more products from your listing`}
+          title={view.heading}
           info={
             <>
               <p>
@@ -139,12 +142,7 @@ export function SampledProducts({
                         </a>
                       </span>
                     </td>
-                    {p.unread !== undefined ? (
-                      <td colSpan={fields.length} className="border-l border-line px-2 py-1.5 text-sm text-warn">
-                        {captureWords(p.unread, staff)}
-                      </td>
-                    ) : (
-                      fields.map((f) => {
+                    {fields.map((f) => {
                         const empty = p.empty?.includes(f.key) ?? false;
                         const value = p.values?.[f.key];
                         return (
@@ -159,8 +157,7 @@ export function SampledProducts({
                             )}
                           </td>
                         );
-                      })
-                    )}
+                      })}
                     <td className="sticky right-0 z-[5] [box-shadow:inset_1px_0_0_var(--border),inset_0_-1px_0_var(--border)] [tr:last-child>&]:[box-shadow:inset_1px_0_0_var(--border)] bg-panel px-2 py-1 text-right">
                       <Button
                         variant="ghost"
@@ -179,6 +176,11 @@ export function SampledProducts({
           </ScrollAreaContent>
         </ScrollAreaViewport>
       </ScrollArea>
+      {view.unread > 0 ? (
+        <p className="text-sm text-muted-foreground" data-testid="sampled-unread">
+          {view.unread === 1 ? '1 more product' : `${view.unread} more products`} could not be read this time.
+        </p>
+      ) : null}
       {hasValues ? null : (
         <p className="text-sm text-muted-foreground">This check is from before we kept the values, so it only knows each field was found. The next Verify fills them in.</p>
       )}

@@ -262,6 +262,46 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
     } finally { await f.cleanup(); }
   });
 
+  it('a listing with only one, two or three products samples just those that are not proof pages, and ends done (Marko 2026-11-20)', async () => {
+    for (const n of [1, 2, 3]) {
+      const f = await certifiedWebsite(`cov-few-${n}`);
+      try {
+        const host = new URL(f.listingUrl!).hostname;
+        // n products of its own on the listing, plus the proof pages, which are never sampled again.
+        const own = Array.from({ length: n }, (_, i) => `https://${host}/p/own-${i + 1}`);
+        const extract = extractWith(f.keyOf, () => false);
+        const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
+        await runCoverageCheck(checkId, { listing: vi.fn(async () => ({ productUrls: [...f.proofUrls, ...own], verdictMessage: null })), extract, proofShapes });
+        const row = await checkRow(checkId);
+        expect(row.status).toBe('done');
+        expect(row.error).toBeNull();
+        const results = row.results as CoverageResults;
+        expect(results.planned).toBe(n);
+        expect(results.sampled.map((p) => p.url).sort()).toEqual([...own].sort());
+        expect(results.noProducts).toBeUndefined();
+        expect(results.allProofPages).toBeUndefined();
+        const products = n === 1 ? 'product' : 'products';
+        expect((await latestCoverageCheck(f.sourceId))!).toMatchObject({ status: 'done', fields: [], stage: `Checked ${n} more ${products} from the listing: every field was found on all of them.` });
+      } finally { await f.cleanup(); }
+    }
+  });
+
+  it('a listing with fewer products than proof pages, all of them proof pages, ends done and says so', async () => {
+    for (const n of [1, 2]) {
+      const f = await certifiedWebsite(`cov-fewproof-${n}`);
+      try {
+        const extract = vi.fn();
+        const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
+        await runCoverageCheck(checkId, { listing: vi.fn(async () => ({ productUrls: f.proofUrls.slice(0, n), verdictMessage: null })), extract, proofShapes });
+        const row = await checkRow(checkId);
+        expect(row).toMatchObject({ status: 'done', error: null });
+        expect(row.results).toMatchObject({ sampled: [], allProofPages: true });
+        expect(extract).not.toHaveBeenCalled();
+        expect((await latestCoverageCheck(f.sourceId))!.stage).toBe(ALL_PROOF_PAGES);
+      } finally { await f.cleanup(); }
+    }
+  });
+
   it('a proof page marked "Not on this product" for Price stops the offer for that shape (spec 2026-10-20 §3.8)', async () => {
     const f = await certifiedWebsite('cov-answered');
     try {

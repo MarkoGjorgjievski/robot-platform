@@ -452,6 +452,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     { refetchInterval: (query) => (query.state.data?.status === 'running' ? 3000 : false) },
   );
   // The last finished check stays on screen while a new one runs (after a Verify), so the block never empties.
+  // The proof table's products, which the checked-products table leaves out.
+  const proofUrls = useMemo(() => board.cards.map((c) => c.url).filter((u) => u.trim() !== ''), [board.cards]);
   const lastSampled = useRef<{ results: NonNullable<NonNullable<typeof coverageQuery.data>['results']>; createdAt: Date } | null>(null);
   if (coverageQuery.data?.status === 'done' && coverageQuery.data.results) lastSampled.current = { results: coverageQuery.data.results, createdAt: coverageQuery.data.createdAt };
   const coverage: ProofCoverageView | null = coverageQuery.data
@@ -1982,11 +1984,12 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               settling={settling}
             />
             {/* The products the check read after Verify, shown and not only counted; read-only, with "Use as proof page". */}
-            {lastSampled.current && lastSampled.current.results.sampled.length > 0 ? (
+            {lastSampled.current ? (
               <SampledProducts
                 sourceId={sourceId}
                 websiteName={source.name}
-                sampled={lastSampled.current.results.sampled.filter((p) => !board.cards.some((c) => c.url === p.url))}
+                sampled={lastSampled.current.results.sampled}
+                proofUrls={proofUrls}
                 fields={fields}
                 checkedAt={lastSampled.current.createdAt}
                 onUseAsProofPage={
