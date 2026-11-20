@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { Check, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Skeleton } from '../ui/skeleton';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../ui/context-menu';
 import { cn } from '../../lib/utils';
 import { TYPE_LABELS } from '../../lib/fields-view';
@@ -675,6 +676,68 @@ export function VerificationTable({
         </p>
       ) : null}
       <p className="hidden text-xs text-muted-foreground md:block" data-testid="table-click-hint">Click any cell to open its screenshot on that value.</p>
+    </div>
+  );
+}
+
+/**
+ * The proof table before it has products (Marko 2026-11-20): the same columns, so the website's fields are there
+ * from the start and nothing moves when products arrive. `finding`: products are being found, and three placeholder
+ * rows stand in for them; otherwise the body is one line saying how to start.
+ */
+export function EmptyProofTable({ fields, finding, message }: { fields: readonly Pick<Field, 'key' | 'name' | 'type'>[]; finding: boolean; message: ReactNode }) {
+  const span = 3 + fields.length + 1;
+  return (
+    <div className="overflow-x-auto rounded-[6px] border border-line bg-panel" data-testid="proof-table-empty" aria-busy={finding || undefined}>
+      <table className="w-full table-fixed border-collapse" style={{ minWidth: 48 + 220 + 240 + fields.length * 190 + END_COLUMN }}>
+        <colgroup>
+          <col style={{ width: 48 }} />
+          <col style={{ width: 220 }} />
+          <col style={{ width: 240 }} />
+          {fields.map((f) => (
+            <col key={f.key} />
+          ))}
+          <col style={{ width: END_COLUMN }} />
+        </colgroup>
+        <thead>
+          <tr className="[&>th]:border-b [&>th]:border-line">
+            <th scope="col" aria-label="Image" />
+            <th scope="col" className="px-2 py-2 text-left text-sm font-normal text-muted-foreground">Title</th>
+            <th scope="col" className="border-l border-line px-2 py-2 text-left text-sm font-normal text-muted-foreground">Link</th>
+            {fields.map((f) => (
+              <th key={f.key} scope="col" className="border-l border-line px-2 py-2 text-left align-top font-normal">
+                <span className="flex min-w-0 items-baseline gap-1.5 pl-[18px]">
+                  <span className="min-w-0 truncate text-base">{f.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{TYPE_LABELS[f.type]}</span>
+                </span>
+              </th>
+            ))}
+            <th scope="col" className="border-l border-line" aria-label="Actions" />
+          </tr>
+        </thead>
+        <tbody>
+          {finding ? (
+            [0, 1, 2].map((r) => (
+              <tr key={r} className="h-[34px] [&>*]:border-b [&>*]:border-line [&:last-child>*]:border-b-0">
+                <td className="px-2 py-1"><Skeleton className="size-8 bg-raised" /></td>
+                <td className="px-2 py-1"><Skeleton className="h-3.5 bg-raised" style={{ width: `${75 - r * 12}%` }} /></td>
+                <td className="border-l border-line px-2 py-1"><Skeleton className="h-3 w-3/5 bg-raised" /></td>
+                {fields.map((f, i) => (
+                  <td key={f.key} className="border-l border-line px-2 py-1"><Skeleton className="h-3.5 bg-raised" style={{ width: `${70 - ((r + i) % 3) * 15}%` }} /></td>
+                ))}
+                <td className="border-l border-line" />
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={span} className="py-6 text-base text-muted-foreground">
+                {/* Pinned to the left, so it stays in view however wide the field columns make the table. */}
+                <span className="sticky left-0 block w-fit px-3">{message}</span>
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

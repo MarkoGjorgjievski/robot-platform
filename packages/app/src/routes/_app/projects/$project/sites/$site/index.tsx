@@ -14,7 +14,7 @@ import { MarkPopover } from '../../../../../../components/verification/mark-popo
 import { SampledProducts } from '../../../../../../components/verification/sampled-products';
 import { ScreenshotPopover } from '../../../../../../components/verification/screenshot-popover';
 import { SectionTitle } from '../../../../../../components/verification/section-title';
-import { VerificationTable, type ProductColumn, type TableRow, type DriftLine } from '../../../../../../components/verification/verification-table';
+import { EmptyProofTable, VerificationTable, type ProductColumn, type TableRow, type DriftLine } from '../../../../../../components/verification/verification-table';
 import { clampSelection, headerCount, type CellSelection } from '../../../../../../lib/site/table-selection';
 import { VerifyBar } from '../../../../../../components/verification/verify-bar';
 import { useWide } from '../../../../../../lib/use-wide';
@@ -1682,6 +1682,32 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const panel = 'rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]';
   const selectedCard = board.cards[selected];
 
+  // What this step is, said once above the table (Marko 2026-11-19): it is not obvious that three products stand for the whole website.
+  const proofTitle = (
+            <div className="px-1">
+              <SectionTitle
+                title="Proof products"
+                info={
+                  <>
+                    <p>
+                      <strong>These products teach us how to read the whole website.</strong> Each value in the table should match what its product&apos;s page shows.
+                    </p>
+                    <ul className="list-disc pl-5">
+                      <li>
+                        <strong>Right:</strong> accept it.
+                      </li>
+                      <li>
+                        <strong>Wrong or missing:</strong> click the cell and mark the right value on the screenshot.
+                      </li>
+                    </ul>
+                    <p>
+                      When every column is accepted, press <strong>Verify</strong>. We then read every other product the same way.
+                    </p>
+                  </>
+                }
+              />
+            </div>
+  );
   const [downloading, setDownloading] = useState(false);
   const screenshotPanel = panelOpen ? (
         <section aria-label="Screenshot" className={panelBeside ? 'min-w-0 space-y-2 xl:sticky xl:top-4' : 'space-y-2'}>
@@ -1930,30 +1956,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         <div>
           <div className="min-w-0 space-y-2">
             <TurnedAwayBar captures={board.cards.map((c) => (c.url.trim() ? captures.byUrl[c.url] : undefined))} name={source.name} />
-            {/* What this step is, said once above the table (Marko 2026-11-19): it is not obvious that three products stand for the whole website. */}
-            <div className="px-1">
-              <SectionTitle
-                title="Proof products"
-                info={
-                  <>
-                    <p>
-                      <strong>These products teach us how to read the whole website.</strong> Each value in the table should match what its product&apos;s page shows.
-                    </p>
-                    <ul className="list-disc pl-5">
-                      <li>
-                        <strong>Right:</strong> accept it.
-                      </li>
-                      <li>
-                        <strong>Wrong or missing:</strong> click the cell and mark the right value on the screenshot.
-                      </li>
-                    </ul>
-                    <p>
-                      When every column is accepted, press <strong>Verify</strong>. We then read every other product the same way.
-                    </p>
-                  </>
-                }
-              />
-            </div>
+            {proofTitle}
             <VerificationTable
               columns={columns}
               rows={rows}
@@ -2013,10 +2016,12 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             </p>
           </div>
         </div>
-      ) : finding ? (
-        <ProductsSkeleton fields={fields.map((f) => f.name)} />
       ) : (
-        <div className={`${panel} px-4 py-5 text-base text-muted-foreground`}>Find products from a listing page, or paste product pages, to start.</div>
+        // Before there are products, the same table with the website's fields as its columns and nothing in it yet.
+        <div className="min-w-0 space-y-2">
+          {proofTitle}
+          <EmptyProofTable fields={fields} finding={finding} message="Find products from a listing page, or paste product pages, to start." />
+        </div>
       )}
 
       {/* Only while the project wants variants; never holds Verify or Extract back (plan 2 gates on it). */}
@@ -2081,40 +2086,3 @@ function ProductView({
   return <>{children}</>;
 }
 
-/**
- * The product area while Find products reads the listing (Marko 2026-11-11): the
- * table's shape — three product columns, a row per field — so the products land
- * where the customer is already looking. The listing check answers once, so this
- * stands until it does.
- */
-function ProductsSkeleton({ fields }: { fields: string[] }) {
-  const rows = fields.length > 0 ? fields : [''];
-  return (
-    <div aria-hidden className="overflow-hidden rounded-[6px] border border-line bg-panel">
-      <div className="grid grid-cols-[180px_repeat(3,minmax(0,1fr))_200px] gap-3 p-3">
-        <div className="flex items-end pb-1">
-          <Skeleton className="h-3 w-12 bg-raised" />
-        </div>
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="space-y-2 rounded-[6px] border border-line p-2" style={{ animationDelay: `${i * 120}ms` }}>
-            <Skeleton className="aspect-[4/3] w-full bg-raised" />
-            <Skeleton className="h-3 w-4/5 bg-raised" />
-            <Skeleton className="h-3 w-2/5 bg-raised" />
-          </div>
-        ))}
-        <div className="flex items-end pb-1">
-          <Skeleton className="h-3 w-14 bg-raised" />
-        </div>
-      </div>
-      {rows.map((name, r) => (
-        <div key={r} className="grid grid-cols-[180px_repeat(3,minmax(0,1fr))_200px] items-center gap-3 border-t border-line px-3 py-2.5">
-          {name ? <span className="truncate text-base text-muted-foreground">{name}</span> : <Skeleton className="h-3 w-20 bg-raised" />}
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-3.5 bg-raised" style={{ width: `${70 - ((r + i) % 3) * 15}%` }} />
-          ))}
-          <Skeleton className="h-3 w-24 bg-raised" />
-        </div>
-      ))}
-    </div>
-  );
-}
